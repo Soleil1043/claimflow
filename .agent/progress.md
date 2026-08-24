@@ -235,6 +235,34 @@
 **问题与修正**：
 - 初版公式写成 `min(费用, 保额-免赔额)` 语义错误（费用 8000 < 免赔 10000 时仍能算出赔付 6400，被测试当场抓住）→ 修正为标准绝对免赔算法 `min(费用, 保额) - 免赔额`，同步修正测试期望值（15800 用例：可赔基数 5800，赔付 4640）
 
+### [T010] RAG 知识库与检索工具 — 2026-08-25
+
+**操作**：
+- data/kb_docs/：12 篇真实感知识库文档（条款要点×2、理赔规则手册、免责条款汇总、等待期详解、进度指南、FAQ×2、意外险规则、ICD-10 对照、医保目录说明、审核疑点标准）
+- services/rag/embedder.py：BGE-M3 惰性单例加载（1024 维，normalize embeddings），embed_texts 批量 / embed_query 单条
+- services/rag/qdrant_client.py：客户端工厂（dev=local mode 零容器 / prod=服务连接，@cache 单例）
+- services/rag/ingest.py：markdown 按二级标题分块（超长段落细切，块首附文档主题上下文）→ 向量化 → Qdrant upsert + kb_documents 元数据表同步（幂等，--force 可重灌）
+- services/rag/retriever.py：query_points 相似度检索 top-k，返回带分数的 RetrievedChunk
+- tools/claim/claim_rule_rag.py：ClaimRuleRagTool（query/top_k 入参，无结果 success=False）
+- scripts/verify_rag.py：F06 验收检索质量脚本
+
+**涉及文件**：
+- `data/kb_docs/*.md`（12 篇）、`services/rag/embedder.py`、`services/rag/qdrant_client.py`、`services/rag/ingest.py`、`services/rag/retriever.py`
+- `tools/claim/claim_rule_rag.py`、`tools/claim/__init__.py`、`scripts/verify_rag.py`
+- `tests/rag/test_retriever.py`（11 用例）
+
+**验证方式**：
+- `uv run python -m services.rag.ingest` → 12 文档 53 chunks 入库（Qdrant local mode + BGE-M3 真实模型）
+- `uv run python -m scripts.verify_rag` → "阑尾炎手术有等待期吗" top-1 命中等待期规则详解·阑尾炎案例（score 0.758）；"理赔需要什么材料" top-1 命中材料清单（0.749）；"既往症能赔吗" top-1 命中既往症免责（0.713），均按相似度降序
+- `uv run pytest tests -q` → 71 passed（累计）；`uv run ruff check` → All checks passed
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- hf-mirror.com 连接不稳定（transformers 5.x + hf-xet 下载器）→ 直连 huggingface.co（实测 1.9s 可达）
+- C 盘初始仅剩 500MB 不够模型 2.2GB → 用户清理后恢复默认缓存路径（C:\Users\...\.cache\huggingface）
+- 测试初版一处函数内 import 位于使用之后（UnboundLocalError）→ 移至函数开头
+
 ---
 
 ## 问题追踪

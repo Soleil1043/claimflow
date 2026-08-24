@@ -5,11 +5,17 @@ from tools.claim.calculator import (
     ClaimCalculatorOutput,
     ClaimCalculatorTool,
 )
+from tools.claim.claim_rule_rag import (
+    ClaimRuleRagInput,
+    ClaimRuleRagOutput,
+    ClaimRuleRagTool,
+)
 from tools.claim.policy_query import PolicyQueryInput, PolicyQueryOutput, PolicyQueryTool
 from tools.registry import get_default_registry
 
 get_default_registry().register(PolicyQueryTool())
 get_default_registry().register(ClaimCalculatorTool())
+get_default_registry().register(ClaimRuleRagTool())
 
 __all__ = [
     "PolicyQueryTool",
@@ -18,4 +24,7 @@ __all__ = [
     "ClaimCalculatorTool",
     "ClaimCalculatorInput",
     "ClaimCalculatorOutput",
+    "ClaimRuleRagTool",
+    "ClaimRuleRagInput",
+    "ClaimRuleRagOutput",
 ]
