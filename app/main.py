@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.v1 import health
+from app.api.v1 import conversations, health
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
 from services.db.session import dispose_engine, init_db
@@ -36,3 +36,4 @@ app = FastAPI(
 )
 
 app.include_router(health.router)
+app.include_router(conversations.router)

@@ -263,6 +263,31 @@
 - C 盘初始仅剩 500MB 不够模型 2.2GB → 用户清理后恢复默认缓存路径（C:\Users\...\.cache\huggingface）
 - 测试初版一处函数内 import 位于使用之后（UnboundLocalError）→ 移至函数开头
 
+### [T011] 对话 API 与状态持久化 — 2026-08-25
+
+**操作**：
+- schemas/api.py：A02-A05 请求/响应模型（ConversationCreate/List/Detail + MessageItem 含 tool_trace/agent_steps/compliance_status 审计字段）
+- app/api/v1/conversations.py：A02 创建（201+UUID）/ A03 列表（倒序分页+message_count）/ A04 详情（最近 5 条摘要+404）/ A05 历史（正序+审计字段往返）
+- services/memory/short_term.py：CheckpointManager——start/close 生命周期 + checkpointer 属性（dev=InMemorySaver，prod=AsyncPostgresSaver 含 setup() 建表；未初始化访问抛错防静默降级）；MAX_HISTORY_MESSAGES=20 滑窗常量
+- app/main.py：注册 conversations 路由
+- tests/api/test_conversations.py：13 用例（CRUD 全路径 + 分页 + 计数 + 404 + 审计字段 + CheckpointManager 生命周期/幂等/未初始化抛错）
+
+**涉及文件**：
+- `schemas/api.py`、`app/api/v1/conversations.py`、`app/main.py`
+- `services/memory/short_term.py`
+- `tests/api/test_conversations.py`
+
+**验证方式**：
+- `uv run pytest tests -q` → 82 passed（累计）；`uv run ruff check` → All checks passed
+- uvicorn 冒烟实测：A02 create 201（UUID 返回）/ A03 list total=1 / A04 detail + 404 / A05 messages
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- AsyncPostgresSaver.from_conn_string 返回 async context manager 而非 saver 实例（初版工厂直接返回导致测试断言失败，暴露真实设计缺陷）→ 重构为 CheckpointManager 持有者模式（lifespan 管理 __aenter__/__aexit__，官方 setup() 建表约定）
+- pydantic property 不能 monkeypatch（checkpoint_conn_string）→ 测试改 patch 底层 postgres 字段
+- FastAPI Depends 默认参数触发 ruff B008 → noqa（FastAPI 惯用法）
+
 ---
 
 ## 问题追踪

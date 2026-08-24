@@ -1,13 +1,15 @@
 """API 请求/响应 Pydantic schema。
 
-A01 健康检查在此定义；对话类接口（A02-A07）schema 在 T011/T020 补充。
+A01 健康检查 + A02-A05 会话管理（A06 发消息随 T012、A07 文件上传随 T020 补充）。
 """
 
 from __future__ import annotations
 
-from typing import Literal
+import datetime as dt
+import uuid
+from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class DependencyStatus(BaseModel):
@@ -23,3 +25,78 @@ class HealthResponse(BaseModel):
     status: Literal["ok", "degraded", "error"]
     profile: str
     dependencies: dict[str, DependencyStatus]
+
+
+# ---------- A02 创建会话 ----------
+
+
+class ConversationCreateRequest(BaseModel):
+    """POST /api/v1/conversations 请求体。"""
+
+    user_id: str = Field(default="demo-user", min_length=1, max_length=64)
+
+
+class ConversationCreateResponse(BaseModel):
+    """创建会话响应。"""
+
+    conversation_id: uuid.UUID
+    user_id: str
+    status: str
+    created_at: dt.datetime
+
+
+# ---------- A03 会话列表 ----------
+
+
+class ConversationSummary(BaseModel):
+    """会话列表项。"""
+
+    id: uuid.UUID
+    user_id: str
+    status: str
+    created_at: dt.datetime
+    message_count: int = 0
+
+
+class ConversationListResponse(BaseModel):
+    """GET /api/v1/conversations 响应。"""
+
+    total: int
+    items: list[ConversationSummary]
+
+
+# ---------- A05 消息 ----------
+
+
+class MessageItem(BaseModel):
+    """单条消息（对外展示层，含审计字段）。"""
+
+    id: int
+    role: str
+    content: str
+    intent: str | None = None
+    tool_trace: list[dict[str, Any]] | None = None
+    agent_steps: list[dict[str, Any]] | None = None
+    compliance_status: str | None = None
+    created_at: dt.datetime
+
+
+class MessageListResponse(BaseModel):
+    """GET /api/v1/conversations/{id}/messages 响应。"""
+
+    total: int
+    items: list[MessageItem]
+
+
+# ---------- A04 会话详情 ----------
+
+
+class ConversationDetailResponse(BaseModel):
+    """GET /api/v1/conversations/{id} 响应（会话 + 最近消息摘要）。"""
+
+    id: uuid.UUID
+    user_id: str
+    status: str
+    created_at: dt.datetime
+    updated_at: dt.datetime | None = None
+    last_messages: list[MessageItem] = Field(default_factory=list)
