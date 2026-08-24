@@ -175,6 +175,27 @@
 - langchain-openai 1.6.0 的 ainvoke 实际走 `async_client.with_raw_response.create`（非 root_client.create，且 async_client 是 AsyncCompletions 代理而非完整客户端），mock 需 patch 该实例方法并返回带 .parse() 的 raw response 对象——初版两次 patch 错对象导致真实 401 请求
 - 测试环境无 Key 时 ChatOpenAI 实例化即报错 → fixture 注入占位 Key（网络层全 mock，无真实调用）
 
+### [T007] 工具层基础设施 — 2026-08-24
+
+**操作**：
+- schemas/tools.py：ToolInput / ToolOutput 基类（success / error_message / data 三段结构）
+- tools/base.py：BaseTool 泛型抽象类——execute() 统一入参校验 + 结构化日志（耗时/成功），子类只实现 _run()；to_openai_tool() 生成 function calling 定义
+- tools/registry.py：ToolRegistry 注册/发现/重名拒绝/批量导出 Openai 工具定义，get_default_registry 全局单例
+- tools/executor.py：ToolExecutor——超时（默认 10s 可覆盖）、指数退避重试（base 0.5s，最多 2 次）、熔断器（closed/open/half-open：5 连续失败→open 30s→半开探测）、可选 fallback 降级（architecture.md 4.3 / 7.2 全机制落地）
+- tests/tools/test_infrastructure.py：18 用例（校验/日志/schema 导出/注册发现/重名/超时/fallback/重试成功/重试耗尽/熔断打开/熔断拒绝/熔断 fallback/半开恢复/半开再熔断/计数清零/未注册工具）
+
+**涉及文件**：
+- `schemas/tools.py`、`tools/base.py`、`tools/registry.py`、`tools/executor.py`
+- `tests/tools/test_infrastructure.py`
+
+**验证方式**：
+- `uv run pytest tests -q` → 43 passed（累计）；`uv run ruff check` → All checks passed
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- executor 初版 __init__ 未存 failure_threshold/breaker_cooldown 实例属性（_breaker 引用时报 AttributeError）→ 补齐属性赋值
+
 ---
 
 ## 问题追踪
