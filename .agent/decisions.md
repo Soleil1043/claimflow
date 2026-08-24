@@ -209,3 +209,24 @@ pyproject.toml [tool.uv]；uv.lock（146→128 包，移除 CUDA/triton）；Doc
 
 **影响**：
 本机环境（不在仓库内）；CI 流程；后续新增镜像时先 `docker pull` 预热再 up。
+
+## D012: 合规审查节点的实现路径 — 2026-08-25
+
+**背景**：
+T018 要求合规审查具备强可靠性（F10：违规内容必须被拦截，LLM 故障不能导致漏放行）。可选方案：
+（A）复用 run_worker_agent 让 Compliance Agent 走 ReAct 工具循环；
+（B）节点内先跑确定性规则工具取证，再单次 LLM 裁决，LLM 失败走确定性兜底判定。
+
+**选项与理由**：
+- A：与 Worker 路径一致，但输出解析失败会降级为 {"summary": ...}，丢失 verdict 三态——合规门禁不可接受
+- B：规则工具（正则）结果确定性可得，兜底判定（FRAUD_RISK 或 risk≥80 → REJECT；其他违规 → MODIFY；无违规 → PASS）不依赖 LLM
+
+**最终选择**：B。合规工具层同时提供纯函数（check_text / score_risk）与 BaseTool 封装：节点经 ToolExecutor 调用工具（未注册/执行失败时回退纯函数，保证拦截能力恒在）；BaseTool 版本注册供后续 Agent 路径复用。
+
+**附带决策**：
+- MODIFY 修订走 revise 节点（LLM 重写 + 正则兜底）→ 回 compliance 复审，compliance_rounds 上限 2 防死循环
+- REJECT 在节点内直接替换 final_answer 为安全话术（违规内容不落审计、不返回用户），need_human_intervention=True，会话状态标记 human_intervention
+- 合规工具调用不计入 tool_trace（used_tools 语义 = 本轮业务工具，合规是系统级门禁）
+
+**影响**：
+nodes/compliance.py、tools/compliance/、workflows/main_graph.py、A06 响应与审计。

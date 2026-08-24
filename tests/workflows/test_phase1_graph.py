@@ -46,7 +46,13 @@ def graph_env(monkeypatch):
 
     registry = ToolRegistry()
     registry.register(EchoTool())
+    # 合规工具（T018：图输出必经 compliance 节点）
+    from tools.compliance import ComplianceRuleCheckTool, RiskScoringTool
 
+    registry.register(ComplianceRuleCheckTool())
+    registry.register(RiskScoringTool())
+
+    import nodes.compliance as compliance_module
     import nodes.generator as generator_module
 
     scripted = ScriptedLLM(
@@ -63,6 +69,13 @@ def graph_env(monkeypatch):
         ]
     )
     monkeypatch.setattr(generator_module, "get_chat_model", lambda: scripted)
+
+    # 合规审查 LLM：固定返回 PASS（回答无违规，走直通路径）
+    class _PassModel:
+        async def ainvoke(self, messages: list[Any], config: Any = None) -> AIMessage:
+            return AIMessage(content='{"verdict": "PASS", "violations": [], "risk_score": 0, "reason": "无违规"}')
+
+    monkeypatch.setattr(compliance_module, "get_chat_model", lambda *a, **k: _PassModel())
 
     from langgraph.checkpoint.memory import InMemorySaver
 

@@ -430,6 +430,35 @@
 - TaskStep.step_index 无默认值导致 LLM 输出步骤（不含 step_index）校验失败被整体降级为兜底计划 → schema 给默认值 0，由 create_plan 统一重排
 - StepExecutor 传给 run_worker_agent 的 shared_data 为同一可变对象，步骤完成后回写会产生别名污染 → 传 dict(shared) 快照
 
+### [T018] 合规审查节点与三态流转 — 2026-08-25
+
+**操作**：
+- tools/compliance/rule_check.py：五类违规正则检测（PROMISE/ABSOLUTE/MISLEAD/FRAUD_RISK/PRIVACY：身份证/手机号/银行卡，身份证与银行卡片段去重）+ 纯函数 check_text；证据片段脱敏展示
+- tools/compliance/risk_scoring.py：加权评分（FRAUD_RISK 60 / PRIVACY 30 / MISLEAD 20 / PROMISE 15 / ABSOLUTE 10 + 组合欺诈信号，封顶 100）+ 等级 low/medium/high + 纯函数 score_risk
+- nodes/compliance.py：review_answer（工具取证 → LLM 裁决 → 确定性兜底：FRAUD_RISK 或 risk≥80→REJECT，其他违规→MODIFY，无违规→PASS）；ComplianceNode（REJECT 替换安全话术 + need_human_intervention + intervention_reason）；revise_answer_node（LLM 重写 + 正则兜底替换）；compliance_route 三态条件边（MODIFY 闭环 compliance_rounds 上限 2）
+- workflows/main_graph.py：react_agent 的 end 边改路由到 compliance（所有输出路径必经合规节点），compliance → pass/modify/reject 三态，revise_answer → compliance 复审闭环
+- app/api/v1/conversations.py A06：返回 compliance_status/need_human_intervention/intervention_reason；审计落库 compliance_status；REJECT 时会话标记 transferred；每轮重置合规状态
+- services/llm/prompts.py：COMPLIANCE_REVIEW_PROMPT（裁决模板）+ REVISE_ANSWER_PROMPT（修订模板）
+- state.py：新增 compliance_result / compliance_rounds 字段
+- tests/nodes/test_compliance.py：25 用例（工具正则 6 / 评分 4 / review LLM 与兜底 7 / 节点 2 / 修订 3 / 路由 1 / 图集成 MODIFY 闭环 + REJECT 拦截 2）；tests/workflows/test_phase1_graph.py fixture 适配（合规 LLM mock + 注册合规工具）
+- scripts/verify_compliance.py：F10 真实 LLM 验收脚本（mini 图复刻 main_graph 合规接线）
+- 设计决策 D012：合规节点走"工具取证 + LLM 裁决 + 确定性兜底"（非 run_worker_agent，保证 verdict 三态在 LLM 故障时不丢失）
+
+**涉及文件**：
+- `tools/compliance/rule_check.py`、`tools/compliance/risk_scoring.py`、`tools/compliance/__init__.py`
+- `nodes/compliance.py`、`workflows/main_graph.py`、`state.py`
+- `app/api/v1/conversations.py`、`services/llm/prompts.py`
+- `tests/nodes/test_compliance.py`、`tests/workflows/test_phase1_graph.py`、`scripts/verify_compliance.py`、`.agent/decisions.md`（D012）
+
+**验证方式（真实 DeepSeek LLM 端到端）**：
+- `uv run python -m scripts.verify_compliance` → 场景 1"保证赔付 4,640 元"草稿被 MODIFY 拦截（检出 PROMISE + 具体修改建议"改为预估表述…最终以理赔审核结果为准"），修订闭环 2 轮后复审 PASS，修订后回答不含承诺话术；场景 2 欺诈草稿（代开发票+挂床）被 REJECT（risk_score=98），final_answer 替换为转人工安全话术，need_human_intervention=True，违规原文不返回 → F10 验收通过
+- `uv run pytest tests -q` → 167 passed（累计）；`uv run ruff check` → All checks passed
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- ComplianceNode PASS 路径不写 final_answer（LangGraph 局部更新语义），初版测试误断言 KeyError → 修正断言为"不包含 final_answer 键"
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

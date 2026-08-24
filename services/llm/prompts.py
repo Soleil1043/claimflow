@@ -139,6 +139,30 @@ ORCHESTRATOR_AGENT_PROMPT = """\
 }}
 """
 
+# 合规审查（T018，F10）：Compliance 节点专用（裁决用 human 消息模板，system 用 COMPLIANCE_AGENT_PROMPT）
+COMPLIANCE_REVIEW_PROMPT = """\
+待审查内容（拟返回给用户的回答草稿）：
+{draft}
+
+规则工具检测结果：
+{evidence}
+
+请依据你的职责与五类违规标准给出审查结论（JSON）。
+规则工具未检出的风险也由你独立判断；工具误报（如引用条款原文的规范性表述）可酌情放行，但须在 reason 中说明。"""
+
+# 回答修订（T018，F10）：MODIFY 流转的 revise 节点使用
+REVISE_ANSWER_PROMPT = """\
+你是保险理赔客服的回答修订器。以下回答草稿未通过合规审查，请按修改建议重写：
+保持原有信息量与语气，仅修正违规表述，不得添加新的事实性承诺，保持中文。
+
+原回答：
+{draft}
+
+修改建议：
+{suggestions}
+
+直接输出修订后的回答全文，不要输出其他内容。"""
+
 # 任务规划（T017，F08）：Planner 节点专用（多步任务拆解）
 TASK_PLANNER_PROMPT = """\
 你是保险理赔系统的任务规划器（Planner）。将用户的复杂诉求拆解为有序执行计划，

@@ -177,10 +177,11 @@ async def send_message(
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
     graph=Depends(get_app_graph),  # noqa: B008
 ) -> MessageSendResponse:
-    """A06 发消息：触发单 Agent ReAct 流程（F07 核心接口）。
+    """A06 发消息：触发单 Agent ReAct 流程 + 合规三态门禁（F07/F10 核心接口）。
 
-    流程：用户消息入 state → LangGraph 执行（工具循环）→
-    final_answer + tool_trace 落 messages 表（审计层）→ 返回结构化响应。
+    流程：用户消息入 state → LangGraph 执行（工具循环 → 合规审查）→
+    final_answer + tool_trace + compliance_status 落 messages 表（审计层）→
+    返回结构化响应；REJECT 时会话标记 transferred（转人工）。
     """
     conversation = await _get_conversation_or_404(conversation_id, session)
 
@@ -188,16 +189,27 @@ async def send_message(
         {
             "messages": [HumanMessage(content=body.content)],
             "conversation_id": str(conversation_id),
-            # 每轮重置轨迹：used_tools 语义为"本轮调用"（checkpoint 只累积 messages）
+            # 每轮重置：used_tools / 合规状态语义为"本轮"（checkpoint 只累积 messages）
             "tool_trace": [],
+            "compliance_rounds": 0,
+            "need_human_intervention": False,
+            "intervention_reason": None,
         },
         config={"configurable": {"thread_id": str(conversation_id)}},
     )
 
     answer = result.get("final_answer") or "抱歉，我暂时无法处理该问题，请稍后再试。"
     tool_trace = result.get("tool_trace") or []
+    compliance = result.get("compliance_result") or {}
+    compliance_status = compliance.get("verdict")
+    need_human = bool(result.get("need_human_intervention"))
+    intervention_reason = result.get("intervention_reason")
 
-    # 审计落库：user + assistant 两条（Phase 1 无 intent/compliance，T013/T018 启用）
+    # REJECT 转人工：会话状态标记（F10）
+    if need_human:
+        conversation.status = "transferred"
+
+    # 审计落库：user + assistant 两条（REJECT 时 answer 已是安全话术，违规原文不落库）
     session.add(
         Message(conversation_id=conversation_id, role="user", content=body.content)
     )
@@ -207,9 +219,16 @@ async def send_message(
             role="assistant",
             content=answer,
             tool_trace=tool_trace,
+            compliance_status=compliance_status,
         )
     )
     conversation.updated_at = func.now()
     await session.flush()
 
-    return MessageSendResponse(answer=answer, used_tools=tool_trace)
+    return MessageSendResponse(
+        answer=answer,
+        used_tools=tool_trace,
+        compliance_status=compliance_status,
+        need_human_intervention=need_human,
+        intervention_reason=intervention_reason,
+    )

@@ -45,3 +45,7 @@ class AgentState(TypedDict, total=False):
     final_answer: str
     need_human_intervention: bool
     intervention_reason: str | None
+
+    # ===== 合规审查（T018 启用） =====
+    compliance_result: dict[str, Any] | None  # ComplianceAgentOutput（verdict/violations/risk_score/reason）
+    compliance_rounds: int  # 审查轮数（MODIFY 修订闭环上限防死循环）
