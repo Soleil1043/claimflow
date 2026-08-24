@@ -44,17 +44,23 @@ class ReactAgentNode:
         - LLM 请求工具 → 新增 AIMessage(tool_calls) + 本次执行的 ToolMessage(s)，
           conditions 检测 state 末尾是 ToolMessage 则继续循环
         - LLM 直接回答 → 新增 AIMessage(content)，final_answer 提取
+        - LLM 故障（超时等）→ 降级话术（T022：LLM 超时场景不 500）
         """
         model = get_chat_model()
-        bound = model.bind_tools(self._tool_specs) if self._tool_specs else model
-
         messages: list[AnyMessage] = [
             *self._system_prefix(),
             *state["messages"],
         ]
         # 透传 LangGraph 运行上下文中的回调（tracing），缺省为 None 不影响执行
         config = ensure_config()
-        response: AIMessage = await bound.ainvoke(messages, config=config)
+        try:
+            bound = model.bind_tools(self._tool_specs) if self._tool_specs else model
+            response: AIMessage = await bound.ainvoke(messages, config=config)
+        except Exception as exc:  # noqa: BLE001 LLM 故障降级
+            log.warning("react_llm_error", error=str(exc)[:200])
+            fallback = "抱歉，服务暂时繁忙，请稍后再试或转人工服务。"
+            # 追加 AIMessage 保证条件边正常终止（末尾非 ToolMessage，不再循环）
+            return {"messages": [AIMessage(content=fallback)], "final_answer": fallback}
 
         if not response.tool_calls:
             # 最终回答

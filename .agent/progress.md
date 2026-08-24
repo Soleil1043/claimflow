@@ -539,6 +539,33 @@
 **问题与修正**：
 - RAG 检索故障测试初版断言错误：rag_node 捕获异常后降级为"无结果"标记继续流程（非直接空 shared_data），synthesize 兜底输出该标记 → 修正断言
 
+### [T022] 端到端测试与场景完善 — 2026-08-25
+
+**操作**：
+- nodes/generator.py：补 ReactAgentNode LLM 故障降级（此前唯一无兜底的节点——LLM 超时会导致 A06 500）：bind/ainvoke 异常 → 返回降级话术 + 追加 AIMessage 保证条件边正常终止（末尾非 ToolMessage，不再循环）
+- tests/api/test_a06_scenarios.py：A06 端到端场景测试 6 用例（httpx AsyncClient + 真实工具链 + 真实内存 DB + 完整主图，LLM 全 mock）：
+  1. 正常 multi_step：完整响应结构（intent/agent_steps×2/compliance_status/used_tools）+ 审计落库（intent/agent_steps/compliance_status/tool_trace 四字段）
+  2. 边界·保单不存在：react 路径真实调 policy_query 打空库 → success=false 结构化错误轨迹 + 兜底回答
+  3. 异常·LLM 全线超时：intent 关键词兜底（single_domain）→ react 降级话术 → compliance 确定性兜底 PASS，接口 200 不报错
+  4. 异常·合规 REJECT：违规内容不返回用户 + need_human_intervention + 会话 transferred + 审计落安全话术（非违规原文）
+  5. 异常·合规 MODIFY：修订闭环后返回修订版（"保证赔付"消除，终态 PASS）
+  6. 边界·多轮状态隔离：第二轮 agent_steps 不跨轮累积（每轮重置语义），审计 4 条消息
+
+**涉及文件**：
+- `nodes/generator.py`（ReactAgentNode 降级补齐）
+- `tests/api/test_a06_scenarios.py`
+
+**验证方式**：
+- `uv run pytest tests -q` → **220 passed**（累计；本任务 +6）；`uv run ruff check`（含 ui）→ All checks passed
+- 验收四场景覆盖核对：保单不存在（场景 2）/ LLM 超时（场景 3，含新增 react 降级）/ 合规拦截（场景 4+5）/ Mock 兜底（T020 test_ocr_extract.py 已覆盖：vision 故障 → mock_fallback 接口 200）
+- Mock 数据边界核查：policies（active×3/expired/surrendered）+ medical_records + ocr_fallback 已覆盖正常/异常/边界，无需新增
+
+**状态**：✅ 通过验证
+
+**测试体系总览（T022 时点）**：
+- 220 个用例：core 7 / db 7 / api（health+CRUD+A06 场景）26 / llm 7 / tools（基础设施+claim+medical+compliance）69 / rag 11 / agents 14 / nodes（intent+planner/executor+compliance）55 / workflows（phase1+full graph）24
+- 三层结构：纯函数与工具单测（mock 外部）→ 图级集成（mock LLM 真实节点）→ API 端到端（AsyncClient + 真实工具链）；真实 LLM 验收脚本 6 个（verify_intent/rag/ui/planner/compliance/ocr/e2e）
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

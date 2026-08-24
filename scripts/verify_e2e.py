@@ -19,10 +19,11 @@ from __future__ import annotations
 
 import asyncio
 
+from langchain_core.messages import HumanMessage
+
 import tools.claim  # noqa: F401 注册理赔工具
 import tools.compliance  # noqa: F401 注册合规工具
 import tools.medical  # noqa: F401 注册医疗工具
-from langchain_core.messages import HumanMessage
 from scripts.seed import seed_medical_records, seed_policies
 from services.db.session import dispose_engine, init_db
 from tools.executor import ToolExecutor
