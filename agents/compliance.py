@@ -1,6 +1,6 @@
 """Compliance Agent（合规风控代理）：一票否决权（ADR-002：独立 Agent 而非工具）。
 
-审查工具 rule_check / risk_scoring / sensitive_filter 随 T018/T019 实现。
+审查工具已就绪：compliance_rule_check / risk_scoring（T018）、sensitive_filter（T019）。
 """
 
 from __future__ import annotations

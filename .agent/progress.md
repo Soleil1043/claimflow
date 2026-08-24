@@ -459,6 +459,27 @@
 **问题与修正**：
 - ComplianceNode PASS 路径不写 final_answer（LangGraph 局部更新语义），初版测试误断言 KeyError → 修正断言为"不包含 final_answer 键"
 
+### [T019] 敏感信息脱敏工具 — 2026-08-25
+
+**操作**：
+- tools/compliance/sensitive_filter.py：SensitiveFilterTool——身份证（18 位，前 4 后 4）→ 3301**********1234；银行卡（16-19 位，前 4 后 4）；手机号（11 位，前 3 后 4）→ 138****5678；纯函数 mask_sensitive / find_sensitive（检测明细含原文与脱敏值）；正则与 rule_check PRIVACY 检测共用（单一来源），替换顺序身份证→银行卡→手机号天然去重（星号段不再命中后续正则）
+- tools/compliance/__init__.py：注册 sensitive_filter（Compliance Agent resolve_tools 自动生效）
+- agents/compliance.py：docstring 更新（工具已就绪）
+- tests/tools/compliance/test_sensitive_filter.py：24 用例（身份证 4 含 X 后缀/数字边界/15 位不命中；银行卡 3 含 16/19 位/超长不命中；手机号 3 含全号段/12 开头不命中/短号不命中；混合/去重/幂等/干净文本；find_sensitive 2；BaseTool 执行/注册/schema/空入参/独立注册中心 6；参数化单值 3）
+
+**涉及文件**：
+- `tools/compliance/sensitive_filter.py`、`tools/compliance/__init__.py`、`agents/compliance.py`
+- `tests/tools/compliance/test_sensitive_filter.py`
+
+**验证方式**：
+- `uv run pytest tests -q` → 191 passed（累计）；`uv run ruff check` → All checks passed
+- F11 验收演示：混合文本"张三 330106199001011234，手机 13812345678，卡号 6222020200112233445" → 一次全部脱敏为"3301**********1234 / 138****5678 / 6222***********3445"，且幂等（二次脱敏不变）
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- 初版测试 6 处期望值笔误（19 位银行卡中间应为 11 个星号；一处遗漏文本前缀；手机号拼接少一位成 10 位）——实现本身正确，修正测试期望
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|
