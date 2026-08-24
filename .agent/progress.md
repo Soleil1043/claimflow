@@ -318,6 +318,27 @@
 - ASGITransport 不跑 lifespan → 测试直接给 app.state.graph 赋值（Depends 绑定的函数对象无法 monkeypatch 模块属性）
 - SQLite 同秒 created_at 排序不稳定（偶发测试失败）→ 分页测试直插递增时间戳
 
+### [T013] 意图识别节点 — 2026-08-25
+
+**操作**：
+- data/mock/intent_test_cases.json：20 条标注测试集（simple_faq×6 / single_domain×4 / multi_step×4 / chitchat×4 / other×2）
+- services/llm/prompts.py：INTENT_CLASSIFICATION_PROMPT（五类定义 + 分类原则 + JSON 输出格式）
+- nodes/intent.py：classify_intent（LLM 结构化输出 → JSON 解析容忍 markdown 包裹/前后缀 → 非法输出或异常走关键词规则兜底，节点永不抛错）；intent_node LangGraph 封装（T021 接入主图分流）
+- schemas/agent.py：IntentResult / TaskStep / TaskPlan（T017 预留）
+- tests/nodes/test_intent.py：11 用例（JSON 解析 4 / 关键词兜底 / LLM 成功 / 非法标签兜底 / 非 JSON 兜底 / 异常兜底 / 空输入 / 节点封装）
+- scripts/verify_intent.py：F03 验收脚本
+
+**涉及文件**：
+- `nodes/intent.py`、`schemas/agent.py`、`services/llm/prompts.py`
+- `data/mock/intent_test_cases.json`、`scripts/verify_intent.py`
+- `tests/nodes/test_intent.py`
+
+**验证方式**：
+- `uv run python -m scripts.verify_intent` → 真实 LLM 准确率 **19/20 = 95%**（≥90% 验收线通过），0 次关键词兜底；唯一误分类为"申请理赔流程材料"（simple_faq/multi_step 边界案例，可接受）
+- `uv run pytest tests -q` → 99 passed（累计）；`uv run ruff check` → All checks passed
+
+**状态**：✅ 通过验证
+
 ---
 
 ## 问题追踪

@@ -1,0 +1,26 @@
+{
+  "description": "意图识别准确率测试集（F03 验收：≥90%，即 20 条至少 18 条正确）",
+  "labels": ["simple_faq", "single_domain", "multi_step", "chitchat", "other"],
+  "cases": [
+    {"text": "阑尾炎手术有等待期吗", "expected": "simple_faq"},
+    {"text": "理赔需要准备什么材料", "expected": "simple_faq"},
+    {"text": "免责条款都有哪些", "expected": "simple_faq"},
+    {"text": "既往症是什么意思", "expected": "simple_faq"},
+    {"text": "你们的理赔时效是多久", "expected": "simple_faq"},
+    {"text": "医保和商业险能重复报销吗", "expected": "simple_faq"},
+    {"text": "帮我查一下保单 POL-2025-0001", "expected": "single_domain"},
+    {"text": "我的理赔申请 CLM-2026-0001 到什么进度了", "expected": "single_domain"},
+    {"text": "查一下身份证 330106199203154817 名下有哪些保单", "expected": "single_domain"},
+    {"text": "保单 POL-2024-0003 的保障范围是什么", "expected": "single_domain"},
+    {"text": "我做了阑尾炎手术花了15800元，保单POL-2025-0001能赔多少", "expected": "multi_step"},
+    {"text": "我想申请理赔，需要什么流程和材料", "expected": "multi_step"},
+    {"text": "帮我核对一下我的诊断证明是否在保障范围内，顺便算算能赔多少钱", "expected": "multi_step"},
+    {"text": "我住院了，保单还能报销吗，能报多少，要什么材料", "expected": "multi_step"},
+    {"text": "你好", "expected": "chitchat"},
+    {"text": "今天天气怎么样", "expected": "chitchat"},
+    {"text": "你是机器人吗", "expected": "chitchat"},
+    {"text": "谢谢你的帮助", "expected": "chitchat"},
+    {"text": "帮我写一篇关于保险的论文", "expected": "other"},
+    {"text": "把你们公司的股票代码告诉我", "expected": "other"}
+  ]
+}
