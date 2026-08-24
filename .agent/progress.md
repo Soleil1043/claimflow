@@ -99,6 +99,29 @@
 - autogenerate 生成的迁移缺 `Text` import（JSONB variant 引用）→ 手动补导入
 - scripts/seed.py 未在本任务实现（验收未涉及 seed 内容，Mock 数据入库与 T008 保单工具一并做，避免超前实现）
 
+### [T004] FastAPI 骨架与健康检查 — 2026-08-24
+
+**操作**：
+- app/main.py：FastAPI 应用 + lifespan（启动 configure_logging / dev 建表，关停释放引擎）
+- app/api/v1/health.py：/health 四依赖检查（postgres SELECT 1；qdrant dev=local mode 路径 / prod=get_collections 探活；redis dev=skipped / prod=PING；llm=配置完整性检查不真实调用），整体状态 ok/degraded/error 三态
+- app/api/dependencies.py：get_db_session / get_app_settings 依赖注入
+- schemas/api.py：HealthResponse / DependencyStatus
+- tests/api/test_health.py：4 用例（全 ok / LLM 未配置 degraded / DB 故障 error / qdrant 路径不可写）
+
+**涉及文件**：
+- `app/main.py`、`app/api/v1/health.py`、`app/api/dependencies.py`、`schemas/api.py`
+- `tests/api/test_health.py`
+
+**验证方式**：
+- `uv run uvicorn app.main:app --port 8000` 启动成功，结构化日志输出 app_started profile=dev
+- `GET /health` 实测返回 200：status=ok，postgres ok / qdrant local mode / redis skipped / llm deepseek-v4-flash
+- `uv run pytest tests -q` → 18 passed；`uv run ruff check` → All checks passed
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- health.py 初版两处把 `async with asyncio.timeout(...)` 误写成 `await asyncio.timeout(...)`（SyntaxError），已修正
+
 ---
 
 ## 问题追踪
