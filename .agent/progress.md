@@ -50,6 +50,27 @@
 - plan 中包名 `langgraph-checkpoint-postgresql` 有误，PyPI 实际为 `langgraph-checkpoint-postgres`（3.1.2），已修正（见 decisions.md D009）
 - psycopg 纯 Python 实现在 Windows 缺 libpq，补 `psycopg[binary,pool]`（见 D009）
 
+### [T002] 配置与日志基础 — 2026-08-24
+
+**操作**：
+- app/core/config.py：pydantic-settings 全量配置（APP_PROFILE / LLM 双模型 / PG / Qdrant / Redis / Embedding），含 database_url / checkpoint_conn_string 按 profile 切换的派生属性
+- app/core/logging.py：structlog + stdlib ProcessorFormatter 集成，prod 输出紧凑 JSON、dev 输出彩色控制台，收敛第三方噪音日志
+- app/core/exceptions.py：异常体系基类（ToolExecutionError / LLMError / ComplianceRejectedError 为后续任务预留）
+- tests/core/：test_config.py（4 用例）+ test_logging.py（3 用例）
+
+**涉及文件**：
+- `app/core/config.py`、`app/core/logging.py`、`app/core/exceptions.py`
+- `tests/core/test_config.py`、`tests/core/test_logging.py`
+
+**验证方式**：
+- `uv run pytest tests/core -v` → 7 passed
+- `uv run ruff check app tests` → All checks passed
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- 测试初版两处错误：`logging.StreamHandler()` 默认写 stderr（测试误读 stdout）；`structlog.stdlib.get_logger` 返回惰性代理，`bind()` 后才是 BoundLogger 实例。均已修正。
+
 ---
 
 ## 问题追踪
