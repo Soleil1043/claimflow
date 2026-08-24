@@ -1,17 +1,19 @@
-﻿"""会话管理路由（A02-A06）。
+﻿"""会话管理路由（A02-A07）。
 
 - A02 POST /api/v1/conversations          创建会话
 - A03 GET  /api/v1/conversations          会话列表（分页）
 - A04 GET  /api/v1/conversations/{id}     会话详情 + 最近消息摘要
 - A05 GET  /api/v1/conversations/{id}/messages  消息历史（分页，时间正序）
 - A06 POST /api/v1/conversations/{id}/messages  发消息（触发 LangGraph ReAct 流程）
+- A07 POST /api/v1/conversations/{id}/images    上传图片材料（vision OCR + Mock 兜底，F12）
 """
 
 from __future__ import annotations
 
+import base64
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from langchain_core.messages import HumanMessage
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +29,7 @@ from schemas.api import (
     MessageListResponse,
     MessageSendRequest,
     MessageSendResponse,
+    OcrResultResponse,
 )
 from services.db.models import Conversation, Message
 
@@ -231,4 +234,100 @@ async def send_message(
         compliance_status=compliance_status,
         need_human_intervention=need_human,
         intervention_reason=intervention_reason,
+    )
+
+
+# 允许的图片 MIME 类型（A07 入口校验，非图片 422）
+_ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/bmp"}
+
+
+def _mime_from_upload(file: UploadFile) -> str:
+    """取上传文件的 MIME（content_type 缺失时按扩展名推断）。"""
+    mime = (file.content_type or "").lower()
+    if mime in _ALLOWED_IMAGE_TYPES:
+        return "image/jpeg" if mime == "image/jpg" else mime
+    # content_type 缺失或非法：按扩展名兜底推断
+    suffix = (file.filename or "").rsplit(".", 1)[-1].lower() if file.filename else ""
+    return {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp", "bmp": "image/bmp"}.get(
+        suffix, ""
+    )
+
+
+@router.post(
+    "/{conversation_id}/images",
+    response_model=OcrResultResponse,
+)
+async def upload_image(
+    conversation_id: uuid.UUID,
+    file: UploadFile = File(...),  # noqa: B008
+    session: AsyncSession = Depends(get_db_session),  # noqa: B008
+) -> OcrResultResponse:
+    """A07 上传图片材料：vision OCR 提取结构化字段（F12）。
+
+    - 非图片文件（MIME/扩展名均不匹配）→ 422
+    - vision API 异常 → 工具内部降级返回预置 Mock 数据（source: mock_fallback），接口不报错
+    - OCR 结果落审计消息（role=assistant，tool_trace 记录本次识别）
+    """
+    conversation = await _get_conversation_or_404(conversation_id, session)
+
+    mime = _mime_from_upload(file)
+    if mime not in _ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="仅支持图片文件（png/jpeg/webp/bmp）",
+        )
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="上传文件为空",
+        )
+    image_base64 = base64.b64encode(content).decode("ascii")
+
+    # OCR：vision 模型提取，失败自动 Mock 兜底（工具内部保证不抛错）
+    from tools.medical.ocr_extract import OcrExtractTool
+
+    ocr = OcrExtractTool()
+    result = await ocr.execute({"image_base64": image_base64, "mime_type": mime})
+    data = result.data if result.success else {}
+
+    # 审计落库：上传行为 + OCR 结果摘要（后续对话可查历史追溯）
+    session.add(
+        Message(
+            conversation_id=conversation_id,
+            role="user",
+            content=f"【上传图片材料】{file.filename}",
+        )
+    )
+    session.add(
+        Message(
+            conversation_id=conversation_id,
+            role="assistant",
+            content=(
+                f"【材料识别结果】姓名：{data.get('patient_name') or '未识别'}；"
+                f"诊断：{data.get('diagnosis') or '未识别'}；"
+                f"金额：{data.get('amount') if data.get('amount') is not None else '未识别'}；"
+                f"日期：{data.get('date') or '未识别'}；"
+                f"来源：{data.get('source', 'unknown')}"
+            ),
+            tool_trace=[
+                {
+                    "tool": "ocr_extract",
+                    "input": {"filename": file.filename, "mime_type": mime},
+                    "output": data,
+                }
+            ],
+        )
+    )
+    conversation.updated_at = func.now()
+    await session.flush()
+
+    return OcrResultResponse(
+        patient_name=data.get("patient_name"),
+        diagnosis=data.get("diagnosis"),
+        amount=data.get("amount"),
+        date=data.get("date"),
+        source=data.get("source", "unknown"),
+        filename=file.filename or "",
     )

@@ -46,6 +46,18 @@ class BackendClient:
         resp.raise_for_status()
         return resp.json()
 
+    async def upload_image(self, conversation_id: str, file_path: str) -> dict:
+        """A07 上传图片材料（vision OCR + Mock 兜底）。"""
+        import pathlib
+
+        with open(file_path, "rb") as f:
+            resp = await self._http.post(
+                f"/api/v1/conversations/{conversation_id}/images",
+                files={"file": (pathlib.Path(file_path).name, f)},
+            )
+        resp.raise_for_status()
+        return resp.json()
+
 
 _client = BackendClient(API_BASE)
 
@@ -92,6 +104,48 @@ async def chat(message: str, history: list, session_state: dict) -> str:
     return _format_reply(result)
 
 
+async def _ensure_conversation(session_state: dict) -> str | None:
+    """惰性创建会话，返回会话 id 或错误提示前的 None。"""
+    if "conversation_id" not in session_state:
+        session_state["conversation_id"] = await _client.create_conversation()
+    return session_state["conversation_id"]
+
+
+async def upload_image(file_path: str | None, history: list, session_state: dict) -> tuple[list, dict]:
+    """上传图片回调：A07 OCR 识别结果以对话消息展示（F12/F13）。"""
+    if not file_path:
+        return history, session_state
+    history = history + [{"role": "user", "content": f"📎 已上传图片材料：{file_path}"}]
+    try:
+        conversation_id = await _ensure_conversation(session_state)
+        if conversation_id is None:
+            raise httpx.HTTPError("会话创建失败")
+        result = await _client.upload_image(conversation_id, file_path)
+    except httpx.HTTPStatusError as exc:
+        detail = ""
+        try:
+            detail = exc.response.json().get("detail", "")
+        except Exception:
+            pass
+        history = history + [{"role": "assistant", "content": f"⚠️ 上传失败：{exc.response.status_code} {detail}"}]
+        return history, session_state
+    except httpx.HTTPError as exc:
+        history = history + [{"role": "assistant", "content": f"⚠️ 无法连接后端服务（{API_BASE}）：{exc!r}"}]
+        return history, session_state
+
+    source_label = "🔍 真实识别（vision）" if result.get("source") == "vision" else "🧪 Mock 兜底数据"
+    lines = [
+        "📋 **材料识别结果**",
+        f"- 患者姓名：{result.get('patient_name') or '未识别'}",
+        f"- 诊断：{result.get('diagnosis') or '未识别'}",
+        f"- 金额：{result.get('amount') if result.get('amount') is not None else '未识别'}",
+        f"- 日期：{result.get('date') or '未识别'}",
+        f"- 来源：{source_label}",
+    ]
+    history = history + [{"role": "assistant", "content": "\n".join(lines)}]
+    return history, session_state
+
+
 def new_conversation() -> tuple[list, dict]:
     """清空对话并开新会话。"""
     return [], {}
@@ -116,6 +170,13 @@ def build_ui() -> gr.Blocks:
             )
             submit = gr.Button("发送", variant="primary", scale=1)
         with gr.Row():
+            upload = gr.File(
+                label="上传诊断证明/发票图片（OCR 识别材料字段）",
+                file_types=["image"],
+                scale=5,
+            )
+            upload_btn = gr.Button("📎 识别材料", scale=1)
+        with gr.Row():
             gr.Examples(
                 examples=[
                     ["保单 POL-2025-0001 住院花了15800元能赔多少？"],
@@ -138,6 +199,7 @@ def build_ui() -> gr.Blocks:
 
         submit.click(respond, [msg, chatbot, session_state], [msg, chatbot, session_state])
         msg.submit(respond, [msg, chatbot, session_state], [msg, chatbot, session_state])
+        upload_btn.click(upload_image, [upload, chatbot, session_state], [chatbot, session_state])
         reset.click(new_conversation, outputs=[chatbot, session_state])
     return demo
 

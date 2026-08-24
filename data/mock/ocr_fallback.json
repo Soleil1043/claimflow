@@ -1,0 +1,7 @@
+{
+  "patient_name": "张伟",
+  "diagnosis": "急性阑尾炎",
+  "amount": 15800.00,
+  "date": "2026-08-10",
+  "note": "Mock 兜底数据：vision API 不可用时返回（与 data/mock/medical_records.json 张伟阑尾炎住院 15800 元场景一致）"
+}

@@ -139,6 +139,18 @@ ORCHESTRATOR_AGENT_PROMPT = """\
 }}
 """
 
+# OCR 字段提取（T020，F12）：OcrExtractTool 使用（vision 模型多模态消息的文本部分）
+OCR_EXTRACT_PROMPT = """\
+你是保险理赔材料识别助手。请从图片（诊断证明 / 病历 / 发票）中提取以下字段，
+以 JSON 输出：
+{{
+  "patient_name": "患者姓名（图片中不存在则为 null）",
+  "diagnosis": "诊断结论（图片中不存在则为 null）",
+  "amount": 金额数字（无金额则为 null，纯数字不带单位）,
+  "date": "日期 YYYY-MM-DD（图片中不存在则为 null）"
+}}
+只输出 JSON，不要输出其他内容。"""
+
 # 合规审查（T018，F10）：Compliance 节点专用（裁决用 human 消息模板，system 用 COMPLIANCE_AGENT_PROMPT）
 COMPLIANCE_REVIEW_PROMPT = """\
 待审查内容（拟返回给用户的回答草稿）：

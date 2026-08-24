@@ -1,7 +1,6 @@
 """Medical Agent（医疗审核代理）：就诊记录 / ICD-10 匹配 / 材料核对。
 
-工具 record_query / diagnosis_matcher 随 T016 实现，OCR 随 T020 实现；
-定义先行（resolve_tools 自动过滤未注册工具，不阻断）。
+工具已就绪：record_query / diagnosis_matcher（T016）、ocr_extract（T020）。
 """
 
 from __future__ import annotations

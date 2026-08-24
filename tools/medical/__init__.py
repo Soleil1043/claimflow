@@ -5,6 +5,11 @@ from tools.medical.diagnosis_matcher import (
     DiagnosisMatcherOutput,
     DiagnosisMatcherTool,
 )
+from tools.medical.ocr_extract import (
+    OcrExtractInput,
+    OcrExtractOutput,
+    OcrExtractTool,
+)
 from tools.medical.record_query import (
     RecordQueryInput,
     RecordQueryOutput,
@@ -14,6 +19,7 @@ from tools.registry import get_default_registry
 
 get_default_registry().register(RecordQueryTool())
 get_default_registry().register(DiagnosisMatcherTool())
+get_default_registry().register(OcrExtractTool())
 
 __all__ = [
     "RecordQueryTool",
@@ -22,4 +28,7 @@ __all__ = [
     "DiagnosisMatcherTool",
     "DiagnosisMatcherInput",
     "DiagnosisMatcherOutput",
+    "OcrExtractTool",
+    "OcrExtractInput",
+    "OcrExtractOutput",
 ]

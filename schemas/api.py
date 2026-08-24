@@ -109,6 +109,21 @@ class MessageSendResponse(BaseModel):
     intervention_reason: str | None = None
 
 
+# ---------- A07 图片上传（触发 OCR，F12） ----------
+
+
+class OcrResultResponse(BaseModel):
+    """POST /api/v1/conversations/{id}/images 响应：OCR 结构化字段 + 来源标记。"""
+
+    patient_name: str | None = None
+    diagnosis: str | None = None
+    amount: float | None = None
+    date: str | None = None
+    # vision（真实识别） / mock_fallback（vision 失败降级）
+    source: str
+    filename: str
+
+
 # ---------- A04 会话详情 ----------
 
 

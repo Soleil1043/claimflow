@@ -480,6 +480,35 @@
 **问题与修正**：
 - 初版测试 6 处期望值笔误（19 位银行卡中间应为 11 个星号；一处遗漏文本前缀；手机号拼接少一位成 10 位）——实现本身正确，修正测试期望
 
+### [T020] OCR 图片上传 — 2026-08-25
+
+**操作**：
+- tools/medical/ocr_extract.py：OcrExtractTool——get_vision_model 多模态消息（text + image_url data URL）→ OCR_EXTRACT_PROMPT 提取姓名/诊断/金额/日期 → JSON 容错解析 + 金额宽松归一化（"15,800.00 元"→15800.0）；vision 异常/解析失败/金额不可归一化 → 读 data/mock/ocr_fallback.json 兜底（source 标记），接口不抛错
+- app/api/v1/conversations.py A07：POST /{id}/images（multipart 上传）——MIME 白名单（png/jpeg/webp/bmp，content_type 缺失按扩展名推断），非图片 422、空文件 422、会话 404；OCR 结果落审计消息（user 上传行为 + assistant 识别摘要，tool_trace 记录）
+- data/mock/ocr_fallback.json：预置兜底数据（张伟/急性阑尾炎/15800/2026-08-10，与 medical_records 场景一致）
+- services/llm/prompts.py：OCR_EXTRACT_PROMPT（字段提取模板）
+- schemas/api.py：OcrResultResponse（字段 + source + filename）
+- ui/app.py：上传组件（gr.File image 类型 + 识别按钮）→ A07 → 识别结果以对话消息展示（来源标记 vision/mock_fallback）
+- tools/medical/__init__.py 注册 ocr_extract（Medical Agent 自动生效）；agents/medical.py docstring 更新
+- tests/tools/medical/test_ocr_extract.py：16 用例（纯函数 2 / 工具层 7：vision 成功/异常兜底/解析失败/金额坏值兜底/字符串金额归一化/空入参/schema/注册 / API 层 7：上传 200+字段+审计/非图片 422/扩展名推断/vision 故障 200 走 Mock/404/空文件）
+- scripts/verify_ocr.py：F12 真实 vision 验收（PIL 生成诊断证明图片）
+
+**涉及文件**：
+- `tools/medical/ocr_extract.py`、`tools/medical/__init__.py`、`agents/medical.py`
+- `app/api/v1/conversations.py`、`schemas/api.py`、`services/llm/prompts.py`
+- `data/mock/ocr_fallback.json`、`ui/app.py`
+- `tests/tools/medical/test_ocr_extract.py`、`scripts/verify_ocr.py`
+
+**验证方式（真实 DeepSeek vision API 端到端）**：
+- `uv run python -m scripts.verify_ocr` → PIL 生成诊断证明图（张伟/急性阑尾炎 K35/15800.00/2026-08-10）→ deepseek-v4-flash-vision-exp 真实识别四字段全部正确（姓名=张伟、诊断=急性阑尾炎、金额=15800.0、日期=2026-08-10，source=vision，7.2s）；模拟 vision API 故障 → 返回预置 Mock 数据（source=mock_fallback），接口不报错 → F12 验收通过
+- `uv run pytest tests -q` → 207 passed（累计）；`uv run ruff check`（含 ui）→ All checks passed
+
+**状态**：✅ 通过验证
+
+**设计说明**：
+- OCR 工具在 A07 内直接实例化执行（不经 ToolExecutor 循环），避免上传接口与对话图耦合；工具同时注册供 Medical Agent 的 LLM 工具调用路径（agent 侧传 base64）
+- 金额不可归一化视为识别失败走兜底（而非返回 null），保证下游理赔计算拿到的金额要么可信要么明确是 Mock 数据
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|
