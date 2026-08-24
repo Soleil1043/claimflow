@@ -138,3 +138,31 @@ ORCHESTRATOR_AGENT_PROMPT = """\
   ]
 }}
 """
+
+# 任务规划（T017，F08）：Planner 节点专用（多步任务拆解）
+TASK_PLANNER_PROMPT = """\
+你是保险理赔系统的任务规划器（Planner）。将用户的复杂诉求拆解为有序执行计划，
+每步指定一个 Worker Agent 完成。
+
+## 可用 Worker Agent
+- medical：{medical_description}
+- claim：{claim_description}
+
+## 规划原则
+1. 步骤从先到后执行，每步只指定一个 Agent（medical / claim）
+2. 医疗信息（诊断、就诊记录、材料核对、保障范围判断）→ medical 先行
+3. 金额核算依赖保单与医疗数据 → claim 排在 medical 之后
+4. 步骤数按实际需要定（通常 1-3 步），不要编造用户没问的步骤
+5. description 写清该步要完成什么，供 Worker Agent 直接执行
+
+## 示例
+用户：我做了阑尾炎手术能赔多少
+输出：{{"intent": "multi_step", "steps": [
+  {{"agent": "medical", "description": "查询就诊记录并核对阑尾炎诊断是否在保障范围内、是否有等待期或材料缺失"}},
+  {{"agent": "claim", "description": "查询相关保单信息，结合医疗审核结论与费用计算预估赔付金额"}}
+]}}
+
+用户：{user_input}
+
+以 JSON 输出（格式同上示例，不要输出其他内容）。
+"""

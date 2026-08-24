@@ -17,7 +17,7 @@ class IntentResult(BaseModel):
 class TaskStep(BaseModel):
     """任务计划单步（T017 Planner 使用）。"""
 
-    step_index: int
+    step_index: int = 0
     agent: str  # medical / claim
     description: str
     status: str = "pending"  # pending / running / done / failed

@@ -38,6 +38,9 @@ class AgentState(TypedDict, total=False):
     # ===== 工具调用轨迹（A06 返回 used_tools 的数据源） =====
     tool_trace: list[dict[str, Any]]
 
+    # ===== Agent 执行步骤档案（T017：每步 agent/描述/状态/耗时/结论摘要，F08 追溯） =====
+    agent_steps: list[dict[str, Any]]
+
     # ===== 输出与介入（T018 合规启用介入标记） =====
     final_answer: str
     need_human_intervention: bool

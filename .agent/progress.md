@@ -405,6 +405,31 @@
 **设计说明**：
 - 材料缺失清单：ICD-10 对照表 + 就诊记录的 treatment 字段（住院手术需要材料）由 Medical Agent 的 LLM 在 T017 步骤执行时综合工具结果生成 missing_materials，工具层不重复实现清单逻辑
 
+### [T017] 任务规划与步骤执行节点 — 2026-08-25
+
+**操作**：
+- services/llm/prompts.py：TASK_PLANNER_PROMPT（Agent 职责注入 + 规划原则 + 阑尾炎 few-shot 示例）
+- nodes/planner.py：create_plan（LLM 结构化输出 → 非法 Agent 过滤 + step_index 重排 → 异常/空步骤走关键词规则兜底：金额+医疗→medical→claim 两步 / 仅金额→claim / 仅医疗→medical）；planner_node 节点封装（写 task_plan/current_step=0/shared_data={}）
+- agents/runner.py：run_worker_agent 增加可选 tool_trace 参数（就地追加 {agent, tool, input, output}，F08 执行追溯）
+- nodes/step_executor.py：StepExecutorNode——按 current_step 取步骤 → get_agent → run_worker_agent → 结果写 shared_data[agent_name]、状态回写 task_plan（done/failed）、agent_steps 档案（描述/状态/耗时/摘要）；未知 Agent / 执行异常降级为 failed 不阻断整体；has_next_step 条件边（next/done）
+- state.py：新增 agent_steps 字段（执行步骤档案）；schemas/agent.py：TaskStep.step_index 默认 0
+- tests/nodes/test_planner_executor.py：19 用例（兜底规则 4 / LLM 规划 6 / 节点封装 / 步骤执行 6 / 条件边）
+- scripts/verify_planner.py：F08 真实 LLM 端到端验收脚本
+
+**涉及文件**：
+- `nodes/planner.py`、`nodes/step_executor.py`、`agents/runner.py`、`state.py`、`schemas/agent.py`
+- `services/llm/prompts.py`、`scripts/verify_planner.py`、`tests/nodes/test_planner_executor.py`
+
+**验证方式（真实 DeepSeek LLM 端到端）**：
+- `uv run python -m scripts.verify_planner` → "我做了阑尾炎手术能赔多少"生成 2 步计划（medical→claim，无兜底）依次执行：medical 调 diagnosis_matcher + claim_rule_rag×2（K35 保障范围 + 等待期规则），claim 调 claim_rule_rag×2；两步结果均入 shared_data；agent_steps 记录 2 步（均 done，41.6s/14.8s）；tool_trace 5 次工具调用可追溯 → F08 验收通过
+- `uv run pytest tests -q` → 142 passed（累计）；`uv run ruff check` → All checks passed
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- TaskStep.step_index 无默认值导致 LLM 输出步骤（不含 step_index）校验失败被整体降级为兜底计划 → schema 给默认值 0，由 create_plan 统一重排
+- StepExecutor 传给 run_worker_agent 的 shared_data 为同一可变对象，步骤完成后回写会产生别名污染 → 传 dict(shared) 快照
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|
