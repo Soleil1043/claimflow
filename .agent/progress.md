@@ -196,6 +196,26 @@
 **问题与修正**：
 - executor 初版 __init__ 未存 failure_threshold/breaker_cooldown 实例属性（_breaker 引用时报 AttributeError）→ 补齐属性赋值
 
+### [T008] Mock 数据与保单查询工具 — 2026-08-24
+
+**操作**：
+- data/mock/policies.json：5 张真实感保单（active×3 / expired / surrendered；POL-2025-0001 张伟医疗险 100 万/免赔 1 万/80% 为 F05 计算器标准用例，POL-2026-0005 刚生效用于等待期场景演示）
+- tools/claim/policy_query.py：PolicyQueryTool——按保单号/身份证查询，支持多保单命中返回列表，session_factory 可注入（测试友好），业务失败（未找到/缺标识）返回 success=False 不抛错
+- tools/claim/__init__.py：import 即注册到默认注册中心
+- scripts/seed.py：幂等入库脚本（upsert：存在则更新不存在则插入），--only 参数支持分数据集入库，medical/claim/OCR 数据留接口随 T016/T020 扩展
+- tests/tools/claim/test_policy_query.py：7 用例（按号查询/未找到/身份证单命中/身份证多命中/缺标识校验/过期保单返回/schema 导出）
+
+**涉及文件**：
+- `data/mock/policies.json`、`tools/claim/policy_query.py`、`tools/claim/__init__.py`
+- `scripts/seed.py`、`scripts/__init__.py`
+- `tests/tools/claim/test_policy_query.py`
+
+**验证方式**：
+- `uv run python -m scripts.seed` → inserted=5；重复执行 → updated=5（幂等验证通过）
+- `uv run pytest tests -q` → 50 passed（累计）；`uv run ruff check` → All checks passed
+
+**状态**：✅ 通过验证
+
 ---
 
 ## 问题追踪

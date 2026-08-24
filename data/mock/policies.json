@@ -1,0 +1,67 @@
+[
+  {
+    "policy_no": "POL-2025-0001",
+    "holder_name": "张伟",
+    "holder_id_card": "330106199203154817",
+    "product_name": "安心医疗保险（旗舰版）",
+    "product_type": "医疗险",
+    "coverage_amount": "1000000.00",
+    "deductible": "10000.00",
+    "payout_ratio": "0.8000",
+    "effective_date": "2025-01-01",
+    "expiry_date": "2026-12-31",
+    "status": "active"
+  },
+  {
+    "policy_no": "POL-2025-0002",
+    "holder_name": "李娜",
+    "holder_id_card": "330105198811072546",
+    "product_name": "康宁重大疾病保险（2025 版）",
+    "product_type": "重疾险",
+    "coverage_amount": "500000.00",
+    "deductible": "0.00",
+    "payout_ratio": "1.0000",
+    "effective_date": "2025-06-01",
+    "expiry_date": "2045-05-31",
+    "status": "active"
+  },
+  {
+    "policy_no": "POL-2024-0003",
+    "holder_name": "王强",
+    "holder_id_card": "330108199506309212",
+    "product_name": "无忧住院医疗保险（标准版）",
+    "product_type": "医疗险",
+    "coverage_amount": "300000.00",
+    "deductible": "5000.00",
+    "payout_ratio": "0.7000",
+    "effective_date": "2024-03-01",
+    "expiry_date": "2025-02-28",
+    "status": "expired"
+  },
+  {
+    "policy_no": "POL-2023-0004",
+    "holder_name": "陈静",
+    "holder_id_card": "330104199001013328",
+    "product_name": "出行无忧意外伤害保险",
+    "product_type": "意外险",
+    "coverage_amount": "200000.00",
+    "deductible": "0.00",
+    "payout_ratio": "0.9000",
+    "effective_date": "2023-08-15",
+    "expiry_date": "2025-08-14",
+    "status": "surrendered"
+  },
+  {
+    "policy_no": "POL-2026-0005",
+    "holder_name": "刘洋",
+    "holder_id_card": "330106199710225511",
+    "product_name": "安心医疗保险（旗舰版）",
+    "product_type": "医疗险",
+    "coverage_amount": "1000000.00",
+    "deductible": "10000.00",
+    "payout_ratio": "0.8000",
+    "effective_date": "2026-08-01",
+    "expiry_date": "2027-07-31",
+    "status": "active"
+  }
+]
