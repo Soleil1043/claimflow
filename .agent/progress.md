@@ -154,6 +154,27 @@
 - .dockerignore 排除 README.md 但 hatchling 构建需要 → 移出排除列表
 - postgres 拉取触发 Docker Hub 回源致 WSL2 VM 静默崩溃 → docker logout + 镜像全部本地预热后规避
 
+### [T006] LLM 客户端封装 — 2026-08-24
+
+**操作**：
+- services/llm/client.py：get_chat_model（主链路 deepseek-v4-flash）/ get_vision_model（vision-exp 专职 OCR）双模型单例，base_url/api_key/model 全配置化，含 reset_model_cache 测试辅助
+- services/llm/prompts.py：通用助手 prompt 骨架（Agent 专属 prompt 随 T013/T015 补充）
+- tests/llm/test_client.py：7 用例（双模型配置读取 / 单例缓存 / base_url 指向 / 供应商切换模拟 / mock 网络层 invoke / bind_tools 工具调用协议）
+
+**涉及文件**：
+- `services/llm/client.py`、`services/llm/prompts.py`
+- `tests/llm/test_client.py`
+
+**验证方式**：
+- `uv run pytest tests -q` → 25 passed（累计）；`uv run ruff check` → All checks passed
+- 真实调用 deepseek-v4-flash 返回测试响应：合并到 T012 届时提供 API Key 验证
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- langchain-openai 1.6.0 的 ainvoke 实际走 `async_client.with_raw_response.create`（非 root_client.create，且 async_client 是 AsyncCompletions 代理而非完整客户端），mock 需 patch 该实例方法并返回带 .parse() 的 raw response 对象——初版两次 patch 错对象导致真实 401 请求
+- 测试环境无 Key 时 ChatOpenAI 实例化即报错 → fixture 注入占位 Key（网络层全 mock，无真实调用）
+
 ---
 
 ## 问题追踪
