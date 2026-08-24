@@ -19,6 +19,9 @@ venv/
 .coverage
 htmlcov/
 
+# HuggingFace 运行时缓存（xet 下载器等）
+.cache/
+
 # Qdrant local mode 数据（开发期本地向量库文件）
 data/qdrant/
 
