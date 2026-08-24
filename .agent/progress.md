@@ -216,6 +216,25 @@
 
 **状态**：✅ 通过验证
 
+### [T009] 理赔计算器工具 — 2026-08-24
+
+**操作**：
+- tools/claim/calculator.py：ClaimCalculatorTool——标准绝对免赔算法 `可赔基数 = max(0, min(费用, 保额) - 免赔额)`，`预估赔付 = 基数 × 比例`；Decimal 全程计算 + ROUND_HALF_UP 到分；返回 calculation_detail 明细供 Agent 解释金额构成；入参 validator 宽松接受 str/float/int
+- tools/claim/__init__.py：注册 claim_calculator
+- tests/tools/claim/test_calculator.py：10 用例（标准用例 4640/费用超保额封顶 792000/费用低于免赔自担/免赔超保额无可赔/零免赔重疾/四舍五入精度/字符串入参/非法比例拒绝/负费用拒绝/schema 导出）
+
+**涉及文件**：
+- `tools/claim/calculator.py`、`tools/claim/__init__.py`
+- `tests/tools/claim/test_calculator.py`
+
+**验证方式**：
+- `uv run pytest tests -q` → 60 passed（累计）；`uv run ruff check` → All checks passed
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- 初版公式写成 `min(费用, 保额-免赔额)` 语义错误（费用 8000 < 免赔 10000 时仍能算出赔付 6400，被测试当场抓住）→ 修正为标准绝对免赔算法 `min(费用, 保额) - 免赔额`，同步修正测试期望值（15800 用例：可赔基数 5800，赔付 4640）
+
 ---
 
 ## 问题追踪
