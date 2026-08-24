@@ -23,6 +23,8 @@ dependencies = [
     # 向量库与 Embedding
     "qdrant-client>=1.12",
     "sentence-transformers>=3.0",    # 本地 BGE-M3
+    # torch 显式声明为直接依赖，使 [tool.uv.sources] 的 CPU 源生效（传递依赖不应用 source）
+    "torch>=2.5",
     # 缓存
     "redis>=5.0",
     # 配置与日志
@@ -42,6 +44,26 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
 ]
+
+[tool.uv]
+# 默认 PyPI 源用阿里云镜像：host/容器/CI 统一走国内可达源
+# （容器内 files.pythonhosted.org 直连仅 ~50KB/s，阿里云满速）
+[[tool.uv.index]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple/"
+default = true
+
+# torch 统一走 PyTorch CPU 源：Embedding（BGE-M3）仅用 CPU 推理，
+# 避免 Linux 容器拉取 CUDA 依赖导致镜像膨胀 2-3GB。
+# 用阿里云镜像（flat 目录），官方源 download.pytorch.org 国内直连过慢
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://mirrors.aliyun.com/pytorch-wheels/cpu/"
+format = "flat"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
 
 [tool.ruff]
 line-length = 100

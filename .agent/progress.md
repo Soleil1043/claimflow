@@ -122,6 +122,38 @@
 **问题与修正**：
 - health.py 初版两处把 `async with asyncio.timeout(...)` 误写成 `await asyncio.timeout(...)`（SyntaxError），已修正
 
+### [T005] Docker Compose 与 CI 流水线 — 2026-08-24
+
+**操作**：
+- Dockerfile：python:3.12-slim + pip 装 uv（阿里云源）+ uv sync 分层缓存，启动命令含 alembic upgrade head
+- docker-compose.yml：PostgreSQL/Qdrant/Redis/app 四服务，全部带 healthcheck，app 依赖三服务 healthy 后启动
+- .github/workflows/ci.yml：lint + test + docker build + compose up 健康检查两 job
+- .dockerignore：排除 .venv/data/.agent 等
+- pyproject.toml：torch 切换 CPU 源并提升为直接依赖（镜像 3.86GB，避免 CUDA 膨胀 2-3GB）；默认 PyPI 源切换阿里云
+- 本机 Docker daemon.json 配置 3 个国内镜像加速（宿主机配置，不在仓库内）
+
+**涉及文件**：
+- `Dockerfile`、`docker-compose.yml`、`.github/workflows/ci.yml`、`.dockerignore`
+- `pyproject.toml`、`uv.lock`（128 包，全部阿里云源）
+
+**验证方式**：
+- `docker compose config -q` → 通过
+- `docker compose build app` → 镜像构建成功（3.86GB）
+- `docker compose up -d` → 四容器全部 Up，postgres/qdrant/redis healthy
+- `GET http://localhost:8000/health` → 200，`status=ok, profile=prod`，postgres/qdrant/redis/llm 全部 ok（真实依赖，无降级）
+- `psql \dt` → 6 张业务表 + alembic_version 已在 PostgreSQL 创建（容器启动迁移成功）
+- CI 全绿验证：待推送 GitHub 后确认（本地已验证 lint + test）
+
+**状态**：✅ 通过验证
+
+**问题与修正（详见 decisions.md D010/D011）**：
+- torch 传递依赖不应用 uv source → 提升为直接依赖
+- 容器内 files.pythonhosted.org 仅 ~50KB/s → 默认源切阿里云，lock 全量重写
+- ghcr.io / Docker Hub 直连超时 → pip 装_uv + daemon.json 镜像加速
+- daemon.json UTF-8 BOM 导致 Docker 引擎崩溃 3 次 → 无 BOM 重写
+- .dockerignore 排除 README.md 但 hatchling 构建需要 → 移出排除列表
+- postgres 拉取触发 Docker Hub 回源致 WSL2 VM 静默崩溃 → docker logout + 镜像全部本地预热后规避
+
 ---
 
 ## 问题追踪

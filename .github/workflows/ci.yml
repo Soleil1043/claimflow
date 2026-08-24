@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: 安装依赖
+        run: uv sync --frozen
+
+      - name: Lint（ruff）
+        run: uv run ruff check app tests services schemas
+
+      - name: 测试（pytest）
+        run: uv run pytest tests -q
+
+  docker:
+    name: Docker Build & Compose 校验
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compose 配置校验
+        run: docker compose config -q
+
+      - name: 构建应用镜像
+        run: docker build -t claim-agent:ci .
+
+      - name: 启动全栈并验证健康检查
+        run: |
+          LLM_API_KEY=sk-ci-placeholder docker compose up -d --no-build
+          # 等待 app 就绪（最多 60s）
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health > /tmp/health.json; then break; fi
+            sleep 2
+          done
+          cat /tmp/health.json
+          grep -q '"status":"ok"' /tmp/health.json
+          docker compose down -v

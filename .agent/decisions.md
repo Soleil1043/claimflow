@@ -176,3 +176,36 @@ T001 执行 `uv sync` 时发现 plan.md 中包名 `langgraph-checkpoint-postgres
 
 **影响**：
 pyproject.toml；T011 checkpoint 接入时的 import 路径（`from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver`）；plan.md 第 5 节依赖表按此为准。
+
+## D010: PyPI 源统一切换阿里云 + torch CPU 源 — 2026-08-24
+
+**背景**：
+T005 容器构建时发现两个网络/体积问题：① 容器内 files.pythonhosted.org 直连仅 ~50KB/s（16MB 轮子需 5 分钟，构建停滞）；② lock 中 torch 从 PyPI 解析，Linux 下拉 CUDA 依赖使镜像膨胀 2-3GB，而 Embedding 仅用 CPU。另 ghcr.io（astral-sh/uv 镜像）国内不可达。
+
+**选项**：
+| 选项 | 优点 | 缺点 |
+|------|------|------|
+| A: 官方源 + GPU torch | 与上游一致 | 容器构建停滞不可用；镜像巨大 |
+| B: 阿里云 PyPI + PyTorch CPU 源（阿里云 flat 镜像） | host/容器/CI 全场景满速；torch CPU 轮子 183MB；lock 全量指向阿里云 | 依赖第三方镜像同步及时性 |
+
+**最终选择**：B
+
+**理由**：
+阿里云 pypi/simple 与 pytorch-wheels/cpu 均实测满速（torch 183MB 18s）；`[[tool.uv.index]] default=true` + torch 显式直接依赖（uv source 仅作用于直接依赖，传递依赖不生效——关键坑）使 lock 中 771 个 URL 全部指向 mirrors.aliyun.com。
+
+**影响**：
+pyproject.toml [tool.uv]；uv.lock（146→128 包，移除 CUDA/triton）；Dockerfile（pip 亦走阿里云装 uv）。
+
+## D011: Docker Hub 国内访问策略 — 2026-08-24
+
+**背景**：
+本机 Docker Hub 直连不可达（auth.docker.io 超时）；且发现 registry-mirrors 仅代理拉取层，dockerd 在 manifest/attestation 校验、token 认证时仍会回源官方域——postgres:16-alpine 拉取时触发回源，TCP 黑洞导致 dockerd 挂起，docker-desktop WSL2 VM 静默崩溃（backend 无 crash 记录、系统日志无 Hyper-V 错误，属本机 WSL2 偶发不稳定）。
+
+**措施**：
+1. 宿主机 daemon.json 配置 3 个镜像加速（docker.m.daocloud.io / docker.1ms.run / hub.rat.dev）——注意必须无 BOM 写入，UTF-8 BOM 会导致 Docker 引擎启动崩溃
+2. `docker logout` 消除 Docker Desktop 对 hub.docker.com 的周期性登录检查
+3. 镜像 tag 固定 + 全量本地预热，compose up 全部本地命中
+4. CI（GitHub Actions）作为云端权威验证，规避国内网络限制
+
+**影响**：
+本机环境（不在仓库内）；CI 流程；后续新增镜像时先 `docker pull` 预热再 up。

@@ -1,0 +1,19 @@
+# 构建上下文排除项（避免宿主机 .venv / 数据 / 状态文件进入镜像）
+.git
+.venv
+.agent
+.ruff_cache
+.pytest_cache
+.coverage
+htmlcov
+data
+tests
+docs
+grafana
+prometheus
+evals
+.env
+.env.example
+Dockerfile
+docker-compose.yml
+.github
