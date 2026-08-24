@@ -1,0 +1,52 @@
+[
+  {
+    "patient_id_card": "330106199203154817",
+    "hospital": "杭州市第一人民医院",
+    "department": "普外科",
+    "diagnosis_desc": "急性阑尾炎",
+    "icd10_code": "K35",
+    "visit_date": "2026-08-10",
+    "treatment": "住院手术",
+    "total_amount": "15800.00"
+  },
+  {
+    "patient_id_card": "330106199203154817",
+    "hospital": "浙江大学医学院附属第二医院",
+    "department": "消化内科",
+    "diagnosis_desc": "慢性浅表性胃炎",
+    "icd10_code": "K29.3",
+    "visit_date": "2026-02-15",
+    "treatment": "门诊",
+    "total_amount": "860.00"
+  },
+  {
+    "patient_id_card": "330105198811072546",
+    "hospital": "浙江省人民医院",
+    "department": "心内科",
+    "diagnosis_desc": "原发性高血压",
+    "icd10_code": "I10",
+    "visit_date": "2026-05-20",
+    "treatment": "门诊",
+    "total_amount": "1200.00"
+  },
+  {
+    "patient_id_card": "330108199506309212",
+    "hospital": "杭州市中医院",
+    "department": "呼吸内科",
+    "diagnosis_desc": "急性支气管炎",
+    "icd10_code": "J20.9",
+    "visit_date": "2024-12-08",
+    "treatment": "门诊",
+    "total_amount": "430.00"
+  },
+  {
+    "patient_id_card": "330106199710225511",
+    "hospital": "杭州市第一人民医院",
+    "department": "泌尿外科",
+    "diagnosis_desc": "肾结石",
+    "icd10_code": "N20.0",
+    "visit_date": "2026-08-18",
+    "treatment": "住院手术",
+    "total_amount": "12600.00"
+  }
+]

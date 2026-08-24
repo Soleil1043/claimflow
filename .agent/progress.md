@@ -382,6 +382,29 @@
 - Agent 是静态描述（prompt+工具集+schema），执行逻辑在节点/图——与 AGENTS.md 6.2"Agent 不直接调工具"一致
 - 跨任务工具依赖（record_query 等随 T016/T018 实现）用 resolve_tools 过滤策略：定义先行不阻断，工具就绪自动生效
 
+### [T016] 医疗审核 Agent 工具 — 2026-08-25
+
+**操作**：
+- data/mock/medical_records.json：5 条就诊记录（与保单人物关联：张伟阑尾炎住院 15800 + 胃炎门诊、李娜高血压、王强支气管炎、刘洋肾结石住院）
+- tools/medical/record_query.py：RecordQueryTool——按身份证查询就诊记录（倒序），session_factory 可注入
+- tools/medical/diagnosis_matcher.py：DiagnosisMatcherTool——ICD-10 匹配（13 编码对照表 + 18 关键词映射，显式编码优先）+ 保障范围结论 + 等待期计算（就诊日 vs 保单生效日，30 天规则，正好覆盖 POL-2026-0005 演示场景）
+- tools/medical/__init__.py：注册两工具（Medical Agent resolve_tools 自动生效）
+- scripts/seed.py：medical_records 幂等入库（身份证+就诊日期+诊断组合判重）
+- tests/tools/medical/test_medical_tools.py：10 用例（查询倒序/无记录/K35 主用例/显式编码/未知诊断/等待期内/已过/无日期跳过/2 个 schema）
+
+**涉及文件**：
+- `data/mock/medical_records.json`、`tools/medical/record_query.py`、`tools/medical/diagnosis_matcher.py`、`tools/medical/__init__.py`
+- `scripts/seed.py`、`tests/tools/medical/test_medical_tools.py`
+
+**验证方式**：
+- `uv run python -m scripts.seed` → medical_records inserted=5；重复执行 updated=5（幂等）
+- `uv run pytest tests -q` → 123 passed（累计）；`uv run ruff check` → All checks passed
+
+**状态**：✅ 通过验证
+
+**设计说明**：
+- 材料缺失清单：ICD-10 对照表 + 就诊记录的 treatment 字段（住院手术需要材料）由 Medical Agent 的 LLM 在 T017 步骤执行时综合工具结果生成 missing_materials，工具层不重复实现清单逻辑
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|
