@@ -289,12 +289,24 @@ class ScriptedLLM:
         return self
 
 
-def _build_graph():
+def _build_graph(monkeypatch: pytest.MonkeyPatch):
+    """完整图 + intent mock（走 react 路径直达 compliance 门禁）。"""
+    import nodes.intent as intent_module
+
+    class _IntentModel:
+        async def ainvoke(self, messages: Any, **kwargs: Any) -> Any:
+            class _Resp:
+                content = '{"intent": "single_domain", "reason": "查数据"}'
+
+            return _Resp()
+
+    monkeypatch.setattr(intent_module, "get_chat_model", lambda *a, **k: _IntentModel())
+
     from langgraph.checkpoint.memory import InMemorySaver
 
-    from workflows.main_graph import build_phase1_graph
+    from workflows.main_graph import build_main_graph
 
-    return build_phase1_graph(
+    return build_main_graph(
         executor=ToolExecutor(_registry_with_compliance()), checkpointer=InMemorySaver()
     )
 
@@ -314,7 +326,7 @@ async def test_graph_modify_loop_revises_answer(monkeypatch: pytest.MonkeyPatch)
     calls = iter(verdicts)
     monkeypatch.setattr(compliance_module, "get_chat_model", lambda *a, **k: next(calls))
 
-    graph = _build_graph()
+    graph = _build_graph(monkeypatch)
     result = await graph.ainvoke(
         {"messages": [HumanMessage(content="能赔多少")], "tool_trace": [], "compliance_rounds": 0},
         config={"configurable": {"thread_id": "t-modify"}},
@@ -334,7 +346,7 @@ async def test_graph_reject_blocks_and_flags(monkeypatch: pytest.MonkeyPatch) ->
     # LLM 故障 → 确定性兜底：FRAUD_RISK → REJECT（验证不依赖 LLM 的拦截）
     _patch_model(monkeypatch, FakeModel(raise_exc=RuntimeError("LLM 超时")))
 
-    graph = _build_graph()
+    graph = _build_graph(monkeypatch)
     result = await graph.ainvoke(
         {"messages": [HumanMessage(content="怎么多赔点")], "tool_trace": [], "compliance_rounds": 0},
         config={"configurable": {"thread_id": "t-reject"}},

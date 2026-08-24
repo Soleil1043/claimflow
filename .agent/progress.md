@@ -509,6 +509,36 @@
 - OCR 工具在 A07 内直接实例化执行（不经 ToolExecutor 循环），避免上传接口与对话图耦合；工具同时注册供 Medical Agent 的 LLM 工具调用路径（agent 侧传 base64）
 - 金额不可归一化视为识别失败走兜底（而非返回 null），保证下游理赔计算拿到的金额要么可信要么明确是 Mock 数据
 
+### [T021] 主图组装与端到端联调 — 2026-08-25（Phase 2 收官）
+
+**操作**：
+- workflows/main_graph.py：build_main_graph 完整图——START → intent → route_intent 三分流（multi_step→planner / simple_faq→rag / 其余→react_agent）；planner → step_executor 循环（has_next_step）→ synthesize；rag → synthesize；react_agent 工具循环（should_continue）→ compliance；synthesize → compliance；compliance 三态（pass/modify/reject）+ revise_answer 复审闭环；删除 phase1 简版图（完整图取代）
+- nodes/generator.py：新增 synthesize_answer_node——汇总 shared_data（Agent 结论 / RAG 上下文）+ 消息历史生成最终回答（ANSWER_SYNTHESIS_PROMPT，历史截断 10 条 / 上下文截断 6000 字符）；LLM 失败确定性兜底拼接各数据源 summary
+- nodes/rag.py：rag_node——读末尾用户问题 → search_kb top-4 → 写 shared_data.rag_context；检索故障/空结果不抛错（标记后 synthesize 兜底）
+- services/llm/prompts.py：ANSWER_SYNTHESIS_PROMPT（背景数据 + 对话历史 → 最终回答，含合规约束）
+- app/api/v1/conversations.py A06：每轮全量重置 11 个状态字段（checkpoint 只累积 messages）；返回完整结构 answer/intent/used_tools/agent_steps/compliance_status/need_human_intervention/intervention_reason；审计落库 intent + agent_steps
+- app/main.py：lifespan 改挂 build_main_graph；注册全部三类工具（claim/compliance/medical）
+- tests/workflows/test_full_graph.py：7 用例（route_intent 三分支 / multi_step 全链路 / synthesize 兜底 / RAG 路径 / 检索空结果 / 检索故障不致命 / F14 重启恢复——共享 checkpointer 重建图实例）；test_phase1_graph.py 与 test_compliance.py 适配完整图（intent mock）
+- scripts/verify_e2e.py：真实 LLM 端到端验收（4 场景）
+
+**涉及文件**：
+- `workflows/main_graph.py`、`nodes/generator.py`、`nodes/rag.py`、`services/llm/prompts.py`
+- `app/api/v1/conversations.py`、`app/main.py`
+- `tests/workflows/test_full_graph.py`、`tests/workflows/test_phase1_graph.py`、`tests/nodes/test_compliance.py`
+- `scripts/verify_e2e.py`
+
+**验证方式（真实 DeepSeek LLM 端到端，4 场景）**：
+- multi_step"我做了阑尾炎手术能赔多少"：intent=multi_step → 2 步计划（medical 66s 调 diagnosis_matcher+RAG×2 / claim 10s）→ synthesize 整合 → compliance PASS；回答正确指出缺少保单号并给出补充清单
+- simple_faq"阑尾炎手术有等待期吗"（同会话第二轮）：RAG 检索 4 条（top-1 等待期规则）→ 回答含"等待期 30 天"；F14 多轮上下文连贯（第二轮历史含第一轮消息）
+- F14 重启恢复：重建图实例 + 共享 checkpointer → 追问"刚才我说做了什么手术"→ 正确引用历史（阑尾炎）；期间真实触发 MODIFY 闭环（LLM 草稿含未脱敏身份证号 risk=30 → 修订后脱敏为 1101********8888 → 复审 PASS），F10/F11 在完整链路自然生效
+- chitchat"你好"：ReAct 直答路径正常
+- `uv run pytest tests -q` → 214 passed（累计）；`uv run ruff check` → All checks passed
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- RAG 检索故障测试初版断言错误：rag_node 捕获异常后降级为"无结果"标记继续流程（非直接空 shared_data），synthesize 兜底输出该标记 → 修正断言
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

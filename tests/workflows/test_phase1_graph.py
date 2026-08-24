@@ -41,7 +41,7 @@ class ScriptedLLM:
 
 @pytest.fixture()
 def graph_env(monkeypatch):
-    """注册中心 + mock LLM + InMemorySaver 图。"""
+    """注册中心 + mock LLM + InMemorySaver 图（完整图，intent 走 react 路径）。"""
     from tests.tools.test_infrastructure import EchoTool
 
     registry = ToolRegistry()
@@ -54,6 +54,14 @@ def graph_env(monkeypatch):
 
     import nodes.compliance as compliance_module
     import nodes.generator as generator_module
+    import nodes.intent as intent_module
+
+    # 意图分类 LLM：固定 single_domain（走 react_agent 路径）
+    class _IntentModel:
+        async def ainvoke(self, messages: list[Any], config: Any = None) -> AIMessage:
+            return AIMessage(content='{"intent": "single_domain", "reason": "查数据"}')
+
+    monkeypatch.setattr(intent_module, "get_chat_model", lambda *a, **k: _IntentModel())
 
     scripted = ScriptedLLM(
         [
@@ -80,9 +88,9 @@ def graph_env(monkeypatch):
     from langgraph.checkpoint.memory import InMemorySaver
 
     from tools.executor import ToolExecutor
-    from workflows.main_graph import build_phase1_graph
+    from workflows.main_graph import build_main_graph
 
-    graph = build_phase1_graph(executor=ToolExecutor(registry), checkpointer=InMemorySaver())
+    graph = build_main_graph(executor=ToolExecutor(registry), checkpointer=InMemorySaver())
     return graph, scripted
 
 

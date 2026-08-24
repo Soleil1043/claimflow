@@ -15,7 +15,7 @@ from services.db.session import dispose_engine, init_db
 from services.memory.short_term import get_checkpoint_manager
 from tools.executor import ToolExecutor
 from tools.registry import get_default_registry
-from workflows.main_graph import build_phase1_graph
+from workflows.main_graph import build_main_graph
 
 log = get_logger(__name__)
 
@@ -26,6 +26,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
 
     import tools.claim  # noqa: F401 注册理赔工具
+    import tools.compliance  # noqa: F401 注册合规工具
+    import tools.medical  # noqa: F401 注册医疗工具
 
     registry = get_default_registry()
     checkpointer = await get_checkpoint_manager().start()
@@ -34,7 +36,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if not settings.is_prod:
         await init_db()
 
-    app.state.graph: Any = build_phase1_graph(
+    app.state.graph: Any = build_main_graph(
         executor=ToolExecutor(registry),
         checkpointer=checkpointer,
     )

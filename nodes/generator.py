@@ -1,19 +1,22 @@
-"""ReAct Agent 节点（Phase 1 简版，F07 核心里程碑）。
+"""ReAct Agent 节点（Phase 1 简版，F07 核心里程碑）+ 回答整合节点（T021，F08）。
 
-单 Agent 循环：LLM + 工具绑定 → 有 tool_calls 则执行工具并回填 →
-无 tool_calls 则产出最终回答。由 LangGraph 条件边驱动循环（见 workflows/main_graph.py）。
+- ReactAgentNode：单 Agent 循环：LLM + 工具绑定 → 有 tool_calls 则执行工具并回填 →
+  无 tool_calls 则产出最终回答。由 LangGraph 条件边驱动循环（见 workflows/main_graph.py）。
+- synthesize_answer_node：多步 / RAG 路径的整合器——汇总 shared_data
+  （各 Worker Agent 结论或知识库检索上下文）生成面向用户的最终回答。
 """
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
-from langchain_core.messages import AIMessage, AnyMessage, ToolMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import ensure_config
 
 from app.core.logging import get_logger
 from services.llm.client import get_chat_model
-from services.llm.prompts import GENERAL_ASSISTANT_PROMPT
+from services.llm.prompts import ANSWER_SYNTHESIS_PROMPT, GENERAL_ASSISTANT_PROMPT
 from state import AgentState
 from tools.executor import ToolExecutor
 
@@ -107,3 +110,65 @@ def should_continue(state: AgentState) -> str:
             return "end"
         return "tools"
     return "end"
+
+
+# ===== 回答整合节点（T021，F08：多步 / RAG 路径的结果整合） =====
+
+# 历史消息条数上限（防 Token 失控）
+_SYNTH_HISTORY_LIMIT = 10
+
+
+def _format_history(messages: list[AnyMessage]) -> str:
+    """消息历史 → 文本（截断至最近 N 条）。"""
+    lines = []
+    for m in messages[-_SYNTH_HISTORY_LIMIT:]:
+        role = "用户" if isinstance(m, HumanMessage) else "助手"
+        content = str(m.content)[:500]
+        lines.append(f"{role}：{content}")
+    return "\n".join(lines)
+
+
+def _fallback_answer(shared_data: dict[str, Any]) -> str:
+    """LLM 失败时的确定性兜底：拼接各数据源的 summary。"""
+    summaries = []
+    for source, data in shared_data.items():
+        if isinstance(data, dict) and data.get("summary"):
+            summaries.append(f"- {source}：{data['summary']}")
+    if summaries:
+        return "根据已获取的信息：\n" + "\n".join(summaries) + "\n（最终以理赔审核结果为准。）"
+    return "抱歉，我暂时无法处理该问题，请稍后再试或转人工服务。"
+
+
+async def synthesize_answer_node(state: AgentState) -> dict[str, Any]:
+    """整合节点：基于 shared_data（Agent 结论 / RAG 上下文）生成最终回答。
+
+    LLM 失败时降级为各数据源 summary 的确定性拼接，节点不抛错。
+    """
+    shared_data = state.get("shared_data") or {}
+    messages = state.get("messages") or []
+
+    context = json.dumps(shared_data, ensure_ascii=False, default=str)
+    if len(context) > 6000:
+        context = context[:6000] + "…（截断）"
+
+    try:
+        model = get_chat_model()
+        response = await model.ainvoke(
+            [
+                HumanMessage(
+                    content=ANSWER_SYNTHESIS_PROMPT.format(
+                        context=context, history=_format_history(messages)
+                    )
+                )
+            ]
+        )
+        answer = (response.content or "").strip()
+        if answer:
+            log.info("answer_synthesized", length=len(answer), sources=list(shared_data))
+            return {"final_answer": answer}
+        log.warning("synthesize_empty_output")
+    except Exception as exc:  # noqa: BLE001 LLM 故障 → 确定性兜底
+        log.warning("synthesize_llm_error", error=str(exc)[:200])
+
+    answer = _fallback_answer(shared_data)
+    return {"final_answer": answer}

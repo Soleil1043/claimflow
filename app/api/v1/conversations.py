@@ -180,11 +180,11 @@ async def send_message(
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
     graph=Depends(get_app_graph),  # noqa: B008
 ) -> MessageSendResponse:
-    """A06 发消息：触发单 Agent ReAct 流程 + 合规三态门禁（F07/F10 核心接口）。
+    """A06 发消息：完整主图流程（intent 分流 → 多 Agent / RAG / ReAct → 合规门禁）。
 
-    流程：用户消息入 state → LangGraph 执行（工具循环 → 合规审查）→
-    final_answer + tool_trace + compliance_status 落 messages 表（审计层）→
-    返回结构化响应；REJECT 时会话标记 transferred（转人工）。
+    F02 完整 / F08 / F10 / F14：返回 answer / intent / used_tools / agent_steps /
+    compliance_status / need_human_intervention 完整结构；审计同步落库；
+    REJECT 时会话标记 transferred（转人工）。
     """
     conversation = await _get_conversation_or_404(conversation_id, session)
 
@@ -192,9 +192,16 @@ async def send_message(
         {
             "messages": [HumanMessage(content=body.content)],
             "conversation_id": str(conversation_id),
-            # 每轮重置：used_tools / 合规状态语义为"本轮"（checkpoint 只累积 messages）
+            # 每轮全量重置（checkpoint 只累积 messages，其余字段语义为"本轮"）
+            "intent": None,
+            "task_plan": [],
+            "current_step": 0,
+            "shared_data": {},
+            "agent_steps": [],
             "tool_trace": [],
+            "compliance_result": None,
             "compliance_rounds": 0,
+            "final_answer": "",
             "need_human_intervention": False,
             "intervention_reason": None,
         },
@@ -202,7 +209,9 @@ async def send_message(
     )
 
     answer = result.get("final_answer") or "抱歉，我暂时无法处理该问题，请稍后再试。"
+    intent = result.get("intent")
     tool_trace = result.get("tool_trace") or []
+    agent_steps = result.get("agent_steps") or []
     compliance = result.get("compliance_result") or {}
     compliance_status = compliance.get("verdict")
     need_human = bool(result.get("need_human_intervention"))
@@ -221,7 +230,9 @@ async def send_message(
             conversation_id=conversation_id,
             role="assistant",
             content=answer,
+            intent=intent,
             tool_trace=tool_trace,
+            agent_steps=agent_steps,
             compliance_status=compliance_status,
         )
     )
@@ -230,7 +241,9 @@ async def send_message(
 
     return MessageSendResponse(
         answer=answer,
+        intent=intent,
         used_tools=tool_trace,
+        agent_steps=agent_steps,
         compliance_status=compliance_status,
         need_human_intervention=need_human,
         intervention_reason=intervention_reason,
