@@ -566,6 +566,38 @@
 - 220 个用例：core 7 / db 7 / api（health+CRUD+A06 场景）26 / llm 7 / tools（基础设施+claim+medical+compliance）69 / rag 11 / agents 14 / nodes（intent+planner/executor+compliance）55 / workflows（phase1+full graph）24
 - 三层结构：纯函数与工具单测（mock 外部）→ 图级集成（mock LLM 真实节点）→ API 端到端（AsyncClient + 真实工具链）；真实 LLM 验收脚本 6 个（verify_intent/rag/ui/planner/compliance/ocr/e2e）
 
+### [T023] README 与最终验证（含项目更名）— 2026-08-25（全部 23 任务完成）
+
+**操作**：
+- 项目更名 claim-agent → claimflow（D013：与内部 Claim Agent 撞名）：pyproject.toml root 包名 + uv.lock 重新生成（claim-agent v0.1.0 → claimflow v0.1.0）；ci.yml 镜像名 claimflow:ci；app/main.py FastAPI title；README 全部按 claimflow 撰写；数据库名 claim_agent 为内部标识不动
+- .github/workflows/ci.yml：lint 范围修正——原只覆盖 app/tests/services/schemas，补齐 nodes/agents/tools/workflows/scripts/ui（与本地验证口径一致）
+- README.md：CI 徽章 / 核心能力表 / mermaid 架构图 / 技术栈 / 快速开始（dev 零容器 + Docker 双路径，含 HF_HUB_OFFLINE 提示）/ API 文档（A02-A07 + 响应结构示例）/ 测试说明 / 项目结构 / 设计要点 / MVP 边界
+- scripts/verify_ui.py：扩展上传链路验收（F13 补齐）——PIL 生成诊断证明图 → upload_image 回调 → A07 → OCR → 展示断言
+- F01-F14 逐条核验：全部通过（核验清单见会话记录；F13 上传演示由本次 verify_ui 扩展补齐）
+
+**涉及文件**：
+- `README.md`、`.github/workflows/ci.yml`、`pyproject.toml`、`uv.lock`、`app/main.py`
+- `scripts/verify_ui.py`、`.agent/decisions.md`（D013）
+
+**验证方式（真实后端 + 真实 LLM/vision）**：
+- 后端以新包名 claimflow 启动正常（uvicorn 重建包 + 9 工具注册）
+- `uv run python -m scripts.verify_ui` → 第一轮"保单 POL-2025-0001 住院花了15800元能赔多少"走完整主图（intent=multi_step → 2 步计划 → synthesize → 合规）回答含 4640 元计算明细与工具轨迹；第二轮追问免赔额正确引用上下文（1 万元）；第三轮上传 PIL 诊断证明图 → vision 真实识别四字段全对（张伟/急性阑尾炎/15800.0/2026-08-10，source=vision）→ F13 完整闭环
+- `uv run pytest tests -q` → 220 passed；`uv run ruff check`（全目录）→ All checks passed；`docker compose config -q` → 通过
+- push 后 CI 全绿：待用户创建 GitHub 仓库 claimflow 后推送确认（本地已按 CI 同口径验证）
+
+**状态**：✅ 通过验证（CI push 确认待执行）
+
+**问题与修正**：
+- verify_ui 第二轮断言未匹配"1 万元"（空格）→ 断言加 replace(" ", "")
+- BGE-M3 加载时 HuggingFace HEAD 版本检查超时（WinError 10060 × 5 次重试 ≈ 100s+）导致请求超 UI 客户端 180s 超时 → 后端以 HF_HUB_OFFLINE=1 重启（模型已缓存）解决；README 已补提示
+- README 初稿"10 个工具"实为 9 个（claim 3 + medical 3 + compliance 3）→ 修正
+
+**待用户执行的收尾步骤**：
+1. GitHub 创建空仓库 claimflow（不加 README）
+2. `git remote add origin https://github.com/Soleil1043/claimflow.git && git push -u origin main`
+3. 确认 Actions 两 job（lint-test / docker）全绿
+4. 本地目录改名 d:\Code\PythonProjects\claim-agent → claimflow（改后重开工作区）
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

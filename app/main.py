@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="claim-agent",
+    title="claimflow",
     description="多智能体保险理赔对话系统",
     version="0.1.0",
     lifespan=lifespan,

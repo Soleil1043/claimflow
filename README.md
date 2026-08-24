@@ -1,180 +1,153 @@
-# Vibecoding SOP 脚手架
+# claimflow — 多智能体保险理赔对话系统
 
-> 适配所有 Agent Harness 的结构化项目构建模板。
-> 复制此目录到你的新项目根目录，按 5 阶段流程推进即可。
+[![CI](https://github.com/Soleil1043/claimflow/actions/workflows/ci.yml/badge.svg)](https://github.com/Soleil1043/claimflow/actions/workflows/ci.yml)
 
----
+> Orchestrator-Worker 模式的多智能体理赔咨询系统：调度 Agent 理解意图并制定计划，
+> 指挥理赔核算 / 医疗审核 / 合规风控三个专精 Agent 通过工具调用完成跨系统查询，
+> 所有输出经合规审查（一票否决）后返回。
+
+## 核心能力
+
+| 能力 | 说明 |
+|------|------|
+| 意图识别分流 | 五类意图（FAQ / 单领域 / 多步 / 闲聊 / 其他）驱动主图分流，LLM 失败走关键词规则兜底 |
+| 多 Agent 协作 | "我做了阑尾炎手术能赔多少" → 自动拆解 2 步计划（医疗审核→理赔核算）依次执行，全程可追溯 |
+| RAG 知识库 | 12 篇理赔规则文档（Qdrant + BGE-M3）检索等待期 / 免责 / 材料清单等条款 |
+| 合规一票否决 | 所有输出必经 Compliance 节点（图结构保证无旁路）：PASS 直通 / MODIFY 自动修订复审 / REJECT 拦截转人工 |
+| 敏感信息脱敏 | 身份证 / 银行卡 / 手机号正则脱敏（`3301**********1234`） |
+| OCR 材料识别 | vision 模型提取诊断证明字段（姓名 / 诊断 / 金额 / 日期），API 异常自动降级 Mock 兜底 |
+| 状态持久化 | LangGraph Checkpoint（prod=PostgreSQLSaver），多轮上下文连贯、服务重启可恢复 |
+
+## 架构
+
+```mermaid
+graph TD
+    START([__start__]) --> intent[意图识别]
+    intent -->|multi_step| planner[任务规划 Planner]
+    intent -->|simple_faq| rag[RAG 检索]
+    intent -->|其他| react[ReAct Agent]
+    planner --> step_exec[步骤执行循环<br/>Medical → Claim Agent]
+    step_exec -->|全部完成| synth[回答整合 synthesize]
+    rag --> synth
+    react -->|工具循环| react
+    react -->|产出回答| compliance[合规审查]
+    synth --> compliance
+    compliance -->|PASS| END([__end__])
+    compliance -->|MODIFY| revise[回答修订] --> compliance
+    compliance -->|REJECT| END
+```
+
+- **4 个 Agent**：Orchestrator（调度）/ Claim（理赔核算）/ Medical（医疗审核）/ Compliance（合规风控，一票否决）
+- **9 个工具**：保单查询、理赔计算器、RAG 检索、就诊记录、ICD-10 匹配、OCR、规则检查、风险评分、脱敏
+- **工具执行器**：统一超时 / 指数退避重试 / 熔断（5 次失败→30s 冷却→半开探测）
+- **全链路降级设计**：意图（关键词兜底）/ 规划（规则兜底）/ 合规（确定性兜底）/ OCR（Mock 兜底）/ ReAct（降级话术）——任一 LLM 故障不导致接口报错
+
+## 技术栈
+
+| 类别 | 选型 |
+|------|------|
+| 语言 | Python 3.12（全量类型注解） |
+| Agent 框架 | LangGraph（状态机 + Checkpoint） |
+| Web | FastAPI（async）+ Gradio 演示界面 |
+| 数据库 | PostgreSQL + SQLAlchemy 2.0 async（dev 降级 SQLite） |
+| 向量库 | Qdrant（dev local mode 零容器）+ BGE-M3 本地向量化 |
+| LLM | DeepSeek（OpenAI 兼容接口，配置切换；OCR 专职 vision 模型） |
+| 工程 | uv / pytest（220 用例）/ ruff / Docker Compose / GitHub Actions |
 
 ## 快速开始
 
-### 第 1 步：复制脚手架到新项目
-
-脚手架是空模板，复制一份作为新项目的起点。
-
-**方式 A — 文件管理器（推荐）：**
-
-1. 找到 `vibecoding-scaffold` 文件夹，右键复制
-2. 粘贴到你的项目存放位置（如 `C:\Users\10432\Projects\`）
-3. 将副本重命名为你的项目名（如 `my-project`）
-
-**方式 B — PowerShell：**
-
-```powershell
-Copy-Item -Recurse "路径\vibecoding-scaffold" "C:\Users\10432\Projects\my-project"
-cd "C:\Users\10432\Projects\my-project"
-```
-
-**方式 C — Linux / macOS：**
+### 1. 环境准备
 
 ```bash
-cp -r vibecoding-scaffold my-project
-cd my-project
+git clone https://github.com/Soleil1043/claimflow.git
+cd claimflow
+uv sync
+cp .env.example .env   # 填入 LLM_API_KEY（DeepSeek）
 ```
 
-### 第 2 步：适配你的 Harness 规则文件
+### 2. 初始化数据（dev profile：SQLite + Qdrant local mode，零容器）
 
-根据你使用的 Agent Harness，将 `AGENTS.md` 内容复制到对应文件：
-
-| Harness     | 规则文件             | 自动读取 |
-| ----------- | ---------------- | ---- |
-| TRAE        | `AGENTS.md`      | ✅    |
-| Claude Code | `CLAUDE.md`      | ✅    |
-| Cursor      | `.cursorrules`   | ✅    |
-| Windsurf    | `.windsurfrules` | ✅    |
-| Cline       | `.clinerules`    | ✅    |
-| 其他          | `AGENTS.md`      | 手动引用 |
-
-### 第 3 步：编辑 AGENTS.md
-
-打开 `AGENTS.md`，修改以下内容：
-
-- `[PROJECT_NAME]` → 你的项目名
-- 技术栈 → 你的实际技术栈
-- 代码约定 → 你的团队规范
-
-### 第 4 步：开始 Phase 1
-
-将 `.agent/prompts.md` 中的 **Phase 1 Prompt** 复制到 Agent 对话框，开始需求定义。
-
----
-
-## 目录结构
-
-```
-multi-Agent-insurance-claims-assistant/
-├── AGENTS.md              ← 项目规则（Agent 全局指令）
-├── README.md              ← 本文件
-└── .agent/                ← 项目状态目录（核心）
-    ├── spec.md            ← Phase 1: 需求文档模板
-    ├── plan.md            ← Phase 2: 技术方案模板
-    ├── tasks.md           ← Phase 3: 任务清单模板
-    ├── progress.md        ← Phase 4: 构建日志模板
-    ├── decisions.md       ← 全程: 决策记录模板
-    └── prompts.md         ← 全阶段 Prompt 模板
-├── app/                    # FastAPI 应用入口、路由
-├── agents/                 # Agent 定义：每个 Agent 有独立配置
-├── nodes/                  # 节点逻辑：LLM、工具调用、Router、Guard
-├── routes/                 # 路由/决策逻辑：意图分类、条件分支
-├── state.py                # 状态定义：Pydantic state、checkpoint 结构
-├── tools/                  # 工具定义：检索、计算、外部 API、合规检查
-├── services/               # LLM、数据库、记忆、评测服务
-├── evals/                  # 评测脚本：工具调用准确率、任务完成率
-├── schemas/                # 请求/响应 Pydantic schema
-├── alembic/                # 数据库迁移
-├── grafana/                # 监控面板
-├── prometheus/             # 监控配置
-├── docker-compose.yml
-├── Dockerfile
-└── .env.example
+```bash
+uv run alembic upgrade head          # 建表
+uv run python -m scripts.seed        # Mock 数据入库（保单/就诊记录，幂等）
+uv run python -m services.rag.ingest # 知识库向量化入库（首次运行下载 BGE-M3 模型）
 ```
 
----
+> 提示：BGE-M3 已缓存后，若 HuggingFace 连接不稳定导致加载缓慢，可设置 `HF_HUB_OFFLINE=1` 跳过在线版本检查。
 
-## 五阶段工作流
+### 3. 启动
 
-| 阶段            | 产出文件                                          | 门禁（用户检查点）            |
-| ------------- | --------------------------------------------- | -------------------- |
-| Phase 1 需求定义  | `.agent/spec.md`                              | 功能边界清晰，每条功能有验收标准     |
-| Phase 2 架构设计  | `.agent/plan.md`                              | 表结构支撑所有功能，API 覆盖所有需求 |
-| Phase 3 任务拆解  | `.agent/tasks.md`                             | 任务顺序合理，依赖无环，验收标准明确   |
-| Phase 4 逐任务构建 | `src/` + `.agent/progress.md`                 | 每个任务可运行、无报错          |
-| Phase 5 验证交付  | `tests/` + `.github/workflows/` + `README.md` | 测试全绿，CI 通过，spec 覆盖完整 |
-
----
-
-## 使用流程详解
-
-### Phase 1 → 需求定义
-
-1. 复制 `prompts.md` 中的 Phase 1 Prompt 到 Agent
-2. Agent 会先问你 3-5 个澄清问题
-3. 回答后，Agent 将需求写入 `spec.md`
-4. 你检查 `spec.md`：功能边界是否清晰？验收标准是否可验证？
-5. 确认后 → 进入 Phase 2
-
-### Phase 2 → 架构设计
-
-1. 复制 Phase 2 Prompt 到 Agent
-2. Agent 读取 `spec.md`，将方案写入 `plan.md` 和 `decisions.md`
-3. 你检查 `plan.md`：技术选型是否合理？数据模型能否支撑功能？
-4. 确认后 → 进入 Phase 3
-
-### Phase 3 → 任务拆解
-
-1. 复制 Phase 3 Prompt 到 Agent
-2. Agent 读取 `plan.md`，将任务清单写入 `tasks.md`
-3. 你检查 `tasks.md`：任务粒度是否合适？依赖关系是否正确？
-4. 确认后 → 进入 Phase 4
-
-### Phase 4 → 逐任务构建（循环）
-
-1. 复制 Phase 4 Prompt 到 Agent
-2. Agent 实现 `tasks.md` 中下一个未完成任务
-3. 完成后 Agent 更新 `tasks.md`（标记 [x]）和 `progress.md`
-4. Agent 告诉你验证方法
-5. 你验证 → 通过则回复"继续下一个" → 回到步骤 1
-6. 验证 → 不通过则让 Agent 在当前任务内修复
-
-### Phase 5 → 验证交付
-
-1. 所有任务标记 [x] 后，复制 Phase 5 Prompt 到 Agent
-2. Agent 运行全量测试、检查 spec 覆盖、补文档
-3. 你最终验收 → 交付
-
----
-
-## 会话中断恢复
-
-会话断了不用担心，所有状态都在文件里。新会话开始时：
-
-1. 复制 `prompts.md` 中的 **上下文恢复 Prompt** 到 Agent
-2. Agent 读取 `.agent/` 下所有文件，报告当前状态
-3. 从断点继续
-
----
-
-## Git 检查点
-
-每个阶段和每个任务都是独立 commit，出错可精确回退：
-
-```
-Phase 0: chore: init project rules
-Phase 1: docs: add spec
-Phase 2: docs: add architecture plan
-Phase 3: docs: add task breakdown
-Phase 4: feat: T001 项目初始化      ← 每个任务一个 commit
-         feat: T002 数据库连接
-         feat: T003 数据模型定义
-         ...
-Phase 5: test: full verification pass
+```bash
+uv run uvicorn app.main:app --port 8000   # 后端 API
+uv run python ui/app.py                   # 演示界面（http://127.0.0.1:7860）
 ```
 
----
+### 4. Docker 一键启动（prod profile：PostgreSQL + Qdrant + Redis）
 
-## 关键原则
+```bash
+docker compose up -d
+curl http://localhost:8000/health   # {"status":"ok"}
+```
 
-1. **文件即状态** — 所有进度写入 `.agent/` 文件，不依赖会话记忆
-2. **一次一任务** — 不批量实现，完成一项验证一项
-3. **确认才放行** — 每个阶段产出必须用户确认后才进入下一步
-4. **决策留痕** — 技术选型记录在 `decisions.md`，可追溯
-5. **可回退** — Git per-task commit，出错精准回退
+## API
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/v1/conversations` | POST | 创建会话（返回 conversation_id） |
+| `/api/v1/conversations` | GET | 会话列表（分页 + 消息计数） |
+| `/api/v1/conversations/{id}` | GET | 会话详情 + 最近消息摘要 |
+| `/api/v1/conversations/{id}/messages` | GET | 消息历史（含审计字段） |
+| `/api/v1/conversations/{id}/messages` | POST | 发消息（触发完整主图流程） |
+| `/api/v1/conversations/{id}/images` | POST | 上传图片材料（vision OCR + Mock 兜底） |
+| `/health` | GET | 健康检查（四依赖状态） |
+
+**发消息响应结构**：
+
+```json
+{
+  "answer": "根据条款预估可赔付 4,640 元，最终以理赔审核结果为准。",
+  "intent": "multi_step",
+  "used_tools": [{"tool": "policy_query", "input": {}, "output": {}}],
+  "agent_steps": [{"step_index": 0, "agent": "medical", "status": "done", "duration_ms": 41593}],
+  "compliance_status": "PASS",
+  "need_human_intervention": false,
+  "intervention_reason": null
+}
+```
+
+## 测试与验证
+
+```bash
+uv run pytest tests -q        # 220 用例全绿（工具单测 + 图级集成 + API 端到端）
+uv run ruff check .           # lint
+```
+
+真实 LLM 验收脚本（需 .env 配置 API Key）：`scripts/verify_intent.py`（意图准确率 95%）/
+`verify_rag.py` / `verify_planner.py` / `verify_compliance.py` / `verify_ocr.py` / `verify_e2e.py`
+
+## 项目结构
+
+```
+app/          FastAPI 入口与路由        agents/     4 个 Agent 定义
+nodes/        LangGraph 节点（8 个）     tools/      工具层（claim/medical/compliance）
+workflows/    主图组装                  services/   LLM / RAG / DB / 记忆
+schemas/      Pydantic 模型             tests/      220 个测试用例
+scripts/      seed 与验收脚本           data/       Mock 数据与知识库文档
+ui/           Gradio 演示界面           evals/      评测（Phase 3）
+```
+
+详细架构设计见 `docs/architecture.md`，构建过程与决策记录见 `.agent/`（progress / decisions）。
+
+## 设计要点
+
+1. **合规门禁是图结构保证而非约定**：所有输出路径的条件边必经 compliance 节点，任何代码路径无法绕过
+2. **合规裁决不依赖 LLM 可用性**：规则工具（正则）取证 + LLM 裁决 + 确定性兜底（FRAUD_RISK 或
+   risk≥80 → REJECT），LLM 宕机时拦截能力不失效
+3. **Worker Agent 结构化输出**：每步产出经 Pydantic schema 校验的 JSON 结论，写入共享数据池
+   供后续步骤与整合节点消费
+4. **OCR 降级语义**：识别失败返回预置 Mock 数据并显式标记 `source`，下游计算拿到的金额要么可信要么来源明确
+
+## 范围说明（MVP 边界）
+
+保单 / 医疗系统为可信 Mock 数据（OCR 为真实 vision API + Mock 兜底）；监控（Prometheus /
+Grafana）、评测体系、GraphRAG 为后续 Phase 规划，见 `.agent/spec.md` 非目标一节。

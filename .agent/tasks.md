@@ -47,7 +47,7 @@
 
 ### 交付
 
-- [ ] T023: README 与最终验证 | 依赖: T022 | 涉及文件: README.md、.github/workflows/ci.yml | 验收: 对照 spec F01-F14 逐条核验通过；README 含安装/运行/API 文档/架构说明/CI 徽章；push 后 CI 全绿
+- [x] T023: README 与最终验证 | 依赖: T022 | 涉及文件: README.md、.github/workflows/ci.yml | 验收: 对照 spec F01-F14 逐条核验通过；README 含安装/运行/API 文档/架构说明/CI 徽章；push 后 CI 全绿（push 待用户创建 claimflow 仓库后执行，本地 lint+test+compose 校验已全绿）
 
 ---
 
@@ -73,6 +73,6 @@ T001 → T002 → T003 → T004 → T005
 ## 进度统计
 
 - 总任务数：23
-- 已完成：22
+- 已完成：23
 - 进行中：0
-- 待开始：1
+- 待开始：0

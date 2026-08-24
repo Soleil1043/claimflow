@@ -230,3 +230,19 @@ T018 要求合规审查具备强可靠性（F10：违规内容必须被拦截，
 
 **影响**：
 nodes/compliance.py、tools/compliance/、workflows/main_graph.py、A06 响应与审计。
+
+## D013: 项目更名 claim-agent → claimflow — 2026-08-25
+
+**背景**：
+项目原名 claim-agent 与 LangGraph 架构内部的 Claim Agent（理赔核算 Agent）撞名——"项目级"与"组件级"的 Agent 概念混淆，面试/作品集场景易引起误解。
+
+**候选**：
+- claim-orchestrator：直接呼应 Orchestrator-Worker 架构，稍长
+- claimflow：简短好记，强调理赔全流程编排（意图→规划→执行→合规）
+- claimcrew：暗示多智能体团队，但与 CrewAI 框架有联想
+- claimmate：助手定位，不体现多智能体架构
+
+**最终选择**：claimflow（用户确认）。风格与用户另一项目 toutiao-news 一致（小写+连字符）。
+
+**改动范围**：
+pyproject.toml root 包名 + uv.lock 重新生成；ci.yml 镜像名；app/main.py FastAPI title；README 标题/badge/clone URL；GitHub 仓库名；本地目录名。数据库名 claim_agent 为数据层内部标识（POSTGRES_DB），不影响外部认知，保持不动。历史记录（progress/decisions）按只追加原则不改。

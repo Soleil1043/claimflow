@@ -1,5 +1,5 @@
 [project]
-name = "claim-agent"
+name = "claimflow"
 version = "0.1.0"
 description = "多智能体保险理赔对话系统（Orchestrator-Worker 架构）"
 readme = "README.md"
