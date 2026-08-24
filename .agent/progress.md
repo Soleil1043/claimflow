@@ -339,9 +339,25 @@
 
 **状态**：✅ 通过验证
 
----
+### [T014] Gradio 演示界面 — 2026-08-25（Phase 1 完结）
 
-## 问题追踪
+**操作**：
+- ui/app.py：Gradio Blocks 界面——BackendClient（httpx 异步，A02 惰性创建会话 + A06 发消息）、chat 回调（回答 + ⚙️ 工具轨迹脚注）、欢迎语、示例问题、新会话重置、后端不可达/HTTP 错误友好提示；API_BASE_URL 环境变量支持容器分离部署
+- scripts/verify_ui.py：验收脚本（模拟界面回调，真实后端两轮对话）
+
+**涉及文件**：
+- `ui/app.py`、`scripts/verify_ui.py`
+
+**验证方式**：
+- 界面启动：http://127.0.0.1:7860 返回 HTTP 200
+- `uv run python -m scripts.verify_ui`（真实后端）：第一轮"保单 POL-2025-0001 住院花了15800元能赔多少？" → 回答含 4,640 元 + policy_query/claim_calculator 工具轨迹；第二轮"免赔额多少" → 正确引用上下文 10,000 元 → 全链路验收通过
+- `uv run pytest tests -q` → 99 passed；`uv run ruff check`（含 ui）→ All checks passed
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- _WELCOME 字符串内误用 ASCII 双引号截断字符串（SyntaxError）→ 改中文书名引号「」
+- gradio 6.25 的 Chatbot 已移除 type / show_copy_button 参数（messages 格式为默认）→ 去除失效参数
 
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
