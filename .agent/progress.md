@@ -71,6 +71,34 @@
 **问题与修正**：
 - 测试初版两处错误：`logging.StreamHandler()` 默认写 stderr（测试误读 stdout）；`structlog.stdlib.get_logger` 返回惰性代理，`bind()` 后才是 BoundLogger 实例。均已修正。
 
+### [T003] 数据库模型与会话管理 — 2026-08-24
+
+**操作**：
+- services/db/models.py：6 张表 ORM（SQLAlchemy 2.0 声明式，Mapped/mapped_column），JSONB→JSON variant 兼容 SQLite，BigInteger→Integer variant 解决 SQLite rowid 自增
+- services/db/session.py：异步引擎/会话工厂单例、get_session 依赖（自动提交/回滚）、init_db 建表、dispose_engine
+- alembic：init -t async 生成骨架，env.py 接入 settings.database_url（profile 动态切换）+ Base.metadata + render_as_batch（SQLite 兼容）；autogenerate 生成初始迁移 e01f31c574ab
+- tests/db/：test_models.py（4 用例）+ test_session.py（3 用例），内存 SQLite 隔离运行
+- pyproject.toml：ruff exclude alembic（工具生成代码不 lint）；.gitignore 补 data/*.db
+
+**涉及文件**：
+- `services/db/models.py`、`services/db/session.py`
+- `alembic.ini`、`alembic/env.py`、`alembic/script.py.mako`、`alembic/versions/e01f31c574ab_create_core_tables.py`
+- `tests/db/test_models.py`、`tests/db/test_session.py`
+- `app/core/config.py`（补 _url_for_log 脱敏方法）
+
+**验证方式**：
+- `uv run pytest tests -q` → 14 passed（含 T002 的 7 个）
+- `uv run alembic upgrade head` → SQLite 中 6 张表全部创建；`downgrade base` + 再 `upgrade head` 往返成功
+- `uv run ruff check app tests services` → All checks passed
+- prod 连接 PostgreSQL：本地 Docker 不可用，连接串构造已由 T002 测试覆盖，实际连接验证 deferred 到 T005 CI
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- SQLite 下 `BigInteger` 主键不走 rowid 自增 → `BigInteger().with_variant(Integer, "sqlite")`
+- autogenerate 生成的迁移缺 `Text` import（JSONB variant 引用）→ 手动补导入
+- scripts/seed.py 未在本任务实现（验收未涉及 seed 内容，Mock 数据入库与 T008 保单工具一并做，避免超前实现）
+
 ---
 
 ## 问题追踪

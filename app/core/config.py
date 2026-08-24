@@ -86,6 +86,15 @@ class Settings(BaseSettings):
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
 
+    def _url_for_log(self) -> str:
+        """日志用的脱敏连接串（隐藏密码）。"""
+        if self.is_prod:
+            return (
+                f"postgresql://{self.postgres_user}:***@"
+                f"{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            )
+        return self.database_url
+
 
 # 模块级单例：应用内统一 `from app.core.config import settings` 获取
 settings = Settings()
