@@ -359,6 +359,29 @@
 - _WELCOME 字符串内误用 ASCII 双引号截断字符串（SyntaxError）→ 改中文书名引号「」
 - gradio 6.25 的 Chatbot 已移除 type / show_copy_button 参数（messages 格式为默认）→ 去除失效参数
 
+### [T015] Agent 定义与 Prompt 体系 — 2026-08-25（Phase 2 开篇）
+
+**操作**：
+- agents/base.py：AgentDefinition 数据类（name/display_name/system_prompt/tool_names/output_schema/description + resolve_tools 注册中心解析过滤未注册工具）
+- agents/orchestrator.py|claim.py|medical.py|compliance.py：4 个 Agent 定义（Orchestrator 无业务工具走结构化输出；Claim 4 工具；Medical 3 工具未实现+复用 RAG；Compliance 3 工具未实现）
+- services/llm/prompts.py：4 个 Agent system prompt（职责/工作规范/JSON 输出格式；Compliance 含一票否决与五类违规标准 PROMISE/ABSOLUTE/MISLEAD/FRAUD_RISK/PRIVACY）
+- schemas/agent_outputs.py：ClaimAgentOutput / MedicalAgentOutput / ComplianceAgentOutput（含 Violation 嵌套）/ OrchestratorPlan（含 PlanStep）
+- agents/__init__.py：ALL_AGENTS 注册表 + get_agent
+- tests/agents/test_definitions.py：14 用例（定义完整性/工具分配/prompt 关键约束/4 个 schema 合法非法校验/resolve_tools 过滤与全量解析）
+
+**涉及文件**：
+- `agents/`（base + 4 定义 + __init__）、`services/llm/prompts.py`
+- `schemas/agent_outputs.py`、`tests/agents/test_definitions.py`
+
+**验证方式**：
+- `uv run pytest tests -q` → 113 passed（累计）；`uv run ruff check`（含 agents）→ All checks passed
+
+**状态**：✅ 通过验证
+
+**设计说明**：
+- Agent 是静态描述（prompt+工具集+schema），执行逻辑在节点/图——与 AGENTS.md 6.2"Agent 不直接调工具"一致
+- 跨任务工具依赖（record_query 等随 T016/T018 实现）用 resolve_tools 过滤策略：定义先行不阻断，工具就绪自动生效
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|
