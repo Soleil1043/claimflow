@@ -88,6 +88,27 @@ class MessageListResponse(BaseModel):
     items: list[MessageItem]
 
 
+# ---------- A06 发消息（触发 Agent 流程） ----------
+
+
+class MessageSendRequest(BaseModel):
+    """POST /api/v1/conversations/{id}/messages 请求体。"""
+
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class MessageSendResponse(BaseModel):
+    """发消息响应：回答 + 意图 + 工具轨迹 + 合规状态 + 介入标记。"""
+
+    answer: str
+    intent: str | None = None
+    used_tools: list[dict[str, Any]] = Field(default_factory=list)
+    agent_steps: list[dict[str, Any]] | None = None
+    compliance_status: str | None = None
+    need_human_intervention: bool = False
+    intervention_reason: str | None = None
+
+
 # ---------- A04 会话详情 ----------
 
 

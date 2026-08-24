@@ -1,11 +1,10 @@
-﻿"""会话管理路由（A02-A05，F02/F14）。
+﻿"""会话管理路由（A02-A06）。
 
 - A02 POST /api/v1/conversations          创建会话
 - A03 GET  /api/v1/conversations          会话列表（分页）
 - A04 GET  /api/v1/conversations/{id}     会话详情 + 最近消息摘要
 - A05 GET  /api/v1/conversations/{id}/messages  消息历史（分页，时间正序）
-
-A06（发消息，触发 LangGraph 流程）随 T012 实现。
+- A06 POST /api/v1/conversations/{id}/messages  发消息（触发 LangGraph ReAct 流程）
 """
 
 from __future__ import annotations
@@ -13,10 +12,11 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from langchain_core.messages import HumanMessage
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_db_session
+from app.api.dependencies import get_app_graph, get_db_session
 from schemas.api import (
     ConversationCreateRequest,
     ConversationCreateResponse,
@@ -25,6 +25,8 @@ from schemas.api import (
     ConversationSummary,
     MessageItem,
     MessageListResponse,
+    MessageSendRequest,
+    MessageSendResponse,
 )
 from services.db.models import Conversation, Message
 
@@ -163,3 +165,51 @@ def _to_message_item(m: Message) -> MessageItem:
         compliance_status=m.compliance_status,
         created_at=m.created_at,
     )
+
+
+@router.post(
+    "/{conversation_id}/messages",
+    response_model=MessageSendResponse,
+)
+async def send_message(
+    conversation_id: uuid.UUID,
+    body: MessageSendRequest,
+    session: AsyncSession = Depends(get_db_session),  # noqa: B008
+    graph=Depends(get_app_graph),  # noqa: B008
+) -> MessageSendResponse:
+    """A06 发消息：触发单 Agent ReAct 流程（F07 核心接口）。
+
+    流程：用户消息入 state → LangGraph 执行（工具循环）→
+    final_answer + tool_trace 落 messages 表（审计层）→ 返回结构化响应。
+    """
+    conversation = await _get_conversation_or_404(conversation_id, session)
+
+    result = await graph.ainvoke(
+        {
+            "messages": [HumanMessage(content=body.content)],
+            "conversation_id": str(conversation_id),
+            # 每轮重置轨迹：used_tools 语义为"本轮调用"（checkpoint 只累积 messages）
+            "tool_trace": [],
+        },
+        config={"configurable": {"thread_id": str(conversation_id)}},
+    )
+
+    answer = result.get("final_answer") or "抱歉，我暂时无法处理该问题，请稍后再试。"
+    tool_trace = result.get("tool_trace") or []
+
+    # 审计落库：user + assistant 两条（Phase 1 无 intent/compliance，T013/T018 启用）
+    session.add(
+        Message(conversation_id=conversation_id, role="user", content=body.content)
+    )
+    session.add(
+        Message(
+            conversation_id=conversation_id,
+            role="assistant",
+            content=answer,
+            tool_trace=tool_trace,
+        )
+    )
+    conversation.updated_at = func.now()
+    await session.flush()
+
+    return MessageSendResponse(answer=answer, used_tools=tool_trace)

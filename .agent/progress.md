@@ -288,6 +288,36 @@
 - pydantic property 不能 monkeypatch（checkpoint_conn_string）→ 测试改 patch 底层 postgres 字段
 - FastAPI Depends 默认参数触发 ruff B008 → noqa（FastAPI 惯用法）
 
+### [T012] 单 Agent ReAct 核心流程 — 2026-08-25（Phase 1 里程碑）
+
+**操作**：
+- state.py：AgentState 全量字段定义（total=False 局部更新，messages 用 add_messages reducer 累积）
+- nodes/generator.py：ReactAgentNode——LLM bind_tools（OpenAI dict 格式）→ tool_calls 经 ToolExecutor 执行 → ToolMessage 回填循环；should_continue 条件边（末尾 ToolMessage → 继续 / AIMessage → 结束）；MAX_TOOL_ROUNDS=8 防失控
+- workflows/main_graph.py：Phase 1 简版图（START → react_agent ⇄ 循环 → END，checkpointer 注入）+ create_default_graph 工厂
+- app/api/v1/conversations.py：A06 send_message——graph.ainvoke（thread_id=conversation_id）→ final_answer + 本轮 tool_trace 落审计表 → 返回 answer/used_tools
+- app/main.py + dependencies.py：lifespan 组装（registry → checkpointer → graph 挂 app.state），get_app_graph 依赖
+- tests/workflows/test_phase1_graph.py：6 用例（ScriptedLLM mock：ReAct 循环消息序列/多轮 checkpoint 历史/条件边三分支/A06 协议/404/422）
+
+**涉及文件**：
+- `state.py`、`nodes/generator.py`、`workflows/main_graph.py`
+- `app/api/v1/conversations.py`、`app/api/dependencies.py`、`app/main.py`、`schemas/api.py`
+- `tests/workflows/test_phase1_graph.py`、`.env`（本地真实 Key，不入 git）
+
+**验证方式（真实 DeepSeek LLM 端到端）**：
+- API Key 验证：deepseek-v4-flash 真实调用返回"收到"（T006 顺延验收补齐）
+- F07 主验收："保单 POL-2025-0001 住院花了15800元能赔多少？" → LLM 自主调用 policy_query(policy_no=POL-2025-0001) → claim_calculator(medical_expense=15800, coverage=1000000, deductible=10000, ratio=0.8) → 回答含保单全信息 + 计算明细（可赔基数 5,800 → 赔付 **4,640 元**，与 T009 标准用例一致）
+- F14 多轮：同会话追问"免赔额多少" → 正确引用第一轮上下文回答 10,000 元；历史 4 条消息审计落库
+- `uv run pytest tests -q` → 88 passed（累计）；`uv run ruff check` → All checks passed
+
+**状态**：✅ 通过验证
+
+**问题与修正**：
+- langgraph 当前版无 `get_callbacks` → 改用 langchain_core 的 `ensure_config()`
+- bind_tools 传项目 BaseTool 实例报 "Unsupported function" → 必须传 OpenAI dict 格式（to_openai_tool()）
+- used_tools 语义：checkpoint 恢复导致轨迹跨轮累积 → A06 每轮显式重置 tool_trace=[]（messages 累积、轨迹本轮）
+- ASGITransport 不跑 lifespan → 测试直接给 app.state.graph 赋值（Depends 绑定的函数对象无法 monkeypatch 模块属性）
+- SQLite 同秒 created_at 排序不稳定（偶发测试失败）→ 分页测试直插递增时间戳
+
 ---
 
 ## 问题追踪

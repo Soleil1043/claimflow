@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 import services.db.session as session_module
 import services.memory.short_term as short_term_module
 from app.main import app
-from services.db.models import Base, Message
+from services.db.models import Base, Conversation, Message
 
 
 @pytest.fixture()
@@ -90,10 +90,21 @@ async def test_create_conversation_validates_user_id(client: AsyncClient) -> Non
 
 async def test_list_conversations_with_pagination(client: AsyncClient) -> None:
     """A03：列表按创建时间倒序 + 分页。"""
-    ids = []
-    for i in range(3):
-        resp = await client.post("/api/v1/conversations", json={"user_id": f"u{i}"})
-        ids.append(resp.json()["conversation_id"])
+    # 直插不同时间戳（API 连续创建时间精度不足，同秒会导致排序不稳定）
+    import datetime as dt
+
+    factory = session_module.get_session_factory()
+    async with factory() as session:
+        session.add_all(
+            [
+                Conversation(
+                    user_id=f"u{i}",
+                    created_at=dt.datetime(2026, 1, 1, 0, 0, i),
+                )
+                for i in range(3)
+            ]
+        )
+        await session.commit()
 
     resp = await client.get("/api/v1/conversations", params={"limit": 2, "offset": 0})
     assert resp.status_code == 200

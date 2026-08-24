@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 
@@ -11,19 +12,36 @@ from app.api.v1 import conversations, health
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
 from services.db.session import dispose_engine, init_db
+from services.memory.short_term import get_checkpoint_manager
+from tools.executor import ToolExecutor
+from tools.registry import get_default_registry
+from workflows.main_graph import build_phase1_graph
 
 log = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """应用生命周期：启动时初始化日志与数据库，关停时释放连接。"""
+    """应用生命周期：初始化日志 / 数据库 / checkpointer / 主图，关停时逆序释放。"""
     configure_logging()
-    # dev 直接 create_all 建表；prod 由 alembic 迁移管理，不自动建表
+
+    import tools.claim  # noqa: F401 注册理赔工具
+
+    registry = get_default_registry()
+    checkpointer = await get_checkpoint_manager().start()
+
+    # dev 直接建表；prod 由 alembic 迁移管理，不自动建表
     if not settings.is_prod:
         await init_db()
-    log.info("app_started", profile=str(settings.app_profile))
+
+    app.state.graph: Any = build_phase1_graph(
+        executor=ToolExecutor(registry),
+        checkpointer=checkpointer,
+    )
+    log.info("app_started", profile=str(settings.app_profile), tools=registry.list_names())
     yield
+
+    await get_checkpoint_manager().close()
     await dispose_engine()
     log.info("app_stopped")
 
