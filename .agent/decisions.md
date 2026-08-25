@@ -280,3 +280,38 @@ T025 实现方式取舍：监控服务是否默认随 `docker compose up` 启动
 - B. 独立 profile `monitoring`：`docker compose --profile monitoring up -d` 显式启动；CI 与常规启动不变；语义清晰（监控是可选增强）
 
 **最终选择**：B（用户确认）。`docker compose config --services` 双向验证：默认 4 服务，带 profile 6 服务。
+
+## D017: Phase 4 范围与 GraphRAG 轻量自建路径 — 2026-08-25
+
+**背景**：
+Phase 4 立项规划：架构文档规划了 GraphRAG / 合规风控模型优化 / A/B 测试 / 人工介入工作台四项，需结合现状与求职方向（Agent 全栈 / Agent 应用工程师）取舍。
+
+**候选与理由**：
+- GraphRAG（纳入，3 任务）：架构 Phase 4 核心规划；与普通 RAG 形成差异化对比，是面试叙事最强项
+- 长期记忆（纳入，2 任务）：架构 6.1 三层记忆已设计未实现，补齐即闭环
+- OTel + Jaeger（纳入，压缩为 1 任务）：D015 后置项；LangSmith 讨论结论（当前场景必要性 10%，OTel 优先于 LangSmith：开源/自托管/无锁定）
+- A/B 实验框架（纳入，2 任务）：复用 T027 评测运行器，T039 用 deepseek-v4-pro 跑 200 条对比（预算 ¥5-10 用户确认）
+- 合规风控模型优化（不纳入）：规则引擎已达标（评测红线违规 0/200），优化方向模糊
+- 总量 12 任务（用户确认）
+
+**GraphRAG 实现路径——轻量自建**：
+- LLM 从 12 篇 kb_docs 抽取实体关系三元组（险种/疾病/等待期/免赔/免责），内存图结构 + 落盘复用
+- 与现有 Qdrant 向量检索做混合召回（图邻接扩展 + 向量检索融合重排）
+- 否决 LightRAG/nano-graphrag：新依赖且可控性低；否决 Neo4j：重容器，演示规模过度设计
+
+## D018: 人工介入工作台按精简方案 B 实现 — 2026-08-25
+
+**背景**：
+架构 Phase 4 规划"人工介入工作台"，评估必要性随求职方向变化：纯后端 15% / Agent 应用工程师 40-45% / **Agent 全栈 70-75%**。用户目标方向为 Agent 全栈或 Agent 应用工程师。
+
+**候选**：
+- A. 全量工作台（WebSocket 实时推单 + 完整坐席系统，4-5 任务）：叙事满分但项目膨胀
+- B. 精简工作台（3 任务）：Next.js 前端（转人工会话列表 + 上下文详情 + 处理动作）+ 后端工单 API + LangGraph interrupt 恢复机制
+- C. 纯后端 HITL（1 任务）：工单状态机 + REST API，无 UI
+- D. 不做
+
+**最终选择**：B（用户确认）。理由：
+1. 前端复用 toutiao-news 技能栈（Next.js 15 + React 19 + Tailwind，技能是热的），边际成本≈2-3 天
+2. 后端复用现有审计数据：messages 表 tool_trace/agent_steps/compliance_status 字段本来就是为"给坐席看上下文"设计，前端只做渲染，只需 3 个只读 API + 1 个状态更新
+3. 成为唯一"AI 语境下产品级前端"作品：claimflow 补前端短板，toutiao-news 补 AI 短板，双证互补
+4. HITL 后端模式（LangGraph interrupt/Command 恢复）同时满足 Agent 应用工程师叙事

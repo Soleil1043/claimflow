@@ -1,8 +1,8 @@
 # 任务清单 (Tasks)
 
-> Phase 3 产出。基于 plan.md 拆解，用户确认后进入 Phase 4 逐个执行。
+> Phase 3 产出，Phase 4 规划于 2026-08-25 更新（D017/D018）。基于 plan.md 与架构文档拆解。
 > 规则：1 个任务 = 1 个可独立验证的功能点 | 严格按顺序执行 | 不跳依赖
-> 覆盖范围：MVP（spec F01-F14，对应 Phase 0-2）；Phase 3/4 任务不在本清单
+> 覆盖范围：MVP（F01-F14）+ Phase 3（工程化）+ Phase 4（深度亮点）
 
 ---
 
@@ -59,6 +59,21 @@
 - [x] T029: Token 消耗统计与预算控制 | 依赖: T024 | 涉及文件: services/llm/client.py、app/api/v1/conversations.py | 验收: 每轮对话各环节（意图/规划/执行/生成）token 用量累计入 Prometheus 指标与结构化日志；单轮 token 超预算阈值时输出告警日志（不阻断）
 - [x] T030: Phase 3 收尾验证 | 依赖: T027、T028、T029 | 涉及文件: README.md、.github/workflows/ci.yml | 验收: `uv run ruff check` + `uv run pytest` 全绿；评测基线报告产出并存档；README 补监控（/metrics、Grafana 访问）与评测（运行方式、基线指标）章节；push 后 CI 全绿
 
+### Phase 4：深度亮点（GraphRAG / 长期记忆 / HITL 工作台 / OTel / A-B，D017/D018）
+
+- [ ] T031: 知识图谱构建 | 依赖: T030 | 涉及文件: services/rag/knowledge_graph.py、scripts/build_kg.py、data/graph/ | 验收: LLM 从 12 篇 kb_docs 抽取实体关系三元组（险种/疾病/等待期/免赔/免责等），内存图结构（邻接表 + 实体索引）+ JSON 落盘可复用（`scripts/build_kg.py` 幂等重建）；实体/关系 schema（Pydantic）校验 + 抽取失败重试/跳过容错；图谱统计（实体数/关系数/度分布）可输出
+- [ ] T032: 图检索与混合召回 | 依赖: T031 | 涉及文件: services/rag/graph_retriever.py、services/rag/retriever.py、nodes/rag.py | 验收: 图邻接扩展检索（疾病→险种→规则条款多跳）与 Qdrant 向量检索融合（RRF 或加权重排）；`claim_rule_rag` 工具输出增加 graph_context 维度；复杂关联问题（如"哪些疾病不在保障范围"）对比纯 RAG 召回可见提升；混合开关可配（GRAPH_RAG_ENABLED）
+- [ ] T033: GraphRAG 评测对比 | 依赖: T032 | 涉及文件: evals/datasets/（关联类用例扩充）、evals/test_suite.py | 验收: 评测集扩充 ≥20 条复杂关联用例（kb_docs 可溯源）；同一测试集跑"纯 RAG vs 混合召回"两组报告（变体切换复用 A/B 框架或 --variant 参数），量化任务完成率/检索命中差异；对比报告存档 evals/reports/
+- [ ] T034: 长期记忆写路径 | 依赖: T030 | 涉及文件: services/memory/long_term.py、app/api/v1/conversations.py（A06 出口） | 验收: 会话结束（或每 N 轮）生成对话摘要 + 关键实体（保单号/诊断/金额），BGE-M3 向量化入 Qdrant 独立 collection（按 user_id payload 过滤隔离）；摘要质量抽验；写路径幂等（重复会话不重复入库）
+- [ ] T035: 长期记忆读注入 | 依赖: T034 | 涉及文件: nodes/intent.py 或 generator.py、services/memory/long_term.py | 验收: 新会话首轮按 user_id 检索 top-k 历史摘要，注入 system prompt（Token 预算内）；跨会话上下文实测连贯（"我上次问的那张保单"正确引用历史）；无历史用户零影响（检索空直跳）
+- [ ] T036: HITL 工单后端 | 依赖: T030 | 涉及文件: services/db/models.py（HumanTicket）、app/api/v1/interventions.py、alembic/ | 验收: 转人工事件落工单（状态机 pending→resolved/transferred_out）；聚合上下文 API（会话轨迹 + tool_trace + agent_steps + compliance_result + intervention_reason）；坐席处理动作 API（解决/升级/回写结论）；单测覆盖状态流转
+- [ ] T037: LangGraph interrupt 恢复机制 | 依赖: T036 | 涉及文件: workflows/main_graph.py、nodes/compliance.py（REJECT 分支） | 验收: REJECT 路径接 LangGraph `interrupt`（替代直接 END）；坐席通过 A06 类接口以 `Command(resume=...)` 恢复会话，坐席结论经合规审查后返回用户；interrupt 状态持久化（checkpoint）可跨服务重启恢复；端到端单测（触发→interrupt→人工结论→恢复→返回）
+- [ ] T038: Next.js 人工介入工作台 | 依赖: T036、T037 | 涉及文件: workbench/（Next.js 15 + React 19 + Tailwind 新目录）、README | 验收: 转人工会话列表页（状态筛选）+ 详情页（对话轨迹/工具调用/Agent 步骤/合规拦截原因可视化渲染）+ 处理动作（解决并回写结论，触发 interrupt 恢复）；dev 代理直连后端 8000；README 补工作台章节（启动方式 + 截图占位）
+- [ ] T039: OTel + Jaeger 全链路追踪 | 依赖: T030 | 涉及文件: services/observability/tracing.py、docker-compose.yml（tracing profile）、pyproject.toml | 验收: OpenTelemetry SDK 埋点（FastAPI instrumentation + LLM/工具调用 span，trace_id 贯穿 A06→节点→工具）；compose `--profile tracing` 起 Jaeger + OTel Collector；本地起栈在 Jaeger UI 看到完整调用树（span 含 token 用量/工具名/合规裁决属性）；采样率可配
+- [ ] T040: A/B 实验框架 | 依赖: T030 | 涉及文件: evals/ab_test.py、evals/variants.py（或配置文件） | 验收: 实验配置定义变体（模型/参数/prompt 路径切换）；同一评测集分流运行多变体并产出对比报告（复用 metrics 聚合，组间差异 + 显著性粗判）；结果 JSON 落盘；--variant 参数与 test_suite 兼容
+- [ ] T041: A/B 实战实验（deepseek-v4-pro 对比） | 依赖: T040 | 涉及文件: evals/reports/、.agent/decisions.md（实验结论 D019） | 验收: deepseek-v4-flash（基线）vs deepseek-v4-pro 200 条全量对比，产出结论报告（任务完成率/工具准确率/耗时/token 成本四维对比 + 选型建议写入 decisions.md）；预算 ≤ ¥10
+- [ ] T042: Phase 4 收尾验证 | 依赖: 全部 | 涉及文件: README.md、docs/architecture.md、.github/workflows/ci.yml | 验收: ruff + pytest 全绿；GraphRAG/长期记忆/工作台/OTel/AB 五个方向的 README 章节与架构图更新；D017/D018/D019（实验结论）齐备；push 后 CI 全绿
+
 ---
 
 ## 依赖关系图
@@ -79,16 +94,23 @@ T001 → T002 → T003 → T004 → T005
                 ↓      ↓                ↓
                 ↓      └──── T016 ──→ T021 → T022 → T023
                                                 ↓
-        Phase 3:          T024（指标埋点）→ T025（Prometheus+Grafana）
-                          T024 → T028（工具缓存）
-                          T024 → T029（Token 统计）
-                          T023 → T026（评测集）→ T027（评测运行器）
-                          T027 + T028 + T029 → T030（收尾）
+        Phase 3:  T024（指标埋点）→ T025（Prometheus+Grafana）
+                  T024 → T028（工具缓存）
+                  T024 → T029（Token 统计）
+                  T023 → T026（评测集）→ T027（评测运行器）
+                  T027 + T028 + T029 → T030（收尾）
+                                  ↓
+        Phase 4:  T030 → T031（图谱构建）→ T032（混合召回）→ T033（GraphRAG 评测对比）
+                  T030 → T034（记忆写）→ T035（记忆读注入）
+                  T030 → T036（工单后端）→ T037（interrupt 恢复）→ T038（Next.js 工作台）
+                  T030 → T039（OTel+Jaeger）
+                  T030 → T040（A/B 框架）→ T041（v4-pro 实战实验）
+                  全部 → T042（收尾）
 ```
 
 ## 进度统计
 
-- 总任务数：30（MVP 23 + Phase 3 新增 7）
+- 总任务数：42（MVP 23 + Phase 3 七个 + Phase 4 十二个）
 - 已完成：30
 - 进行中：0
-- 待开始：0（Phase 3 全部完成）
+- 待开始：12（T031-T042，Phase 4）
