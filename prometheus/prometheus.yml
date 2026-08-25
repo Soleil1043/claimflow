@@ -1,0 +1,14 @@
+# Prometheus 抓取配置（T025）
+# 拉模式：app 被动暴露 /metrics（T024），Prometheus 每 15s 主动抓取
+# 容器间用 compose 服务名互访：app:8000（非 localhost）
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: claimflow-app
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["app:8000"]
+        labels:
+          service: claimflow

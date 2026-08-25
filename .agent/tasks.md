@@ -52,7 +52,7 @@
 ### Phase 3：工程化与优化（容错已随 MVP 达成，聚焦可观测性/评测/性能）
 
 - [x] T024: Prometheus 指标埋点 | 依赖: T023 | 涉及文件: services/observability/metrics.py、app/main.py、tools/executor.py、services/llm/client.py、nodes/ | 验收: `GET /metrics` 暴露工具指标（调用成功率/耗时直方图/熔断计数）、LLM 指标（耗时/Token 消耗）、业务指标（转人工率/合规拦截率/平均处理时长）；埋点逻辑有单元测试（Counter/Histogram 注册与打点、标签维度正确）
-- [ ] T025: Prometheus + Grafana 容器化与仪表盘 | 依赖: T024 | 涉及文件: docker-compose.yml、prometheus/prometheus.yml、grafana/（dashboard JSON + datasource 自动配置） | 验收: `docker compose up` 后 Grafana（localhost:3000）自动加载仪表盘，含工具成功率、P95 延迟、LLM Token 消耗、转人工率、合规拦截率面板；本地容器化验证通过
+- [x] T025: Prometheus + Grafana 容器化与仪表盘 | 依赖: T024 | 涉及文件: docker-compose.yml、prometheus/prometheus.yml、grafana/（dashboard JSON + datasource 自动配置） | 验收: `docker compose up` 后 Grafana（localhost:3000）自动加载仪表盘，含工具成功率、P95 延迟、LLM Token 消耗、转人工率、合规拦截率面板；本地容器化验证通过
 - [ ] T026: 评测数据集构建（200 条）| 依赖: T023 | 涉及文件: evals/datasets/*.json、scripts/gen_eval_dataset.py（辅助生成） | 验收: 200 条标注用例按架构 9.2 比例（FAQ 30 / 单领域 60：保单·医疗·合规各 20 / 多步复杂 80 / 边界异常 30），每条含「用户输入 + 期望工具调用序列 + 期望回答要点」；数据集 schema 有校验
 - [ ] T027: 评测运行器与指标计算 | 依赖: T026 | 涉及文件: evals/test_suite.py、evals/metrics.py | 验收: 真实 LLM 跑测试集输出报告（任务完成率/工具调用准确率/合规通过率/平均耗时/Token 消耗），支持子集运行（--category/--limit）与结果 JSON 落盘；基线报告生成
 - [ ] T028: Redis 工具结果缓存 | 依赖: T024 | 涉及文件: tools/base.py、tools/executor.py、services/cache.py、app/core/config.py | 验收: 幂等工具（policy_query/record_query/diagnosis_matcher/claim_rule_rag）相同入参二次调用命中缓存；TTL 可配（默认 300s）；缓存命中/未命中指标暴露；dev profile 内存降级；单测覆盖命中/过期/禁用三态

@@ -246,3 +246,37 @@ nodes/compliance.py、tools/compliance/、workflows/main_graph.py、A06 响应�
 
 **改动范围**：
 pyproject.toml root 包名 + uv.lock 重新生成；ci.yml 镜像名；app/main.py FastAPI title；README 标题/badge/clone URL；GitHub 仓库名；本地目录名。数据库名 claim_agent 为数据层内部标识（POSTGRES_DB），不影响外部认知，保持不动。历史记录（progress/decisions）按只追加原则不改。
+
+## D014: 评测数据集按架构完整规模 200 条构建 — 2026-08-25
+
+**背景**：
+Phase 3 规划时提出评测集规模取舍（架构 9.2 规划 200 条 vs 演示项目精简 40/80 条）。
+
+**候选**：
+- 精简 40 条：标注成本低，但覆盖度弱，评测报告说服力不足
+- 中间 80 条：折中
+- 完整 200 条：严格对齐架构文档 9.2 规划比例（FAQ 30 / 单领域 60 / 多步复杂 80 / 边界异常 30）
+
+**最终选择**：完整 200 条（用户确认）。作为求职作品集，评测规模本身是工程化能力的展示点；用例可基于已有 Mock 数据体系程序化辅助生成 + 人工校验，控制标注成本。
+
+## D015: OpenTelemetry 全链路追踪后置 Phase 4 — 2026-08-25
+
+**背景**：
+架构 8.2 提到 OTel Trace，Phase 3 立项时评估是否纳入。
+
+**候选**：
+- 纳入 Phase 3：指标 + 追踪一次到位，但需引入 OTel SDK + Jaeger 后端容器，任务数 +2
+- 后置 Phase 4：Phase 3 聚焦 Prometheus 指标 + Grafana 面板；现有结构化日志已含每轮对话完整执行轨迹（工具入参/出参/耗时），可观测性基本盘已够
+
+**最终选择**：后置 Phase 4（用户确认）。OTel + Jaeger 与 GraphRAG、A/B 测试同属"深度亮点"层，放 Phase 4 更聚焦。
+
+## D016: 监控栈用独立 compose profile（monitoring）— 2026-08-25
+
+**背景**：
+T025 实现方式取舍：监控服务是否默认随 `docker compose up` 启动。
+
+**候选**：
+- A. 默认启动：一键全栈，但 CI docker job 也拉起 Prometheus/Grafana，多拉两个镜像变慢，监控非业务可用必要条件
+- B. 独立 profile `monitoring`：`docker compose --profile monitoring up -d` 显式启动；CI 与常规启动不变；语义清晰（监控是可选增强）
+
+**最终选择**：B（用户确认）。`docker compose config --services` 双向验证：默认 4 服务，带 profile 6 服务。

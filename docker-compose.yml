@@ -1,6 +1,7 @@
 # 交付架构：PostgreSQL + Qdrant + Redis + app 四服务（plan.md F01）
 # 使用：docker compose up -d --build
 # 说明：app 以 prod profile 运行，LLM_API_KEY 从 .env 或环境变量注入
+# 监控栈（Prometheus + Grafana）：docker compose --profile monitoring up -d，默认不启动
 services:
   postgres:
     image: postgres:16-alpine
@@ -66,7 +67,38 @@ services:
       redis:
         condition: service_healthy
 
+  # ===== 监控栈（T025，独立 profile）：docker compose --profile monitoring up -d =====
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    profiles: ["monitoring"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    profiles: ["monitoring"]
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    environment:
+      # 演示场景免登录直读面板（生产应移除并配置正式认证）
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    depends_on:
+      - prometheus
+
 volumes:
   pgdata:
   qdrant_data:
   redis_data:
+  prometheus_data:
+  grafana_data:

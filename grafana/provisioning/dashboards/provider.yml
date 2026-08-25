@@ -1,0 +1,14 @@
+# Grafana 仪表盘提供者（T025）：从挂载目录自动加载 JSON，文件更新自动重载
+apiVersion: 1
+
+providers:
+  - name: claimflow
+    orgId: 1
+    folder: claimflow
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -639,6 +639,30 @@
 
 **Git**：`feat: T024 Prometheus 指标埋点（工具/LLM/业务三类指标 + /metrics 端点）`
 
+### [T025] Prometheus + Grafana 容器化与仪表盘 — 2026-08-25
+
+**操作**：
+- 监控栈独立 profile（D016 方案 B）：`docker compose --profile monitoring up -d` 才启动，默认 `up` 与 CI 不受影响（默认 4 服务 / 带 profile 6 服务，`docker compose config --services` 双向验证）
+- `prometheus/prometheus.yml`：15s 抓取 `app:8000/metrics`（compose 服务名 DNS）
+- Grafana 声明式 provisioning：`grafana/provisioning/datasources/prometheus.yml`（数据源自动注册，URL 指向 prometheus:9090）+ `grafana/provisioning/dashboards/provider.yml`（挂载目录自动加载/热重载）
+- `grafana/dashboards/claimflow-overview.json`：10 面板覆盖 T024 全指标——工具成功率/人工转接率/合规三态分布/单轮 P95（stat+donut）+ 工具 P95 延迟/调用量堆叠/LLM 延迟/Token 消耗/轮次速率/熔断拒绝（timeseries）
+- `docker-compose.yml`：新增 prometheus（v3.1.0）+ grafana（11.5.2）服务，挂载配置只读 + prometheus_data/grafana_data 卷；演示场景匿名 Admin 免登录（注释标注生产需移除）
+
+**涉及文件**：
+- `prometheus/prometheus.yml`、`grafana/provisioning/datasources/prometheus.yml`、`grafana/provisioning/dashboards/provider.yml`、`grafana/dashboards/claimflow-overview.json`（新增）
+- `docker-compose.yml`
+
+**验证方式（本地容器化实测，全链路）**：
+- `docker compose config -q` / `--profile monitoring config --services` → 默认 4 服务、profile 6 服务，隔离正确
+- `--profile monitoring up -d` 六容器全部 Up；Prometheus targets API：`claimflow-app -> up (http://app:8000/metrics)`，`up{claimflow-app} = 1`
+- 真实业务链路：POST A06 发消息（intent=simple_faq, compliance=PASS）→ 35s 后 Prometheus 查询 `claimflow_conversation_turns_total{intent="simple_faq"} = 1`，指标入库
+- Grafana：health ok（11.5.2）、API 检索到自动加载的仪表盘 uid=claimflow-overview，10 面板（4 stat/donut + 6 timeseries）全部就位
+- 验证完毕 `--profile monitoring down -v` 清理
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T025 Prometheus + Grafana 容器化与仪表盘（monitoring profile）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|
