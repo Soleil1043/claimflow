@@ -17,6 +17,9 @@
 | 敏感信息脱敏 | 身份证 / 银行卡 / 手机号正则脱敏（`3301**********1234`） |
 | OCR 材料识别 | vision 模型提取诊断证明字段（姓名 / 诊断 / 金额 / 日期），API 异常自动降级 Mock 兜底 |
 | 状态持久化 | LangGraph Checkpoint（prod=PostgreSQLSaver），多轮上下文连贯、服务重启可恢复 |
+| 可观测性 | Prometheus 三类指标（工具 / LLM / 业务）+ Grafana 自动加载仪表盘 + 分环节 Token 预算 |
+| 评测体系 | 200 条标注测试集（期望值全量溯源），一键产出任务完成率 / 工具准确率基线报告 |
+| 工具结果缓存 | 幂等查询工具 Redis 缓存（dev 内存降级），命中指标可观测 |
 
 ## 架构
 
@@ -52,7 +55,7 @@ graph TD
 | 数据库 | PostgreSQL + SQLAlchemy 2.0 async（dev 降级 SQLite） |
 | 向量库 | Qdrant（dev local mode 零容器）+ BGE-M3 本地向量化 |
 | LLM | DeepSeek（OpenAI 兼容接口，配置切换；OCR 专职 vision 模型） |
-| 工程 | uv / pytest（220 用例）/ ruff / Docker Compose / GitHub Actions |
+| 工程 | uv / pytest（269 用例）/ ruff / Docker Compose / GitHub Actions |
 
 ## 快速开始
 
@@ -89,6 +92,19 @@ docker compose up -d
 curl http://localhost:8000/health   # {"status":"ok"}
 ```
 
+### 5. 监控栈（可选：Prometheus + Grafana）
+
+```bash
+docker compose --profile monitoring up -d
+```
+
+- `http://localhost:3000` → Grafana（匿名 Admin 免登录，自动加载 claimflow 监控总览仪表盘）
+- `http://localhost:9090` → Prometheus（抓取 `app:8000/metrics`，15s 周期）
+- 10 个面板：工具成功率 / 工具 P95 延迟（按工具）/ 调用量（按状态堆叠）/ 熔断拒绝 /
+  LLM 延迟（按模型）/ LLM Token 消耗 / 转人工率 / 合规三态分布 / 对话轮次（按意图）/
+  单轮 P95 处理时长；监控栈独立 profile，默认 `up` 不启动
+- 不起 Docker 也可直接访问 `http://localhost:8000/metrics`（裸文本指标）
+
 ## API
 
 | 接口 | 方法 | 说明 |
@@ -118,22 +134,50 @@ curl http://localhost:8000/health   # {"status":"ok"}
 ## 测试与验证
 
 ```bash
-uv run pytest tests -q        # 220 用例全绿（工具单测 + 图级集成 + API 端到端）
+uv run pytest tests -q        # 269 用例全绿（工具单测 + 图级集成 + API 端到端 + 监控/缓存/token）
 uv run ruff check .           # lint
 ```
 
 真实 LLM 验收脚本（需 .env 配置 API Key）：`scripts/verify_intent.py`（意图准确率 95%）/
 `verify_rag.py` / `verify_planner.py` / `verify_compliance.py` / `verify_ocr.py` / `verify_e2e.py`
 
+## 评测体系
+
+200 条标注测试集（FAQ 30 / 单领域 60 / 多步复杂 80 / 边界异常 30），期望值全量溯源
+Mock 数据与知识库文档（如计算类锚点 4,640 元来自理赔规则手册的官方计算示例）。
+
+```bash
+# 全量跑（真实 LLM，约 1 小时；需 HF_HUB_OFFLINE=1 跳过 BGE-M3 在线检查）
+uv run python -m evals.test_suite
+
+# 子集运行
+uv run python -m evals.test_suite --category simple_faq   # 按分类
+uv run python -m evals.test_suite --limit 10               # 前 N 条
+uv run python -m evals.test_suite --out my_report.json     # 指定输出
+```
+
+**基线报告**（`evals/reports/baseline.json`，deepseek-v4-flash 全量 200 条）：
+
+| 指标 | 数值 |
+|------|------|
+| 任务完成率 | **89.5%**（179/200） |
+| 工具调用准确率 | 95.3% |
+| 合规通过率 | 99.5%（红线违规 0） |
+| 分类水位 | FAQ 93.3% / 单领域 78.3% / 多步 92.5% / 边界 90.0% |
+
+判分规则：`must_include`（必含关键词）/ `any_of`（同义容错）/ `must_not_include`
+（合规红线，命中即败）/ 期望工具子集匹配 / 转人工一致性；失败明细可从报告 failures 字段逐条溯源。
+
 ## 项目结构
 
 ```
 app/          FastAPI 入口与路由        agents/     4 个 Agent 定义
 nodes/        LangGraph 节点（8 个）     tools/      工具层（claim/medical/compliance）
-workflows/    主图组装                  services/   LLM / RAG / DB / 记忆
-schemas/      Pydantic 模型             tests/      220 个测试用例
+workflows/    主图组装                  services/   LLM / RAG / DB / 缓存 / 观测
+schemas/      Pydantic 模型             tests/      269 个测试用例
 scripts/      seed 与验收脚本           data/       Mock 数据与知识库文档
-ui/           Gradio 演示界面           evals/      评测（Phase 3）
+ui/           Gradio 演示界面           evals/      评测集与运行器（200 条）
+grafana/      仪表盘 JSON               prometheus/  抓取配置
 ```
 
 详细架构设计见 `docs/architecture.md`，构建过程与决策记录见 `.agent/`（progress / decisions）。
@@ -149,5 +193,5 @@ ui/           Gradio 演示界面           evals/      评测（Phase 3）
 
 ## 范围说明（MVP 边界）
 
-保单 / 医疗系统为可信 Mock 数据（OCR 为真实 vision API + Mock 兜底）；监控（Prometheus /
-Grafana）、评测体系、GraphRAG 为后续 Phase 规划，见 `.agent/spec.md` 非目标一节。
+保单 / 医疗系统为可信 Mock 数据（OCR 为真实 vision API + Mock 兜底）；GraphRAG、
+A/B 测试、OpenTelemetry 全链路追踪为 Phase 4 规划，见 `.agent/spec.md` 非目标一节。

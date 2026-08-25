@@ -767,6 +767,39 @@
 
 **Git**：`feat: T029 Token 消耗统计与预算控制（分环节归集 + 超限告警）`
 
+### [T030] Phase 3 收尾验证 — 2026-08-25（Phase 3 全部完成）
+
+**操作**：
+- README 补齐 Phase 3 章节：
+  - 核心能力表新增：可观测性 / 评测体系 / 工具结果缓存三行
+  - 快速开始新增"5. 监控栈"：`--profile monitoring` 启动、Grafana/Prometheus 访问方式、10 面板清单、/metrics 裸访问
+  - 新增"评测体系"章节：200 条测试集说明、运行命令（--category/--limit/--out + HF_HUB_OFFLINE 提示）、基线报告指标表（89.5%/95.3%/99.5%）、判分规则说明
+  - 测试数更新 220→269；项目结构补 grafana/prometheus；范围说明改为 Phase 4 边界（GraphRAG/A-B/OTel）
+- 全量验证：ruff 全绿、pytest 269 passed、docker compose 双模式（默认/monitoring）config 校验通过
+
+**涉及文件**：
+- `README.md`、`.agent/tasks.md`
+
+**验证方式**：
+- `uv run ruff check`（全目录）→ All checks passed
+- `uv run python -m pytest tests -q` → 269 passed
+- `docker compose config -q` + `--profile monitoring config -q` → 通过
+- 评测基线报告已存档 `evals/reports/baseline.json`（T027 产出）
+- push 后 CI 两 job 全绿（待确认）
+
+**状态**：✅ 通过验证（CI push 确认待执行）
+
+**Git**：`feat: T030 Phase 3 收尾验证（README 监控/评测章节 + 全量验证）`
+
+**Phase 3 交付总览**：
+- T024 Prometheus 指标埋点（工具/LLM/业务三类 + /metrics 端点）
+- T025 Prometheus + Grafana 容器化（monitoring profile + 10 面板自动加载，本地全链路实测）
+- T026 评测数据集 200 条（期望值全量溯源，schema 防呆校验）
+- T027 评测运行器（基线报告 89.5%，判分归一化容错）
+- T028 工具结果缓存（Redis/dev 内存降级 + 命中指标 + 失败不缓存）
+- T029 Token 统计与预算（contextvars 分环节归集 + 超限告警）
+- T030 收尾（README 双章节 + 全量验证 + CI）
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|
