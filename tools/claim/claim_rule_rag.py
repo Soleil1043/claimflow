@@ -10,9 +10,12 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import Field
 
 from schemas.tools import ToolInput, ToolOutput
+from services.rag.graph_retriever import search_graph
 from services.rag.retriever import search_kb
 from tools.base import BaseTool
 
@@ -41,7 +44,15 @@ class ClaimRuleRagTool(BaseTool[ClaimRuleRagInput, ClaimRuleRagOutput]):
     async def _run(self, input_data: ClaimRuleRagInput) -> ClaimRuleRagOutput:
         chunks = await search_kb(query=input_data.query, top_k=input_data.top_k)
 
-        if not chunks:
+        # T032 混合召回：图检索补充结构性事实（故障/未命中零影响）
+        graph_facts: list[dict[str, Any]] = []
+        try:
+            graph_result = await search_graph(input_data.query)
+            graph_facts = graph_result.facts
+        except Exception:  # noqa: BLE001 图检索故障不影响向量检索
+            pass
+
+        if not chunks and not graph_facts:
             return ClaimRuleRagOutput(
                 success=False,
                 error_message="知识库检索无结果（知识库可能未初始化）",
@@ -57,4 +68,7 @@ class ClaimRuleRagTool(BaseTool[ClaimRuleRagInput, ClaimRuleRagOutput]):
             }
             for c in chunks
         ]
-        return ClaimRuleRagOutput(success=True, data={"results": results})
+        data: dict[str, Any] = {"results": results}
+        if graph_facts:
+            data["graph_facts"] = graph_facts
+        return ClaimRuleRagOutput(success=True, data=data)

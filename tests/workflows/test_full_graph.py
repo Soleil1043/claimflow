@@ -265,8 +265,10 @@ async def test_simple_faq_rag_error_not_fatal(monkeypatch: pytest.MonkeyPatch) -
         {**_RESET_INPUT, "messages": [HumanMessage(content="等待期是多久")]},
         config={"configurable": {"thread_id": "t-faq-err"}},
     )
-    # 检索故障降级为"无结果"标记 → synthesize 兜底拼接该 summary，不抛错
-    assert "知识库检索无结果" in result["final_answer"]
+    # T032 混合召回：向量检索故障降级为 0 条（不致命），本地图谱仍补充事实
+    rag_ctx = result["shared_data"]["rag_context"]
+    assert rag_ctx["summary"] == "知识库检索到 0 条相关条款"
+    assert "graph_facts" in rag_ctx
     assert result["compliance_result"]["verdict"] == "PASS"
 
 

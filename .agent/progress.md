@@ -827,6 +827,36 @@
 
 **Git**：`feat: T031 知识图谱构建（106 实体/116 关系，LLM 抽取 + 幂等重建）`
 
+### [T032] 图检索与混合召回 — 2026-08-26
+
+**操作**：
+- `services/rag/graph_retriever.py`：实体链接三级匹配（完整子串 / 简写子串 / bigram 重叠率≥50% 跳词容忍）+ 正反向 BFS ≤2 跳扩展（`_facts_along_path` 相邻对自动识别正/反向边，事实主语保持关系源点）+ `search_graph` 入口（图谱惰性单例；禁用/缺文件/未命中均零影响降级）+ 事实上限 12 条（Token 控制）
+- `services/rag/knowledge_graph.py`：`multi_hop` 增加 `reverse=True` 入边遍历（covers 是 险种→疾病 方向，"XX 病能赔吗"必须沿入边回溯到险种——正向-only 是设计缺口，实测发现后补）
+- `nodes/rag.py`：rag_node 混合召回接入，`graph_facts` 并入 `rag_context`（向量与图两路信号同写 shared_data 供 synthesize 消费；空结果条件改为 `not chunks and graph_facts is None`）
+- `tools/claim/claim_rule_rag.py`：Worker 路径同步接入（输出 `graph_facts` 维度）
+- `app/core/config.py`：`graph_rag_enabled: bool = True`（GRAPH_RAG_ENABLED 开关）
+- `tests/rag/test_graph_retriever.py`：14 用例（链接三级 6 测 / 双向扩展 5 测 / search_graph 冒烟+开关+缺文件 3 测）
+
+**实测（真实图谱 106 实体，5 个复杂关联问题）**：
+- "急性阑尾炎手术能赔吗" → 等待期规则 + 医疗险/安心旗舰版 covers（反向回溯生效）
+- "安心医疗旗舰版哪些疾病不保" → 跳词简写命中险种，扩展 12 条适用规则（等待期/免赔额/赔付比例）
+- "阑尾炎住院报销比例是多少"（疾病简写）→ bigram 匹配命中急性阑尾炎 → 等待期 + covers
+- 5/5 命中且事实相关；附带噪声（"无等待期"实体被"等待期"类查询带出）可接受
+
+**问题与修正**：
+- 初版只走正向邻接，疾病查询（covers 的 target）扩展不出险种事实 → `multi_hop` 加 reverse + expand 双向 BFS
+- 实体链接对跳词简写不鲁棒（"安心医疗旗舰版"≠实体名"安心医疗保险（旗舰版）"、"阑尾炎"≠"急性阑尾炎"）→ 第三级 bigram 重叠匹配（分母为实体名 gram 数，防长名误配）
+- 存量测试 `test_simple_faq_rag_error_not_fatal` 语义更新：Qdrant 故障时本地图谱仍补充事实（混合召回增强而非回归），断言改为"0 条条款 + graph_facts 存在"
+- 测试 mini_graph 最初实体 name 写成 id 形态（"K35急性阑尾炎"），与 T031 真实数据（name 干净、ICD 在 properties）不符 → 对齐真实数据格式
+
+**验证方式**：
+- `uv run python -m pytest -q` → 292 passed（原 278 + 新增 14）；ruff check/format 全绿（T032 涉及文件）
+- 复杂关联问题实测 5/5 命中（见上）
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T032 图检索与混合召回（实体链接三级匹配 + 双向 BFS + GRAPH_RAG_ENABLED 开关）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

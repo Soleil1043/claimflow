@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     qdrant_local_path: str = "./data/qdrant"
     qdrant_collection: str = "claim_rules"
 
+    # ===== GraphRAG（T032，D017 轻量混合召回） =====
+    # 知识图谱增强检索开关；false 时 rag 路径行为与引入前完全一致
+    graph_rag_enabled: bool = True
+
     # ===== Redis（prod） / 内存缓存（dev 降级） =====
     redis_url: str = "redis://localhost:6379/0"
 
@@ -60,7 +64,9 @@ class Settings(BaseSettings):
     # 幂等工具白名单：纯读查询类，相同入参结果确定
     tool_cache_enabled: bool = True
     tool_cache_ttl_seconds: int = 300
-    tool_cache_tools: str = "policy_query,medical_record_query,diagnosis_matcher,claim_rule_rag,claim_status_query"
+    tool_cache_tools: str = (
+        "policy_query,medical_record_query,diagnosis_matcher,claim_rule_rag,claim_status_query"
+    )
 
     # ===== 轮次 Token 预算（T029） =====
     # 单轮对话（意图→规划→执行→生成→合规）总 token 上限；超限只告警日志，不阻断。0=不设预算

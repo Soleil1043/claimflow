@@ -28,7 +28,9 @@ class GraphEntity(BaseModel):
     id: str = Field(description="实体 ID，格式 {type}:{name}，如 'disease:K35 急性阑尾炎'")
     type: str = Field(description="实体类型：insurance / disease / rule")
     name: str = Field(description="实体名称（展示用）")
-    properties: dict[str, Any] = Field(default_factory=dict, description="附加属性（如 ICD 码、免赔额数值）")
+    properties: dict[str, Any] = Field(
+        default_factory=dict, description="附加属性（如 ICD 码、免赔额数值）"
+    )
 
     @model_validator(mode="after")
     def _validate_id(self) -> GraphEntity:
@@ -94,7 +96,9 @@ class KnowledgeGraph:
                     result.append((rel, entity))
         return result
 
-    def find_entities(self, *, type: str | None = None, name_contains: str | None = None) -> list[GraphEntity]:
+    def find_entities(
+        self, *, type: str | None = None, name_contains: str | None = None
+    ) -> list[GraphEntity]:
         """按类型/名称模糊查找实体。"""
         result = []
         for e in self._entities.values():
@@ -106,18 +110,26 @@ class KnowledgeGraph:
         return result
 
     def multi_hop(
-        self, start_id: str, hops: int, *, relation_types: set[str] | None = None
+        self,
+        start_id: str,
+        hops: int,
+        *,
+        relation_types: set[str] | None = None,
+        reverse: bool = False,
     ) -> dict[str, list[str]]:
         """多跳 BFS：返回 {entity_id: 路径}（路径为实体 id 列表，含起点）。
 
         供图检索扩展用：疾病 →（1 跳）险种 →（2 跳）适用规则。
+        reverse=True 沿入边遍历（covers 等关系多为 险种→疾病，
+        从疾病出发需要反向才能找到保障它的险种）。
         """
+        table = self._reverse if reverse else self._adjacency
         paths: dict[str, list[str]] = {start_id: [start_id]}
         frontier = [start_id]
         for _ in range(hops):
             next_frontier = []
             for node in frontier:
-                for rel, other_id in self._adjacency.get(node, []):
+                for rel, other_id in table.get(node, []):
                     if relation_types is not None and rel.type not in relation_types:
                         continue
                     if other_id not in paths:
@@ -140,7 +152,10 @@ class KnowledgeGraph:
         for r in self._relations:
             rel_by_type[r.type] = rel_by_type.get(r.type, 0) + 1
         degrees = sorted(
-            (len(self._adjacency.get(eid, [])) + len(self._reverse.get(eid, [])) for eid in self._entities),
+            (
+                len(self._adjacency.get(eid, [])) + len(self._reverse.get(eid, []))
+                for eid in self._entities
+            ),
             reverse=True,
         )
         return {

@@ -13,6 +13,7 @@ from typing import Any
 from langchain_core.messages import HumanMessage
 
 from app.core.logging import get_logger
+from services.rag.graph_retriever import search_graph
 from services.rag.retriever import search_kb
 from state import AgentState
 
@@ -25,9 +26,7 @@ _RAG_TOP_K = 4
 async def rag_node(state: AgentState) -> dict[str, Any]:
     """RAG 节点：读末尾用户问题 → 检索知识库 → 写 shared_data.rag_context。"""
     messages = state.get("messages") or []
-    query = next(
-        (m.content for m in reversed(messages) if isinstance(m, HumanMessage)), ""
-    )
+    query = next((m.content for m in reversed(messages) if isinstance(m, HumanMessage)), "")
     query = str(query).strip()
 
     shared: dict[str, Any] = dict(state.get("shared_data") or {})
@@ -42,7 +41,20 @@ async def rag_node(state: AgentState) -> dict[str, Any]:
         log.warning("rag_node_error", error=str(exc)[:200])
         chunks = []
 
-    if not chunks:
+    # T032 混合召回：图检索补充结构性事实（谁保障谁/适用什么规则）。
+    # 失败/未命中/开关关闭均零影响（空结果直接跳过）。
+    graph_facts: dict[str, Any] | None = None
+    try:
+        graph_result = await search_graph(query)
+        if graph_result.facts:
+            graph_facts = {
+                "summary": f"知识图谱关联事实（命中实体：{'、'.join(graph_result.matched_entities)}）",
+                "facts": graph_result.facts,
+            }
+    except Exception as exc:  # noqa: BLE001 图检索故障不阻断向量检索结果
+        log.warning("graph_search_error", error=str(exc)[:200])
+
+    if not chunks and graph_facts is None:
         log.info("rag_node_empty", query=query[:50])
         shared["rag_context"] = {
             "summary": "知识库检索无结果",
@@ -51,7 +63,7 @@ async def rag_node(state: AgentState) -> dict[str, Any]:
         }
         return {"shared_data": shared}
 
-    shared["rag_context"] = {
+    rag_ctx: dict[str, Any] = {
         "summary": f"知识库检索到 {len(chunks)} 条相关条款",
         "results": [
             {
@@ -64,5 +76,10 @@ async def rag_node(state: AgentState) -> dict[str, Any]:
             for c in chunks
         ],
     }
-    log.info("rag_node_done", query=query[:50], hits=len(chunks))
+    if graph_facts is not None:
+        rag_ctx["graph_facts"] = graph_facts
+    shared["rag_context"] = rag_ctx
+    log.info(
+        "rag_node_done", query=query[:50], hits=len(chunks), graph_facts=graph_facts is not None
+    )
     return {"shared_data": shared}
