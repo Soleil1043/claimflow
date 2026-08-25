@@ -616,6 +616,29 @@
 
 **CI 确认（2026-08-25）**：push `0e64e95` 后 Actions run #2 两 job（lint-test / docker）全绿，镜像名修复验证通过。
 
+### [T024] Prometheus 指标埋点 — 2026-08-25
+
+**操作**：
+- 新增 `services/observability/metrics.py`：三类指标定义（工具：calls_total[tool,status]/latency/breaker_rejected；LLM：calls_total[model,status]/latency/tokens_total[model,kind]；业务：turns_total[intent]/human_interventions/compliance_verdicts[verdict]/turn_latency）+ 容错打点函数（埋点异常不影响业务）
+- 新增 `services/observability/llm_metrics.py`：`observed_ainvoke()` 统一包装 LLM 调用（计时 + usage_metadata 提取 token；异常原样抛出由各节点既有降级逻辑处理）
+- 埋点接入：ToolExecutor（success/fallback/error 三态 + 熔断拒绝）、A06 send_message（轮次意图/端到端耗时/合规三态/转人工）、7 处 LLM 调用点（intent/planner/generator×2/compliance×2/runner/ocr）
+- `app/main.py`：`GET /metrics` 端点（prometheus_client.generate_latest，全局 REGISTRY）
+- 依赖：uv add prometheus-client
+
+**涉及文件**：
+- `services/observability/metrics.py`、`services/observability/llm_metrics.py`（新增）
+- `tools/executor.py`、`app/api/v1/conversations.py`、`app/main.py`、`nodes/intent.py`、`nodes/planner.py`、`nodes/generator.py`、`nodes/compliance.py`、`agents/runner.py`、`tools/medical/ocr_extract.py`
+- `tests/observability/test_metrics.py`（新增，9 用例）、`pyproject.toml`、`uv.lock`
+
+**验证方式**：
+- `uv run python -m pytest tests -q` → 229 passed（原 220 + 新增 9）
+- `uv run ruff check`（全目录）→ All checks passed
+- 单测覆盖：指标注册/标签维度/token 缺失不记/转人工计数/executor 三态+熔断/observed_ainvoke 成功与异常传播//metrics 端点文本协议
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T024 Prometheus 指标埋点（工具/LLM/业务三类指标 + /metrics 端点）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

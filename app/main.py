@@ -7,6 +7,8 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.responses import PlainTextResponse
+from prometheus_client import generate_latest
 
 from app.api.v1 import conversations, health
 from app.core.config import settings
@@ -57,3 +59,12 @@ app = FastAPI(
 
 app.include_router(health.router)
 app.include_router(conversations.router)
+
+
+@app.get("/metrics", response_class=PlainTextResponse, include_in_schema=False)
+async def prometheus_metrics() -> PlainTextResponse:
+    """Prometheus 抓取端点（T024）：工具 / LLM / 业务三类指标。"""
+    return PlainTextResponse(
+        generate_latest(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )

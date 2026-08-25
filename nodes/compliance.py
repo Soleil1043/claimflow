@@ -31,6 +31,7 @@ from services.llm.prompts import (
     COMPLIANCE_REVIEW_PROMPT,
     REVISE_ANSWER_PROMPT,
 )
+from services.observability.llm_metrics import observed_ainvoke
 from state import AgentState
 from tools.compliance.risk_scoring import score_risk
 from tools.compliance.rule_check import check_text
@@ -142,11 +143,12 @@ async def review_answer(
     )
     try:
         model = get_chat_model(temperature=0.0)
-        response = await model.ainvoke(
+        response = await observed_ainvoke(
+            model,
             [
                 SystemMessage(content=COMPLIANCE_AGENT_PROMPT),
                 HumanMessage(content=COMPLIANCE_REVIEW_PROMPT.format(draft=text, evidence=evidence)),
-            ]
+            ],
         )
         parsed = _parse_llm_json(response.content or "")
         if parsed and parsed.get("verdict") in {"PASS", "MODIFY", "REJECT"}:
@@ -209,11 +211,12 @@ async def revise_answer_node(state: AgentState) -> dict[str, Any]:
     revised = ""
     try:
         model = get_chat_model(temperature=0.0)
-        response = await model.ainvoke(
+        response = await observed_ainvoke(
+            model,
             [
                 SystemMessage(content=REVISE_ANSWER_PROMPT.format(draft=draft, suggestions=suggestions)),
                 HumanMessage(content="请输出修订后的回答。"),
-            ]
+            ],
         )
         revised = (response.content or "").strip()
     except Exception as exc:  # noqa: BLE001 LLM 故障 → 正则兜底

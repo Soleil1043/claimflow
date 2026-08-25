@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from app.core.exceptions import ToolExecutionError
 from app.core.logging import get_logger
 from schemas.tools import ToolOutput
+from services.observability import metrics
 from tools.registry import ToolRegistry
 
 log = get_logger(__name__)
@@ -122,12 +123,15 @@ class ToolExecutor:
 
         if not breaker.allow_call():
             log.warning("tool_call_rejected_by_breaker", tool=tool_name, state=breaker.state)
+            metrics.record_breaker_rejected(tool_name)
             if fallback is not None:
+                metrics.record_tool_call(tool_name, "fallback", 0.0)
                 return fallback
             raise ToolExecutionError(tool_name, f"熔断中（连续失败 {breaker.consecutive_failures} 次）")
 
         effective_timeout = timeout if timeout is not None else self.default_timeout
         last_error: Exception | None = None
+        started = time.perf_counter()
 
         # 总尝试次数 = 1 次初始 + max_retries 次重试
         for attempt in range(self.max_retries + 1):
@@ -135,6 +139,7 @@ class ToolExecutor:
                 async with asyncio.timeout(effective_timeout):
                     result = await tool.execute(input_data)
                 breaker.record_success()
+                metrics.record_tool_call(tool_name, "success", time.perf_counter() - started)
                 return result
             except TimeoutError:
                 last_error = TimeoutError(f"{tool_name} 超时（>{effective_timeout}s）")
@@ -153,8 +158,11 @@ class ToolExecutor:
                 await asyncio.sleep(backoff)
 
         breaker.record_failure()
+        duration = time.perf_counter() - started
         if fallback is not None:
+            metrics.record_tool_call(tool_name, "fallback", duration)
             return fallback
+        metrics.record_tool_call(tool_name, "error", duration)
         raise ToolExecutionError(tool_name, str(last_error))
 
     def breaker_state(self, tool_name: str) -> _BreakerState:

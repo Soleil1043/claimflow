@@ -1,4 +1,4 @@
-﻿"""会话管理路由（A02-A07）。
+"""会话管理路由（A02-A07）。
 
 - A02 POST /api/v1/conversations          创建会话
 - A03 GET  /api/v1/conversations          会话列表（分页）
@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import base64
+import time
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -32,6 +33,7 @@ from schemas.api import (
     OcrResultResponse,
 )
 from services.db.models import Conversation, Message
+from services.observability import metrics
 
 router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])
 
@@ -188,6 +190,7 @@ async def send_message(
     """
     conversation = await _get_conversation_or_404(conversation_id, session)
 
+    started = time.perf_counter()
     result = await graph.ainvoke(
         {
             "messages": [HumanMessage(content=body.content)],
@@ -238,6 +241,14 @@ async def send_message(
     )
     conversation.updated_at = func.now()
     await session.flush()
+
+    # 业务指标埋点（architecture.md 8.1）：意图 / 端到端耗时 / 合规三态 / 转人工
+    metrics.record_turn(
+        intent=intent or "unknown",
+        duration_s=time.perf_counter() - started,
+        compliance_verdict=compliance_status or "NONE",
+        need_human=need_human,
+    )
 
     return MessageSendResponse(
         answer=answer,

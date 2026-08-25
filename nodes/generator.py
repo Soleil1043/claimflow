@@ -17,6 +17,7 @@ from langchain_core.runnables import ensure_config
 from app.core.logging import get_logger
 from services.llm.client import get_chat_model
 from services.llm.prompts import ANSWER_SYNTHESIS_PROMPT, GENERAL_ASSISTANT_PROMPT
+from services.observability.llm_metrics import observed_ainvoke
 from state import AgentState
 from tools.executor import ToolExecutor
 
@@ -55,7 +56,7 @@ class ReactAgentNode:
         config = ensure_config()
         try:
             bound = model.bind_tools(self._tool_specs) if self._tool_specs else model
-            response: AIMessage = await bound.ainvoke(messages, config=config)
+            response: AIMessage = await observed_ainvoke(bound, messages, config=config)
         except Exception as exc:  # noqa: BLE001 LLM 故障降级
             log.warning("react_llm_error", error=str(exc)[:200])
             fallback = "抱歉，服务暂时繁忙，请稍后再试或转人工服务。"
@@ -159,14 +160,15 @@ async def synthesize_answer_node(state: AgentState) -> dict[str, Any]:
 
     try:
         model = get_chat_model()
-        response = await model.ainvoke(
+        response = await observed_ainvoke(
+            model,
             [
                 HumanMessage(
                     content=ANSWER_SYNTHESIS_PROMPT.format(
                         context=context, history=_format_history(messages)
                     )
                 )
-            ]
+            ],
         )
         answer = (response.content or "").strip()
         if answer:

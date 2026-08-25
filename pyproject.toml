@@ -35,6 +35,7 @@ dependencies = [
     "httpx>=0.27",
     # 演示界面
     "gradio>=5.0",
+    "prometheus-client>=0.26.0",
 ]
 
 [dependency-groups]
