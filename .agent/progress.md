@@ -663,6 +663,28 @@
 
 **Git**：`feat: T025 Prometheus + Grafana 容器化与仪表盘（monitoring profile）`
 
+### [T026] 评测数据集构建（200 条）— 2026-08-25
+
+**操作**：
+- `evals/schemas.py`：EvalCase（用户输入 + expected_tools + 判分要点 must_include/any_of/must_not_include + expect_human_intervention + note 溯源字段）+ EvalCategory 四分类 + EvalDataset；schema 防呆（无判分要点用例直接拒绝）
+- `scripts/gen_eval_dataset.py`：数据集生成脚本（表驱动 + 模板×参数组合），产出 `evals/datasets/eval_dataset.json`（v1.0.0，200 条）
+- 配比精确达标：FAQ 30 / 单领域 60（POL 20 + MED 20 + CMP 20）/ 多步 80（计算锚点 12 + 模板组合 40 + 长尾 28）/ 边界 30
+- 期望值全量溯源：计算锚点 4640 元 ← kb_docs/03 计算示例；等待期/免责/材料 ← kb_docs 对应文档；保单/就诊数据 ← data/mock/*.json；每条 note 标注来源
+- `tests/evals/test_dataset.py`：8 用例校验（规模/配比/ID 唯一前缀/标注质量/计算锚点≥3/合规红线≥4/期望工具均为注册名/schema 防呆）
+
+**涉及文件**：
+- `evals/schemas.py`、`scripts/gen_eval_dataset.py`、`evals/datasets/eval_dataset.json`（新增）
+- `tests/evals/test_dataset.py`（新增）
+
+**验证方式**：
+- `uv run python -m scripts.gen_eval_dataset` → 200 条，分类计数 {faq:30, single:60, multi:80, edge:30}
+- `uv run python -m pytest tests -q` → 237 passed（原 229 + 新增 8）
+- `uv run ruff check`（含 evals 目录）→ All checks passed
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T026 评测数据集构建（200 条，期望值全量溯源）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|
