@@ -45,6 +45,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     log.info("app_started", profile=str(settings.app_profile), tools=registry.list_names())
     yield
 
+    from services.cache import get_tool_cache
+
+    await (await get_tool_cache()).close()
     await get_checkpoint_manager().close()
     await dispose_engine()
     log.info("app_stopped")

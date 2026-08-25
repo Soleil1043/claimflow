@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from app.core.exceptions import ToolExecutionError
 from app.core.logging import get_logger
 from schemas.tools import ToolOutput
+from services.cache import cached_tools, get_tool_cache
 from services.observability import metrics
 from tools.registry import ToolRegistry
 
@@ -121,6 +122,17 @@ class ToolExecutor:
         tool = self.registry.get(tool_name)
         breaker = self._breaker(tool_name)
 
+        # 幂等工具结果缓存（T028）：白名单内、入参一致 → 直接返回缓存
+        # 缓存命中不算真实执行，不进熔断/耗时统计，只记缓存指标
+        if tool_name in cached_tools():
+            cache_input = input_data if isinstance(input_data, dict) else input_data.model_dump()
+            cache = await get_tool_cache()
+            cached = await cache.get(tool_name, cache_input)
+            if cached is not None:
+                metrics.record_tool_cache(tool_name, "hit")
+                return ToolOutput.model_validate(cached)
+            metrics.record_tool_cache(tool_name, "miss")
+
         if not breaker.allow_call():
             log.warning("tool_call_rejected_by_breaker", tool=tool_name, state=breaker.state)
             metrics.record_breaker_rejected(tool_name)
@@ -140,6 +152,10 @@ class ToolExecutor:
                     result = await tool.execute(input_data)
                 breaker.record_success()
                 metrics.record_tool_call(tool_name, "success", time.perf_counter() - started)
+                # 成功结果回写缓存（仅白名单工具走到这里）
+                if tool_name in cached_tools() and result.success:
+                    cache_input = input_data if isinstance(input_data, dict) else input_data.model_dump()
+                    await (await get_tool_cache()).set(tool_name, cache_input, result.model_dump())
                 return result
             except TimeoutError:
                 last_error = TimeoutError(f"{tool_name} 超时（>{effective_timeout}s）")

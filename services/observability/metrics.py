@@ -44,6 +44,13 @@ TOOL_BREAKER_REJECTED = Counter(
     registry=registry,
 )
 
+TOOL_CACHE_HITS = Counter(
+    "claimflow_tool_cache_hits_total",
+    "工具结果缓存命中次数（T028）",
+    labelnames=["tool", "result"],  # result: hit | miss | disabled
+    registry=registry,
+)
+
 # ===== LLM 指标 =====
 
 LLM_CALLS = Counter(
@@ -131,6 +138,11 @@ def record_breaker_rejected(tool: str) -> None:
     _safe_inc(TOOL_BREAKER_REJECTED, tool=tool)
 
 
+def record_tool_cache(tool: str, result: str) -> None:
+    """工具缓存结果埋点：hit / miss / disabled（T028）。"""
+    _safe_inc(TOOL_CACHE_HITS, tool=tool, result=result)
+
+
 def record_llm_call(
     model: str,
     status: str,
@@ -169,12 +181,14 @@ __all__ = [
     "LLM_LATENCY",
     "LLM_TOKENS",
     "TOOL_BREAKER_REJECTED",
+    "TOOL_CACHE_HITS",
     "TOOL_CALLS",
     "TOOL_LATENCY",
     "TURN_LATENCY",
     "REGISTRY",
     "record_breaker_rejected",
     "record_llm_call",
+    "record_tool_cache",
     "record_tool_call",
     "record_turn",
 ]

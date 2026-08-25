@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     # ===== Redis（prod） / 内存缓存（dev 降级） =====
     redis_url: str = "redis://localhost:6379/0"
 
+    # ===== 工具结果缓存（T028） =====
+    # 幂等工具白名单：纯读查询类，相同入参结果确定
+    tool_cache_enabled: bool = True
+    tool_cache_ttl_seconds: int = 300
+    tool_cache_tools: str = "policy_query,medical_record_query,diagnosis_matcher,claim_rule_rag,claim_status_query"
+
     # ===== Embedding（BGE-M3，本地 sentence-transformers） =====
     embedding_model: str = "BAAI/bge-m3"
     embedding_device: str = "cpu"

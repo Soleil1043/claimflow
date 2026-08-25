@@ -718,6 +718,30 @@
 
 **Git**：`feat: T027 评测运行器与指标计算（基线 89.5%）`
 
+### [T028] Redis 工具结果缓存 — 2026-08-25
+
+**操作**：
+- `services/cache.py`：ToolCacheBackend 协议 + Redis 后端（prod，redis.asyncio）/ MemoryToolCache（dev，TTL 字典语义对齐）/ _NoopBackend（禁用态）+ ToolResultCache 门面（canonical json sha256 指纹 key：claimflow:toolcache:{tool}:{digest}）
+- `tools/executor.py`：execute() 接入缓存——白名单工具先查缓存（命中直接返回，不计入熔断/耗时统计，只记缓存指标），成功结果回写（success=False 不缓存，防止失败态被固化）
+- `services/observability/metrics.py`：新增 claimflow_tool_cache_hits_total{tool,result=hit|miss}
+- 配置：TOOL_CACHE_ENABLED / TOOL_CACHE_TTL_SECONDS（默认 300s）/ TOOL_CACHE_TOOLS（白名单：policy_query、medical_record_query、diagnosis_matcher、claim_rule_rag、claim_status_query——全部纯读查询，计算/合规工具不入缓存）；.env.example 同步
+- `app/main.py`：关停时释放缓存连接
+
+**涉及文件**：
+- `services/cache.py`、`tests/tools/test_tool_cache.py`（新增，10 用例）
+- `tools/executor.py`、`services/observability/metrics.py`、`app/core/config.py`、`app/main.py`、`.env.example`
+
+**验证方式**：
+- 单测覆盖：命中/入参不同 miss/过期（篡改过期时间模拟）/key 键序无关/禁用后端（Noop 永不命中）/白名单解析/executor 二次调用真实执行仅 1 次/非白名单不缓存/miss→hit 指标/失败结果不缓存
+- `uv run python -m pytest tests -q` → 259 passed（原 249 + 新增 10）；ruff 全绿
+
+**问题与修正**：
+- test_cache_disabled_backend 全量跑失败：test_logging.py 的 `importlib.reload(config_module)` 产生新 settings 单例，`services.cache` 仍持旧引用——改 `app.core.config.settings` 对本模块不生效（跨实例陷阱）。修正：monkeypatch.setattr 到 `services.cache` 模块实际引用的 settings 对象。此坑记录备查：任何 reload app.core.config 的测试都会造成 settings 双实例。
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T028 Redis 工具结果缓存（幂等工具白名单 + 命中指标 + dev 降级）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|
