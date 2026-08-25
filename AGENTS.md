@@ -42,7 +42,7 @@
 | Agent 框架  | LangGraph                         | 状态机 + Checkpoint                       |
 | Web 框架    | FastAPI                           | async 风格                               |
 | 关系数据库     | PostgreSQL + SQLAlchemy 2.0 async | LangGraph Checkpoint 用 PostgreSQLSaver |
-| 向量数据库     | Qdrant                            | 轻量单容器；开发期 local mode 零容器        |
+| 向量数据库     | Qdrant                            | 轻量单容器；开发期 local mode 零容器               |
 | 缓存        | Redis                             | 会话缓存 + 工具结果缓存                          |
 | LLM       | OpenAI 兼容接口                       | 通过配置切换模型                               |
 | Embedding | BGE-M3                            | 本地部署或 API                              |
@@ -186,8 +186,9 @@ claim-agent/
 ├── alembic/                   # 数据库迁移
 │   ├── versions/
 │   └── env.py
-
+│
 ├── docs/
+│   └── architecture.md        # 架构文档
 │
 ├── Dockerfile
 ├── docker-compose.yml
