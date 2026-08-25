@@ -598,6 +598,22 @@
 3. 确认 Actions 两 job（lint-test / docker）全绿
 4. 本地目录改名 d:\Code\PythonProjects\claim-agent → claimflow（改后重开工作区）
 
+### [FIX] CI docker job 镜像名不匹配 — 2026-08-25
+
+**操作**：
+- 首次 push 后 CI docker job 失败：`docker build -t claimflow:ci .` 构建的镜像 tag 与 compose 期望的镜像名 `claimflow-app:latest`（`build: .` 未指定 `image:` 时的默认命名）不一致，`docker compose up -d --no-build` 找不到镜像报 `No such image: claimflow-app:latest`
+- 修复：docker-compose.yml app 服务显式声明 `image: claimflow:ci`，与 CI 构建产物对齐
+
+**涉及文件**：
+- `docker-compose.yml` — app 服务增加 `image: claimflow:ci`
+
+**验证方式**：
+- 本地 `docker compose config -q` 通过；push 后 CI docker job 以 `--no-build` 复用 `claimflow:ci` 镜像启动全栈
+
+**状态**：✅ 待 CI 确认
+
+**Git**：`fix: compose app 镜像名与 CI 构建产物对齐`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

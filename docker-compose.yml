@@ -45,6 +45,7 @@ services:
 
   app:
     build: .
+    image: claimflow:ci
     environment:
       APP_PROFILE: prod
       POSTGRES_HOST: postgres
