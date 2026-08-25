@@ -20,7 +20,7 @@ from agents.base import AgentDefinition
 from app.core.logging import get_logger
 from schemas.tools import ToolOutput
 from services.llm.client import get_chat_model
-from services.observability.llm_metrics import observed_ainvoke
+from services.observability.token_tracker import phase_ainvoke
 from tools.executor import ToolExecutor
 
 log = get_logger(__name__)
@@ -87,7 +87,7 @@ async def run_worker_agent(
 
     tool_rounds = 0
     while True:
-        response: AIMessage = await observed_ainvoke(bound, messages)
+        response: AIMessage = await phase_ainvoke(bound, messages, phase="executor")
         messages.append(response)
 
         if not response.tool_calls or tool_rounds >= MAX_TOOL_ROUNDS:

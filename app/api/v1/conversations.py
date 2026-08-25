@@ -20,6 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_app_graph, get_db_session
+from app.core.logging import get_logger
 from schemas.api import (
     ConversationCreateRequest,
     ConversationCreateResponse,
@@ -34,6 +35,8 @@ from schemas.api import (
 )
 from services.db.models import Conversation, Message
 from services.observability import metrics
+
+log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])
 
@@ -191,6 +194,10 @@ async def send_message(
     conversation = await _get_conversation_or_404(conversation_id, session)
 
     started = time.perf_counter()
+    # T029：本轮 token 统计上下文（意图/规划/执行/生成/合规分环节归集）
+    from services.observability.token_tracker import finish_turn_tokens, start_turn_tokens
+
+    token_tracker = start_turn_tokens(str(conversation_id))
     result = await graph.ainvoke(
         {
             "messages": [HumanMessage(content=body.content)],
@@ -248,6 +255,17 @@ async def send_message(
         duration_s=time.perf_counter() - started,
         compliance_verdict=compliance_status or "NONE",
         need_human=need_human,
+    )
+
+    # T029：token 汇总（分环节日志 + Prometheus + 超预算告警，不阻断）
+    token_usage = finish_turn_tokens(token_tracker)
+    log.info(
+        "a06_turn_done",
+        conversation_id=str(conversation_id),
+        intent=intent,
+        tokens_total=token_usage.get("total", 0),
+        tokens_prompt=token_usage.get("prompt", 0),
+        tokens_completion=token_usage.get("completion", 0),
     )
 
     return MessageSendResponse(

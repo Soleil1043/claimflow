@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     tool_cache_ttl_seconds: int = 300
     tool_cache_tools: str = "policy_query,medical_record_query,diagnosis_matcher,claim_rule_rag,claim_status_query"
 
+    # ===== 轮次 Token 预算（T029） =====
+    # 单轮对话（意图→规划→执行→生成→合规）总 token 上限；超限只告警日志，不阻断。0=不设预算
+    turn_token_budget: int = 0
+
     # ===== Embedding（BGE-M3，本地 sentence-transformers） =====
     embedding_model: str = "BAAI/bge-m3"
     embedding_device: str = "cpu"

@@ -112,9 +112,9 @@ class OcrExtractTool(BaseTool[OcrExtractInput, OcrExtractOutput]):
             ]
         )
         model = get_vision_model(temperature=0.0)
-        from services.observability.llm_metrics import observed_ainvoke
+        from services.observability.token_tracker import phase_ainvoke
 
-        response = await observed_ainvoke(model, [message])
+        response = await phase_ainvoke(model, [message], phase="ocr")
 
         parsed = _parse_llm_json(response.content or "")
         if parsed is None:

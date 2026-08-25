@@ -22,7 +22,7 @@ from app.core.logging import get_logger
 from schemas.agent import TaskPlan, TaskStep
 from services.llm.client import get_chat_model
 from services.llm.prompts import TASK_PLANNER_PROMPT
-from services.observability.llm_metrics import observed_ainvoke
+from services.observability.token_tracker import phase_ainvoke
 
 log = get_logger(__name__)
 
@@ -85,7 +85,7 @@ async def create_plan(user_input: str) -> TaskPlan:
             claim_description=CLAIM_AGENT.description,
             user_input=user_input,
         )
-        response = await observed_ainvoke(model, [HumanMessage(content=prompt)])
+        response = await phase_ainvoke(model, [HumanMessage(content=prompt)], phase="planner")
         parsed = _parse_llm_json(response.content or "")
 
         if parsed and isinstance(parsed.get("steps"), list):

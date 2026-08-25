@@ -742,6 +742,31 @@
 
 **Git**：`feat: T028 Redis 工具结果缓存（幂等工具白名单 + 命中指标 + dev 降级）`
 
+### [T029] Token 消耗统计与预算控制 — 2026-08-25
+
+**操作**：
+- `services/observability/token_tracker.py`：TurnTokenTracker（环节→模型→[prompt, completion] 分桶归集）+ contextvars 跨节点传递（A06 入口 start_turn_tokens / 出口 finish_turn_tokens / track_phase 环节标注 / phase_ainvoke 组合包装）
+- 归集链路：observed_ainvoke 成功后回调 record_usage_to_tracker（usage_metadata 自动提取，节点零侵入）
+- 环节接入：intent / planner / generator（executor+generator 两处）/ compliance（审查+修订）/ runner（Worker ReAct）/ ocr 共 7 处 phase_ainvoke 替换
+- `app/api/v1/conversations.py` A06：入口创建 tracker，出口 finish（结构化日志 turn_tokens_summary + Prometheus 分环节指标 + 超预算 warning turn_token_budget_exceeded 不阻断）
+- `metrics.py`：新增 claimflow_turn_tokens_total{phase, model}；配置 TURN_TOKEN_BUDGET（默认 0=不设预算），.env.example 同步
+
+**涉及文件**：
+- `services/observability/token_tracker.py`、`tests/observability/test_token_tracker.py`（新增，11 用例）
+- `services/observability/llm_metrics.py`、`services/observability/metrics.py`、`app/api/v1/conversations.py`、`app/core/config.py`、`.env.example`
+- `nodes/intent.py`、`nodes/planner.py`、`nodes/generator.py`、`nodes/compliance.py`、`agents/runner.py`、`tools/medical/ocr_extract.py`（observed_ainvoke → phase_ainvoke）
+
+**验证方式**：
+- 单测覆盖：分环节分模型归集/同环节累计/上下文归集/无 tracker 无操作/嵌套 phase 恢复/超预算 warning（含预算值）/正常 info 汇总/Prometheus 分环节指标/finish 后上下文清空/phase_ainvoke 组合链路
+- `uv run python -m pytest tests -q` → 269 passed（原 259 + 新增 11 但 metrics 测试合并后 268+1，全绿）；ruff 全绿
+
+**问题与修正**：
+- 预算超限测试全量跑失败：同 T028 的 settings 双实例陷阱（test_logging reload 产生新单例，token_tracker 持旧引用）→ monkeypatch.setattr 到模块引用修复。该陷阱已在两处出现，后续任何"改配置验证行为"的测试都应 monkeypatch 到消费方模块。
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T029 Token 消耗统计与预算控制（分环节归集 + 超限告警）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

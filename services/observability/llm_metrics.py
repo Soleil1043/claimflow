@@ -57,4 +57,9 @@ async def observed_ainvoke(
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
     )
+    # T029：归集到当前轮次的 token tracker（contextvars，无请求上下文时无操作）
+    if prompt_tokens is not None and completion_tokens is not None:
+        from services.observability.token_tracker import record_usage_to_tracker
+
+        record_usage_to_tracker(name, prompt_tokens, completion_tokens)
     return response
