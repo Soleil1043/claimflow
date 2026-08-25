@@ -802,6 +802,31 @@
 - T029 Token 统计与预算（contextvars 分环节归集 + 超限告警）
 - T030 收尾（README 双章节 + 全量验证 + CI）
 
+### [T031] 知识图谱构建 — 2026-08-26
+
+**操作**：
+- `services/rag/knowledge_graph.py`：GraphEntity（id 前缀强校验）/ GraphRelation / KnowledgeGraphData schema + KnowledgeGraph 内存图（邻接表 + 反向邻接 + 实体索引；neighbors/find_entities/multi_hop BFS/stats 接口）+ build_graph_from_triples（实体去重、非法三元组跳过容错）+ save/load_graph 落盘回读
+- `services/llm/prompts.py`：KG_EXTRACTION_PROMPT（三类实体/四种关系/抽取纪律）
+- `scripts/build_kg.py`：12 篇 kb_docs 逐篇 LLM 抽取（解析失败重试 1 次再跳过）→ 汇总去重 → 落盘 data/graph/claim_rules_kg.json（幂等全量重建）
+- `tests/rag/test_knowledge_graph.py`：9 用例（schema 校验/邻接正反向/实体查找/多跳/统计/三元组容错/落盘往返/缺文件空图兜底）
+
+**实际构建结果（deepseek-v4-flash，116 三元组）**：
+- 实体 106（insurance 8 / rule 67 / disease 31），关系 116（applies_to_rule 48 / excludes 32 / covers 26 / disease_rule 10），平均度 2.19
+- 关键链路验证：急性阑尾炎 ←covers— 安心医疗旗舰版（反向邻接可用，T032 疾病→险种→规则多跳检索路径成立）
+
+**问题与修正**：
+- 第一轮构建疾病实体全丢（disease 0 个，LLM 把疾病塞进 rule 名字/前缀写错被静默丢弃）→ prompt 强化（【疾病必须建成 disease 实体】+ ICD 表逐行建关系 + id 前缀丢弃警告），第二轮修复：disease 31 个/covers 26 条
+- 构建慢的根因：client timeout 60s < 大 JSON 生成时间 → 超时→openai 内建重试×2→脚本级重试叠加，单篇最坏 3-6 分钟（总 45 分钟）。已知优化点（timeout 180s + 并发 3）留作 build 脚本后续改进，不阻塞 T031 验收
+- 小瑕疵（可接受）：险种存在别名实体（"医疗险"与"安心医疗旗舰版"并存），检索侧模糊匹配可消化
+
+**验证方式**：
+- `uv run python -m pytest tests -q` → 278 passed（原 269 + 新增 9）；ruff 全绿
+- 图谱统计/疾病多跳抽查通过（见上）
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T031 知识图谱构建（106 实体/116 关系，LLM 抽取 + 幂等重建）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

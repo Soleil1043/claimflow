@@ -221,3 +221,40 @@ TASK_PLANNER_PROMPT = """\
 
 以 JSON 输出（格式同上示例，不要输出其他内容）。
 """
+
+# 知识图谱三元组抽取（T031，D017 轻量自建 GraphRAG）
+KG_EXTRACTION_PROMPT = """\
+你是保险理赔知识图谱的构建助手。从给定的知识库文档片段中抽取实体关系三元组。
+
+## 实体类型（type，必须严格三选一）
+- insurance：险种/产品（如 安心医疗保险旗舰版、康宁重大疾病保险）
+- disease：疾病（凡是医学诊断/手术/疾病名一律用此类型！ICD-10 编码写在 properties.icd10）
+- rule：规则条款（等待期/免赔额/赔付比例/免责事项/材料要求/时效承诺等纯规则性描述）
+
+## 关系类型（relation）
+- covers：险种 保障 疾病（source=insurance, target=disease）——文档说某疾病"可赔/住院可赔/在保障范围"时必用
+- excludes：险种 除外/不保 疾病或事项（source=insurance, target=disease 或 rule）
+- applies_to_rule：险种 适用 规则条款（source=insurance, target=rule）
+- disease_rule：疾病 适用 规则条款（source=disease, target=rule，如 K35 适用等待期30天）
+
+## 实体 id 规则（id 前缀必须与 type 完全一致，否则整条被丢弃）
+- insurance:安心医疗旗舰版
+- disease:K35急性阑尾炎（ICD 码与病名连写）
+- rule:疾病等待期30天
+- 同一实体跨三元组多次出现时 id 必须逐字一致，否则图会碎片化
+
+## 抽取原则（重要）
+1. 只抽取文档明确陈述的事实，不要推断
+2. 【疾病必须建成 disease 实体】凡文档提到具体疾病（阑尾炎/肾结石/肺炎/高血压/骨折/白内障等），
+   必须建 disease 实体，并用 covers 或 excludes 连到险种——绝不允许把疾病塞进 rule 的名字里
+3. ICD-10 对照表类文档（如"K35 急性阑尾炎：医疗险住院责任范围可赔"）每个疾病行都应产出
+   一条 insurance -(covers/excludes)→ disease 关系
+4. 每个险种的等待期/免赔额/赔付比例等关键规则建 rule 实体并连边
+5. evidence 写来源文件名与关键短句（≤50字）
+
+## 文档片段（来源：{source_file}）
+{doc_text}
+
+以 JSON 数组输出三元组（没有可抽取内容输出 []）：
+[{{"source": {{"id": "...", "type": "...", "name": "...", "properties": {{}}}}, "target": {{"id": "...", "type": "...", "name": "...", "properties": {{}}}}, "relation": "...", "evidence": "..."}}]
+"""

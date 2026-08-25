@@ -1,0 +1,1500 @@
+{
+  "version": "1.0.0",
+  "entities": [
+    {
+      "id": "insurance:安心医疗旗舰版",
+      "type": "insurance",
+      "name": "安心医疗保险（旗舰版）",
+      "properties": {}
+    },
+    {
+      "id": "rule:疾病等待期30天",
+      "type": "rule",
+      "name": "疾病住院医疗等待期30天",
+      "properties": {}
+    },
+    {
+      "id": "rule:意外伤害医疗无等待期",
+      "type": "rule",
+      "name": "意外伤害医疗无等待期",
+      "properties": {}
+    },
+    {
+      "id": "rule:年度免赔额1万元",
+      "type": "rule",
+      "name": "年度免赔额1万元",
+      "properties": {}
+    },
+    {
+      "id": "rule:经社保报销赔付比例80%",
+      "type": "rule",
+      "name": "经社保报销后赔付比例80%",
+      "properties": {}
+    },
+    {
+      "id": "rule:未经社保报销赔付比例60%",
+      "type": "rule",
+      "name": "未经社保报销赔付比例60%",
+      "properties": {}
+    },
+    {
+      "id": "rule:保证续保6年",
+      "type": "rule",
+      "name": "保证续保6年",
+      "properties": {}
+    },
+    {
+      "id": "insurance:康宁重大疾病保险2025版",
+      "type": "insurance",
+      "name": "康宁重大疾病保险（2025版）",
+      "properties": {
+        "产品类型": "确诊即付型重疾险",
+        "投保年龄": "28天至55周岁",
+        "保障期限": "至被保险人70周岁或终身"
+      }
+    },
+    {
+      "id": "disease:C00-C97恶性肿瘤",
+      "type": "disease",
+      "name": "恶性肿瘤",
+      "properties": {
+        "icd10": "C00-C97"
+      }
+    },
+    {
+      "id": "rule:等待期90天",
+      "type": "rule",
+      "name": "等待期90天，等待期内确诊重疾退还已交保费，合同终止",
+      "properties": {}
+    },
+    {
+      "id": "rule:重疾确诊赔付100%基本保额",
+      "type": "rule",
+      "name": "110种重疾，确诊即赔付100%基本保额",
+      "properties": {}
+    },
+    {
+      "id": "rule:中症赔付60%基本保额最多2次",
+      "type": "rule",
+      "name": "25种中症，赔付60%基本保额（最多赔付2次）",
+      "properties": {}
+    },
+    {
+      "id": "rule:轻症赔付30%基本保额最多3次",
+      "type": "rule",
+      "name": "50种轻症，赔付30%基本保额（最多赔付3次）",
+      "properties": {}
+    },
+    {
+      "id": "rule:确诊轻症中症豁免后续保费",
+      "type": "rule",
+      "name": "确诊轻症/中症后豁免后续各期保费",
+      "properties": {}
+    },
+    {
+      "id": "rule:意外伤害导致重疾无等待期限制",
+      "type": "rule",
+      "name": "意外伤害导致的重疾无等待期限制",
+      "properties": {}
+    },
+    {
+      "id": "rule:无免赔额概念",
+      "type": "rule",
+      "name": "重疾险为给付型保险，无免赔额概念，与医疗费用实际支出无关",
+      "properties": {}
+    },
+    {
+      "id": "rule:恶性肿瘤组织病理学确诊",
+      "type": "rule",
+      "name": "恶性肿瘤需经组织病理学检查确诊",
+      "properties": {}
+    },
+    {
+      "id": "insurance:医疗险",
+      "type": "insurance",
+      "name": "医疗险",
+      "properties": {}
+    },
+    {
+      "id": "disease:K35急性阑尾炎",
+      "type": "disease",
+      "name": "急性阑尾炎",
+      "properties": {
+        "icd10": "K35"
+      }
+    },
+    {
+      "id": "disease:骨折",
+      "type": "disease",
+      "name": "骨折",
+      "properties": {}
+    },
+    {
+      "id": "disease:白内障",
+      "type": "disease",
+      "name": "白内障",
+      "properties": {}
+    },
+    {
+      "id": "rule:骨折内固定手术费用计入医疗费用",
+      "type": "rule",
+      "name": "骨折内固定手术费用计入医疗费用",
+      "properties": {}
+    },
+    {
+      "id": "rule:按门诊医疗规则理赔",
+      "type": "rule",
+      "name": "按门诊医疗规则理赔",
+      "properties": {}
+    },
+    {
+      "id": "rule:事故报案10日内",
+      "type": "rule",
+      "name": "事故报案10日内",
+      "properties": {}
+    },
+    {
+      "id": "rule:住院报案48小时内",
+      "type": "rule",
+      "name": "住院报案48小时内",
+      "properties": {}
+    },
+    {
+      "id": "rule:理赔申请材料要求",
+      "type": "rule",
+      "name": "理赔申请材料要求",
+      "properties": {}
+    },
+    {
+      "id": "rule:免赔额抵扣规则",
+      "type": "rule",
+      "name": "社保报销抵扣免赔额",
+      "properties": {}
+    },
+    {
+      "id": "rule:材料齐全后3个工作日审核",
+      "type": "rule",
+      "name": "材料齐全后3个工作日内完成审核",
+      "properties": {}
+    },
+    {
+      "id": "rule:达成赔付协议后10日支付",
+      "type": "rule",
+      "name": "达成赔付协议后10日内支付赔款",
+      "properties": {}
+    },
+    {
+      "id": "rule:复杂案件最长30日",
+      "type": "rule",
+      "name": "复杂案件最长不超过30日",
+      "properties": {}
+    },
+    {
+      "id": "rule:投保人对被保险人的故意杀害、故意伤害",
+      "type": "rule",
+      "name": "投保人对被保险人的故意杀害、故意伤害",
+      "properties": {}
+    },
+    {
+      "id": "rule:被保险人故意自伤、故意犯罪或抗拒依法采取的刑事强制措施",
+      "type": "rule",
+      "name": "被保险人故意自伤、故意犯罪或抗拒依法采取的刑事强制措施",
+      "properties": {}
+    },
+    {
+      "id": "rule:被保险人自杀（无民事行为能力人除外）",
+      "type": "rule",
+      "name": "被保险人自杀（无民事行为能力人除外）",
+      "properties": {}
+    },
+    {
+      "id": "rule:投保前已患疾病及其并发症",
+      "type": "rule",
+      "name": "投保前已患疾病及其并发症",
+      "properties": {}
+    },
+    {
+      "id": "rule:投保时未如实告知的疾病",
+      "type": "rule",
+      "name": "投保时未如实告知的疾病",
+      "properties": {}
+    },
+    {
+      "id": "rule:未经医生建议自行用药、自行手术导致的费用",
+      "type": "rule",
+      "name": "未经医生建议自行用药、自行手术导致的费用",
+      "properties": {}
+    },
+    {
+      "id": "disease:非医疗必需的整容、矫形手术",
+      "type": "disease",
+      "name": "非医疗必需的整容、矫形手术",
+      "properties": {}
+    },
+    {
+      "id": "disease:视力矫正手术",
+      "type": "disease",
+      "name": "视力矫正手术",
+      "properties": {}
+    },
+    {
+      "id": "disease:近视",
+      "type": "disease",
+      "name": "近视",
+      "properties": {}
+    },
+    {
+      "id": "disease:远视",
+      "type": "disease",
+      "name": "远视",
+      "properties": {}
+    },
+    {
+      "id": "disease:散光",
+      "type": "disease",
+      "name": "散光",
+      "properties": {}
+    },
+    {
+      "id": "rule:生育相关费用",
+      "type": "rule",
+      "name": "生育相关费用",
+      "properties": {}
+    },
+    {
+      "id": "disease:分娩",
+      "type": "disease",
+      "name": "分娩",
+      "properties": {}
+    },
+    {
+      "id": "disease:剖腹产",
+      "type": "disease",
+      "name": "剖腹产",
+      "properties": {}
+    },
+    {
+      "id": "disease:妊娠并发症",
+      "type": "disease",
+      "name": "妊娠并发症",
+      "properties": {}
+    },
+    {
+      "id": "rule:体检、疗养、康复性治疗费用",
+      "type": "rule",
+      "name": "体检、疗养、康复性治疗费用",
+      "properties": {}
+    },
+    {
+      "id": "rule:职业体育运动、潜水、攀岩、跳伞等高风险活动导致的伤害",
+      "type": "rule",
+      "name": "职业体育运动、潜水、攀岩、跳伞等高风险活动导致的伤害",
+      "properties": {}
+    },
+    {
+      "id": "rule:酒后驾驶、无证驾驶机动车导致的伤害",
+      "type": "rule",
+      "name": "酒后驾驶、无证驾驶机动车导致的伤害",
+      "properties": {}
+    },
+    {
+      "id": "rule:战争、军事冲突、恐怖活动",
+      "type": "rule",
+      "name": "战争、军事冲突、恐怖活动",
+      "properties": {}
+    },
+    {
+      "id": "rule:核辐射、核污染",
+      "type": "rule",
+      "name": "核辐射、核污染",
+      "properties": {}
+    },
+    {
+      "id": "disease:感染艾滋病毒",
+      "type": "disease",
+      "name": "感染艾滋病毒",
+      "properties": {}
+    },
+    {
+      "id": "disease:艾滋病",
+      "type": "disease",
+      "name": "艾滋病",
+      "properties": {}
+    },
+    {
+      "id": "disease:遗传性疾病、先天性畸形、变形或染色体异常",
+      "type": "disease",
+      "name": "遗传性疾病、先天性畸形、变形或染色体异常",
+      "properties": {}
+    },
+    {
+      "id": "rule:意外医疗无等待期",
+      "type": "rule",
+      "name": "意外医疗无等待期",
+      "properties": {}
+    },
+    {
+      "id": "insurance:康宁重大疾病保险",
+      "type": "insurance",
+      "name": "康宁重大疾病保险",
+      "properties": {}
+    },
+    {
+      "id": "rule:重疾等待期90天",
+      "type": "rule",
+      "name": "重疾等待期90天",
+      "properties": {}
+    },
+    {
+      "id": "rule:意外导致重疾无等待期",
+      "type": "rule",
+      "name": "意外导致重疾无等待期",
+      "properties": {}
+    },
+    {
+      "id": "insurance:意外险",
+      "type": "insurance",
+      "name": "意外险",
+      "properties": {}
+    },
+    {
+      "id": "rule:意外险无等待期",
+      "type": "rule",
+      "name": "意外险无等待期",
+      "properties": {}
+    },
+    {
+      "id": "rule:3天生效延迟",
+      "type": "rule",
+      "name": "3天生效延迟",
+      "properties": {}
+    },
+    {
+      "id": "rule:普通门急诊不在保障范围内",
+      "type": "rule",
+      "name": "普通门急诊不在保障范围内",
+      "properties": {}
+    },
+    {
+      "id": "rule:既往症免责",
+      "type": "rule",
+      "name": "既往症免责",
+      "properties": {}
+    },
+    {
+      "id": "disease:胃溃疡",
+      "type": "disease",
+      "name": "胃溃疡",
+      "properties": {}
+    },
+    {
+      "id": "disease:甲状腺结节",
+      "type": "disease",
+      "name": "甲状腺结节",
+      "properties": {}
+    },
+    {
+      "id": "rule:费用补偿原则",
+      "type": "rule",
+      "name": "费用补偿原则",
+      "properties": {}
+    },
+    {
+      "id": "rule:社保已报销部分不可重复报销",
+      "type": "rule",
+      "name": "社保已报销部分不可重复报销",
+      "properties": {}
+    },
+    {
+      "id": "rule:社保已报销部分可用于抵扣免赔额",
+      "type": "rule",
+      "name": "社保已报销部分可用于抵扣免赔额",
+      "properties": {}
+    },
+    {
+      "id": "rule:剩余部分按约定比例赔付",
+      "type": "rule",
+      "name": "剩余部分按约定比例赔付",
+      "properties": {}
+    },
+    {
+      "id": "insurance:出行无忧意外伤害保险",
+      "type": "insurance",
+      "name": "出行无忧意外伤害保险",
+      "properties": {}
+    },
+    {
+      "id": "disease:运动损伤",
+      "type": "disease",
+      "name": "运动损伤",
+      "properties": {}
+    },
+    {
+      "id": "disease:中暑",
+      "type": "disease",
+      "name": "中暑",
+      "properties": {}
+    },
+    {
+      "id": "disease:猝死",
+      "type": "disease",
+      "name": "猝死",
+      "properties": {}
+    },
+    {
+      "id": "rule:意外医疗0免赔",
+      "type": "rule",
+      "name": "意外医疗0免赔",
+      "properties": {}
+    },
+    {
+      "id": "rule:意外医疗90%赔付比例",
+      "type": "rule",
+      "name": "意外医疗90%赔付比例",
+      "properties": {}
+    },
+    {
+      "id": "rule:意外医疗限社保目录内费用",
+      "type": "rule",
+      "name": "意外医疗限社保目录内费用",
+      "properties": {}
+    },
+    {
+      "id": "rule:无等待期",
+      "type": "rule",
+      "name": "无等待期",
+      "properties": {}
+    },
+    {
+      "id": "rule:意外身故伤残保额20万",
+      "type": "rule",
+      "name": "意外身故伤残保额20万",
+      "properties": {}
+    },
+    {
+      "id": "rule:伤残按等级比例给付",
+      "type": "rule",
+      "name": "伤残按等级比例给付",
+      "properties": {}
+    },
+    {
+      "id": "rule:高风险运动免责",
+      "type": "rule",
+      "name": "高风险运动免责",
+      "properties": {}
+    },
+    {
+      "id": "rule:酒驾免责",
+      "type": "rule",
+      "name": "酒驾免责",
+      "properties": {}
+    },
+    {
+      "id": "rule:无证驾驶免责",
+      "type": "rule",
+      "name": "无证驾驶免责",
+      "properties": {}
+    },
+    {
+      "id": "rule:自伤免责",
+      "type": "rule",
+      "name": "自伤免责",
+      "properties": {}
+    },
+    {
+      "id": "rule:斗殴免责",
+      "type": "rule",
+      "name": "斗殴免责",
+      "properties": {}
+    },
+    {
+      "id": "disease:K25-K27消化性溃疡",
+      "type": "disease",
+      "name": "消化性溃疡",
+      "properties": {
+        "icd10": "K25-K27"
+      }
+    },
+    {
+      "id": "rule:门诊治疗仅限特殊门诊范围",
+      "type": "rule",
+      "name": "门诊治疗仅限特殊门诊范围",
+      "properties": {}
+    },
+    {
+      "id": "disease:K80胆石症",
+      "type": "disease",
+      "name": "胆石症",
+      "properties": {
+        "icd10": "K80"
+      }
+    },
+    {
+      "id": "disease:J18肺炎",
+      "type": "disease",
+      "name": "肺炎",
+      "properties": {
+        "icd10": "J18"
+      }
+    },
+    {
+      "id": "disease:J45支气管哮喘",
+      "type": "disease",
+      "name": "支气管哮喘",
+      "properties": {
+        "icd10": "J45"
+      }
+    },
+    {
+      "id": "rule:常规门诊治疗不在范围",
+      "type": "rule",
+      "name": "常规门诊治疗不在范围",
+      "properties": {}
+    },
+    {
+      "id": "insurance:重疾险",
+      "type": "insurance",
+      "name": "重疾险",
+      "properties": {}
+    },
+    {
+      "id": "rule:需组织病理学确诊",
+      "type": "rule",
+      "name": "需组织病理学确诊",
+      "properties": {}
+    },
+    {
+      "id": "disease:D00-D48良性肿瘤",
+      "type": "disease",
+      "name": "良性肿瘤",
+      "properties": {
+        "icd10": "D00-D48"
+      }
+    },
+    {
+      "id": "disease:I10原发性高血压",
+      "type": "disease",
+      "name": "原发性高血压",
+      "properties": {
+        "icd10": "I10"
+      }
+    },
+    {
+      "id": "rule:常规门诊不覆盖",
+      "type": "rule",
+      "name": "常规门诊不覆盖",
+      "properties": {}
+    },
+    {
+      "id": "disease:I21急性心肌梗死",
+      "type": "disease",
+      "name": "急性心肌梗死",
+      "properties": {
+        "icd10": "I21"
+      }
+    },
+    {
+      "id": "disease:N18慢性肾脏病",
+      "type": "disease",
+      "name": "慢性肾脏病",
+      "properties": {
+        "icd10": "N18"
+      }
+    },
+    {
+      "id": "rule:透析治疗属特殊门诊责任",
+      "type": "rule",
+      "name": "透析治疗属特殊门诊责任",
+      "properties": {}
+    },
+    {
+      "id": "disease:N20肾结石",
+      "type": "disease",
+      "name": "肾结石",
+      "properties": {
+        "icd10": "N20"
+      }
+    },
+    {
+      "id": "disease:S72股骨骨折",
+      "type": "disease",
+      "name": "股骨骨折",
+      "properties": {
+        "icd10": "S72"
+      }
+    },
+    {
+      "id": "disease:M17膝关节病（退行性）",
+      "type": "disease",
+      "name": "膝关节病（退行性）",
+      "properties": {
+        "icd10": "M17"
+      }
+    },
+    {
+      "id": "rule:目录外药品可计入可赔基数",
+      "type": "rule",
+      "name": "不限社保目录，目录外药品费用可计入可赔基数",
+      "properties": {}
+    },
+    {
+      "id": "insurance:无忧住院医疗标准版",
+      "type": "insurance",
+      "name": "无忧住院医疗保险（标准版）",
+      "properties": {}
+    },
+    {
+      "id": "rule:限社保目录内费用目录外自费",
+      "type": "rule",
+      "name": "限社保目录内费用，目录外自费",
+      "properties": {}
+    },
+    {
+      "id": "rule:社保已报销金额抵扣年度免赔额",
+      "type": "rule",
+      "name": "社保已报销金额可抵扣年度免赔额",
+      "properties": {}
+    },
+    {
+      "id": "rule:年度免赔额1万",
+      "type": "rule",
+      "name": "年度免赔额1万元",
+      "properties": {}
+    },
+    {
+      "id": "rule:未用社保结算扣1万免赔赔付比例60%",
+      "type": "rule",
+      "name": "未用社保结算时扣1万免赔且赔付比例降为60%",
+      "properties": {}
+    }
+  ],
+  "relations": [
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:疾病等待期30天",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "01-安心医疗保险旗舰版条款要点.md：疾病住院医疗等待期30天"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:意外伤害医疗无等待期",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "01-安心医疗保险旗舰版条款要点.md：意外伤害医疗无等待期，保单生效即可理赔"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:年度免赔额1万元",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "01-安心医疗保险旗舰版条款要点.md：年度免赔额1万元，社保已报销部分可抵扣"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:经社保报销赔付比例80%",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "01-安心医疗保险旗舰版条款要点.md：经社保报销后赔付比例80%"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:未经社保报销赔付比例60%",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "01-安心医疗保险旗舰版条款要点.md：未经社保报销赔付比例60%"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:保证续保6年",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "01-安心医疗保险旗舰版条款要点.md：保证续保期间为6年，不因健康状况变化拒绝续保"
+    },
+    {
+      "source": "insurance:康宁重大疾病保险2025版",
+      "target": "disease:C00-C97恶性肿瘤",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "02-康宁重大疾病保险条款要点.md：重疾确诊标准遵循，其中恶性肿瘤需经组织病理学检查确诊"
+    },
+    {
+      "source": "insurance:康宁重大疾病保险2025版",
+      "target": "rule:等待期90天",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "02-康宁重大疾病保险条款要点.md：等待期90天，等待期内确诊重疾退还已交保费，合同终止"
+    },
+    {
+      "source": "insurance:康宁重大疾病保险2025版",
+      "target": "rule:重疾确诊赔付100%基本保额",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "02-康宁重大疾病保险条款要点.md：110种重疾，确诊即赔付100%基本保额"
+    },
+    {
+      "source": "insurance:康宁重大疾病保险2025版",
+      "target": "rule:中症赔付60%基本保额最多2次",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "02-康宁重大疾病保险条款要点.md：25种中症，赔付60%基本保额（最多赔付2次）"
+    },
+    {
+      "source": "insurance:康宁重大疾病保险2025版",
+      "target": "rule:轻症赔付30%基本保额最多3次",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "02-康宁重大疾病保险条款要点.md：50种轻症，赔付30%基本保额（最多赔付3次）"
+    },
+    {
+      "source": "insurance:康宁重大疾病保险2025版",
+      "target": "rule:确诊轻症中症豁免后续保费",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "02-康宁重大疾病保险条款要点.md：确诊轻症/中症后豁免后续各期保费"
+    },
+    {
+      "source": "insurance:康宁重大疾病保险2025版",
+      "target": "rule:意外伤害导致重疾无等待期限制",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "02-康宁重大疾病保险条款要点.md：意外伤害导致的重疾无等待期限制"
+    },
+    {
+      "source": "insurance:康宁重大疾病保险2025版",
+      "target": "rule:无免赔额概念",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "02-康宁重大疾病保险条款要点.md：重疾险为给付型保险，无免赔额概念"
+    },
+    {
+      "source": "disease:C00-C97恶性肿瘤",
+      "target": "rule:恶性肿瘤组织病理学确诊",
+      "type": "disease_rule",
+      "weight": 1.0,
+      "evidence": "02-康宁重大疾病保险条款要点.md：其中恶性肿瘤需经组织病理学检查确诊"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:K35急性阑尾炎",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：阑尾炎手术（ICD-10: K35）属住院医疗责任范围"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "disease:K35急性阑尾炎",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：以安心医疗保险（旗舰版）为例计算阑尾炎住院赔付"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:骨折",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：骨折内固定手术费用可计入医疗费用"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:白内障",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：白内障手术属于特殊门诊责任"
+    },
+    {
+      "source": "disease:K35急性阑尾炎",
+      "target": "rule:疾病等待期30天",
+      "type": "disease_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：阑尾炎手术等待期30天后确诊适用"
+    },
+    {
+      "source": "disease:骨折",
+      "target": "rule:骨折内固定手术费用计入医疗费用",
+      "type": "disease_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：手术费、内置材料费均可计入医疗费用"
+    },
+    {
+      "source": "disease:白内障",
+      "target": "rule:按门诊医疗规则理赔",
+      "type": "disease_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：白内障手术按门诊医疗规则理赔"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:疾病等待期30天",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：等待期30天后确诊适用"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:骨折内固定手术费用计入医疗费用",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：手术费、内置材料费均可计入医疗费用"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:按门诊医疗规则理赔",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：白内障手术按门诊医疗规则理赔"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:事故报案10日内",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：保险事故发生后10日内通知保险公司"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:住院报案48小时内",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：住院治疗须在入院后48小时内报案"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:理赔申请材料要求",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：理赔申请材料清单及要求"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:免赔额抵扣规则",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：社保已报销部分抵扣免赔额"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:经社保报销赔付比例80%",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：经社保报销赔付比例80%"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:材料齐全后3个工作日审核",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：材料齐全后3个工作日内完成审核"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:达成赔付协议后10日支付",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：达成赔付协议后10日内支付赔款"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:复杂案件最长30日",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "03-医疗险理赔规则手册.md：复杂案件（需调查）最长不超过30日"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:投保人对被保险人的故意杀害、故意伤害",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：投保人对被保险人的故意杀害、故意伤害"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:被保险人故意自伤、故意犯罪或抗拒依法采取的刑事强制措施",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：被保险人故意自伤、故意犯罪或抗拒依法采取的刑事强制措施"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:被保险人自杀（无民事行为能力人除外）",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：被保险人自杀（无民事行为能力人除外）"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:投保前已患疾病及其并发症",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：投保前已患疾病及其并发症"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:投保时未如实告知的疾病",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：投保时未如实告知的疾病"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:未经医生建议自行用药、自行手术导致的费用",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：未经医生建议自行用药、自行手术导致的费用"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:非医疗必需的整容、矫形手术",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：非医疗必需的整容、矫形手术（意外伤害导致的除外）"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:视力矫正手术",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：视力矫正手术（近视、远视、散光）"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:近视",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：视力矫正手术（近视、远视、散光）"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:远视",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：视力矫正手术（近视、远视、散光）"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:散光",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：视力矫正手术（近视、远视、散光）"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:生育相关费用",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：生育相关费用（分娩、剖腹产、产前检查），但妊娠并发症治疗除外"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:分娩",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：生育相关费用（分娩、剖腹产、产前检查）"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:剖腹产",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：生育相关费用（分娩、剖腹产、产前检查）"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:妊娠并发症",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：但妊娠并发症治疗除外"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:体检、疗养、康复性治疗费用",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：体检、疗养、康复性治疗费用"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:职业体育运动、潜水、攀岩、跳伞等高风险活动导致的伤害",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：职业体育运动、潜水、攀岩、跳伞等高风险活动导致的伤害"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:酒后驾驶、无证驾驶机动车导致的伤害",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：酒后驾驶、无证驾驶机动车导致的伤害"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:战争、军事冲突、恐怖活动",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：战争、军事冲突、恐怖活动"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:核辐射、核污染",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：核辐射、核污染"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:感染艾滋病毒",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：感染艾滋病毒或患艾滋病（经输血导致的除外）"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:艾滋病",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：感染艾滋病毒或患艾滋病（经输血导致的除外）"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:遗传性疾病、先天性畸形、变形或染色体异常",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "04-免责条款汇总医疗险.md：遗传性疾病、先天性畸形、变形或染色体异常"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:疾病等待期30天",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "05-等待期规则详解.md：医疗险（安心医疗保险系列）：疾病医疗等待期 30 天"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:意外医疗无等待期",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "05-等待期规则详解.md：医疗险（安心医疗保险系列）：意外医疗无等待期"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "disease:K35急性阑尾炎",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "05-等待期规则详解.md：若 2026-09-01 之后确诊则可正常申请理赔"
+    },
+    {
+      "source": "disease:K35急性阑尾炎",
+      "target": "rule:疾病等待期30天",
+      "type": "disease_rule",
+      "weight": 1.0,
+      "evidence": "05-等待期规则详解.md：2026-08-20 仍在等待期内，等待期内确诊的疾病不承担赔付责任"
+    },
+    {
+      "source": "insurance:康宁重大疾病保险",
+      "target": "rule:重疾等待期90天",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "05-等待期规则详解.md：重疾险（康宁系列）：等待期 90 天"
+    },
+    {
+      "source": "insurance:康宁重大疾病保险",
+      "target": "rule:意外导致重疾无等待期",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "05-等待期规则详解.md：重疾险（康宁系列）：意外导致重疾无等待期"
+    },
+    {
+      "source": "insurance:意外险",
+      "target": "rule:意外险无等待期",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "05-等待期规则详解.md：意外险：无等待期"
+    },
+    {
+      "source": "insurance:意外险",
+      "target": "rule:3天生效延迟",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "05-等待期规则详解.md：意外险：通常有 3 天生效延迟"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:普通门急诊不在保障范围内",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "07-常见问题FAQ保单与保障.md：普通门急诊不在保障范围内"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:既往症免责",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "07-常见问题FAQ保单与保障.md：保单生效前已经确诊治疗或已出现明显症状的疾病，属于免责范围"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "disease:胃溃疡",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "07-常见问题FAQ保单与保障.md：投保前已确诊的胃溃疡，投保后胃溃疡治疗费用不予赔付"
+    },
+    {
+      "source": "disease:胃溃疡",
+      "target": "rule:既往症免责",
+      "type": "disease_rule",
+      "weight": 1.0,
+      "evidence": "07-常见问题FAQ保单与保障.md：投保前已确诊的胃溃疡，投保后胃溃疡治疗费用不予赔付"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "disease:甲状腺结节",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "07-常见问题FAQ保单与保障.md：若结节为投保后新发现，正常赔付"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:费用补偿原则",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "08-常见问题FAQ材料与流程.md：医疗险遵循费用补偿原则"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:社保已报销部分不可重复报销",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "08-常见问题FAQ材料与流程.md：社保已报销部分不可重复报销"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:社保已报销部分可用于抵扣免赔额",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "08-常见问题FAQ材料与流程.md：但可用于抵扣免赔额（如安心医疗旗舰版）"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "rule:剩余部分按约定比例赔付",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "08-常见问题FAQ材料与流程.md：剩余部分按约定比例赔付"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "disease:骨折",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：意外跌倒骨折：赔，属意外医疗责任"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "disease:运动损伤",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：运动损伤（非职业性日常运动）：赔"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "disease:中暑",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：中暑、猝死属于疾病范畴"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "disease:猝死",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：猝死：不赔，属疾病范畴"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "rule:意外医疗0免赔",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：意外医疗：0免赔"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "rule:意外医疗90%赔付比例",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：意外医疗：90%赔付比例"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "rule:意外医疗限社保目录内费用",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：意外医疗：限社保目录内费用"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "rule:无等待期",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：无等待期"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "rule:意外身故伤残保额20万",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：意外身故/伤残：保额20万元"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "rule:伤残按等级比例给付",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：伤残按《人身保险伤残评定标准》等级比例给付"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "rule:3天生效延迟",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：通常有3天生效延迟，具体以保单为准"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "rule:高风险运动免责",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：高风险运动（职业体育、潜水、攀岩等）导致的意外不赔"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "rule:酒驾免责",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：酒驾、无证驾驶不赔"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "rule:无证驾驶免责",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：酒驾、无证驾驶不赔"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "rule:自伤免责",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：自伤、斗殴不赔"
+    },
+    {
+      "source": "insurance:出行无忧意外伤害保险",
+      "target": "rule:斗殴免责",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "09-意外险理赔规则.md：自伤、斗殴不赔"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:K35急性阑尾炎",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：K35急性阑尾炎医疗险可赔"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:K25-K27消化性溃疡",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：消化性溃疡住院治疗可赔"
+    },
+    {
+      "source": "disease:K25-K27消化性溃疡",
+      "target": "rule:门诊治疗仅限特殊门诊范围",
+      "type": "disease_rule",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：消化性溃疡门诊治疗仅限特殊门诊范围"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:K80胆石症",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：胆石症住院手术治疗可赔"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:J18肺炎",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：肺炎住院治疗可赔"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:J45支气管哮喘",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：支气管哮喘急性发作住院可赔"
+    },
+    {
+      "source": "disease:J45支气管哮喘",
+      "target": "rule:常规门诊治疗不在范围",
+      "type": "disease_rule",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：支气管哮喘常规门诊治疗不在范围"
+    },
+    {
+      "source": "insurance:重疾险",
+      "target": "disease:C00-C97恶性肿瘤",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：恶性肿瘤重疾险确诊即赔"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:C00-C97恶性肿瘤",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：恶性肿瘤医疗险治疗费用可赔"
+    },
+    {
+      "source": "insurance:重疾险",
+      "target": "rule:需组织病理学确诊",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：重疾险确诊需组织病理学确诊"
+    },
+    {
+      "source": "insurance:重疾险",
+      "target": "disease:D00-D48良性肿瘤",
+      "type": "excludes",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：重疾险不赔良性肿瘤"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:D00-D48良性肿瘤",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：良性肿瘤医疗险住院手术费用可赔"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:I10原发性高血压",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：原发性高血压并发症住院可赔"
+    },
+    {
+      "source": "disease:I10原发性高血压",
+      "target": "rule:常规门诊不覆盖",
+      "type": "disease_rule",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：原发性高血压一般医疗险不覆盖常规门诊"
+    },
+    {
+      "source": "insurance:重疾险",
+      "target": "disease:I21急性心肌梗死",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：急性心肌梗死重疾险重疾责任"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:I21急性心肌梗死",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：急性心肌梗死医疗险住院费用可赔"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:N18慢性肾脏病",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：慢性肾脏病透析治疗医疗险可赔"
+    },
+    {
+      "source": "disease:N18慢性肾脏病",
+      "target": "rule:透析治疗属特殊门诊责任",
+      "type": "disease_rule",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：慢性肾脏病透析治疗属特殊门诊责任"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:N20肾结石",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：肾结石住院手术可赔"
+    },
+    {
+      "source": "insurance:意外险",
+      "target": "disease:S72股骨骨折",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：股骨骨折意外险可赔"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:S72股骨骨折",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：股骨骨折医疗险可赔"
+    },
+    {
+      "source": "insurance:医疗险",
+      "target": "disease:M17膝关节病（退行性）",
+      "type": "covers",
+      "weight": 1.0,
+      "evidence": "10-ICD10与保障范围对照.md：膝关节病住院关节置换可赔"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:目录外药品可计入可赔基数",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "11-医保目录与自费药说明.md：不限社保目录，目录外药品费用可计入可赔基数"
+    },
+    {
+      "source": "insurance:无忧住院医疗标准版",
+      "target": "rule:限社保目录内费用目录外自费",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "11-医保目录与自费药说明.md：无忧住院医疗保险（标准版）：限社保目录内费用，目录外自费"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:社保已报销金额抵扣年度免赔额",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "11-医保目录与自费药说明.md：安心医疗旗舰版允许社保已报销金额抵扣年度免赔额"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:年度免赔额1万",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "11-医保目录与自费药说明.md：例：年度免赔 1 万，本次社保报销 8,000 元"
+    },
+    {
+      "source": "insurance:安心医疗旗舰版",
+      "target": "rule:未用社保结算扣1万免赔赔付比例60%",
+      "type": "applies_to_rule",
+      "weight": 1.0,
+      "evidence": "11-医保目录与自费药说明.md：未用社保结算...扣1万免赔，且赔付比例降为60%"
+    }
+  ],
+  "source_files": [
+    "01-安心医疗保险旗舰版条款要点.md",
+    "02-康宁重大疾病保险条款要点.md",
+    "03-医疗险理赔规则手册.md",
+    "04-免责条款汇总医疗险.md",
+    "05-等待期规则详解.md",
+    "06-理赔进度查询指南.md",
+    "07-常见问题FAQ保单与保障.md",
+    "08-常见问题FAQ材料与流程.md",
+    "09-意外险理赔规则.md",
+    "10-ICD10与保障范围对照.md",
+    "11-医保目录与自费药说明.md",
+    "12-理赔审核疑点与核查标准.md"
+  ],
+  "built_at": "2026-08-26 01:28:19"
+}
