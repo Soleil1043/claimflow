@@ -685,6 +685,39 @@
 
 **Git**：`feat: T026 评测数据集构建（200 条，期望值全量溯源）`
 
+### [T027] 评测运行器与指标计算 — 2026-08-25
+
+**操作**：
+- `evals/metrics.py`：纯函数判分层——score_case（must_include 全包含/any_of 任一/must_not_include 红线/工具子集匹配/转人工一致，归一化容错"30 天/4,640/10,000"格式差异）+ aggregate（任务完成率/工具准确率/合规通过率/平均耗时/分类分桶）+ result_from_a06 适配层
+- `evals/test_suite.py`：运行器——构建主图（真实 LLM + dev profile 零容器）→ 逐条独立 thread ainvoke → 判分 → 聚合 → JSON 落盘；支持 --category/--limit/--out
+- `tests/evals/test_scoring.py`：20 用例覆盖判分全规则
+
+**基线报告（真实 LLM 全量 200 条，evals/reports/baseline.json）**：
+- 任务完成率 89.5%（179/200，含判分归一化修复后 3 条翻转）
+- 工具调用准确率 95.3% / 合规通过率 99.5%（红线违规 0）/ 平均耗时 19.0s
+- 分类：FAQ 93.3% / 单领域 78.3% / 多步 92.5% / 边界 90.0%
+- 剩余 21 条失败全部为 LLM 表述差异（any_miss/must_miss）与漏调工具（tool_miss），无一条红线/转人工错误
+
+**问题与修正**：
+- 评测直调图时 tool_trace 未转 used_tools（55 条误判）→ 运行器补 A06 同口径转换
+- 判分归一化未去千分位逗号（"10,000"≠"10000"）→ _norm 补 replace(",","")，重放验证翻转 3 条
+- 第二轮跑基线时 DeepSeek 账户余额耗尽（402）导致 multi_step 假崩（3.8%）→ 用户充值后重跑得真实水位 89.5%
+- BGE-M3 HuggingFace HEAD 检查超时 → 评测会话需 HF_HUB_OFFLINE=1（T023 已知）
+- tests/evals/test_metrics.py 与 tests/observability/test_metrics.py 同名冲突（无 __init__.py）→ 改名 test_scoring.py
+
+**涉及文件**：
+- `evals/metrics.py`、`evals/test_suite.py`、`evals/reports/baseline.json`（新增）
+- `tests/evals/test_scoring.py`（新增，20 用例）
+
+**验证方式**：
+- `uv run python -m pytest tests -q` → 249 passed；ruff 全绿
+- 小样本 --limit 8 → 7/8（LLM 表述波动 1 条）
+- 全量 200 条 → 89.5%，失败明细可从报告 failures 字段溯源
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T027 评测运行器与指标计算（基线 89.5%）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|
