@@ -791,6 +791,8 @@
 
 **Git**：`feat: T030 Phase 3 收尾验证（README 监控/评测章节 + 全量验证）`
 
+**CI 确认（2026-08-25）**：push `747cdd9` 后 Actions run #4 两 job（lint-test 269 测试 / docker compose 校验）completed/success，Phase 3 全部验收通过。
+
 **Phase 3 交付总览**：
 - T024 Prometheus 指标埋点（工具/LLM/业务三类 + /metrics 端点）
 - T025 Prometheus + Grafana 容器化（monitoring profile + 10 面板自动加载，本地全链路实测）
