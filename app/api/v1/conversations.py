@@ -128,7 +128,7 @@ async def get_conversation(
         status=conversation.status,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
-        last_messages=[_to_message_item(m) for m in reversed(recent)],
+        last_messages=[to_message_item(m) for m in reversed(recent)],
     )
 
 
@@ -155,12 +155,12 @@ async def list_messages(
     )
     return MessageListResponse(
         total=len(messages),
-        items=[_to_message_item(m) for m in messages],
+        items=[to_message_item(m) for m in messages],
     )
 
 
-def _to_message_item(m: Message) -> MessageItem:
-    """ORM → 对外展示模型。"""
+def to_message_item(m: Message) -> MessageItem:
+    """ORM → 对外展示模型（工单聚合上下文复用，T036）。"""
     return MessageItem(
         id=m.id,
         role=m.role,
@@ -252,9 +252,18 @@ async def send_message(
     need_human = bool(result.get("need_human_intervention"))
     intervention_reason = result.get("intervention_reason")
 
-    # REJECT 转人工：会话状态标记（F10）
+    # REJECT 转人工：会话状态标记（F10）+ 落 HITL 工单（T036，幂等：一会话最多一张 open 工单）
     if need_human:
         conversation.status = "transferred"
+        from app.api.v1.interventions import ensure_human_ticket
+
+        await ensure_human_ticket(
+            session,
+            conversation_id=conversation_id,
+            user_id=conversation.user_id,
+            intervention_reason=intervention_reason,
+            compliance_snapshot=compliance or None,
+        )
 
     # 审计落库：user + assistant 两条（REJECT 时 answer 已是安全话术，违规原文不落库）
     session.add(Message(conversation_id=conversation_id, role="user", content=body.content))

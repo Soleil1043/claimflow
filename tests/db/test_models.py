@@ -36,8 +36,8 @@ async def db_session():
     await engine.dispose()
 
 
-async def test_all_six_tables_created(db_session) -> None:
-    """6 张业务表全部可建、可查。"""
+async def test_all_tables_created(db_session) -> None:
+    """7 张业务表全部可建、可查（T036 新增 human_tickets）。"""
     tables = {t for t in Base.metadata.tables}
     assert tables == {
         "conversations",
@@ -46,6 +46,7 @@ async def test_all_six_tables_created(db_session) -> None:
         "medical_records",
         "claim_records",
         "kb_documents",
+        "human_tickets",
     }
     for table in Base.metadata.tables.values():
         # 每张表均可查询（空表 select 即验证表结构已创建）

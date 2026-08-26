@@ -1,4 +1,4 @@
-﻿"""数据库 ORM 模型（SQLAlchemy 2.0 声明式）。
+"""数据库 ORM 模型（SQLAlchemy 2.0 声明式）。
 
 表结构见 .agent/plan.md 第 3 节，共 6 张业务表：
 conversations / messages / policies / medical_records / claim_records / kb_documents。
@@ -83,7 +83,9 @@ class Message(Base):
     # 本轮工具调用明细 [{tool, input, output, duration_ms}]
     tool_trace: Mapped[list[dict[str, Any]] | None] = mapped_column(_jsonb_or_json(), nullable=True)
     # 多 Agent 执行计划与各步结果
-    agent_steps: Mapped[list[dict[str, Any]] | None] = mapped_column(_jsonb_or_json(), nullable=True)
+    agent_steps: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        _jsonb_or_json(), nullable=True
+    )
     # PASS / MODIFIED / REJECTED
     compliance_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
@@ -158,3 +160,33 @@ class KbDocument(Base):
     category: Mapped[str] = mapped_column(String(32))
     chunk_count: Mapped[int] = mapped_column(Integer)
     embedded_at: Mapped[dt.datetime] = mapped_column(DateTime)
+
+
+class HumanTicket(Base):
+    """人工介入工单（T036）：REJECT 转人工事件的坐席处理队列。
+
+    状态机：pending → resolved（坐席解决回写结论）/ transferred_out（升级转出），终态不可再流转。
+    一会话最多一张 open（pending）工单——重复转人工幂等跳过（ensure_human_ticket 保证）。
+    """
+
+    __tablename__ = "human_tickets"
+
+    id: Mapped[int] = mapped_column(_autoincrement_id(), primary_key=True, autoincrement=True)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
+    user_id: Mapped[str] = mapped_column(String(64))
+    # 拦截原因快照（转人工那一刻的 intervention_reason）
+    intervention_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 合规裁决快照（verdict/violations/risk_score/reason 完整结构，聚合上下文展示用）
+    compliance_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
+        _jsonb_or_json(), nullable=True
+    )
+    # pending / resolved / transferred_out
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    # 坐席回写结论（resolve 时必填）
+    resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolved_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<HumanTicket {self.id} conversation={self.conversation_id} status={self.status}>"

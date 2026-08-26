@@ -276,6 +276,17 @@ async def test_scenario_compliance_reject(api_env, monkeypatch) -> None:
     assert "代开" not in assistant["content"]
     assert assistant["compliance_status"] == "REJECT"
 
+    # T036：转人工事件自动落 HITL 工单（pending，快照含拦截原因与合规裁决）
+    tickets = (await api_env.get("/api/v1/interventions", params={"status": "pending"})).json()
+    assert tickets["total"] == 1
+    ticket = tickets["items"][0]
+    assert ticket["conversation_id"] == cid
+    assert ticket["intervention_reason"]
+
+    ticket_detail = (await api_env.get(f"/api/v1/interventions/{ticket['id']}")).json()
+    assert ticket_detail["compliance_snapshot"]["verdict"] == "REJECT"
+    assert len(ticket_detail["messages"]) == 2  # 聚合上下文含完整轨迹
+
 
 # ---------- 场景 5：异常·合规 MODIFY 修订闭环 ----------
 

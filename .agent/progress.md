@@ -939,6 +939,36 @@
 
 **Git**：`feat: T035 长期记忆读注入（首轮检索注入 system prompt + 跨会话引用 + 无历史零影响）`
 
+### [T036] HITL 工单后端 — 2026-08-26
+
+**操作**：
+- `services/db/models.py`：HumanTicket 表（conversation_id 索引/user_id 冗余/intervention_reason 拦截原因快照/compliance_snapshot 合规裁决完整快照（verdict/violations/risk_score/reason）/status 状态机/resolution_note 坐席结论/resolved_by/时间戳）
+- `alembic/versions/a8e85d881b28_add_human_tickets_table.py`：autogenerate 迁移（含 status/conversation_id 两索引），本地 upgrade 成功 + downgrade/upgrade 往返验证
+- `app/api/v1/interventions.py`（新建）：
+  - ensure_human_ticket：A06 转人工出口落单，幂等（该会话存在 pending 工单跳过；终态后可再落新单）
+  - GET /api/v1/interventions：列表（status 筛选 + 分页 + 倒序，坐席队列）
+  - GET /api/v1/interventions/{id}：详情 + 聚合上下文（会话完整轨迹 messages 含 tool_trace/agent_steps/compliance_status + 合规快照 + 拦截原因 + 会话信息）
+  - POST /{id}/resolve（回写结论）与 /{id}/escalate（升级转出）：状态机守卫 `_ensure_pending`——终态再流转 409
+- `app/api/v1/conversations.py` A06：need_human 时 ensure_human_ticket（快照取自本轮 compliance_result）；`_to_message_item` 公开化为 `to_message_item` 供工单聚合复用
+- `schemas/api.py`：HumanTicketSummary/Detail（含 ConversationRef + messages）/Resolve/EscalateRequest
+- `app/main.py`：注册 interventions 路由
+- `tests/api/test_interventions.py`（新建，9 用例）：落单幂等（open 跳过 + 终态后新单）/列表空态/status 筛选与倒序/详情聚合（tool_trace + agent_steps + 合规快照 + 轨迹）/404/resolve 回写/escalate/终态 409 ×3/校验 422
+- `tests/api/test_a06_scenarios.py` 场景 4 扩展：REJECT 后断言 pending 工单自动创建 + 快照 verdict=REJECT + 聚合轨迹完整
+- `tests/db/`：表数量断言 6→7（test_models/test_session）
+
+**验证方式**：
+- `uv run python -m alembic upgrade head` → human_tickets 建表成功；downgrade -1 + upgrade head 往返通过
+- `uv run python -m pytest -q` → 338 passed（原 329 + 新增 9）；ruff 全绿、涉及文件 format 全绿
+- A06 集成（场景 4，mock LLM + 真实路由 + 真实 DB）：REJECT → pending 工单落库 → 详情聚合上下文完整
+
+**问题与修正**：
+- resolve/escalate 初版 `ticket.updated_at = func.now()`（SQL 表达式赋值）后 flush 再回读触发 lazy refresh，同步上下文报 MissingGreenlet/ClosedDB——A06 未炸因从不回读该字段。修正：动作接口改赋 Python datetime（`dt.datetime.now()`），flush 后回读零 IO
+- alembic autogenerate 迁移缺 Text import（JSONB variant 引用，T003 同款坑）→ 手动补
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T036 HITL 工单后端（状态机 + 聚合上下文 API + 坐席处理动作）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

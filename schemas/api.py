@@ -136,3 +136,62 @@ class ConversationDetailResponse(BaseModel):
     created_at: dt.datetime
     updated_at: dt.datetime | None = None
     last_messages: list[MessageItem] = Field(default_factory=list)
+
+
+# ---------- HITL 人工介入工单（T036） ----------
+
+
+class HumanTicketSummary(BaseModel):
+    """工单列表项（坐席队列）。"""
+
+    id: int
+    conversation_id: uuid.UUID
+    user_id: str
+    status: Literal["pending", "resolved", "transferred_out"]
+    intervention_reason: str | None = None
+    created_at: dt.datetime
+    updated_at: dt.datetime | None = None
+
+
+class HumanTicketListResponse(BaseModel):
+    """GET /api/v1/interventions 响应（status 筛选 + 分页）。"""
+
+    total: int
+    items: list[HumanTicketSummary]
+
+
+class ConversationRef(BaseModel):
+    """工单详情内嵌的会话基本信息。"""
+
+    id: uuid.UUID
+    user_id: str
+    status: str
+    created_at: dt.datetime
+
+
+class HumanTicketDetailResponse(HumanTicketSummary):
+    """GET /api/v1/interventions/{id} 响应：工单 + 聚合上下文。
+
+    聚合上下文 = 会话完整轨迹（messages，含 tool_trace / agent_steps / compliance_status
+    审计字段）+ 转人工时刻的合规裁决快照（compliance_snapshot）+ 拦截原因。
+    """
+
+    compliance_snapshot: dict[str, Any] | None = None
+    resolution_note: str | None = None
+    resolved_by: str | None = None
+    conversation: ConversationRef
+    messages: list[MessageItem] = Field(default_factory=list)
+
+
+class TicketResolveRequest(BaseModel):
+    """POST /api/v1/interventions/{id}/resolve 请求体：解决并回写结论。"""
+
+    resolution_note: str = Field(min_length=1, max_length=4000)
+    resolved_by: str = Field(min_length=1, max_length=64)
+
+
+class TicketEscalateRequest(BaseModel):
+    """POST /api/v1/interventions/{id}/escalate 请求体：升级转出。"""
+
+    note: str | None = Field(default=None, max_length=4000)
+    resolved_by: str = Field(min_length=1, max_length=64)

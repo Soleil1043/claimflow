@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
 from prometheus_client import generate_latest
 
-from app.api.v1 import conversations, health
+from app.api.v1 import conversations, health, interventions
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
 from services.db.session import dispose_engine, init_db
@@ -62,6 +62,7 @@ app = FastAPI(
 
 app.include_router(health.router)
 app.include_router(conversations.router)
+app.include_router(interventions.router)
 
 
 @app.get("/metrics", response_class=PlainTextResponse, include_in_schema=False)
