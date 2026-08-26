@@ -27,18 +27,33 @@ _COMPLIANCE_SNAPSHOT: dict[str, Any] = {
 }
 
 
+class _NoPendingGraph:
+    """无 interrupt 挂起的图桩：resolve 走 resumed=False 回退路径（结论原文落审计）。"""
+
+    async def aget_state(self, config: dict) -> object:
+        from types import SimpleNamespace
+
+        return SimpleNamespace(next=())
+
+    async def ainvoke(self, command: object, config: dict | None = None) -> dict:
+        raise AssertionError("无挂起态不应触发图恢复")
+
+
 @pytest.fixture()
 async def client(monkeypatch):
-    """内存 SQLite + 工单路由测试客户端。"""
+    """内存 SQLite + 工单路由测试客户端（图桩无挂起）。"""
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     monkeypatch.setattr(session_module, "_engine", engine)
     monkeypatch.setattr(session_module, "_session_factory", factory)
+    app.state.graph = _NoPendingGraph()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac, factory
+    if hasattr(app.state, "graph"):
+        delattr(app.state, "graph")
     await engine.dispose()
 
 
@@ -189,7 +204,7 @@ async def test_detail_404(client) -> None:
 
 
 async def test_resolve_pending_ticket(client) -> None:
-    """resolve：pending → resolved，结论与坐席标识回写。"""
+    """resolve：pending → resolved，结论与坐席标识回写；无挂起时 answer 回退结论原文。"""
     ac, factory = client
     cid = await _seed_conversation(factory)
     ticket_id = await _make_ticket(factory, cid)
@@ -200,7 +215,9 @@ async def test_resolve_pending_ticket(client) -> None:
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["status"] == "resolved"
+    assert body["ticket"]["status"] == "resolved"
+    assert body["resumed"] is False  # 图桩无挂起：未走 interrupt 恢复
+    assert body["answer"] == "已电话核实并处理"  # 回退为坐席结论原文
     detail = (await ac.get(f"/api/v1/interventions/{ticket_id}")).json()
     assert detail["resolution_note"] == "已电话核实并处理"
     assert detail["resolved_by"] == "agent-01"

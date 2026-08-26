@@ -191,6 +191,14 @@ async def send_message(
     """
     conversation = await _get_conversation_or_404(conversation_id, session)
 
+    # T037：转人工会话的图处于 interrupt 挂起态，新输入会被挂起流程吞掉——
+    # 挂起期间拒绝新消息（坐席 resolve 恢复后会话回到 active 可继续对话）
+    if conversation.status == "transferred":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="会话已转人工处理中，请等待坐席回复后再继续对话",
+        )
+
     started = time.perf_counter()
     # T029：本轮 token 统计上下文（意图/规划/执行/生成/合规分环节归集）
     from services.observability.token_tracker import finish_turn_tokens, start_turn_tokens

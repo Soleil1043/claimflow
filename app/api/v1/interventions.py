@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_db_session
+from app.api.dependencies import get_app_graph, get_db_session
 from app.api.v1.conversations import to_message_item
 from app.core.logging import get_logger
 from schemas.api import (
@@ -30,6 +30,7 @@ from schemas.api import (
     MessageItem,
     TicketEscalateRequest,
     TicketResolveRequest,
+    TicketResolveResponse,
 )
 from services.db.models import Conversation, HumanTicket, Message
 
@@ -188,13 +189,21 @@ async def get_ticket(
     )
 
 
-@router.post("/{ticket_id}/resolve", response_model=HumanTicketSummary)
+@router.post("/{ticket_id}/resolve", response_model=TicketResolveResponse)
 async def resolve_ticket(
     ticket_id: int,
     body: TicketResolveRequest,
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
-) -> HumanTicketSummary:
-    """坐席解决工单：回写结论（pending → resolved，T037 接 interrupt 恢复会话）。"""
+    graph=Depends(get_app_graph),  # noqa: B008
+) -> TicketResolveResponse:
+    """坐席解决工单：回写结论 + interrupt 恢复会话（T037）。
+
+    工单 pending → resolved；若该会话的图处于 interrupt 挂起态，以
+    Command(resume=坐席结论) 恢复——结论经图内 human_review 合规复审后
+    作为最终回答返回；会话状态 transferred → active，坐席回复落审计。
+    图无挂起（如 dev 内存 checkpoint 已随重启丢失）时不阻断：结论仍落
+    工单与审计，answer 回退为坐席结论文本。
+    """
     ticket = await _get_ticket_or_404(ticket_id, session)
     _ensure_pending(ticket)
     ticket.status = "resolved"
@@ -204,7 +213,58 @@ async def resolve_ticket(
     ticket.updated_at = dt.datetime.now()
     await session.flush()
     log.info("ticket_resolved", ticket_id=ticket.id, resolved_by=body.resolved_by)
-    return _to_ticket_summary(ticket)
+
+    # T037：interrupt 恢复——先检查挂起态，避免向无挂起的 thread 发 resume
+    answer = body.resolution_note
+    resumed = False
+    review_verdict: str | None = None
+    try:
+        from langgraph.types import Command
+
+        config = {"configurable": {"thread_id": str(ticket.conversation_id)}}
+        snapshot = await graph.aget_state(config)
+        if snapshot is not None and snapshot.next:
+            result = await graph.ainvoke(
+                Command(
+                    resume={
+                        "resolution_note": body.resolution_note,
+                        "resolved_by": body.resolved_by,
+                    }
+                ),
+                config=config,
+            )
+            answer = str(result.get("final_answer") or answer)
+            review_verdict = (result.get("compliance_result") or {}).get("verdict")
+            resumed = True
+            log.info("ticket_conversation_resumed", ticket_id=ticket.id, verdict=review_verdict)
+        else:
+            log.info("ticket_no_pending_interrupt", ticket_id=ticket.id)
+    except Exception as exc:  # noqa: BLE001 恢复失败不阻断工单闭环
+        log.warning("ticket_resume_failed", ticket_id=ticket.id, error=str(exc)[:200])
+
+    # 会话回 active（坐席已处理，用户可继续对话）+ 坐席回复落审计
+    conversation = (
+        await session.execute(select(Conversation).where(Conversation.id == ticket.conversation_id))
+    ).scalar_one_or_none()
+    if conversation is not None:
+        if conversation.status == "transferred":
+            conversation.status = "active"
+        conversation.updated_at = dt.datetime.now()
+    session.add(
+        Message(
+            conversation_id=ticket.conversation_id,
+            role="assistant",
+            content=answer,
+            compliance_status=review_verdict,
+        )
+    )
+    await session.flush()
+
+    return TicketResolveResponse(
+        ticket=_to_ticket_summary(ticket),
+        answer=answer,
+        resumed=resumed,
+    )
 
 
 @router.post("/{ticket_id}/escalate", response_model=HumanTicketSummary)

@@ -1,4 +1,4 @@
-"""主图组装（T021 完整版：intent 分流 + 多 Agent 协作 + 合规门禁）。
+"""主图组装（T021 完整版：intent 分流 + 多 Agent 协作 + 合规门禁；T037 接 interrupt）。
 
 结构（architecture.md 5.2）：
 
@@ -11,11 +11,13 @@
     synthesize → compliance
     compliance ─┬─ pass（PASS / MODIFY 达轮数上限）→ __end__
                 ├─ modify（MODIFY 未达上限）→ revise_answer → compliance（复审闭环）
-                └─ reject（REJECT：内容不返回用户，标记转人工）→ __end__
+                └─ reject（REJECT）→ human_review（T037：interrupt 挂起，坐席
+                  Command(resume=结论) 恢复后经合规复审返回用户）→ __end__
 
 F10：所有输出路径必经 compliance 节点（条件边保证无旁路出口）。
 Checkpoint：dev=InMemorySaver / prod=AsyncPostgresSaver（CheckpointManager 管理，
-F14 同一会话多轮上下文连贯，服务重启后可恢复）。
+F14 同一会话多轮上下文连贯；T037 interrupt 挂起状态同样随 checkpoint 持久化，
+服务重启后坐席仍可恢复）。
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from langgraph.graph import END, START, StateGraph
 
 from nodes.compliance import ComplianceNode, compliance_route, revise_answer_node
 from nodes.generator import ReactAgentNode, should_continue, synthesize_answer_node
+from nodes.human_review import HumanReviewNode
 from nodes.intent import intent_node
 from nodes.planner import planner_node
 from nodes.rag import rag_node
@@ -59,6 +62,7 @@ def build_main_graph(
     react_agent = ReactAgentNode(executor=executor)
     step_executor = StepExecutorNode(executor=executor)
     compliance = ComplianceNode(executor=executor)
+    human_review = HumanReviewNode(executor=executor)
 
     builder = StateGraph(AgentState)
     builder.add_node("intent", intent_node)
@@ -69,6 +73,7 @@ def build_main_graph(
     builder.add_node("synthesize", synthesize_answer_node)
     builder.add_node("compliance", compliance)
     builder.add_node("revise_answer", revise_answer_node)
+    builder.add_node("human_review", human_review)
 
     builder.add_edge(START, "intent")
     # 意图分流（F03）
@@ -98,9 +103,11 @@ def build_main_graph(
     builder.add_conditional_edges(
         "compliance",
         compliance_route,
-        {"pass": END, "modify": "revise_answer", "reject": END},
+        {"pass": END, "modify": "revise_answer", "reject": "human_review"},
     )
     builder.add_edge("revise_answer", "compliance")
+    # T037：REJECT → human_review（interrupt 挂起，坐席 Command(resume) 恢复后出结论）
+    builder.add_edge("human_review", END)
     return builder.compile(checkpointer=checkpointer)
 
 

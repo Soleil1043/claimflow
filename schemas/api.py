@@ -190,6 +190,16 @@ class TicketResolveRequest(BaseModel):
     resolved_by: str = Field(min_length=1, max_length=64)
 
 
+class TicketResolveResponse(BaseModel):
+    """resolve 响应：工单状态 + 恢复后返回用户的回答（T037 interrupt 恢复）。"""
+
+    ticket: HumanTicketSummary
+    # 坐席结论经图内合规复审后的最终回答；图无挂起（无法恢复）时为坐席结论文本
+    answer: str
+    # 是否实际执行了 interrupt 恢复（False = 图无挂起，仅落工单与审计）
+    resumed: bool = True
+
+
 class TicketEscalateRequest(BaseModel):
     """POST /api/v1/interventions/{id}/escalate 请求体：升级转出。"""
 

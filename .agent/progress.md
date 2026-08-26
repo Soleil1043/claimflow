@@ -969,6 +969,31 @@
 
 **Git**：`feat: T036 HITL 工单后端（状态机 + 聚合上下文 API + 坐席处理动作）`
 
+### [T037] LangGraph interrupt 恢复机制 — 2026-08-26
+
+**操作**：
+- `nodes/human_review.py`（新建）：HumanReviewNode——interrupt(payload) 挂起（载荷含拦截原因 + 合规裁决快照）；坐席 Command(resume={"resolution_note","resolved_by"}) 恢复后节点重跑，interrupt() 直接返回结论；结论经 review_answer 复审（F10 门禁对坐席文本同样生效）：PASS/MODIFY → 结论作为 final_answer + 介入闭环（need_human=False）；REJECT → 保守话术（"合规复核中"）；空结论/非 dict resume 值 → 安全话术不抛错
+- 关键设计：interrupt 节点独立于 compliance——resume 时整个节点重跑，放 compliance 内会导致 LLM 审查重复执行且结果漂移
+- `workflows/main_graph.py`：compliance 三态路由 reject 目标从 END 改为 human_review；human_review → END
+- `app/api/v1/conversations.py` A06：transferred（挂起中）会话再发消息 409（防新输入被挂起流程吞掉）；compliance REJECT 仍写安全话术 + 介入标记，A06 行为不变
+- `app/api/v1/interventions.py` resolve（T036 扩展）：先 aget_state 预检挂起（snapshot.next）→ Command(resume=坐席结论) 恢复 → 复审后 final_answer 返回；会话 transferred → active；坐席回复落审计（compliance_status=复审 verdict）；图无挂起/恢复异常不阻断工单闭环（answer 回退结论原文，resumed=False）；escalate 不触发恢复
+- `schemas/api.py`：TicketResolveResponse（ticket + answer + resumed）
+- 测试：`tests/workflows/test_interrupt.py`（新建 7 用例：REJECT 触发挂起（__interrupt__ + 载荷快照）/结论复审 PASS 返回/复审 REJECT 保守话术/空结论/非 dict resume/共享 checkpointer 重建图跨"重启"恢复/无挂起 snapshot.next 预检）；`tests/api/test_a06_scenarios.py` 场景 11（HITL 全链路：REJECT → 挂起期 409 → resolve 恢复 resumed=True + answer=复审结论 → 坐席回复落审计 PASS → 会话回 active 新消息 200）；`tests/api/test_interventions.py` 适配（图桩无挂起走回退路径 + 响应结构嵌套 ticket）
+
+**验证方式**：
+- `uv run python -m pytest -q` → 346 passed（原 338 + 新增 8）；ruff 全绿、涉及文件 format 全绿
+- 端到端语义验证：触发（REJECT → __interrupt__，final_answer=安全话术）→ 恢复（resume 干净结论 → 复审 PASS → 结论返回，need_human=False）→ 跨重启（共享 checkpointer 重建图 → resume 成功）
+- 复审拦截验证：坐席结论"保证赔付一百万"复审 REJECT → 不返回用户，替换为合规复核话术
+
+**问题与修正**：
+- resolve 向无挂起 thread 发 Command(resume) 行为不可控 → aget_state 预检 snapshot.next，仅挂起态恢复（无挂起回退结论原文，服务重启丢内存 checkpoint 的 dev 场景不阻断工单闭环）
+- 图级测试初版 FakeModel 返回裸对象缺 tool_calls 属性（react 条件边 AttributeError）→ 改返回 AIMessage
+- test_circuit_breaker_half_open_recovery 在全量运行时偶发失败（cooldown 时间敏感，负载高时漂移）——与 T037 无关，重跑通过；如再复现考虑放宽断言容差
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T037 LangGraph interrupt 恢复机制（REJECT 挂起 + 坐席 Command(resume) 恢复 + 复审闭环）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

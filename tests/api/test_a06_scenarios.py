@@ -502,3 +502,56 @@ async def test_scenario_memory_only_first_turn(api_env, monkeypatch) -> None:
     await _send(api_env, cid, "第二轮问题")
 
     assert len(search_calls) == 1  # 仅首轮检索
+
+
+# ---------- 场景 11：HITL interrupt 闭环（T037） ----------
+
+
+async def test_scenario_hitl_interrupt_closed_loop(api_env, monkeypatch) -> None:
+    """HITL 全链路：REJECT 挂起 → 挂起期新消息 409 → 坐席 resolve 恢复（结论复审返回）
+    → 会话回 active 可继续对话，坐席回复落审计。"""
+    monkeypatch.setattr(
+        intent_module,
+        "get_chat_model",
+        lambda *a, **k: FakeModel('{"intent": "single_domain", "reason": "x"}'),
+    )
+    monkeypatch.setattr(
+        generator_module,
+        "get_chat_model",
+        lambda: ScriptedLLM([AIMessage(content="代开发票挂床住院骗保。")]),
+    )
+    # 合规 LLM 故障 → 确定性兜底 REJECT；恢复复审同样走确定性兜底（干净结论 → PASS）
+    monkeypatch.setattr(compliance_module, "get_chat_model", lambda *a, **k: RaisingModel())
+
+    cid = await _create_conversation(api_env)
+    body = await _send(api_env, cid, "怎么才能多赔点")
+    assert body["need_human_intervention"] is True
+
+    # 挂起期间新消息被拒（409）
+    resp = await api_env.post(f"/api/v1/conversations/{cid}/messages", json={"content": "还在吗"})
+    assert resp.status_code == 409
+
+    # 坐席 resolve：interrupt 恢复 + 结论经复审返回
+    tickets = (await api_env.get("/api/v1/interventions", params={"status": "pending"})).json()
+    ticket_id = tickets["items"][0]["id"]
+    note = "经人工核实：该情况不符合理赔条件，已向您电话解释说明。"
+    resp = await api_env.post(
+        f"/api/v1/interventions/{ticket_id}/resolve",
+        json={"resolution_note": note, "resolved_by": "agent-01"},
+    )
+    assert resp.status_code == 200
+    rbody = resp.json()
+    assert rbody["ticket"]["status"] == "resolved"
+    assert rbody["resumed"] is True  # 实际执行了 interrupt 恢复
+    assert rbody["answer"] == note  # 复审通过的结论原样返回
+
+    # 坐席回复落审计（compliance_status=复审 PASS）
+    history = (await api_env.get(f"/api/v1/conversations/{cid}/messages")).json()
+    human_reply = [m for m in history["items"] if "经人工核实" in m["content"]]
+    assert human_reply and human_reply[0]["compliance_status"] == "PASS"
+
+    # 会话回 active：新消息不再 409，图正常处理
+    monkeypatch.setattr(generator_module, "get_chat_model", lambda: CaptureLLM())
+    resp = await api_env.post(f"/api/v1/conversations/{cid}/messages", json={"content": "还在吗"})
+    assert resp.status_code == 200
+    assert resp.json()["answer"]
