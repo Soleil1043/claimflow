@@ -20,6 +20,8 @@
 | 可观测性 | Prometheus 三类指标（工具 / LLM / 业务）+ Grafana 自动加载仪表盘 + 分环节 Token 预算 |
 | 评测体系 | 200 条标注测试集（期望值全量溯源），一键产出任务完成率 / 工具准确率基线报告 |
 | 工具结果缓存 | 幂等查询工具 Redis 缓存（dev 内存降级），命中指标可观测 |
+| 长期记忆 | 会话摘要 + 关键实体向量化入 Qdrant（user_id 隔离），新会话首轮注入——「我上次问的那张保单」跨会话正确引用 |
+| HITL 人工介入 | REJECT 走 LangGraph interrupt 挂起；坐席工作台回写结论 → Command(resume) 恢复会话，结论经合规复审后返回用户 |
 
 ## 架构
 
@@ -105,6 +107,30 @@ docker compose --profile monitoring up -d
   单轮 P95 处理时长；监控栈独立 profile，默认 `up` 不启动
 - 不起 Docker 也可直接访问 `http://localhost:8000/metrics`（裸文本指标）
 
+### 6. 坐席工作台（可选：Next.js 15 + React 19 + Tailwind 4）
+
+合规拦截（REJECT）转人工的会话处理前端（`workbench/` 目录）：
+
+```bash
+# 终端 1：先启动后端（端口 8000）
+uv run uvicorn app.main:app --port 8000
+
+# 终端 2：启动工作台（端口 5173，/api/* 代理直连后端）
+cd workbench && npm install && npm run dev
+```
+
+- `http://localhost:5173` → 工单列表（状态筛选：待处理 / 已解决 / 已转出）
+- 点击工单 → 详情页：合规拦截快照（verdict / 风险分 / 违规明细与建议）、
+  会话完整轨迹（可展开工具调用入参出参与 Agent 步骤档案）
+- **解决并回写结论** → 触发后端 LangGraph interrupt 恢复（T037）：结论经合规复审后
+  返回用户，会话回到 active 可继续对话；坐席结论本身违规时同样被拦截（保守话术）
+- 演示数据：后端起 `uv run python -m scripts.demo_hitl_backend` 可自动生成一条
+  待处理工单（mock 违规草稿被拦截的完整上下文）
+
+![工单列表](docs/screenshots/workbench-ticket-list.png)
+
+![工单详情](docs/screenshots/workbench-ticket-detail.png)
+
 ## API
 
 | 接口 | 方法 | 说明 |
@@ -115,6 +141,10 @@ docker compose --profile monitoring up -d
 | `/api/v1/conversations/{id}/messages` | GET | 消息历史（含审计字段） |
 | `/api/v1/conversations/{id}/messages` | POST | 发消息（触发完整主图流程） |
 | `/api/v1/conversations/{id}/images` | POST | 上传图片材料（vision OCR + Mock 兜底） |
+| `/api/v1/interventions` | GET | HITL 工单列表（status 筛选 + 分页） |
+| `/api/v1/interventions/{id}` | GET | 工单详情 + 聚合上下文（会话轨迹 / 合规快照 / 拦截原因） |
+| `/api/v1/interventions/{id}/resolve` | POST | 坐席解决并回写结论（触发 interrupt 恢复，结论经复审返回） |
+| `/api/v1/interventions/{id}/escalate` | POST | 升级转出（线下处理） |
 | `/health` | GET | 健康检查（四依赖状态） |
 
 **发消息响应结构**：
@@ -134,7 +164,7 @@ docker compose --profile monitoring up -d
 ## 测试与验证
 
 ```bash
-uv run pytest tests -q        # 269 用例全绿（工具单测 + 图级集成 + API 端到端 + 监控/缓存/token）
+uv run pytest tests -q        # 346 用例全绿（工具单测 + 图级集成 + API 端到端 + 监控/缓存/token/记忆/HITL）
 uv run ruff check .           # lint
 ```
 
@@ -174,7 +204,7 @@ uv run python -m evals.test_suite --out my_report.json     # 指定输出
 app/          FastAPI 入口与路由        agents/     4 个 Agent 定义
 nodes/        LangGraph 节点（8 个）     tools/      工具层（claim/medical/compliance）
 workflows/    主图组装                  services/   LLM / RAG / DB / 缓存 / 观测
-schemas/      Pydantic 模型             tests/      269 个测试用例
+schemas/      Pydantic 模型             tests/      346 个测试用例
 scripts/      seed 与验收脚本           data/       Mock 数据与知识库文档
 ui/           Gradio 演示界面           evals/      评测集与运行器（200 条）
 grafana/      仪表盘 JSON               prometheus/  抓取配置

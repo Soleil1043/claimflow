@@ -994,6 +994,37 @@
 
 **Git**：`feat: T037 LangGraph interrupt 恢复机制（REJECT 挂起 + 坐席 Command(resume) 恢复 + 复审闭环）`
 
+### [T038] Next.js 人工介入工作台 — 2026-08-26
+
+**操作**：
+- `workbench/`（新建目录，Next.js 15 + React 19 + Tailwind 4 + TypeScript，App Router）：
+  - 骨架：package.json / next.config.ts（rewrites `/api/*` → localhost:8000，WORKBENCH_API_TARGET 可覆盖）/ tsconfig / postcss（Tailwind 4 @tailwindcss/postcss）；dev 端口 5173
+  - `lib/api.ts`：类型定义对齐 schemas/api.py + fetch 封装（浏览器走相对路径代理，RSC 服务端走绝对地址——相对路径在服务端 fetch 不经 rewrites，实测坑）
+  - `app/page.tsx` 列表页：状态筛选 tabs（searchParams 驱动 RSC）+ 工单表格（工单号/用户/拦截原因/状态徽章/时间）+ 后端不可达友好提示
+  - `app/tickets/[id]/page.tsx` 详情页：工单头部 + 合规拦截快照卡（verdict/风险分配色/违规明细与建议）+ 坐席处理区（pending 表单 / 终态结论展示）+ 会话完整轨迹
+  - `components/`：StatusBadge / MessageTimeline（user/assistant 气泡 + intent/compliance 徽章）/ AuditViewer（工具调用入参出参 JSON + Agent 步骤档案，展开式）/ ResolveForm（结论 textarea + 坐席标识 + resolve/escalate，成功后展示恢复结果 + router.refresh）
+- `scripts/demo_hitl_backend.py`：mock LLM 演示后端（真实 DB/路由/图；欺诈草稿 → 确定性 REJECT → 工单 + interrupt 挂起）——真实 LLM 对欺诈诱导会正确拒答（PASS 无工单），GUI 演示链路需可控草稿
+- `docs/screenshots/`：列表页与详情页截图存档（README 引用）
+- README：核心能力表 +长期记忆/HITL 两行、快速开始"6. 坐席工作台"（双终端启动 + 功能说明 + 截图 + demo 脚本）、API 表 +interventions 四接口、项目结构 +workbench/docs、测试数 269→346
+
+**验证方式（真实 GUI 端到端，浏览器实测）**：
+- `npm run build` 通过（TS 类型检查 + 3 路由）；`npm run dev` 启动 5173
+- demo 后端造单（工单 #1/#2 欺诈拦截，interrupt 挂起）→ 浏览器验证：
+  - 列表页：工单渲染 + 状态筛选 tabs + 计数 ✓
+  - 详情页：REJECT 快照（风险分 100 + PROMISE/FRAUD_RISK×3 违规与建议）、轨迹（用户欺诈问题 + 安全话术 + single_domain/REJECT 徽章）、处理表单 ✓
+  - **resolve 负路径**：坐席结论复述"代开发票/挂床"→ 复审 REJECT → 保守话术返回（"合规复核中"），工单已解决 + 会话回 active + 坐席回复落审计（3 条轨迹）——完整实证 F10 门禁对坐席文本同样生效
+  - **resolve 正路径**：干净结论 → 复审 PASS → 结论原样返回用户（轨迹 PASS 徽章）
+- 后端回归：ruff 全绿 + pytest 346 passed
+
+**问题与修正**：
+- RSC（服务端组件）fetch 相对路径 `/api/*` 报 "Failed to parse URL"——next rewrites 只作用于浏览器请求，服务端需绝对地址 → lib/api.ts 按 `typeof window` 分流
+- Node REPL 里变量名 `agent` 与 browser runtime 全局冲突（TDZ 报错）→ 改名 agentBox
+- 真实 LLM 拒答欺诈诱导（安全对齐）无法稳定触发 REJECT 造单 → demo 后端 mock 草稿（T037 恢复语义的确定性验证已由场景 11 单测覆盖，GUI 演示用 mock 链路）
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T038 Next.js 人工介入工作台（列表/详情可视化/resolve 恢复闭环 + README）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|
