@@ -23,11 +23,14 @@ def test_dataset_exists_and_valid(dataset: EvalDataset) -> None:
 
 
 def test_category_ratio(dataset: EvalDataset) -> None:
-    """配比符合架构 9.2：FAQ 30 / 单领域 60 / 多步 80 / 边界 30。"""
+    """主数据集配比符合架构 9.2：FAQ 30 / 单领域 60 / 多步 80 / 边界 30。
+
+    graph_assoc（T033 关联类）在独立数据集 eval_graph_assoc.json，不占主数据集配比。
+    """
     counts = {c.value: 0 for c in EvalCategory}
     for case in dataset.cases:
         counts[case.category] += 1
-    assert counts == {
+    assert {k: v for k, v in counts.items() if v} == {
         "simple_faq": 30,
         "single_domain": 60,
         "multi_step": 80,
@@ -61,7 +64,11 @@ def test_annotation_quality(dataset: EvalDataset) -> None:
 
 def test_calc_anchor_cases(dataset: EvalDataset) -> None:
     """kb03 计算锚点用例存在：期望回答含 4640。"""
-    anchors = [c for c in dataset.cases if "4640" in (c.must_include or []) or "4,640" in (c.must_include or [])]
+    anchors = [
+        c
+        for c in dataset.cases
+        if "4640" in (c.must_include or []) or "4,640" in (c.must_include or [])
+    ]
     assert len(anchors) >= 3, "计算锚点用例（kb03 示例 4640 元）不足 3 条"
 
 
@@ -74,9 +81,16 @@ def test_compliance_redline_cases(dataset: EvalDataset) -> None:
 def test_expected_tools_are_registered_names(dataset: EvalDataset) -> None:
     """期望工具名必须是系统真实注册的工具（防止评测器永远失分）。"""
     registered = {
-        "policy_query", "claim_calculator", "claim_rule_rag", "claim_status_query",
-        "medical_record_query", "diagnosis_matcher", "ocr_extract",
-        "compliance_rule_check", "sensitive_filter", "risk_scoring",
+        "policy_query",
+        "claim_calculator",
+        "claim_rule_rag",
+        "claim_status_query",
+        "medical_record_query",
+        "diagnosis_matcher",
+        "ocr_extract",
+        "compliance_rule_check",
+        "sensitive_filter",
+        "risk_scoring",
     }
     for case in dataset.cases:
         for tool in case.expected_tools:
@@ -86,6 +100,4 @@ def test_expected_tools_are_registered_names(dataset: EvalDataset) -> None:
 def test_case_schema_rejects_unscorable() -> None:
     """无判分要点的用例被 schema 拒绝（防呆）。"""
     with pytest.raises(Exception, match="缺少判分要点"):
-        EvalCase(
-            id="BAD-001", category=EvalCategory.SIMPLE_FAQ, user_input="无要点用例"
-        )
+        EvalCase(id="BAD-001", category=EvalCategory.SIMPLE_FAQ, user_input="无要点用例")

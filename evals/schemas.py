@@ -15,12 +15,18 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class EvalCategory(StrEnum):
-    """评测用例四分类（架构 9.2 比例：FAQ 30 / 单领域 60 / 多步 80 / 边界 30）。"""
+    """评测用例分类。
 
-    SIMPLE_FAQ = "simple_faq"          # 简单 FAQ（RAG 知识库问答）
-    SINGLE_DOMAIN = "single_domain"    # 单领域查询（保单 / 医疗 / 合规各 20）
-    MULTI_STEP = "multi_step"          # 多步复杂任务（规划 → 多 Agent 执行 → 合成）
-    EDGE_CASE = "edge_case"            # 边界与异常（不存在数据 / 等待期 / 免责 / 越界）
+    基础四分类（架构 9.2 比例：FAQ 30 / 单领域 60 / 多步 80 / 边界 30）；
+    T033 新增 graph_assoc：复杂关联类（疾病↔险种↔规则跨实体），
+    存放独立数据集 evals/datasets/eval_graph_assoc.json，用于纯 RAG vs 混合召回对比。
+    """
+
+    SIMPLE_FAQ = "simple_faq"  # 简单 FAQ（RAG 知识库问答）
+    SINGLE_DOMAIN = "single_domain"  # 单领域查询（保单 / 医疗 / 合规各 20）
+    MULTI_STEP = "multi_step"  # 多步复杂任务（规划 → 多 Agent 执行 → 合成）
+    EDGE_CASE = "edge_case"  # 边界与异常（不存在数据 / 等待期 / 免责 / 越界）
+    GRAPH_ASSOC = "graph_assoc"  # 复杂关联（跨实体多跳：疾病→险种→规则）
 
 
 class EvalCase(BaseModel):
@@ -34,7 +40,8 @@ class EvalCase(BaseModel):
         description="期望被调用的工具名序列（子集匹配：实际调用集合 ⊇ 期望集合）",
     )
     expected_intent: str | None = Field(
-        default=None, description="期望意图标签（simple_faq/single_domain/multi_step/chitchat/other）"
+        default=None,
+        description="期望意图标签（simple_faq/single_domain/multi_step/chitchat/other）",
     )
     must_include: list[str] = Field(
         default_factory=list, description="回答必须包含的关键词（子串匹配，全部命中才得分）"
@@ -53,7 +60,12 @@ class EvalCase(BaseModel):
     @model_validator(mode="after")
     def _validate_keys(self) -> EvalCase:
         """无任何判分要点且不期望转人工的用例无法判分，禁止。"""
-        if not (self.must_include or self.any_of or self.must_not_include or self.expect_human_intervention):
+        if not (
+            self.must_include
+            or self.any_of
+            or self.must_not_include
+            or self.expect_human_intervention
+        ):
             raise ValueError(f"用例 {self.id} 缺少判分要点（must_include/any_of/must_not_include）")
         return self
 

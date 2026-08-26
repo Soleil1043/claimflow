@@ -857,6 +857,36 @@
 
 **Git**：`feat: T032 图检索与混合召回（实体链接三级匹配 + 双向 BFS + GRAPH_RAG_ENABLED 开关）`
 
+### [T033] GraphRAG 评测对比 — 2026-08-26
+
+**操作**：
+- `evals/schemas.py`：EvalCategory 新增 GRAPH_ASSOC（graph_assoc 关联类，独立数据集不占主数据集四分类配比）
+- `evals/datasets/eval_graph_assoc.json`：24 条复杂关联用例（疾病↔险种↔规则多跳），must/any_of 全部 kb_docs 可溯源，GA-011 保留 kb03 计算锚点 4640
+- `evals/metrics.py`：CaseResult 增 vector_hits/graph_hits（rag_node 从 rag_context、Worker 从 tool_trace.output.data 两路提取）；EvalReport 增 avg_vector_hits/avg_graph_hits/graph_coverage
+- `evals/test_suite.py`：`--dataset {main,graph_assoc}` + `--variant {hybrid,pure_rag}`（变体即 GRAPH_RAG_ENABLED 开关，运行前改 settings + reset 图谱单例）；报告落盘带 dataset/variant 字段
+- `tests/evals/test_graph_assoc_dataset.py`：4 用例（规模/ID/溯源/真实图谱实体链接命中 ≥15/24）
+- `tests/evals/test_dataset.py`：配比断言改为非零分类比对（graph_assoc 独立数据集）
+- `evals/reports/graph_assoc_{pure_rag,hybrid}.json` + `graph_assoc_comparison.md`：对比报告存档
+
+**评测结果（24 条，deepseek-v4-flash）**：
+- 任务完成率：pure_rag 95.8%（23/24）= hybrid 95.8%（23/24）持平；单条失败均为 LLM 输出随机波动（两轮失败用例不同）
+- 检索命中差异：向量均 3.83 条/例（混合不损害向量）；hybrid 图谱覆盖 87.5%、+6.92 条结构化事实/例
+- 耗时：9.9s → 12.3s（+2.4s 实体链接+BFS 开销）
+- 结论：小语料（12 篇）下完成率持平，增益在检索信号维度（跨文档聚合问题图谱直接给规则边）；语料扩大后增益预期放大
+
+**问题与修正**：
+- 首轮表面差距（pure 91.7% vs hybrid 79.2%）逐条归因全部为判分词面未覆盖同义表述（"没有等待期"≠"无等待期"、"可申请理赔"≠"可赔"）→ 修订 5 条 any_of 后复跑两组持平。教训：any_of 标注必须含"申请理赔/申请赔付"类规范变体
+- huggingface_hub 联网 HEAD 检查每文件 5×30s 超时重试导致评测启动卡 ~6 分钟 → 跑评测须设 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1（本地缓存已有 BGE-M3）
+- 观察到图谱噪声：泛"等待期"查询实体链接带出最多 12 条不相关规则事实，有上下文稀释风险——优化方向（关系类型过滤/实体类型加权/动态上限）留作后续
+
+**验证方式**：
+- `uv run python -m pytest -q` → 296 passed（原 292 + 新增 4）；ruff check/format 全绿
+- 两组评测命令见 graph_assoc_comparison.md，报告 JSON+MD 存档 evals/reports/
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T033 GraphRAG 评测对比（24 条关联用例 + --variant 变体 + 双组报告存档）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

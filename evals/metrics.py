@@ -25,6 +25,9 @@ class CaseResult(BaseModel):
     need_human_intervention: bool = False
     duration_s: float = 0.0
     error: str = ""
+    # 检索命中统计（T033 对比口径：向量条数 / 图谱事实条数，来自 rag_context）
+    vector_hits: int = 0
+    graph_hits: int = 0
     # 判分明细
     tool_match: bool = True  # 期望工具为空时视为通过（该用例不考核工具）
     must_include_hit: bool = True
@@ -44,6 +47,9 @@ class EvalReport(BaseModel):
     compliance_pass_rate: float = Field(description="合规通过率：PASS verdict 占比")
     human_precision: float = Field(description="转人工准确率：期望转人工用例中命中占比")
     avg_duration_s: float = Field(description="平均单用例耗时（秒）")
+    avg_vector_hits: float = Field(default=0.0, description="平均向量检索命中条数/用例")
+    avg_graph_hits: float = Field(default=0.0, description="平均图谱事实命中条数/用例")
+    graph_coverage: float = Field(default=0.0, description="图谱命中用例占比（graph_hits>0）")
     by_category: dict[str, dict[str, float]] = Field(default_factory=dict)
     failures: list[CaseResult] = Field(default_factory=list, description="失败用例明细")
 
@@ -115,6 +121,9 @@ def aggregate(results: list[CaseResult]) -> EvalReport:
     human_precision = len(human_expected) / len(human_expected) if human_expected else 0.0
 
     avg_duration = (sum(r.duration_s for r in results) / total) if total else 0.0
+    avg_vector_hits = (sum(r.vector_hits for r in results) / total) if total else 0.0
+    avg_graph_hits = (sum(r.graph_hits for r in results) / total) if total else 0.0
+    graph_coverage = (sum(1 for r in results if r.graph_hits > 0) / total) if total else 0.0
 
     by_category: dict[str, dict[str, float]] = {}
     for cat in EvalCategory:
@@ -135,14 +144,40 @@ def aggregate(results: list[CaseResult]) -> EvalReport:
         compliance_pass_rate=compliance_pass_rate,
         human_precision=human_precision,
         avg_duration_s=round(avg_duration, 3),
+        avg_vector_hits=round(avg_vector_hits, 2),
+        avg_graph_hits=round(avg_graph_hits, 2),
+        graph_coverage=round(graph_coverage, 4),
         by_category=by_category,
         failures=[r for r in results if not r.passed],
     )
 
 
-def result_from_a06(case: EvalCase, a06: dict[str, Any], duration_s: float, error: str = "") -> CaseResult:
+def result_from_a06(
+    case: EvalCase, a06: dict[str, Any], duration_s: float, error: str = ""
+) -> CaseResult:
     """从 A06 响应构造 CaseResult（运行器适配层）。"""
     used = [t.get("tool", "") for t in (a06.get("used_tools") or [])]
+
+    # 检索命中统计（T033）：rag_node 路径从 shared_data.rag_context 提取；
+    # Worker 路径（claim_rule_rag 工具）从 tool_trace 的 results/graph_facts 提取
+    vector_hits = 0
+    graph_hits = 0
+    if isinstance(a06.get("shared_data"), dict):
+        rag_ctx = a06["shared_data"].get("rag_context") or {}
+        vector_hits = len(rag_ctx.get("results") or [])
+        graph_hits = len((rag_ctx.get("graph_facts") or {}).get("facts") or [])
+    if vector_hits == 0 and graph_hits == 0:
+        for trace in a06.get("used_tools") or []:
+            if not isinstance(trace, dict) or trace.get("tool") != "claim_rule_rag":
+                continue
+            # tool_trace 元素：{agent, tool, input, output}；output 为 ToolOutput dump
+            output = trace.get("output") or {}
+            data = output.get("data") if isinstance(output, dict) else {}
+            if not isinstance(data, dict):
+                data = {}
+            vector_hits += len(data.get("results") or [])
+            graph_hits += len(data.get("graph_facts") or [])
+
     return CaseResult(
         case_id=case.id,
         category=case.category,
@@ -152,4 +187,6 @@ def result_from_a06(case: EvalCase, a06: dict[str, Any], duration_s: float, erro
         need_human_intervention=bool(a06.get("need_human_intervention")),
         duration_s=round(duration_s, 3),
         error=error,
+        vector_hits=vector_hits,
+        graph_hits=graph_hits,
     )

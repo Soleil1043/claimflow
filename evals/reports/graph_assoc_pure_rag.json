@@ -1,0 +1,53 @@
+{
+  "dataset_version": "1.0.0",
+  "dataset": "graph_assoc",
+  "category": null,
+  "variant": "pure_rag",
+  "generated_at": "2026-08-26 08:47:26",
+  "summary": {
+    "total": 24,
+    "passed": 23,
+    "task_completion_rate": 0.9583333333333334,
+    "tool_accuracy": 1.0,
+    "compliance_pass_rate": 1.0,
+    "human_precision": 0.0,
+    "avg_duration_s": 9.891,
+    "avg_vector_hits": 3.83,
+    "avg_graph_hits": 0.0,
+    "graph_coverage": 0.0,
+    "by_category": {
+      "simple_faq": {
+        "total": 23.0,
+        "passed": 22.0,
+        "rate": 0.9565217391304348
+      },
+      "multi_step": {
+        "total": 1.0,
+        "passed": 1.0,
+        "rate": 1.0
+      }
+    }
+  },
+  "failures": [
+    {
+      "case_id": "GA-007",
+      "category": "simple_faq",
+      "answer": "根据知识库条款：良性肿瘤（ICD-10：D00-D48）通常不属于重疾险赔付范围，但部分特定良性肿瘤手术可能除外；医疗险可赔付住院手术费用。\n\n具体能否赔付需以您保单条款及理赔审核结果为准，建议提供相关病历资料进行核实。",
+      "used_tools": [
+        "claim_rule_rag"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 6.419,
+      "error": "",
+      "vector_hits": 4,
+      "graph_hits": 0,
+      "tool_match": true,
+      "must_include_hit": false,
+      "any_of_hit": true,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    }
+  ]
+}

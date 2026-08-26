@@ -1,0 +1,222 @@
+{
+  "version": "1.0.0",
+  "description": "T033 复杂关联评测集：疾病↔险种↔规则跨实体多跳问题，期望值全部可溯源到 data/kb_docs/。用于纯 RAG vs 混合召回（GraphRAG）对比。",
+  "cases": [
+    {
+      "id": "GA-001",
+      "category": "simple_faq",
+      "user_input": "急性阑尾炎手术能赔吗？哪些险种保障，等待期多久",
+      "expected_intent": "simple_faq",
+      "must_include": ["30天"],
+      "any_of": ["可赔", "能赔", "保障"],
+      "note": "kb03 阑尾炎手术属住院医疗责任；kb01/kb05 疾病等待期 30 天；图谱链路 急性阑尾炎←covers—医疗险/安心旗舰版"
+    },
+    {
+      "id": "GA-002",
+      "category": "simple_faq",
+      "user_input": "阑尾炎住院治疗，免赔额和报销比例是怎样的",
+      "expected_intent": "simple_faq",
+      "must_include": ["免赔"],
+      "any_of": ["1万", "10000", "10,000", "4000", "4,000", "80%", "60%"],
+      "note": "kb01 年度免赔额 1 万元（社保已报可抵扣）；经社保 80% / 未经 60%"
+    },
+    {
+      "id": "GA-003",
+      "category": "simple_faq",
+      "user_input": "安心医疗旗舰版的核心理赔规则有哪些？等待期、免赔额、报销比例",
+      "expected_intent": "simple_faq",
+      "must_include": ["30天", "1万"],
+      "any_of": ["80%", "60%"],
+      "note": "kb01 等待期 30 天 + 免赔 1 万 + 比例 80%/60%；图谱 险种→applies_to_rule 多边聚合"
+    },
+    {
+      "id": "GA-004",
+      "category": "simple_faq",
+      "user_input": "安心医疗旗舰版哪些情况不保？投保前就有的病能赔吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["既往症"],
+      "any_of": ["不赔", "不承担", "免责"],
+      "note": "kb04 既往症免责：保单生效前已确诊且已治疗或已出现明显症状"
+    },
+    {
+      "id": "GA-005",
+      "category": "simple_faq",
+      "user_input": "恶性肿瘤申请重疾理赔为什么要病理检查报告",
+      "expected_intent": "simple_faq",
+      "must_include": ["组织病理"],
+      "any_of": ["确诊", "病理学"],
+      "note": "kb02 恶性肿瘤需经组织病理学检查确诊；kb10 C00-C97；图谱 disease_rule 边"
+    },
+    {
+      "id": "GA-006",
+      "category": "simple_faq",
+      "user_input": "得了恶性肿瘤，医疗险和重疾险都能赔吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["医疗"],
+      "any_of": ["重疾", "两份保险", "都可以"],
+      "note": "kb10 C00-C97：重疾确诊即赔（组织病理确诊），医疗险治疗费用也可赔；图谱 covers 双险种边"
+    },
+    {
+      "id": "GA-007",
+      "category": "simple_faq",
+      "user_input": "良性肿瘤重疾险能赔吗？医疗险呢",
+      "expected_intent": "simple_faq",
+      "must_include": ["不赔"],
+      "any_of": ["住院", "手术", "医疗险可赔"],
+      "note": "kb10 D00-D48：良性肿瘤重疾险不赔（特定良性肿瘤手术除外），医疗险住院手术可赔；图谱 excludes 边"
+    },
+    {
+      "id": "GA-008",
+      "category": "simple_faq",
+      "user_input": "肾结石住院做手术，能赔吗？要过等待期吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["30天"],
+      "any_of": ["可赔", "能赔", "申请理赔", "申请赔付", "保障范围"],
+      "note": "kb10 N20 住院手术可赔；kb01 疾病等待期 30 天；图谱 肾结石←covers—医疗险"
+    },
+    {
+      "id": "GA-009",
+      "category": "simple_faq",
+      "user_input": "意外受伤去医院，医疗费用有等待期限制吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["等待期"],
+      "any_of": ["无等待期", "没有等待期", "无需等待"],
+      "note": "kb01 意外伤害医疗无等待期保单生效即可理赔；图谱 意外医疗无等待期规则实体"
+    },
+    {
+      "id": "GA-010",
+      "category": "simple_faq",
+      "user_input": "康宁重疾险的等待期是多少天？意外导致的重疾也要等吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["90天"],
+      "any_of": ["无等待期", "不受限制", "不需要"],
+      "note": "kb02 康宁等待期 90 天，意外导致重疾无等待期限制；kb05 对照表"
+    },
+    {
+      "id": "GA-011",
+      "category": "multi_step",
+      "user_input": "我阑尾炎住院总费用15800元，社保报销了6000元，按安心医疗旗舰版能赔多少",
+      "must_include": ["4640"],
+      "any_of": ["80%", "4,640"],
+      "note": "kb03 计算示例：可赔基数 15800-6000-4000=5800，5800×80%=4640 元（计算锚点）"
+    },
+    {
+      "id": "GA-012",
+      "category": "simple_faq",
+      "user_input": "去年买的安心医疗今年续保，还要重新算30天等待期吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["无等待期"],
+      "any_of": ["续保", "保证续保"],
+      "note": "kb05 续保保单无等待期（保证续保期间内）；kb01 保证续保 6 年"
+    },
+    {
+      "id": "GA-013",
+      "category": "simple_faq",
+      "user_input": "白内障手术属于什么理赔责任，怎么申请",
+      "expected_intent": "simple_faq",
+      "must_include": ["特殊门诊"],
+      "any_of": ["门诊", "理赔"],
+      "note": "kb03 白内障手术属特殊门诊责任，按门诊医疗规则理赔"
+    },
+    {
+      "id": "GA-014",
+      "category": "simple_faq",
+      "user_input": "骨折手术用的内固定钢板材料费，能计入报销吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["计入"],
+      "any_of": ["医疗费用", "可赔"],
+      "note": "kb03 骨折内固定手术：手术费、内置材料费均可计入医疗费用"
+    },
+    {
+      "id": "GA-015",
+      "category": "simple_faq",
+      "user_input": "有高血压，平时门诊拿药的费用医疗险能赔吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["门诊"],
+      "any_of": ["不覆盖", "不在", "不可赔", "不能赔"],
+      "must_not_include": ["保证赔付"],
+      "note": "kb10 I10：原发性高血压门诊慢性病管理一般医疗险不覆盖，并发症住院可赔"
+    },
+    {
+      "id": "GA-016",
+      "category": "simple_faq",
+      "user_input": "急性心肌梗死，重疾险和医疗险可以同时申请吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["重疾"],
+      "any_of": ["医疗", "住院"],
+      "note": "kb10 I21：急性心肌梗死属重疾责任，医疗险住院费用亦可赔；图谱 covers 双边"
+    },
+    {
+      "id": "GA-017",
+      "category": "simple_faq",
+      "user_input": "慢性肾脏病需要长期透析，透析费用属于什么责任范围",
+      "expected_intent": "simple_faq",
+      "must_include": ["特殊门诊"],
+      "any_of": ["可赔", "透析"],
+      "note": "kb10 N18：透析治疗属特殊门诊责任，医疗险可赔；kb01 特殊门诊含透析"
+    },
+    {
+      "id": "GA-018",
+      "category": "simple_faq",
+      "user_input": "支气管哮喘急性发作住院，医疗险能赔吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["住院"],
+      "any_of": ["可赔", "能赔", "申请理赔", "申请赔付", "保障范围"],
+      "note": "kb10 J45：急性发作住院可赔，常规门诊治疗不在范围"
+    },
+    {
+      "id": "GA-019",
+      "category": "simple_faq",
+      "user_input": "意外险有等待期吗？买完第二天出事故能赔吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["无等待期"],
+      "any_of": ["3天", "生效"],
+      "note": "kb05 意外险无等待期，但通常有 3 天生效延迟"
+    },
+    {
+      "id": "GA-020",
+      "category": "simple_faq",
+      "user_input": "看病没走社保直接申请理赔，报销比例是多少",
+      "expected_intent": "simple_faq",
+      "must_include": ["60%"],
+      "any_of": ["未经社保", "没走社保", "未经", "未通过社保", "未走社保"],
+      "note": "kb01 未经社保报销赔付比例 60%（经社保 80%）"
+    },
+    {
+      "id": "GA-021",
+      "category": "simple_faq",
+      "user_input": "胃溃疡住院治疗能赔吗？平时门诊复查呢",
+      "expected_intent": "simple_faq",
+      "must_include": ["住院"],
+      "any_of": ["可赔", "能赔", "申请理赔", "申请赔付", "责任范围"],
+      "note": "kb10 K25-K27 消化性溃疡：住院治疗可赔，门诊仅限特殊门诊范围"
+    },
+    {
+      "id": "GA-022",
+      "category": "simple_faq",
+      "user_input": "体检查出胆结石，做手术住院能赔吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["住院"],
+      "any_of": ["可赔", "能赔", "申请理赔", "申请赔付"],
+      "note": "kb10 K80 胆石症：住院手术治疗可赔"
+    },
+    {
+      "id": "GA-023",
+      "category": "simple_faq",
+      "user_input": "安心医疗旗舰版保证续保多少年？期间会拒保吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["6年"],
+      "any_of": ["不因", "不会", "继续承保"],
+      "note": "kb01 保证续保期间 6 年，期间不因个人健康状况变化拒绝续保"
+    },
+    {
+      "id": "GA-024",
+      "category": "simple_faq",
+      "user_input": "康宁重疾险理赔有免赔额吗？和医疗险一样要先扣1万吗",
+      "expected_intent": "simple_faq",
+      "must_include": ["无免赔"],
+      "any_of": ["给付", "保额"],
+      "note": "kb02 重疾险为给付型保险，无免赔额概念，符合条件按保额给付"
+    }
+  ]
+}

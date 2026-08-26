@@ -1,10 +1,16 @@
-"""评测运行器（T027）。
+"""评测运行器（T027，T033 扩展 --dataset/--variant）。
 
 用法：
-    uv run python -m evals.test_suite                        # 全量 200 条
+    uv run python -m evals.test_suite                        # 全量 200 条（主数据集）
     uv run python -m evals.test_suite --category simple_faq  # 按分类子集
     uv run python -m evals.test_suite --limit 10             # 前 N 条
     uv run python -m evals.test_suite --out my_report.json   # 指定输出路径
+    uv run python -m evals.test_suite --dataset graph_assoc --variant hybrid  # T033 对比
+    uv run python -m evals.test_suite --dataset graph_assoc --variant pure_rag
+
+--variant（T033 变体开关，控制 GRAPH_RAG_ENABLED）：
+    hybrid    混合召回（默认，图谱开启）
+    pure_rag  纯 RAG 基线（图谱关闭，行为与 T031 前一致）
 
 流程：构建主图（真实 LLM + Mock 工具）→ 逐条 ainvoke → metrics 判分 → 聚合 → JSON 落盘。
 基线报告：evals/reports/baseline.json（T027 验收产出，后续回归对比用）。
@@ -27,19 +33,24 @@ from evals.schemas import EvalCase, EvalCategory, EvalDataset
 
 log = get_logger(__name__)
 
-DATASET_PATH = Path("evals/datasets/eval_dataset.json")
+# 数据集注册表：主数据集（四分类 200 条）+ 关联类独立数据集（T033）
+DATASETS: dict[str, Path] = {
+    "main": Path("evals/datasets/eval_dataset.json"),
+    "graph_assoc": Path("evals/datasets/eval_graph_assoc.json"),
+}
 REPORTS_DIR = Path("evals/reports")
 
 
-def load_cases(category: str | None, limit: int | None) -> tuple[list[EvalCase], str]:
+def load_cases(dataset: str, category: str | None, limit: int | None) -> tuple[list[EvalCase], str]:
     """加载数据集并按参数过滤。"""
-    dataset = EvalDataset.model_validate_json(DATASET_PATH.read_text(encoding="utf-8"))
-    cases = dataset.cases
+    ds_path = DATASETS[dataset]
+    ds = EvalDataset.model_validate_json(ds_path.read_text(encoding="utf-8"))
+    cases = ds.cases
     if category:
         cases = [c for c in cases if c.category == category]
     if limit:
         cases = cases[:limit]
-    return cases, dataset.version
+    return cases, ds.version
 
 
 async def run_case(graph: Any, case: EvalCase) -> CaseResult:
@@ -95,22 +106,47 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="claimflow 评测运行器")
     parser.add_argument("--category", choices=[c.value for c in EvalCategory], default=None)
     parser.add_argument("--limit", type=int, default=None)
-    parser.add_argument("--out", default=None, help="报告输出路径（默认 evals/reports/<时间戳>.json）")
+    parser.add_argument(
+        "--out", default=None, help="报告输出路径（默认 evals/reports/<时间戳>.json）"
+    )
+    parser.add_argument(
+        "--dataset",
+        choices=sorted(DATASETS.keys()),
+        default="main",
+        help="数据集名（main=四分类 200 条；graph_assoc=T033 关联类）",
+    )
+    parser.add_argument(
+        "--variant",
+        choices=["hybrid", "pure_rag"],
+        default="hybrid",
+        help="检索变体：hybrid=混合召回（默认）；pure_rag=关闭图谱的纯 RAG 基线",
+    )
     args = parser.parse_args()
 
     configure_logging()
 
-    cases, version = load_cases(args.category, args.limit)
-    print(f"加载 {len(cases)} 条用例（dataset v{version}, category={args.category or '全部'}）")
+    cases, version = load_cases(args.dataset, args.category, args.limit)
+    print(
+        f"加载 {len(cases)} 条用例（dataset={args.dataset} v{version}, "
+        f"category={args.category or '全部'}, variant={args.variant}）"
+    )
 
     # 构建主图：真实 LLM（需 .env LLM_API_KEY）+ dev profile 零容器依赖
     import tools.claim  # noqa: F401 注册理赔工具
     import tools.compliance  # noqa: F401 注册合规工具
     import tools.medical  # noqa: F401 注册医疗工具
+    from app.core.config import settings
     from services.memory.short_term import get_checkpoint_manager
     from tools.executor import ToolExecutor
     from tools.registry import get_default_registry
     from workflows.main_graph import build_main_graph
+
+    # T033 变体开关：pure_rag 关闭图谱（graph_retriever 读 settings 单例，须先改再建图）
+    settings.graph_rag_enabled = args.variant == "hybrid"
+    from services.rag import graph_retriever
+
+    graph_retriever.reset_knowledge_graph()
+    print(f"GRAPH_RAG_ENABLED={settings.graph_rag_enabled}")
 
     registry = get_default_registry()
     checkpointer = await get_checkpoint_manager().start()
@@ -130,10 +166,16 @@ async def main() -> None:
 
     # 落盘
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = Path(args.out) if args.out else REPORTS_DIR / f"report_{time.strftime('%Y%m%d_%H%M%S')}.json"
+    out_path = (
+        Path(args.out)
+        if args.out
+        else REPORTS_DIR / f"report_{time.strftime('%Y%m%d_%H%M%S')}.json"
+    )
     payload = {
         "dataset_version": version,
+        "dataset": args.dataset,
         "category": args.category,
+        "variant": args.variant,
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "summary": report.model_dump(exclude={"failures"}),
         "failures": [f.model_dump() for f in report.failures],
@@ -145,6 +187,9 @@ async def main() -> None:
     print(f"工具调用准确率: {report.tool_accuracy:.1%}")
     print(f"合规通过率: {report.compliance_pass_rate:.1%}")
     print(f"平均耗时: {report.avg_duration_s}s")
+    print(
+        f"检索命中: 向量 {report.avg_vector_hits} 条/例, 图谱事实 {report.avg_graph_hits} 条/例, 图谱覆盖 {report.graph_coverage:.1%}"
+    )
     for cat, stat in report.by_category.items():
         print(f"  {cat}: {stat['rate']:.1%} ({int(stat['passed'])}/{int(stat['total'])})")
     print(f"报告已写入: {out_path}")
