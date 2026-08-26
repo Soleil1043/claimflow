@@ -258,3 +258,22 @@ KG_EXTRACTION_PROMPT = """\
 以 JSON 数组输出三元组（没有可抽取内容输出 []）：
 [{{"source": {{"id": "...", "type": "...", "name": "...", "properties": {{}}}}, "target": {{"id": "...", "type": "...", "name": "...", "properties": {{}}}}, "relation": "...", "evidence": "..."}}]
 """
+
+# 会话记忆提取（T034，architecture.md 6.3 长期记忆）：摘要 + 关键实体 JSON 输出
+MEMORY_SUMMARY_PROMPT = """\
+你是保险理赔系统的长期记忆提取器。下面是用户与理赔助手的一段对话记录，请把它压缩成可跨会话复用的长期记忆。
+
+## 对话记录
+{conversation}
+
+## 要求
+1. summary：100-200 字的事实性摘要——用户咨询了什么（保单/疾病/理赔诉求）、
+   助手给出了哪些关键结论（预估赔付金额、等待期判断、所需材料等）；只陈述对话中出现的事实，不要编造。
+2. entities：从对话中提取关键实体，没有的类型给空数组：
+   - policy_nos：保单号（如 POL-2025-0001）
+   - diagnoses：疾病/诊断名（如 急性阑尾炎）
+   - amounts：涉及的金额（数字，单位元，如 15800.0）
+
+直接输出 JSON（不要 markdown 代码块包裹）：
+{{"summary": "...", "entities": {{"policy_nos": [], "diagnoses": [], "amounts": []}}}}
+"""

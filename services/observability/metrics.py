@@ -78,7 +78,10 @@ LLM_TOKENS = Counter(
 TURN_TOKENS = Counter(
     "claimflow_turn_tokens_total",
     "单轮对话 token 消耗（按环节分维，T029）",
-    labelnames=["phase", "model"],  # phase: intent | planner | executor | generator | compliance | other
+    labelnames=[
+        "phase",
+        "model",
+    ],  # phase: intent | planner | executor | generator | compliance | other
     registry=registry,
 )
 
@@ -108,6 +111,13 @@ TURN_LATENCY = Histogram(
     "claimflow_turn_latency_seconds",
     "单轮对话端到端处理时长（秒，A06 收到请求 → 返回回答）",
     buckets=(0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0, 120.0),
+    registry=registry,
+)
+
+MEMORY_WRITES = Counter(
+    "claimflow_memory_writes_total",
+    "长期记忆写入次数（旁路路径，失败不阻断对话）",
+    labelnames=["result"],  # success | error
     registry=registry,
 )
 
@@ -185,6 +195,11 @@ def record_turn(
         _safe_inc(HUMAN_INTERVENTIONS)
 
 
+def record_memory_write(result: str) -> None:
+    """长期记忆写入结果埋点（T034 旁路路径，失败静默只计数）。"""
+    _safe_inc(MEMORY_WRITES, result=result)
+
+
 __all__ = [
     "COMPLIANCE_VERDICTS",
     "CONVERSATION_TURNS",
@@ -192,6 +207,7 @@ __all__ = [
     "LLM_CALLS",
     "LLM_LATENCY",
     "LLM_TOKENS",
+    "MEMORY_WRITES",
     "TOOL_BREAKER_REJECTED",
     "TOOL_CACHE_HITS",
     "TOOL_CALLS",
@@ -201,6 +217,7 @@ __all__ = [
     "REGISTRY",
     "record_breaker_rejected",
     "record_llm_call",
+    "record_memory_write",
     "record_tool_cache",
     "record_tool_call",
     "record_turn",

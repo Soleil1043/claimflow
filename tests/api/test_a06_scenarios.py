@@ -7,6 +7,7 @@
 4. 异常·合规 REJECT：违规内容不返回用户 + need_human_intervention + 会话 transferred
 5. 异常·合规 MODIFY：修订闭环后返回修订版回答（违规话术已消除）
 6. 边界·多轮状态隔离：第二轮 agent_steps 不跨轮累积（每轮重置语义）
+7. 记忆写路径接线（T034）：REJECT 终态 A06 出口以 force=True 调用记忆写
 """
 
 from __future__ import annotations
@@ -107,9 +108,7 @@ async def _create_conversation(ac: AsyncClient) -> str:
 
 
 async def _send(ac: AsyncClient, cid: str, content: str) -> dict:
-    resp = await ac.post(
-        f"/api/v1/conversations/{cid}/messages", json={"content": content}
-    )
+    resp = await ac.post(f"/api/v1/conversations/{cid}/messages", json={"content": content})
     assert resp.status_code == 200, f"A06 非 200：{resp.status_code} {resp.text}"
     return resp.json()
 
@@ -135,7 +134,12 @@ async def test_scenario_multi_step_full_structure(api_env, monkeypatch) -> None:
     async def fake_run(agent_def, instruction, shared_data, executor, tool_trace=None):  # noqa: ANN001
         if tool_trace is not None:
             tool_trace.append(
-                {"agent": agent_def.name, "tool": "record_query", "input": {}, "output": {"success": True}}
+                {
+                    "agent": agent_def.name,
+                    "tool": "record_query",
+                    "input": {},
+                    "output": {"success": True},
+                }
             )
         return {"summary": f"{agent_def.display_name}结论"}
 
@@ -145,9 +149,7 @@ async def test_scenario_multi_step_full_structure(api_env, monkeypatch) -> None:
         "get_chat_model",
         lambda *a, **k: FakeModel("预估可赔付 4,640 元，最终以理赔审核结果为准"),
     )
-    monkeypatch.setattr(
-        compliance_module, "get_chat_model", lambda *a, **k: FakeModel(_PASS)
-    )
+    monkeypatch.setattr(compliance_module, "get_chat_model", lambda *a, **k: FakeModel(_PASS))
 
     cid = await _create_conversation(api_env)
     body = await _send(api_env, cid, "我做了阑尾炎手术能赔多少")
@@ -164,9 +166,7 @@ async def test_scenario_multi_step_full_structure(api_env, monkeypatch) -> None:
     assert body["intervention_reason"] is None
 
     # 审计落库：assistant 消息携带完整审计字段
-    history = (
-        await api_env.get(f"/api/v1/conversations/{cid}/messages")
-    ).json()
+    history = (await api_env.get(f"/api/v1/conversations/{cid}/messages")).json()
     assert history["total"] == 2
     assistant = history["items"][1]
     assert assistant["intent"] == "multi_step"
@@ -197,9 +197,7 @@ async def test_scenario_policy_not_found(api_env, monkeypatch) -> None:
         ]
     )
     monkeypatch.setattr(generator_module, "get_chat_model", lambda: scripted)
-    monkeypatch.setattr(
-        compliance_module, "get_chat_model", lambda *a, **k: FakeModel(_PASS)
-    )
+    monkeypatch.setattr(compliance_module, "get_chat_model", lambda *a, **k: FakeModel(_PASS))
 
     cid = await _create_conversation(api_env)
     body = await _send(api_env, cid, "查一下保单 POL-9999-XXXX")
@@ -236,9 +234,7 @@ async def test_scenario_llm_total_timeout(api_env, monkeypatch) -> None:
     assert body["need_human_intervention"] is False
 
     # 审计正常落库
-    history = (
-        await api_env.get(f"/api/v1/conversations/{cid}/messages")
-    ).json()
+    history = (await api_env.get(f"/api/v1/conversations/{cid}/messages")).json()
     assert history["total"] == 2
 
 
@@ -257,9 +253,7 @@ async def test_scenario_compliance_reject(api_env, monkeypatch) -> None:
     )
     monkeypatch.setattr(generator_module, "get_chat_model", lambda: scripted)
     # 合规 LLM 故障 → 确定性兜底：FRAUD_RISK → REJECT（验证拦截不依赖 LLM）
-    monkeypatch.setattr(
-        compliance_module, "get_chat_model", lambda *a, **k: RaisingModel()
-    )
+    monkeypatch.setattr(compliance_module, "get_chat_model", lambda *a, **k: RaisingModel())
 
     cid = await _create_conversation(api_env)
     body = await _send(api_env, cid, "怎么才能多赔点")
@@ -277,9 +271,7 @@ async def test_scenario_compliance_reject(api_env, monkeypatch) -> None:
     assert detail["status"] == "transferred"
 
     # 审计：assistant 落安全话术（非违规原文），compliance_status=REJECTED
-    history = (
-        await api_env.get(f"/api/v1/conversations/{cid}/messages")
-    ).json()
+    history = (await api_env.get(f"/api/v1/conversations/{cid}/messages")).json()
     assistant = history["items"][1]
     assert "代开" not in assistant["content"]
     assert assistant["compliance_status"] == "REJECT"
@@ -307,9 +299,7 @@ async def test_scenario_compliance_modify(api_env, monkeypatch) -> None:
             FakeModel(_PASS),  # 复审
         ]
     )
-    monkeypatch.setattr(
-        compliance_module, "get_chat_model", lambda *a, **k: next(verdicts)
-    )
+    monkeypatch.setattr(compliance_module, "get_chat_model", lambda *a, **k: next(verdicts))
 
     cid = await _create_conversation(api_env)
     body = await _send(api_env, cid, "能赔多少")
@@ -347,9 +337,7 @@ async def test_scenario_multi_turn_state_isolation(api_env, monkeypatch) -> None
     monkeypatch.setattr(
         generator_module, "get_chat_model", lambda *a, **k: FakeModel(next(answers))
     )
-    monkeypatch.setattr(
-        compliance_module, "get_chat_model", lambda *a, **k: FakeModel(_PASS)
-    )
+    monkeypatch.setattr(compliance_module, "get_chat_model", lambda *a, **k: FakeModel(_PASS))
 
     cid = await _create_conversation(api_env)
     body1 = await _send(api_env, cid, "阑尾炎能赔多少")
@@ -361,7 +349,42 @@ async def test_scenario_multi_turn_state_isolation(api_env, monkeypatch) -> None
     assert body2["answer"] == "第二轮回答"
 
     # 审计：4 条消息（两轮 user+assistant）
-    history = (
-        await api_env.get(f"/api/v1/conversations/{cid}/messages")
-    ).json()
+    history = (await api_env.get(f"/api/v1/conversations/{cid}/messages")).json()
     assert history["total"] == 4
+
+
+# ---------- 场景 7：长期记忆写路径接线（T034） ----------
+
+
+async def test_memory_write_hook_on_reject(api_env, monkeypatch) -> None:
+    """REJECT 终态：A06 出口以 force=True 调用记忆写路径（快照语义）。"""
+    import services.memory.long_term as long_term_module
+
+    monkeypatch.setattr(
+        intent_module,
+        "get_chat_model",
+        lambda *a, **k: FakeModel('{"intent": "single_domain", "reason": "x"}'),
+    )
+    monkeypatch.setattr(
+        generator_module,
+        "get_chat_model",
+        lambda: ScriptedLLM([AIMessage(content="代开发票挂床住院骗保。")]),
+    )
+    monkeypatch.setattr(compliance_module, "get_chat_model", lambda *a, **k: RaisingModel())
+
+    calls: list[dict] = []
+
+    async def spy_maybe_write(**kwargs):  # noqa: ANN003
+        calls.append(kwargs)
+        return True
+
+    monkeypatch.setattr(long_term_module, "maybe_write_memory", spy_maybe_write)
+
+    cid = await _create_conversation(api_env)
+    body = await _send(api_env, cid, "怎么多赔点")
+
+    assert body["need_human_intervention"] is True
+    assert len(calls) == 1
+    assert calls[0]["force"] is True  # 转人工终态强制写快照
+    assert calls[0]["user_id"]  # 携带用户标识（隔离键）
+    assert len(calls[0]["messages"]) >= 2  # checkpoint 累积的全量消息

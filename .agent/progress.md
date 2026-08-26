@@ -887,6 +887,34 @@
 
 **Git**：`feat: T033 GraphRAG 评测对比（24 条关联用例 + --variant 变体 + 双组报告存档）`
 
+### [T034] 长期记忆写路径 — 2026-08-26
+
+**操作**：
+- `services/memory/long_term.py`（新建）：MemoryRecord（pydantic）+ summarize_conversation（LLM 结构化摘要 MEMORY_SUMMARY_PROMPT，非法输出/异常降级确定性正则提取：保单号/金额 + 尾部对话粗摘要，函数永不抛错）+ write_memory（摘要+实体拼接文本 BGE-M3 向量化 → Qdrant 独立 collection，payload 含 user_id/conversation_id/entities/turn_count/source）+ maybe_write_memory（A06 出口入口：每 N 轮触发、转人工终态 force 快照、旁路容错全吞错）
+- 幂等设计：point id = uuid5(conversation_id) 确定性——一会话一条记忆，重复写 upsert 覆盖（摘要始终反映会话最新全貌），不产生重复条目
+- `app/api/v1/conversations.py` A06 出口：metrics 埋点后、token 汇总前调用 maybe_write_memory（force=need_human），摘要 LLM 的 token 计入本轮 memory 环节
+- `services/llm/prompts.py`：MEMORY_SUMMARY_PROMPT（摘要 100-200 字事实性 + 三类实体 JSON 输出）
+- 配置：memory_enabled / memory_summary_every_n_turns（默认 3）/ qdrant_memory_collection（默认 long_term_memory），.env.example 同步
+- `services/observability/metrics.py`：claimflow_memory_writes_total{result=success|error}
+- `tests/conftest.py`（新建）：autouse 默认关闭记忆写（防 A06 场景测试 REJECT force 触发真实 BGE-M3 加载与 ./data/qdrant 写入；patch 打在 long_term 模块引用的 settings 对象上，规避 T028/T029 的双实例陷阱）
+- `tests/memory/test_long_term.py`（新建，17 用例）：正则提取 2 / 消息过滤与轮数 / point id 确定性 / 摘要 LLM 主路径+非法输出兜底+异常兜底+空消息 / 写入建 collection+payload / 幂等覆盖 / 用户隔离 / schema 防呆 / 触发阈值+force+禁用+零轮+写入故障不抛
+- `tests/api/test_a06_scenarios.py`：+1 场景（REJECT 终态 A06 出口以 force=True 调用记忆写路径，spy 验证接线）
+
+**验证方式（真实 DeepSeek LLM + 真实 BGE-M3，scripts/verify_memory.py）**：
+- 摘要质量：3 轮张伟理赔对话 → LLM 完整提炼保单 POL-2025-0001/急性阑尾炎/15800/免赔 10000/预估 4640/等待期结论/材料清单；实体 {policy_nos: [POL-2025-0001], diagnoses: [急性阑尾炎], amounts: [4640, 10000, 15800]} 全对
+- 入库：独立 collection long_term_memory，payload.user_id=demo-user-001
+- 幂等：同会话重复写 1→1 条（upsert 覆盖）
+- 隔离：按 user_id filter 检索"我上次问的那张保单"命中本人记忆（score 0.671）；其他 user_id 检索 0 命中
+- `uv run python -m pytest -q` → 314 passed（原 296 + 新增 18）；ruff check 全绿、涉及文件 format 全绿
+
+**问题与修正**：
+- Qdrant local mode 的 query_filter 必须传强类型 models.Filter 对象（服务端接受裸 dict，local mode 严格抛 'dict' object has no attribute 'must'）——T035 读路径实现时注意
+- 验证脚本首版用随机 uuid4 会话 id，重跑残留旧数据导致幂等计数误报 → 改固定演示会话 id + 脚本开头按 user_id 定点清理演示数据
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T034 长期记忆写路径（每 N 轮摘要 + 实体提取 + 幂等入库 + user_id 隔离）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

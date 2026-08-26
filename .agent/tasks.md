@@ -64,7 +64,7 @@
 - [x] T031: 知识图谱构建 | 依赖: T030 | 涉及文件: services/rag/knowledge_graph.py、scripts/build_kg.py、data/graph/ | 验收: LLM 从 12 篇 kb_docs 抽取实体关系三元组（险种/疾病/等待期/免赔/免责等），内存图结构（邻接表 + 实体索引）+ JSON 落盘可复用（`scripts/build_kg.py` 幂等重建）；实体/关系 schema（Pydantic）校验 + 抽取失败重试/跳过容错；图谱统计（实体数/关系数/度分布）可输出
 - [x] T032: 图检索与混合召回 | 依赖: T031 | 涉及文件: services/rag/graph_retriever.py、services/rag/retriever.py、nodes/rag.py | 验收: 图邻接扩展检索（疾病→险种→规则条款多跳）与 Qdrant 向量检索融合（RRF 或加权重排）；`claim_rule_rag` 工具输出增加 graph_context 维度；复杂关联问题（如"哪些疾病不在保障范围"）对比纯 RAG 召回可见提升；混合开关可配（GRAPH_RAG_ENABLED）
 - [x] T033: GraphRAG 评测对比 | 依赖: T032 | 涉及文件: evals/datasets/（关联类用例扩充）、evals/test_suite.py | 验收: 评测集扩充 ≥20 条复杂关联用例（kb_docs 可溯源）；同一测试集跑"纯 RAG vs 混合召回"两组报告（变体切换复用 A/B 框架或 --variant 参数），量化任务完成率/检索命中差异；对比报告存档 evals/reports/
-- [ ] T034: 长期记忆写路径 | 依赖: T030 | 涉及文件: services/memory/long_term.py、app/api/v1/conversations.py（A06 出口） | 验收: 会话结束（或每 N 轮）生成对话摘要 + 关键实体（保单号/诊断/金额），BGE-M3 向量化入 Qdrant 独立 collection（按 user_id payload 过滤隔离）；摘要质量抽验；写路径幂等（重复会话不重复入库）
+- [x] T034: 长期记忆写路径 | 依赖: T030 | 涉及文件: services/memory/long_term.py、app/api/v1/conversations.py（A06 出口） | 验收: 会话结束（或每 N 轮）生成对话摘要 + 关键实体（保单号/诊断/金额），BGE-M3 向量化入 Qdrant 独立 collection（按 user_id payload 过滤隔离）；摘要质量抽验；写路径幂等（重复会话不重复入库）
 - [ ] T035: 长期记忆读注入 | 依赖: T034 | 涉及文件: nodes/intent.py 或 generator.py、services/memory/long_term.py | 验收: 新会话首轮按 user_id 检索 top-k 历史摘要，注入 system prompt（Token 预算内）；跨会话上下文实测连贯（"我上次问的那张保单"正确引用历史）；无历史用户零影响（检索空直跳）
 - [ ] T036: HITL 工单后端 | 依赖: T030 | 涉及文件: services/db/models.py（HumanTicket）、app/api/v1/interventions.py、alembic/ | 验收: 转人工事件落工单（状态机 pending→resolved/transferred_out）；聚合上下文 API（会话轨迹 + tool_trace + agent_steps + compliance_result + intervention_reason）；坐席处理动作 API（解决/升级/回写结论）；单测覆盖状态流转
 - [ ] T037: LangGraph interrupt 恢复机制 | 依赖: T036 | 涉及文件: workflows/main_graph.py、nodes/compliance.py（REJECT 分支） | 验收: REJECT 路径接 LangGraph `interrupt`（替代直接 END）；坐席通过 A06 类接口以 `Command(resume=...)` 恢复会话，坐席结论经合规审查后返回用户；interrupt 状态持久化（checkpoint）可跨服务重启恢复；端到端单测（触发→interrupt→人工结论→恢复→返回）
@@ -111,6 +111,6 @@ T001 → T002 → T003 → T004 → T005
 ## 进度统计
 
 - 总任务数：42（MVP 23 + Phase 3 七个 + Phase 4 十二个）
-- 已完成：30
+- 已完成：31
 - 进行中：0
-- 待开始：12（T031-T042，Phase 4）
+- 待开始：11（T035-T042，Phase 4）

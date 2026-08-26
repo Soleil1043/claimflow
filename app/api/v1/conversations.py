@@ -68,18 +68,15 @@ async def list_conversations(
     total = (await session.execute(select(func.count(Conversation.id)))).scalar_one()
 
     rows = (
-        (
-            await session.execute(
-                select(Conversation, func.count(Message.id))
-                .outerjoin(Message, Message.conversation_id == Conversation.id)
-                .group_by(Conversation.id)
-                .order_by(Conversation.created_at.desc())
-                .limit(limit)
-                .offset(offset)
-            )
+        await session.execute(
+            select(Conversation, func.count(Message.id))
+            .outerjoin(Message, Message.conversation_id == Conversation.id)
+            .group_by(Conversation.id)
+            .order_by(Conversation.created_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
-        .all()
-    )
+    ).all()
     items = [
         ConversationSummary(
             id=conv.id,
@@ -232,9 +229,7 @@ async def send_message(
         conversation.status = "transferred"
 
     # 审计落库：user + assistant 两条（REJECT 时 answer 已是安全话术，违规原文不落库）
-    session.add(
-        Message(conversation_id=conversation_id, role="user", content=body.content)
-    )
+    session.add(Message(conversation_id=conversation_id, role="user", content=body.content))
     session.add(
         Message(
             conversation_id=conversation_id,
@@ -255,6 +250,17 @@ async def send_message(
         duration_s=time.perf_counter() - started,
         compliance_verdict=compliance_status or "NONE",
         need_human=need_human,
+    )
+
+    # T034：长期记忆写路径——每 N 轮更新该会话记忆摘要；转人工（终态）强制写一次快照。
+    # 旁路容错：内部吞掉全部异常，失败只记日志与指标，不影响主对话流。
+    from services.memory.long_term import maybe_write_memory
+
+    await maybe_write_memory(
+        conversation_id=str(conversation_id),
+        user_id=conversation.user_id,
+        messages=result.get("messages") or [],
+        force=need_human,
     )
 
     # T029：token 汇总（分环节日志 + Prometheus + 超预算告警，不阻断）
@@ -290,9 +296,13 @@ def _mime_from_upload(file: UploadFile) -> str:
         return "image/jpeg" if mime == "image/jpg" else mime
     # content_type 缺失或非法：按扩展名兜底推断
     suffix = (file.filename or "").rsplit(".", 1)[-1].lower() if file.filename else ""
-    return {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp", "bmp": "image/bmp"}.get(
-        suffix, ""
-    )
+    return {
+        "png": "image/png",
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "webp": "image/webp",
+        "bmp": "image/bmp",
+    }.get(suffix, "")
 
 
 @router.post(

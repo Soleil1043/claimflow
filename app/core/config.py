@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     # 知识图谱增强检索开关；false 时 rag 路径行为与引入前完全一致
     graph_rag_enabled: bool = True
 
+    # ===== 长期记忆（T034，architecture.md 6.3） =====
+    # 会话摘要写入记忆 collection 的开关；每 N 轮（用户消息数）触发一次摘要更新
+    memory_enabled: bool = True
+    memory_summary_every_n_turns: int = 3
+    qdrant_memory_collection: str = "long_term_memory"
+
     # ===== Redis（prod） / 内存缓存（dev 降级） =====
     redis_url: str = "redis://localhost:6379/0"
 
