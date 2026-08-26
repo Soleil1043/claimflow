@@ -81,6 +81,12 @@ class Settings(BaseSettings):
     # 单轮对话（意图→规划→执行→生成→合规）总 token 上限；超限只告警日志，不阻断。0=不设预算
     turn_token_budget: int = 0
 
+    # ===== OTel 追踪（T039，D015 后置项） =====
+    # 开关（默认关：不起 tracing 栈时零开销）；OTLP gRPC 上报地址；采样率 0.0-1.0
+    otel_enabled: bool = False
+    otel_endpoint: str = "http://localhost:4317"
+    otel_sampling_ratio: float = 1.0
+
     # ===== Embedding（BGE-M3，本地 sentence-transformers） =====
     embedding_model: str = "BAAI/bge-m3"
     embedding_device: str = "cpu"

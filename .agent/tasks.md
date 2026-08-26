@@ -69,7 +69,7 @@
 - [x] T036: HITL 工单后端 | 依赖: T030 | 涉及文件: services/db/models.py（HumanTicket）、app/api/v1/interventions.py、alembic/ | 验收: 转人工事件落工单（状态机 pending→resolved/transferred_out）；聚合上下文 API（会话轨迹 + tool_trace + agent_steps + compliance_result + intervention_reason）；坐席处理动作 API（解决/升级/回写结论）；单测覆盖状态流转
 - [x] T037: LangGraph interrupt 恢复机制 | 依赖: T036 | 涉及文件: workflows/main_graph.py、nodes/compliance.py（REJECT 分支） | 验收: REJECT 路径接 LangGraph `interrupt`（替代直接 END）；坐席通过 A06 类接口以 `Command(resume=...)` 恢复会话，坐席结论经合规审查后返回用户；interrupt 状态持久化（checkpoint）可跨服务重启恢复；端到端单测（触发→interrupt→人工结论→恢复→返回）
 - [x] T038: Next.js 人工介入工作台 | 依赖: T036、T037 | 涉及文件: workbench/（Next.js 15 + React 19 + Tailwind 新目录）、README | 验收: 转人工会话列表页（状态筛选）+ 详情页（对话轨迹/工具调用/Agent 步骤/合规拦截原因可视化渲染）+ 处理动作（解决并回写结论，触发 interrupt 恢复）；dev 代理直连后端 8000；README 补工作台章节（启动方式 + 截图占位）
-- [ ] T039: OTel + Jaeger 全链路追踪 | 依赖: T030 | 涉及文件: services/observability/tracing.py、docker-compose.yml（tracing profile）、pyproject.toml | 验收: OpenTelemetry SDK 埋点（FastAPI instrumentation + LLM/工具调用 span，trace_id 贯穿 A06→节点→工具）；compose `--profile tracing` 起 Jaeger + OTel Collector；本地起栈在 Jaeger UI 看到完整调用树（span 含 token 用量/工具名/合规裁决属性）；采样率可配
+- [x] T039: OTel + Jaeger 全链路追踪 | 依赖: T030 | 涉及文件: services/observability/tracing.py、docker-compose.yml（tracing profile）、pyproject.toml | 验收: OpenTelemetry SDK 埋点（FastAPI instrumentation + LLM/工具调用 span，trace_id 贯穿 A06→节点→工具）；compose `--profile tracing` 起 Jaeger + OTel Collector；本地起栈在 Jaeger UI 看到完整调用树（span 含 token 用量/工具名/合规裁决属性）；采样率可配
 - [ ] T040: A/B 实验框架 | 依赖: T030 | 涉及文件: evals/ab_test.py、evals/variants.py（或配置文件） | 验收: 实验配置定义变体（模型/参数/prompt 路径切换）；同一评测集分流运行多变体并产出对比报告（复用 metrics 聚合，组间差异 + 显著性粗判）；结果 JSON 落盘；--variant 参数与 test_suite 兼容
 - [ ] T041: A/B 实战实验（deepseek-v4-pro 对比） | 依赖: T040 | 涉及文件: evals/reports/、.agent/decisions.md（实验结论 D019） | 验收: deepseek-v4-flash（基线）vs deepseek-v4-pro 200 条全量对比，产出结论报告（任务完成率/工具准确率/耗时/token 成本四维对比 + 选型建议写入 decisions.md）；预算 ≤ ¥10
 - [ ] T042: Phase 4 收尾验证 | 依赖: 全部 | 涉及文件: README.md、docs/architecture.md、.github/workflows/ci.yml | 验收: ruff + pytest 全绿；GraphRAG/长期记忆/工作台/OTel/AB 五个方向的 README 章节与架构图更新；D017/D018/D019（实验结论）齐备；push 后 CI 全绿
@@ -111,6 +111,6 @@ T001 → T002 → T003 → T004 → T005
 ## 进度统计
 
 - 总任务数：42（MVP 23 + Phase 3 七个 + Phase 4 十二个）
-- 已完成：35
+- 已完成：36
 - 进行中：0
-- 待开始：7（T039-T042 及收尾，Phase 4）
+- 待开始：6（T040-T042 及收尾，Phase 4）

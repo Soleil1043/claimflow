@@ -64,6 +64,13 @@ app.include_router(health.router)
 app.include_router(conversations.router)
 app.include_router(interventions.router)
 
+# T039：OTel 追踪——必须在模块级（应用启动前）instrument：Starlette 的 middleware
+# 栈在 lifespan 开始前已构建，lifespan 内 add_middleware 无效（server span 缺失的实测坑）。
+# OTEL_ENABLED=false 时为 no-op；exporter 惰性连接，无 collector 也不阻塞启动。
+from services.observability.tracing import setup_tracing  # noqa: E402
+
+setup_tracing(app)
+
 
 @app.get("/metrics", response_class=PlainTextResponse, include_in_schema=False)
 async def prometheus_metrics() -> PlainTextResponse:

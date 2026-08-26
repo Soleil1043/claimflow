@@ -1025,6 +1025,36 @@
 
 **Git**：`feat: T038 Next.js 人工介入工作台（列表/详情可视化/resolve 恢复闭环 + README）`
 
+### [T039] OTel + Jaeger 全链路追踪 — 2026-08-26
+
+**操作**：
+- 依赖（uv add）：opentelemetry-sdk/api 1.44.0 + instrumentation-fastapi + exporter-otlp-proto-grpc
+- `services/observability/tracing.py`（新建）：setup_tracing（TracerProvider + Resource(claimflow) + OTLP gRPC exporter + ParentBased(TraceIdRatioBased) 采样 + FastAPIInstrumentor；幂等、开关关闭 no-op）+ traced_span 便捷上下文管理器（None 属性自动跳过）
+- 埋点四接入（trace_id 贯穿 A06 → 节点 → LLM/工具）：
+  - `app/main.py` 模块级 instrument_app（A06 server span 入口）
+  - `llm_metrics.observed_ainvoke`：LLM span 一处埋点覆盖全部调用点，属性 gen_ai.request.model / claimflow.phase（token_tracker 新增 current_phase()）/ gen_ai.usage.input|output_tokens
+  - `tools/executor.execute`：包装为公共入口 span（缓存命中/熔断拒绝也在 trace 内），属性 claimflow.tool.name
+  - `nodes/compliance.py ComplianceNode`：compliance.review span 属性 verdict / risk_score
+- 配置：otel_enabled（默认 false 零开销）/ otel_endpoint（默认 localhost:4317）/ otel_sampling_ratio，.env.example 同步
+- `otelcol/config.yaml`（OTLP gRPC 4317 → otlphttp jaeger:4318）+ docker-compose.yml tracing profile：jaeger(all-in-one:1.71.0, UI 16686, COLLECTOR_OTLP_ENABLED) + otel-collector(0.123.0, 4317)
+- `tests/observability/test_tracing.py`（新建 6 用例，InMemorySpanExporter + 测试 provider monkeypatch 不污染全局）：LLM span 属性（model/phase/tokens）/ 工具 span / 合规裁决属性 / 父子 span 共 trace_id / None 属性跳过 / 禁用 no-op
+- `docs/screenshots/jaeger-trace-tree.png`：完整调用树截图存档
+
+**验证方式（本地起栈真实链路）**：
+- `docker compose --profile tracing up -d`：Jaeger UI 200 + Collector "Everything is ready"
+- OTEL_ENABLED=true 起后端 + 真实 LLM 发"阑尾炎能赔多少"（multi_step 全链路）：Jaeger 单 trace **25 spans、唯一根为 A06 server span**——intent → planner → medical worker（record_query/diagnosis_matcher/claim_rule_rag）→ claim worker（policy_query/claim_rule_rag/claim_calculator）→ synthesize → compliance.review（verdict=PASS 属性），每个 LLM span 带分环节 token 用量
+- `uv run python -m pytest -q` → 352 passed（原 346 + 新增 6）；ruff 全绿；验证完毕 `--profile tracing down` 清理
+
+**问题与修正**：
+- FastAPIInstrumentor 在 lifespan 内调用无效（Starlette middleware 栈在 lifespan 前已构建）→ server span 缺失，全部 LLM/工具 span 成独立 trace；移到模块级（app 创建后）修复，trace 链贯通
+- otel/opentelemetry-collector 0.116.0 二进制在刚重启的 WSL2 引擎 exec 失败（"no such file or directory"，架构 amd64 正确——引擎冷启动偶发不兼容）→ 换 0.123.0 正常
+- jaegertracing/all-in-one:1.62 tag 不存在 → 1.71.0
+- OTel 1.44 的 InMemorySpanExporter 从 sdk.trace.export 移至 sdk.trace.export.in_memory_span_exporter 子模块
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T039 OTel + Jaeger 全链路追踪（LLM/工具/合规 span + tracing profile + 25-span 调用树）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

@@ -2,6 +2,7 @@
 # 使用：docker compose up -d --build
 # 说明：app 以 prod profile 运行，LLM_API_KEY 从 .env 或环境变量注入
 # 监控栈（Prometheus + Grafana）：docker compose --profile monitoring up -d，默认不启动
+# 追踪栈（OTel Collector + Jaeger）：docker compose --profile tracing up -d，默认不启动
 services:
   postgres:
     image: postgres:16-alpine
@@ -95,6 +96,29 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
     depends_on:
       - prometheus
+
+  # ===== 追踪栈（T039，独立 profile）：docker compose --profile tracing up -d =====
+  # 应用（宿主进程或 app 容器）OTLP 上报 → collector:4317 → jaeger:4318
+  jaeger:
+    image: jaegertracing/all-in-one:1.71.0
+    container_name: claimflow-jaeger
+    profiles: ["tracing"]
+    ports:
+      - "16686:16686" # Jaeger UI
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.123.0
+    container_name: claimflow-otel-collector
+    profiles: ["tracing"]
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otelcol/config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317" # 应用 OTLP gRPC 上报入口
+    depends_on:
+      - jaeger
 
 volumes:
   pgdata:

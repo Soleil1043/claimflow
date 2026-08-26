@@ -65,7 +65,10 @@ class _CircuitBreaker:
     def record_failure(self) -> None:
         """调用失败：累计计数，达到阈值则打开熔断器。"""
         self.consecutive_failures += 1
-        if self.state == _BreakerState.HALF_OPEN or self.consecutive_failures >= self.failure_threshold:
+        if (
+            self.state == _BreakerState.HALF_OPEN
+            or self.consecutive_failures >= self.failure_threshold
+        ):
             self.state = _BreakerState.OPEN
             self.opened_at = time.monotonic()
             log.warning(
@@ -111,6 +114,20 @@ class ToolExecutor:
         timeout: float | None = None,
         fallback: ToolOutput | None = None,
     ) -> ToolOutput:
+        """执行工具（公共入口，T039 追踪 span 包装；缓存命中/熔断拒绝在 trace 内同样可见）。"""
+        from services.observability.tracing import ATTR_TOOL_NAME, traced_span
+
+        with traced_span(f"tool.{tool_name}", **{ATTR_TOOL_NAME: tool_name}):
+            return await self._execute(tool_name, input_data, timeout=timeout, fallback=fallback)
+
+    async def _execute(
+        self,
+        tool_name: str,
+        input_data: dict[str, Any] | BaseModel,
+        *,
+        timeout: float | None,
+        fallback: ToolOutput | None,
+    ) -> ToolOutput:
         """执行工具：熔断检查 → 重试循环（超时 + 指数退避）→ 熔断计数。
 
         Args:
@@ -139,7 +156,9 @@ class ToolExecutor:
             if fallback is not None:
                 metrics.record_tool_call(tool_name, "fallback", 0.0)
                 return fallback
-            raise ToolExecutionError(tool_name, f"熔断中（连续失败 {breaker.consecutive_failures} 次）")
+            raise ToolExecutionError(
+                tool_name, f"熔断中（连续失败 {breaker.consecutive_failures} 次）"
+            )
 
         effective_timeout = timeout if timeout is not None else self.default_timeout
         last_error: Exception | None = None
@@ -154,12 +173,16 @@ class ToolExecutor:
                 metrics.record_tool_call(tool_name, "success", time.perf_counter() - started)
                 # 成功结果回写缓存（仅白名单工具走到这里）
                 if tool_name in cached_tools() and result.success:
-                    cache_input = input_data if isinstance(input_data, dict) else input_data.model_dump()
+                    cache_input = (
+                        input_data if isinstance(input_data, dict) else input_data.model_dump()
+                    )
                     await (await get_tool_cache()).set(tool_name, cache_input, result.model_dump())
                 return result
             except TimeoutError:
                 last_error = TimeoutError(f"{tool_name} 超时（>{effective_timeout}s）")
-                log.warning("tool_timeout", tool=tool_name, attempt=attempt, timeout_s=effective_timeout)
+                log.warning(
+                    "tool_timeout", tool=tool_name, attempt=attempt, timeout_s=effective_timeout
+                )
             except ToolExecutionError as exc:
                 # 业务工具主动抛出的执行错误：视为不可重试，直接终止
                 last_error = exc
@@ -167,7 +190,9 @@ class ToolExecutor:
             except Exception as exc:
                 # 其他异常（网络、依赖故障）视为瞬时故障，可重试
                 last_error = exc
-                log.warning("tool_error_retryable", tool=tool_name, attempt=attempt, error=str(exc)[:200])
+                log.warning(
+                    "tool_error_retryable", tool=tool_name, attempt=attempt, error=str(exc)[:200]
+                )
 
             if attempt < self.max_retries:
                 backoff = self.retry_backoff_base * (2**attempt)

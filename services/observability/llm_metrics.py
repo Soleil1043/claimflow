@@ -24,7 +24,9 @@ log = get_logger(__name__)
 
 def _model_name(model: BaseChatModel) -> str:
     """模型名（标签用）；取不到时用类名兜底。"""
-    return getattr(model, "model_name", None) or getattr(model, "model", None) or type(model).__name__
+    return (
+        getattr(model, "model_name", None) or getattr(model, "model", None) or type(model).__name__
+    )
 
 
 def _extract_usage(response: Any) -> tuple[int | None, int | None]:
@@ -41,25 +43,39 @@ async def observed_ainvoke(
     *,
     config: dict[str, Any] | None = None,
 ) -> Any:
-    """带指标埋点的 ainvoke：LLM 异常原样抛出（由各节点既有降级逻辑处理）。"""
+    """带指标埋点 + 追踪 span 的 ainvoke：LLM 异常原样抛出（由各节点既有降级逻辑处理）。
+
+    T039：LLM span 一处埋点覆盖全部调用点（phase_ainvoke 传递环节上下文）；
+    属性含模型 / 环节 / token 用量；OTel 未启用时为 noop span，零开销。
+    """
+    from services.observability.token_tracker import current_phase
+    from services.observability.tracing import ATTR_PHASE, traced_span
+
     name = _model_name(model)
     started = time.perf_counter()
-    try:
-        response = await model.ainvoke(messages, config=config)
-    except Exception:
-        metrics.record_llm_call(name, "error", time.perf_counter() - started)
-        raise
-    prompt_tokens, completion_tokens = _extract_usage(response)
-    metrics.record_llm_call(
-        name,
-        "success",
-        time.perf_counter() - started,
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-    )
-    # T029：归集到当前轮次的 token tracker（contextvars，无请求上下文时无操作）
-    if prompt_tokens is not None and completion_tokens is not None:
-        from services.observability.token_tracker import record_usage_to_tracker
+    with traced_span(
+        f"llm.{name}", **{"gen_ai.request.model": name, ATTR_PHASE: current_phase()}
+    ) as span:
+        try:
+            response = await model.ainvoke(messages, config=config)
+        except Exception:
+            metrics.record_llm_call(name, "error", time.perf_counter() - started)
+            raise
+        prompt_tokens, completion_tokens = _extract_usage(response)
+        metrics.record_llm_call(
+            name,
+            "success",
+            time.perf_counter() - started,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
+        if prompt_tokens is not None:
+            span.set_attribute("gen_ai.usage.input_tokens", prompt_tokens)
+        if completion_tokens is not None:
+            span.set_attribute("gen_ai.usage.output_tokens", completion_tokens)
+        # T029：归集到当前轮次的 token tracker（contextvars，无请求上下文时无操作）
+        if prompt_tokens is not None and completion_tokens is not None:
+            from services.observability.token_tracker import record_usage_to_tracker
 
-        record_usage_to_tracker(name, prompt_tokens, completion_tokens)
-    return response
+            record_usage_to_tracker(name, prompt_tokens, completion_tokens)
+        return response

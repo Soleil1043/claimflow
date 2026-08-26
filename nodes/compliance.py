@@ -131,23 +131,21 @@ def _fallback_verdict(
     )
 
 
-async def review_answer(
-    text: str, executor: ToolExecutor | None = None
-) -> ComplianceAgentOutput:
+async def review_answer(text: str, executor: ToolExecutor | None = None) -> ComplianceAgentOutput:
     """审查一段拟返回用户的回答：工具取证 → LLM 裁决 → 确定性兜底。"""
     violations = await _run_rule_check(text, executor)
     risk = await _run_risk_scoring(text, violations, executor)
 
-    evidence = json.dumps(
-        {"violations": violations, "risk": risk}, ensure_ascii=False, default=str
-    )
+    evidence = json.dumps({"violations": violations, "risk": risk}, ensure_ascii=False, default=str)
     try:
         model = get_chat_model(temperature=0.0)
         response = await phase_ainvoke(
             model,
             [
                 SystemMessage(content=COMPLIANCE_AGENT_PROMPT),
-                HumanMessage(content=COMPLIANCE_REVIEW_PROMPT.format(draft=text, evidence=evidence)),
+                HumanMessage(
+                    content=COMPLIANCE_REVIEW_PROMPT.format(draft=text, evidence=evidence)
+                ),
             ],
             phase="compliance",
         )
@@ -179,25 +177,35 @@ class ComplianceNode:
         self._executor = executor
 
     async def __call__(self, state: AgentState) -> dict[str, Any]:
-        draft = state.get("final_answer") or ""
-        verdict = await review_answer(draft, self._executor)
-
-        update: dict[str, Any] = {
-            "compliance_result": verdict.model_dump(),
-            "compliance_rounds": state.get("compliance_rounds", 0) + 1,
-        }
-        if verdict.verdict == "REJECT":
-            # 违规内容不返回用户：替换为安全话术 + 标记转人工
-            update["final_answer"] = REJECT_SAFE_MESSAGE
-            update["need_human_intervention"] = True
-            update["intervention_reason"] = f"合规审查拦截：{verdict.reason}"[:200]
-        log.info(
-            "compliance_node_done",
-            verdict=verdict.verdict,
-            rounds=update["compliance_rounds"],
-            risk_score=verdict.risk_score,
+        from services.observability.tracing import (
+            ATTR_COMPLIANCE_RISK,
+            ATTR_COMPLIANCE_VERDICT,
+            traced_span,
         )
-        return update
+
+        draft = state.get("final_answer") or ""
+        with traced_span("compliance.review") as span:
+            verdict = await review_answer(draft, self._executor)
+            # T039：裁决属性写入 span（Jaeger 调用树可见）
+            span.set_attribute(ATTR_COMPLIANCE_VERDICT, verdict.verdict)
+            span.set_attribute(ATTR_COMPLIANCE_RISK, verdict.risk_score)
+
+            update: dict[str, Any] = {
+                "compliance_result": verdict.model_dump(),
+                "compliance_rounds": state.get("compliance_rounds", 0) + 1,
+            }
+            if verdict.verdict == "REJECT":
+                # 违规内容不返回用户：替换为安全话术 + 标记转人工
+                update["final_answer"] = REJECT_SAFE_MESSAGE
+                update["need_human_intervention"] = True
+                update["intervention_reason"] = f"合规审查拦截：{verdict.reason}"[:200]
+            log.info(
+                "compliance_node_done",
+                verdict=verdict.verdict,
+                rounds=update["compliance_rounds"],
+                risk_score=verdict.risk_score,
+            )
+            return update
 
 
 async def revise_answer_node(state: AgentState) -> dict[str, Any]:
@@ -215,7 +223,9 @@ async def revise_answer_node(state: AgentState) -> dict[str, Any]:
         response = await phase_ainvoke(
             model,
             [
-                SystemMessage(content=REVISE_ANSWER_PROMPT.format(draft=draft, suggestions=suggestions)),
+                SystemMessage(
+                    content=REVISE_ANSWER_PROMPT.format(draft=draft, suggestions=suggestions)
+                ),
                 HumanMessage(content="请输出修订后的回答。"),
             ],
             phase="compliance",

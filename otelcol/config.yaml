@@ -1,0 +1,16 @@
+# OTel Collector（T039 tracing profile）：接收应用 OTLP gRPC → 转发 Jaeger
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+exporters:
+  otlphttp/jaeger:
+    endpoint: http://jaeger:4318
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlphttp/jaeger]

@@ -50,11 +50,7 @@ class TurnTokenTracker:
     @property
     def total_tokens(self) -> int:
         """本轮总 token（prompt + completion，全部环节）。"""
-        return sum(
-            p + c
-            for models in self.usage.values()
-            for p, c in models.values()
-        )
+        return sum(p + c for models in self.usage.values() for p, c in models.values())
 
     @property
     def prompt_tokens(self) -> int:
@@ -143,6 +139,11 @@ class track_phase:
 
     def __exit__(self, *exc: Any) -> None:
         _current_phase.reset(self._token)
+
+
+def current_phase() -> str:
+    """当前 LLM 环节标注（tracing span 属性用；无标注时 "other"）。"""
+    return _current_phase.get()
 
 
 def record_usage_to_tracker(model: str, prompt_tokens: int, completion_tokens: int) -> None:
