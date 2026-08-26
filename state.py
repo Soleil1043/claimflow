@@ -47,5 +47,12 @@ class AgentState(TypedDict, total=False):
     intervention_reason: str | None
 
     # ===== 合规审查（T018 启用） =====
-    compliance_result: dict[str, Any] | None  # ComplianceAgentOutput（verdict/violations/risk_score/reason）
+    compliance_result: (
+        dict[str, Any] | None
+    )  # ComplianceAgentOutput（verdict/violations/risk_score/reason）
     compliance_rounds: int  # 审查轮数（MODIFY 修订闭环上限防死循环）
+
+    # ===== 长期记忆（T035 启用） =====
+    # 新会话首轮按 user_id 检索的历史会话摘要（已拼装文本）；
+    # 由 A06 入口写入、generator 各回答节点注入 system prompt，空串 = 无历史不注入
+    memory_context: str

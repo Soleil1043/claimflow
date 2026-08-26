@@ -1,8 +1,9 @@
-"""长期记忆写路径测试（T034）。
+"""长期记忆写路径 + 读注入测试（T034/T035）。
 
 策略同 tests/rag/test_retriever.py：mock embedder（固定 4 维向量）+ 临时 Qdrant local mode
 + 脚本化 LLM；覆盖摘要生成（LLM 主路径/非法输出/异常兜底）、确定性实体提取、
-幂等写入（确定性 point id upsert）、user_id payload 隔离、轮数阈值触发、旁路容错。
+幂等写入（确定性 point id upsert）、user_id payload 隔离、轮数阈值触发、旁路容错，
+以及 T035 读路径（user_id filter 检索 / min_score 噪声过滤 / 拼装截断 / 零影响直跳）。
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from typing import Any
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from pydantic import ValidationError
+from qdrant_client import models
 
 import services.memory.long_term as lt
 import services.rag.qdrant_client as qdrant_module
@@ -20,9 +22,11 @@ from services.memory.long_term import (
     MemoryRecord,
     count_user_turns,
     extract_entities_deterministic,
+    format_memory_context,
     format_messages_for_summary,
     maybe_write_memory,
     memory_point_id,
+    search_memories,
     summarize_conversation,
     write_memory,
 )
@@ -311,3 +315,146 @@ async def test_maybe_write_failure_not_fatal(memory_env, monkeypatch) -> None:
     monkeypatch.setattr(lt, "get_qdrant_client", broken_client)
     msgs = [HumanMessage(content=f"问{i}") for i in range(3)]
     assert await maybe_write_memory(conversation_id="c1", user_id="u1", messages=msgs) is False
+
+
+# ---------- 读注入路径（T035） ----------
+
+# 定向向量：查询含"保单"→ 与会话 A 同向（score 1），含"材料"→ 与会话 B 同向
+_VEC_POLICY = [1.0, 0.0, 0.0, 0.0]
+_VEC_MATERIAL = [0.0, 1.0, 0.0, 0.0]
+
+
+async def _seed_memories(client: Any) -> None:
+    """灌 3 条记忆：u1 两条（保单/材料主题正交向量）+ u2 一条（与 u1 保单同向）。"""
+    await client.create_collection(
+        collection_name="memory_test",
+        vectors_config=models.VectorParams(size=4, distance=models.Distance.COSINE),
+    )
+    points = [
+        models.PointStruct(
+            id=memory_point_id("conv-a"),
+            vector=_VEC_POLICY,
+            payload={
+                "user_id": "u1",
+                "conversation_id": "conv-a",
+                "summary": "用户咨询保单 POL-2025-0001 阑尾炎理赔，预估赔付 4640 元",
+                "entities": {"policy_nos": ["POL-2025-0001"]},
+                "updated_at": "2026-08-26T00:00:00",
+            },
+        ),
+        models.PointStruct(
+            id=memory_point_id("conv-b"),
+            vector=_VEC_MATERIAL,
+            payload={
+                "user_id": "u1",
+                "conversation_id": "conv-b",
+                "summary": "用户咨询理赔材料清单",
+                "entities": {},
+                "updated_at": "2026-08-26T00:00:00",
+            },
+        ),
+        # u2 的记忆与 u1 保单记忆同向：不用 filter 会被错误带回（隔离验证用）
+        models.PointStruct(
+            id=memory_point_id("conv-c"),
+            vector=_VEC_POLICY,
+            payload={
+                "user_id": "u2",
+                "conversation_id": "conv-c",
+                "summary": "另一个用户的保单记忆",
+                "entities": {},
+                "updated_at": "2026-08-26T00:00:00",
+            },
+        ),
+    ]
+    await client.upsert(collection_name="memory_test", points=points)
+
+
+@pytest.fixture()
+async def search_env(tmp_path, monkeypatch):
+    """读路径环境：临时 Qdrant + 定向 embed_query mock（已灌 3 条记忆）。"""
+    monkeypatch.setattr(lt.settings, "memory_enabled", True)
+    monkeypatch.setattr(lt.settings, "qdrant_memory_collection", "memory_test")
+    monkeypatch.setattr(lt.settings, "memory_min_score", 0.4)
+    monkeypatch.setattr(lt.settings, "memory_top_k", 2)
+
+    def fake_embed_query(query: str) -> list[float]:
+        return _VEC_MATERIAL if "材料" in query else _VEC_POLICY
+
+    monkeypatch.setattr(lt, "embed_query", fake_embed_query)
+
+    fake_client = qdrant_module.AsyncQdrantClient(path=str(tmp_path / "qdrant"))
+    monkeypatch.setattr(lt, "get_qdrant_client", lambda: fake_client)
+    await _seed_memories(fake_client)
+    yield fake_client
+    await fake_client.close()
+
+
+async def test_search_user_isolation(search_env) -> None:
+    """user_id filter 隔离：u1 检索只命中本人记忆（u2 同向点不带回）。"""
+    hits = await search_memories("我上次问的那张保单", "u1")
+    assert len(hits) == 1
+    assert hits[0].conversation_id == "conv-a"
+    assert "POL-2025-0001" in hits[0].summary
+    assert hits[0].entities["policy_nos"] == ["POL-2025-0001"]
+    assert hits[0].score >= 0.4
+
+
+async def test_search_min_score_filters_noise(search_env) -> None:
+    """min_score 过滤："材料"查询与保单记忆正交（score 0 < 0.4），仅材料记忆返回。"""
+    hits = await search_memories("理赔需要什么材料", "u1")
+    assert {h.conversation_id for h in hits} == {"conv-b"}
+
+
+async def test_search_no_history_user_zero_impact(search_env, monkeypatch) -> None:
+    """无历史用户：检索空直跳（不注入），不抛错。"""
+    hits = await search_memories("我上次问的那张保单", "someone-else")
+    assert hits == []
+    assert format_memory_context(hits) == ""
+
+
+async def test_search_disabled_returns_empty(search_env, monkeypatch) -> None:
+    """开关关闭：不检索直接返回空。"""
+    monkeypatch.setattr(lt.settings, "memory_enabled", False)
+    assert await search_memories("任意", "u1") == []
+
+
+async def test_search_collection_missing_returns_empty(tmp_path, monkeypatch) -> None:
+    """collection 不存在（从未写过记忆）：空列表直跳。"""
+    monkeypatch.setattr(lt.settings, "memory_enabled", True)
+    monkeypatch.setattr(lt.settings, "qdrant_memory_collection", "memory_test")
+    monkeypatch.setattr(lt, "embed_query", lambda _: _VEC_POLICY)
+    fake_client = qdrant_module.AsyncQdrantClient(path=str(tmp_path / "empty"))
+    monkeypatch.setattr(lt, "get_qdrant_client", lambda: fake_client)
+    assert await search_memories("任意", "u1") == []
+    await fake_client.close()
+
+
+async def test_search_failure_not_fatal(search_env, monkeypatch) -> None:
+    """Qdrant/embedding 故障：读路径吞错返回空（旁路零影响）。"""
+
+    def broken_embed(query: str) -> list[float]:
+        raise RuntimeError("embed down")
+
+    monkeypatch.setattr(lt, "embed_query", broken_embed)
+    assert await search_memories("任意", "u1") == []
+
+
+def test_format_memory_context_joins_and_truncates() -> None:
+    """拼装：多条合并为列表文本，总长截断（Token 预算控制）。"""
+    from services.memory.long_term import MemoryHit
+
+    hits = [
+        MemoryHit(
+            conversation_id="a",
+            summary="摘要甲" * 100,
+            entities={},
+            score=0.9,
+            updated_at="t",
+        ),
+        MemoryHit(conversation_id="b", summary="摘要乙", entities={}, score=0.8, updated_at="t"),
+    ]
+    text = format_memory_context(hits)
+    assert text.startswith("- ")
+    assert len(text) <= 1200
+    short = format_memory_context(hits, max_chars=10)
+    assert len(short) == 10

@@ -52,8 +52,17 @@ class StepExecutorNode:
         status: str
         try:
             agent_def = get_agent(agent_name)
+            # T035：历史会话记忆附加进步骤指令——Worker 能理解"上次问的那张保单"类
+            # 跨会话指代（仅 multi_step 路径需要；空记忆时指令与原行为完全一致）
+            instruction = description
+            memory_context = state.get("memory_context") or ""
+            if memory_context:
+                instruction += (
+                    "\n\n用户历史会话记忆（用于理解用户指代，如「上次问的那张保单」）：\n"
+                    + memory_context
+                )
             result = await run_worker_agent(
-                agent_def, description, dict(shared), self._executor, tool_trace=tool_trace
+                agent_def, instruction, dict(shared), self._executor, tool_trace=tool_trace
             )
             status = "done"
             shared[agent_def.name] = result

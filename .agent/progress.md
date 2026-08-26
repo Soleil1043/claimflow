@@ -915,6 +915,30 @@
 
 **Git**：`feat: T034 长期记忆写路径（每 N 轮摘要 + 实体提取 + 幂等入库 + user_id 隔离）`
 
+### [T035] 长期记忆读注入 — 2026-08-26
+
+**操作**：
+- `services/memory/long_term.py`：读路径——MemoryHit + search_memories（BGE-M3 向量化查询 + user_id 强类型 Filter（T034 实测 local mode 不收裸 dict）+ memory_min_score 噪声过滤；禁用/collection 缺失/异常一律空列表直跳，永不抛错）+ format_memory_context（多条合并、总长 1200 字符截断——Token 预算控制）
+- `state.py`：新增 memory_context 字段（A06 首轮写入、各回答节点消费，空串=不注入）
+- 注入点三处（覆盖全部回答出口路径）：
+  - `nodes/generator.py` ReactAgentNode._system_prefix：memory_context 非空时 system prompt 附加"用户历史会话记忆"段（临时拼接不写回 checkpoint messages）
+  - `nodes/generator.py` synthesize_answer_node：ANSWER_SYNTHESIS_PROMPT 新增 {memory} 段（空时传"无"保持原语义）
+  - `nodes/step_executor.py`：worker 指令附加记忆段——multi_step 路径 Worker 也能理解"上次问的那张保单"类指代（验收问句"能赔多少"intent=multi_step，只注入 generator 会漏掉此路径）
+- `app/api/v1/conversations.py` A06 入口：仅新会话首轮（本会话无 user 消息，DB count 判断）检索注入；非首轮本会话上下文已在 checkpoint 不再检索；无历史检索空 → memory_context="" 零影响
+- 配置：memory_top_k（默认 2）/ memory_min_score（默认 0.4），.env.example 同步
+- 测试：tests/memory/test_long_term.py +7（user_id filter 隔离（u2 同向点不带回）/min_score 正交过滤/无历史空直跳/禁用/collection 缺失/故障吞错/拼装截断）；tests/nodes/test_generator_memory.py 新建 5 用例（react system 注入与空态不变/synthesize 注入与"无"/step_executor 指令附加与原样）；tests/api/test_a06_scenarios.py +3 场景（首轮注入断言 LLM system message 含保单号/无历史零影响/非首轮不再检索）
+- `scripts/verify_memory_read.py`：真实 LLM 跨会话验收（会话 A 写记忆 → 新会话完整主图提问 → 对照无历史用户）
+
+**验证方式（真实 DeepSeek LLM + 真实 BGE-M3 + 完整主图）**：
+- 检索注入："我上次问的那张保单，最后说能赔多少来着？" 命中本人会话 A 记忆（score 0.697）
+- 跨会话连贯（完整主图 intent→…→合规）：回答"您上次咨询的保单 POL-2025-0001（安心医疗保险旗舰版），因急性阑尾炎手术住院费用 15800 元，预估赔付金额为 4640 元。该金额基于免赔额 10000 元、赔付比例 80% 计算得出…"——保单号与金额全部正确引用历史
+- 无历史零影响：其他用户同问题检索 0 条直跳，回答"无法直接看到您上一次查询的记录，麻烦您提供保单号或身份证号…"——诚实引导不编造
+- `uv run python -m pytest -q` → 329 passed（原 314 + 新增 15）；ruff 全绿、涉及文件 format 全绿
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T035 长期记忆读注入（首轮检索注入 system prompt + 跨会话引用 + 无历史零影响）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|

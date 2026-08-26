@@ -1,14 +1,18 @@
-"""长期记忆写路径（T034，architecture.md 6.3 三层记忆）。
+"""长期记忆服务（T034 写路径 + T035 读注入，architecture.md 6.3 三层记忆）。
 
-会话累计 N 轮（用户消息数）时生成对话摘要 + 关键实体（保单号/诊断/金额），
-BGE-M3 向量化写入 Qdrant 独立 collection，payload 携带 user_id 实现用户隔离
-（读路径按 user_id filter 注入 system prompt 由 T035 实现）。
+写路径（T034）：会话累计 N 轮（用户消息数）时生成对话摘要 + 关键实体
+（保单号/诊断/金额），BGE-M3 向量化写入 Qdrant 独立 collection，payload 携带
+user_id 实现用户隔离。
+
+读路径（T035）：新会话首轮按 user_id filter 检索 top-k 历史摘要（相似度低于
+memory_min_score 的噪声过滤），拼装注入 system prompt——跨会话上下文连贯
+（"我上次问的那张保单"正确引用历史）；无历史用户检索空直跳，零影响。
 
 - 摘要主路径：LLM 结构化提取（MEMORY_SUMMARY_PROMPT）；
   失败/非法输出降级确定性提取（正则实体 + 尾部对话粗摘要）
 - 幂等：point id = uuid5(conversation_id) 确定性——同一会话重复写 upsert 覆盖
   （摘要始终反映该会话最新全貌），不产生重复条目
-- 旁路容错：maybe_write_memory 永不向调用方（A06）抛错，失败只记日志与指标
+- 旁路容错：maybe_write_memory / search_memories 永不向调用方抛错，失败只记日志
 """
 
 from __future__ import annotations
@@ -17,6 +21,7 @@ import datetime as dt
 import json
 import re
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -29,7 +34,7 @@ from services.llm.client import get_chat_model
 from services.llm.prompts import MEMORY_SUMMARY_PROMPT
 from services.observability import metrics
 from services.observability.token_tracker import phase_ainvoke
-from services.rag.embedder import EMBEDDING_DIM, embed_texts
+from services.rag.embedder import EMBEDDING_DIM, embed_query, embed_texts
 from services.rag.qdrant_client import get_qdrant_client
 
 log = get_logger(__name__)
@@ -37,6 +42,9 @@ log = get_logger(__name__)
 # 喂给摘要 LLM 的对话上限（条数 / 字符；保留尾部——最近的消息信息密度最高）
 MAX_SUMMARY_MESSAGES = 40
 MAX_SUMMARY_CHARS = 8000
+
+# 读注入拼装的长度上限（Token 预算控制：约 600-800 token）
+MAX_MEMORY_CONTEXT_CHARS = 1200
 
 # 确定性实体提取（兜底路径与 LLM 实体的校验共用口径）
 _POLICY_NO_RE = re.compile(r"POL-\d{4}-\d{4,}")
@@ -238,3 +246,74 @@ async def maybe_write_memory(
         log.warning("memory_write_failed", conversation_id=conversation_id, error=str(exc)[:200])
         metrics.record_memory_write("error")
         return False
+
+
+# ===== 读注入路径（T035） =====
+
+
+@dataclass
+class MemoryHit:
+    """检索命中的一条历史会话记忆。"""
+
+    conversation_id: str
+    summary: str
+    entities: dict[str, list[Any]]
+    score: float
+    updated_at: str
+
+
+def _user_filter(user_id: str) -> models.Filter:
+    """按 user_id 过滤（local mode 必须强类型 Filter，不接受裸 dict——T034 实测坑）。"""
+    return models.Filter(
+        must=[models.FieldCondition(key="user_id", match=models.MatchValue(value=user_id))]
+    )
+
+
+async def search_memories(query: str, user_id: str, top_k: int | None = None) -> list[MemoryHit]:
+    """按 user_id 检索 top-k 历史会话记忆（相似度低于 memory_min_score 的噪声过滤）。
+
+    禁用 / collection 不存在 / 检索异常 → 空列表直跳（无历史用户零影响，永不抛错）。
+    """
+    if not settings.memory_enabled:
+        return []
+    try:
+        client = get_qdrant_client()
+        collection = settings.qdrant_memory_collection
+        if not await client.collection_exists(collection):
+            return []
+        hits = (
+            await client.query_points(
+                collection_name=collection,
+                query=embed_query(query),
+                limit=top_k or settings.memory_top_k,
+                query_filter=_user_filter(user_id),
+                with_payload=True,
+            )
+        ).points
+        results = [
+            MemoryHit(
+                conversation_id=str(p.payload.get("conversation_id", "")),
+                summary=str(p.payload.get("summary", "")),
+                entities=dict(p.payload.get("entities") or {}),
+                score=float(p.score),
+                updated_at=str(p.payload.get("updated_at", "")),
+            )
+            for p in hits
+            if p.score >= settings.memory_min_score
+        ]
+        log.info(
+            "memory_search_done",
+            user_id=user_id,
+            hits=len(results),
+            scores=[round(h.score, 3) for h in results],
+        )
+        return results
+    except Exception as exc:  # noqa: BLE001 读路径旁路，失败直跳（零影响）
+        log.warning("memory_search_failed", user_id=user_id, error=str(exc)[:200])
+        return []
+
+
+def format_memory_context(hits: list[MemoryHit], max_chars: int = MAX_MEMORY_CONTEXT_CHARS) -> str:
+    """命中记忆 → 注入文本（多条合并、总长截断——Token 预算控制）。"""
+    text = "\n".join(f"- {h.summary}" for h in hits)
+    return text[:max_chars]

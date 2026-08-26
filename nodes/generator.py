@@ -49,7 +49,7 @@ class ReactAgentNode:
         """
         model = get_chat_model()
         messages: list[AnyMessage] = [
-            *self._system_prefix(),
+            *self._system_prefix(state.get("memory_context") or ""),
             *state["messages"],
         ]
         # 透传 LangGraph 运行上下文中的回调（tracing），缺省为 None 不影响执行
@@ -98,11 +98,21 @@ class ReactAgentNode:
         }
 
     @staticmethod
-    def _system_prefix() -> list[AnyMessage]:
-        """系统提示（Phase 1 通用助手；T015 拆分 Agent 后替换为路由分发）。"""
+    def _system_prefix(memory_context: str = "") -> list[AnyMessage]:
+        """系统提示（Phase 1 通用助手；T015 拆分 Agent 后替换为路由分发）。
+
+        T035：非空 memory_context 时附加历史会话记忆段（新会话首轮由 A06 检索注入），
+        帮助 LLM 理解"上次/那张保单"类跨会话指代；为空时 prompt 与 T034 前完全一致。
+        """
         from langchain_core.messages import SystemMessage
 
-        return [SystemMessage(content=GENERAL_ASSISTANT_PROMPT)]
+        content = GENERAL_ASSISTANT_PROMPT
+        if memory_context:
+            content += (
+                "\n\n## 用户历史会话记忆（此前会话的长期记忆，"
+                "用于理解用户的指代与省略问句，如「上次问的那张保单」）\n" + memory_context
+            )
+        return [SystemMessage(content=content)]
 
 
 def should_continue(state: AgentState) -> str:
@@ -167,7 +177,10 @@ async def synthesize_answer_node(state: AgentState) -> dict[str, Any]:
             [
                 HumanMessage(
                     content=ANSWER_SYNTHESIS_PROMPT.format(
-                        context=context, history=_format_history(messages)
+                        context=context,
+                        history=_format_history(messages),
+                        # T035：新会话首轮注入的历史记忆（空时传"无"，prompt 保持原语义）
+                        memory=state.get("memory_context") or "无",
                     )
                 )
             ],

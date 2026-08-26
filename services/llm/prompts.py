@@ -153,6 +153,9 @@ ANSWER_SYNTHESIS_PROMPT = """\
 背景数据（JSON，含前序 Agent 结论或知识库检索结果）：
 {context}
 
+用户历史会话记忆（此前会话的长期记忆，用于理解用户指代与省略问句；"无"则忽略）：
+{memory}
+
 对话历史（最后一条为用户最新问题）：
 {history}
 

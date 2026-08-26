@@ -388,3 +388,106 @@ async def test_memory_write_hook_on_reject(api_env, monkeypatch) -> None:
     assert calls[0]["force"] is True  # 转人工终态强制写快照
     assert calls[0]["user_id"]  # 携带用户标识（隔离键）
     assert len(calls[0]["messages"]) >= 2  # checkpoint 累积的全量消息
+
+
+# ---------- 场景 8-10：长期记忆读注入（T035） ----------
+
+
+class CaptureLLM:
+    """记录 LLM 收到的消息并直接给出最终回答（react 路径无工具循环）。"""
+
+    def __init__(self) -> None:
+        self.calls: list[list[Any]] = []
+
+    async def ainvoke(self, messages: list[Any], config: Any = None) -> AIMessage:
+        self.calls.append(list(messages))
+        return AIMessage(content="根据您的历史会话记录回答。")
+
+    def bind_tools(self, specs: list[Any]) -> CaptureLLM:
+        return self
+
+
+_MEMORY_HIT_SUMMARY = "用户咨询保单 POL-2025-0001 阑尾炎理赔，预估赔付 4640 元"
+
+
+def _patch_memory_on(monkeypatch, hits_factory):  # noqa: ANN001
+    """打开记忆开关并替换 search_memories 为可控 spy（记录调用）。"""
+    import services.memory.long_term as long_term_module
+
+    monkeypatch.setattr(long_term_module.settings, "memory_enabled", True)
+
+    search_calls: list[tuple[str, str]] = []
+
+    async def spy_search(query: str, user_id: str, top_k: int | None = None) -> list:
+        search_calls.append((query, user_id))
+        return hits_factory(long_term_module.MemoryHit)
+
+    monkeypatch.setattr(long_term_module, "search_memories", spy_search)
+    return search_calls
+
+
+def _patch_react_llm(monkeypatch) -> CaptureLLM:  # noqa: ANN001
+    """react 路径 LLM 换为捕获型，compliance 恒 PASS。"""
+    capture = CaptureLLM()
+    monkeypatch.setattr(
+        intent_module,
+        "get_chat_model",
+        lambda *a, **k: FakeModel('{"intent": "single_domain", "reason": "x"}'),
+    )
+    monkeypatch.setattr(generator_module, "get_chat_model", lambda: capture)
+    monkeypatch.setattr(compliance_module, "get_chat_model", lambda *a, **k: FakeModel(_PASS))
+    return capture
+
+
+async def test_scenario_memory_injected_on_first_turn(api_env, monkeypatch) -> None:
+    """首轮注入：新会话第一条消息 → 按 user_id 检索历史记忆并注入 system prompt。"""
+    search_calls = _patch_memory_on(
+        monkeypatch,
+        lambda MH: [
+            MH(
+                conversation_id="prev-conv",
+                summary=_MEMORY_HIT_SUMMARY,
+                entities={},
+                score=0.7,
+                updated_at="t",
+            )
+        ],
+    )
+    capture = _patch_react_llm(monkeypatch)
+
+    cid = await _create_conversation(api_env)
+    body = await _send(api_env, cid, "我上次问的那张保单能赔多少来着")
+
+    assert body["compliance_status"] == "PASS"  # 主流程不受注入影响
+    assert len(search_calls) == 1  # 首轮检索一次
+    first_msg = capture.calls[0][0]
+    from langchain_core.messages import SystemMessage
+
+    assert isinstance(first_msg, SystemMessage)
+    assert "POL-2025-0001" in first_msg.content  # 历史记忆进入 system prompt
+    assert "历史会话记忆" in first_msg.content
+
+
+async def test_scenario_memory_empty_history_zero_impact(api_env, monkeypatch) -> None:
+    """无历史用户：检索空直跳，system prompt 与无记忆时完全一致（零影响）。"""
+    _patch_memory_on(monkeypatch, lambda MH: [])
+    capture = _patch_react_llm(monkeypatch)
+
+    cid = await _create_conversation(api_env)
+    body = await _send(api_env, cid, "保单能赔多少")
+
+    assert body["answer"]
+    first_msg = capture.calls[0][0]
+    assert "历史会话记忆" not in first_msg.content
+
+
+async def test_scenario_memory_only_first_turn(api_env, monkeypatch) -> None:
+    """非首轮直跳：第二轮不再检索（本会话上下文已在 checkpoint）。"""
+    search_calls = _patch_memory_on(monkeypatch, lambda MH: [])
+    _patch_react_llm(monkeypatch)
+
+    cid = await _create_conversation(api_env)
+    await _send(api_env, cid, "第一轮问题")
+    await _send(api_env, cid, "第二轮问题")
+
+    assert len(search_calls) == 1  # 仅首轮检索

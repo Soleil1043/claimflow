@@ -20,6 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_app_graph, get_db_session
+from app.core.config import settings
 from app.core.logging import get_logger
 from schemas.api import (
     ConversationCreateRequest,
@@ -195,10 +196,37 @@ async def send_message(
     from services.observability.token_tracker import finish_turn_tokens, start_turn_tokens
 
     token_tracker = start_turn_tokens(str(conversation_id))
+
+    # T035：长期记忆读注入——仅新会话首轮（本会话尚无用户消息）检索历史记忆，
+    # 后续轮次本会话上下文已在 checkpoint 中不再注入；无历史/非首轮 memory_context
+    # 为空串，generator 不附加记忆段，行为与无记忆时完全一致（零影响）。
+    from services.memory.long_term import format_memory_context, search_memories
+
+    memory_context = ""
+    if settings.memory_enabled:
+        prior_user_msgs = (
+            await session.execute(
+                select(func.count(Message.id)).where(
+                    Message.conversation_id == conversation_id, Message.role == "user"
+                )
+            )
+        ).scalar_one()
+        if prior_user_msgs == 0:
+            hits = await search_memories(body.content, conversation.user_id)
+            if hits:
+                memory_context = format_memory_context(hits)
+                log.info(
+                    "memory_context_injected",
+                    conversation_id=str(conversation_id),
+                    user_id=conversation.user_id,
+                    hits=len(hits),
+                )
+
     result = await graph.ainvoke(
         {
             "messages": [HumanMessage(content=body.content)],
             "conversation_id": str(conversation_id),
+            "memory_context": memory_context,
             # 每轮全量重置（checkpoint 只累积 messages，其余字段语义为"本轮"）
             "intent": None,
             "task_plan": [],
