@@ -1,0 +1,230 @@
+{
+  "experiment": {
+    "name": "t040_smoke",
+    "dataset": "main",
+    "dataset_version": "1.0.0",
+    "category": null,
+    "sample_size": 12,
+    "variants": [
+      "baseline",
+      "pure_rag"
+    ],
+    "generated_at": "2026-08-26 20:34:17",
+    "variant_summaries": {
+      "baseline": {
+        "total": 12,
+        "passed": 12,
+        "task_completion_rate": 1.0,
+        "tool_accuracy": 1.0,
+        "tool_scored_passed": 12,
+        "tool_scored_total": 12,
+        "compliance_pass_rate": 1.0,
+        "human_precision": 0.0,
+        "avg_duration_s": 8.837,
+        "avg_vector_hits": 4.0,
+        "avg_graph_hits": 3.67,
+        "graph_coverage": 0.5833,
+        "by_category": {
+          "simple_faq": {
+            "total": 12.0,
+            "passed": 12.0,
+            "rate": 1.0
+          }
+        },
+        "total_tokens": 31251,
+        "tokens_by_model": {
+          "deepseek-v4-flash": 31251
+        },
+        "description": "基线：deepseek-v4-flash + 图谱混合召回（T027 基线口径）"
+      },
+      "pure_rag": {
+        "total": 12,
+        "passed": 11,
+        "task_completion_rate": 0.9166666666666666,
+        "tool_accuracy": 1.0,
+        "tool_scored_passed": 12,
+        "tool_scored_total": 12,
+        "compliance_pass_rate": 1.0,
+        "human_precision": 0.0,
+        "avg_duration_s": 6.116,
+        "avg_vector_hits": 4.0,
+        "avg_graph_hits": 0.0,
+        "graph_coverage": 0.0,
+        "by_category": {
+          "simple_faq": {
+            "total": 12.0,
+            "passed": 11.0,
+            "rate": 0.9166666666666666
+          }
+        },
+        "total_tokens": 26422,
+        "tokens_by_model": {
+          "deepseek-v4-flash": 26422
+        },
+        "description": "纯 RAG 基线（GraphRAG 关闭，行为与 T031 引入前一致）"
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "baseline": "baseline",
+      "variant": "pure_rag",
+      "task_completion": {
+        "baseline": 1.0,
+        "variant": 0.9166666666666666,
+        "delta_pp": -8.3,
+        "z": 1.022,
+        "significant_p05": false
+      },
+      "tool_accuracy": {
+        "baseline": 1.0,
+        "variant": 1.0,
+        "delta_pp": 0.0,
+        "z": 0.0,
+        "significant_p05": false,
+        "note": "池化方差为 0（两组比例相同）"
+      },
+      "avg_duration_s": {
+        "baseline": 8.837,
+        "variant": 6.116,
+        "delta_s": -2.72
+      },
+      "llm_tokens": {
+        "baseline": {
+          "deepseek-v4-flash": 31251
+        },
+        "variant": {
+          "deepseek-v4-flash": 26422
+        },
+        "total_baseline": 31251,
+        "total_variant": 26422
+      }
+    }
+  ],
+  "case_results": {
+    "baseline": [
+      {
+        "case_id": "FAQ-001",
+        "passed": true,
+        "duration_s": 21.03
+      },
+      {
+        "case_id": "FAQ-002",
+        "passed": true,
+        "duration_s": 16.355
+      },
+      {
+        "case_id": "FAQ-003",
+        "passed": true,
+        "duration_s": 5.149
+      },
+      {
+        "case_id": "FAQ-004",
+        "passed": true,
+        "duration_s": 7.023
+      },
+      {
+        "case_id": "FAQ-005",
+        "passed": true,
+        "duration_s": 6.781
+      },
+      {
+        "case_id": "FAQ-006",
+        "passed": true,
+        "duration_s": 6.781
+      },
+      {
+        "case_id": "FAQ-007",
+        "passed": true,
+        "duration_s": 7.397
+      },
+      {
+        "case_id": "FAQ-008",
+        "passed": true,
+        "duration_s": 5.139
+      },
+      {
+        "case_id": "FAQ-009",
+        "passed": true,
+        "duration_s": 4.567
+      },
+      {
+        "case_id": "FAQ-010",
+        "passed": true,
+        "duration_s": 11.944
+      },
+      {
+        "case_id": "FAQ-011",
+        "passed": true,
+        "duration_s": 8.682
+      },
+      {
+        "case_id": "FAQ-012",
+        "passed": true,
+        "duration_s": 5.191
+      }
+    ],
+    "pure_rag": [
+      {
+        "case_id": "FAQ-001",
+        "passed": true,
+        "duration_s": 6.016
+      },
+      {
+        "case_id": "FAQ-002",
+        "passed": true,
+        "duration_s": 4.211
+      },
+      {
+        "case_id": "FAQ-003",
+        "passed": true,
+        "duration_s": 6.204
+      },
+      {
+        "case_id": "FAQ-004",
+        "passed": true,
+        "duration_s": 6.281
+      },
+      {
+        "case_id": "FAQ-005",
+        "passed": true,
+        "duration_s": 5.21
+      },
+      {
+        "case_id": "FAQ-006",
+        "passed": false,
+        "duration_s": 3.895
+      },
+      {
+        "case_id": "FAQ-007",
+        "passed": true,
+        "duration_s": 7.4
+      },
+      {
+        "case_id": "FAQ-008",
+        "passed": true,
+        "duration_s": 5.844
+      },
+      {
+        "case_id": "FAQ-009",
+        "passed": true,
+        "duration_s": 5.991
+      },
+      {
+        "case_id": "FAQ-010",
+        "passed": true,
+        "duration_s": 7.065
+      },
+      {
+        "case_id": "FAQ-011",
+        "passed": true,
+        "duration_s": 8.557
+      },
+      {
+        "case_id": "FAQ-012",
+        "passed": true,
+        "duration_s": 6.713
+      }
+    ]
+  }
+}

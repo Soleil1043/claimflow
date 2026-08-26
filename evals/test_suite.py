@@ -53,9 +53,31 @@ def load_cases(dataset: str, category: str | None, limit: int | None) -> tuple[l
     return cases, ds.version
 
 
-async def run_case(graph: Any, case: EvalCase) -> CaseResult:
-    """执行单条用例：每条独立 thread（避免多轮上下文互相干扰）。"""
-    thread_id = f"eval-{case.id}"
+async def build_eval_graph() -> Any:
+    """构建评测主图：真实 LLM + dev profile 零容器（test_suite / ab_test 共用）。
+
+    checkpointer 走全局 CheckpointManager（幂等 start，进程内多变体共享——
+    调用方须以不同 thread 前缀隔离变体间的会话状态）。
+    """
+    import tools.claim  # noqa: F401 注册理赔工具
+    import tools.compliance  # noqa: F401 注册合规工具
+    import tools.medical  # noqa: F401 注册医疗工具
+    from services.memory.short_term import get_checkpoint_manager
+    from tools.executor import ToolExecutor
+    from tools.registry import get_default_registry
+    from workflows.main_graph import build_main_graph
+
+    registry = get_default_registry()
+    checkpointer = await get_checkpoint_manager().start()
+    return build_main_graph(executor=ToolExecutor(registry), checkpointer=checkpointer)
+
+
+async def run_case(graph: Any, case: EvalCase, thread_prefix: str = "eval") -> CaseResult:
+    """执行单条用例：每条独立 thread（避免多轮上下文互相干扰）。
+
+    thread_prefix：A/B 同进程多变体时按变体隔离 checkpoint（T040）。
+    """
+    thread_id = f"{thread_prefix}-{case.id}"
     started = time.perf_counter()
     error = ""
     a06: dict[str, Any] = {}
@@ -117,9 +139,8 @@ async def main() -> None:
     )
     parser.add_argument(
         "--variant",
-        choices=["hybrid", "pure_rag"],
-        default="hybrid",
-        help="检索变体：hybrid=混合召回（默认）；pure_rag=关闭图谱的纯 RAG 基线",
+        default="baseline",
+        help="实验变体（evals/variants.py 注册表：baseline/hybrid/pure_rag/deepseek-v4-pro…）",
     )
     args = parser.parse_args()
 
@@ -131,26 +152,12 @@ async def main() -> None:
         f"category={args.category or '全部'}, variant={args.variant}）"
     )
 
-    # 构建主图：真实 LLM（需 .env LLM_API_KEY）+ dev profile 零容器依赖
-    import tools.claim  # noqa: F401 注册理赔工具
-    import tools.compliance  # noqa: F401 注册合规工具
-    import tools.medical  # noqa: F401 注册医疗工具
-    from app.core.config import settings
-    from services.memory.short_term import get_checkpoint_manager
-    from tools.executor import ToolExecutor
-    from tools.registry import get_default_registry
-    from workflows.main_graph import build_main_graph
+    # T040：变体统一走注册表（模型/参数/prompt/图谱开关；hybrid/pure_rag 语义与 T033 一致）
+    from evals.variants import apply_variant
 
-    # T033 变体开关：pure_rag 关闭图谱（graph_retriever 读 settings 单例，须先改再建图）
-    settings.graph_rag_enabled = args.variant == "hybrid"
-    from services.rag import graph_retriever
-
-    graph_retriever.reset_knowledge_graph()
-    print(f"GRAPH_RAG_ENABLED={settings.graph_rag_enabled}")
-
-    registry = get_default_registry()
-    checkpointer = await get_checkpoint_manager().start()
-    graph = build_main_graph(executor=ToolExecutor(registry), checkpointer=checkpointer)
+    spec = apply_variant(args.variant)
+    print(f"variant={args.variant}（{spec.description}）")
+    graph = await build_eval_graph()
 
     results: list[CaseResult] = []
     passed_count = 0
@@ -162,6 +169,8 @@ async def main() -> None:
         print(f"[{i:>3}/{len(cases)}] {mark} {case.id} {case.user_input[:30]}")
 
     report = aggregate(results)
+    from services.memory.short_term import get_checkpoint_manager
+
     await get_checkpoint_manager().close()
 
     # 落盘

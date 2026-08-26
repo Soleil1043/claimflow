@@ -44,6 +44,9 @@ class EvalReport(BaseModel):
     passed: int
     task_completion_rate: float = Field(description="任务完成率：passed / total")
     tool_accuracy: float = Field(description="工具调用准确率：工具考核用例中 tool_match 通过占比")
+    # 工具判分分子/分母（T040：A/B 组间 z 检验需要，率不足以复原样本量）
+    tool_scored_passed: int = Field(default=0, description="工具考核通过数")
+    tool_scored_total: int = Field(default=0, description="工具考核用例数")
     compliance_pass_rate: float = Field(description="合规通过率：PASS verdict 占比")
     human_precision: float = Field(description="转人工准确率：期望转人工用例中命中占比")
     avg_duration_s: float = Field(description="平均单用例耗时（秒）")
@@ -141,6 +144,8 @@ def aggregate(results: list[CaseResult]) -> EvalReport:
         passed=passed,
         task_completion_rate=passed / total if total else 0.0,
         tool_accuracy=tool_accuracy,
+        tool_scored_passed=sum(1 for r in tool_scored if r.tool_match),
+        tool_scored_total=len(tool_scored),
         compliance_pass_rate=compliance_pass_rate,
         human_precision=human_precision,
         avg_duration_s=round(avg_duration, 3),
@@ -190,3 +195,27 @@ def result_from_a06(
         vector_hits=vector_hits,
         graph_hits=graph_hits,
     )
+
+
+# ===== A/B 组间对比（T040） =====
+
+
+def two_proportion_z_test(
+    passed_a: int, total_a: int, passed_b: int, total_b: int
+) -> dict[str, Any]:
+    """双比例 z 检验（显著性粗判）：两组成功率的差异是否显著（|z| > 1.96 ≈ p < 0.05）。
+
+    池化比例口径：z = (p_a - p_b) / sqrt(p_pool(1-p_pool)(1/n_a + 1/n_b))。
+    任一组样本为 0 时返回 z=0 不显著（保守）。
+    """
+    if total_a <= 0 or total_b <= 0:
+        return {"z": 0.0, "significant_p05": False, "note": "样本量为 0"}
+    p_a = passed_a / total_a
+    p_b = passed_b / total_b
+    p_pool = (passed_a + passed_b) / (total_a + total_b)
+    se = (p_pool * (1 - p_pool) * (1 / total_a + 1 / total_b)) ** 0.5
+    if se == 0:
+        # 两组全对或全错（比例无差异）
+        return {"z": 0.0, "significant_p05": False, "note": "池化方差为 0（两组比例相同）"}
+    z = (p_a - p_b) / se
+    return {"z": round(z, 3), "significant_p05": abs(z) > 1.96}

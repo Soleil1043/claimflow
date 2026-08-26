@@ -1055,6 +1055,27 @@
 
 **Git**：`feat: T039 OTel + Jaeger 全链路追踪（LLM/工具/合规 span + tracing profile + 25-span 调用树）`
 
+### [T040] A/B 实验框架 — 2026-08-26
+
+**操作**：
+- `evals/variants.py`（新建）：VariantSpec（name/description/settings_overrides/prompt_overrides）+ 注册表（baseline=flash+混合召回 / hybrid / pure_rag（T033 语义兼容）/ deepseek-v4-pro（T041 用））+ apply_variant——settings 字段校验防拼写错误、llm_model 变化联动 reset_model_cache、graph_rag_enabled 变化联动图谱单例重置、prompt 覆盖同步到绑定了字符串快照的节点/服务模块（遍历已加载项目子模块 setattr）
+- `evals/metrics.py`：two_proportion_z_test（池化比例双比例 z 检验，|z|>1.96 ≈ p<0.05 粗判；零样本/零方差保守分支）+ EvalReport 增 tool_scored_passed/total（z 检验需复原样本量）
+- `evals/ab_test.py`（新建）：A/B 运行器——多变体分流（每变体 apply → 重建图 → thread 按变体隔离防 checkpoint 跨变体污染 → 跑全量 → aggregate）+ 组间对比（完成率/工具准确率差异 pp + z 检验显著性、耗时差、LLM token Prometheus 计数器前后差分）+ JSON/MD 双报告落盘 evals/reports/
+- `evals/test_suite.py` 兼容改造：--variant 统一走注册表（不再硬编码 hybrid/pure_rag，支持任意注册变体单跑）；抽出共享 build_eval_graph（test_suite/ab_test 共用）；run_case 加 thread_prefix 参数（默认行为不变）
+- `tests/evals/test_ab_framework.py`（新建 13 用例）：z 检验 5（显著/不显著/零方差/零样本/方向）/ 注册表完整性 / 未知变体 / settings 覆盖往返 / 非法字段拒绝 / prompt 覆盖同步消费方模块并还原 / compare_reports 结构 / token 差分 / 快照精确性
+
+**验证方式（真实 LLM 小规模 A/B，12 条/变体）**：
+- `uv run python -m evals.ab_test --variants baseline,pure_rag --limit 12 --name t040_smoke`：完成率 100.0% vs 91.7%（-8.3pp，不显著 z=1.022）；工具准确率 100% = 100%；耗时 8.8s vs 6.1s；token 31251 vs 26422；报告 JSON+MD 落盘（含各变体指标表 + 组间对比表）
+- `uv run python -m pytest -q` → 365 passed（原 352 + 新增 13）；ruff 全绿
+
+**问题与修正**：
+- token 差分首版把 Prometheus Counter 的 `_created` 样本（值=Unix 时间戳 ≈1.75e9）当 token 累加，baseline 差分出 35.7 亿——过滤 `sample.name.endswith("_created")` 修复，并加精确断言测试防回归
+- prompt 常量被节点 `from services.llm.prompts import X` 绑定为字符串快照，仅 setattr prompts 模块对已加载节点不生效——apply 时遍历已加载项目子模块（nodes/agents/services/tools/workflows 前缀）同步覆盖
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T040 A/B 实验框架（变体注册表 + z 检验显著性 + token 差分 + 双报告落盘）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|
