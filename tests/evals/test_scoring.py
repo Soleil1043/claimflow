@@ -8,8 +8,12 @@ from evals.schemas import EvalCase, EvalCategory
 
 def _case(**kwargs: object) -> EvalCase:
     """构造测试用例（默认只考核 must_include）。"""
-    base = {"id": "T-001", "category": EvalCategory.SIMPLE_FAQ, "user_input": "测试输入",
-            "must_include": ["4640"]}
+    base = {
+        "id": "T-001",
+        "category": EvalCategory.SIMPLE_FAQ,
+        "user_input": "测试输入",
+        "must_include": ["4640"],
+    }
     base.update(kwargs)  # type: ignore[arg-type]
     return EvalCase.model_validate(base)
 
