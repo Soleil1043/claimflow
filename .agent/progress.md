@@ -1080,3 +1080,30 @@
 | 编号 | 任务 | 问题 | 解决方案 | 状态 |
 |------|------|------|---------|------|
 | - | - | - | - | - |
+
+### [T041] A/B 实战实验（glm-5.3-flash 跨供应商对比）— 2026-08-27
+
+**操作**：
+- 变体系统跨供应商扩展（用户决策：对比组从 deepseek-v4-pro 切换为 glm-5.3-flash）：
+  - `app/core/config.py`：glm_api_base_url（默认 open.bigmodel.cn/api/paas/v4）/ glm_api_key 配置；.env.example 同步（GLM_API_KEY 只进本地 .env 不入 git）
+  - `evals/variants.py`：settings_overrides 值支持 `$字段名` 间接引用（Key 不进代码）；baseline 显式固定 DeepSeek 供应商（跨供应商切换后可还原）；glm-5.3-flash 变体（model+base_url+api_key 三覆盖）；模型/供应商/base_url/key 任一变化联动 reset_model_cache；间接引用空 Key 拒绝执行
+  - `tests/evals/test_ab_framework.py` +2（$ 间接引用与空引用拒绝 / 跨供应商变体注册）→ 全量 367 passed
+- 连通性验证：glm-5.3-flash 对话 + function calling（bind_tools 正确出 policy_query 调用并解析保单号参数）
+- 200 条全量 A/B（`--variants baseline,glm-5.3-flash --name t041_glm`）：baseline 组 ~95 分钟，glm 组受 30+ 次 429 限流拖慢至 ~6 小时（langchain 内建重试兜底零失败）
+- `.agent/decisions.md` D019：跨供应商选型结论
+- `evals/reports/t041_glm_20260827_082238.json/.md` + t041_run.log 存档
+
+**实验结果（各 200 条全量，四维）**：
+- 任务完成率：90.5%（181/200）vs 89.5%（179/200），-1.0pp，z=0.333 **不显著**
+- 工具调用准确率：96.3% vs 95.8%，-0.5pp，z=0.263 **不显著**；合规通过率 99.5% vs 100%，红线违规均 0
+- 耗时：21.2s vs 107.5s——glm 值含 429 限流退避，不可作纯推理速度解读；DeepSeek 全程零限流
+- token：1.76M vs 2.03M（+15.4%，glm 表述更冗长）；总成本估算 ≈¥3-6，预算 ≤¥10 达成
+- 失败分布：glm 21 条失败中 14 条与基线共同（判分词面历史问题 POL-* 聚簇），仅 7 条 glm 独有（基线也 5 条独有）——差异主因是 LLM 表述随机波动而非能力差距
+
+**结论（D019）**：质量维度统计等价，切换供应商无质量收益；glm 档位限流是实际运营约束 → 主链路维持 deepseek-v4-flash，glm-5.3-flash 注册为容灾备选变体（配置三行切换）。跨供应商可迁移性本身成为 T042 叙事亮点。
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T041 A/B 实战实验（glm-5.3-flash 跨供应商对比 + D019 选型结论）`
+
+<!-- 遇到的问题记录在此，方便回溯 -->

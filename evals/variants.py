@@ -29,7 +29,11 @@ log = get_logger(__name__)
 
 @dataclass(frozen=True)
 class VariantSpec:
-    """一个实验变体的完整定义。"""
+    """一个实验变体的完整定义。
+
+    settings_overrides 的值支持 `"$字段名"` 间接引用——apply 时从 settings 单例
+    读该字段当前值（跨供应商变体经此引用 glm_api_key 等独立配置，密钥不进代码）。
+    """
 
     name: str
     description: str
@@ -44,12 +48,17 @@ VARIANTS: dict[str, VariantSpec] = {
     "baseline": VariantSpec(
         name="baseline",
         description="基线：deepseek-v4-flash + 图谱混合召回（T027 基线口径）",
-        settings_overrides={"llm_model": "deepseek-v4-flash", "graph_rag_enabled": True},
+        settings_overrides={
+            "llm_model": "deepseek-v4-flash",
+            "llm_base_url": "https://api.deepseek.com",
+            "llm_api_key": "$llm_api_key",  # 还原为 .env 配置的 DeepSeek Key
+            "graph_rag_enabled": True,
+        },
     ),
     # T033 图谱对比语义（与历史 --variant 参数保持兼容）
     "hybrid": VariantSpec(
         name="hybrid",
-        description="混合召回（同 baseline，GraphRAG 开启）",
+        description="混合召回（GraphRAG 开启）",
         settings_overrides={"graph_rag_enabled": True},
     ),
     "pure_rag": VariantSpec(
@@ -63,6 +72,15 @@ VARIANTS: dict[str, VariantSpec] = {
         description="deepseek-v4-pro（推理更强，成本约 Flash 3 倍）",
         settings_overrides={"llm_model": "deepseek-v4-pro"},
     ),
+    "glm-5.3-flash": VariantSpec(
+        name="glm-5.3-flash",
+        description="glm-5.3-flash（智谱，跨供应商对比，OpenAI 兼容接口）",
+        settings_overrides={
+            "llm_model": "glm-5.3-flash",
+            "llm_base_url": "$glm_api_base_url",
+            "llm_api_key": "$glm_api_key",
+        },
+    ),
 }
 
 
@@ -70,7 +88,7 @@ def apply_variant(name: str) -> VariantSpec:
     """把变体配置覆盖真正生效（供 test_suite / ab_test 在构建图前调用）。
 
     直接改 settings 单例属性（评测进程生命周期内持久，直到下一个变体覆盖）；
-    按覆盖内容联动重置模型缓存与图谱单例。
+    按覆盖内容联动重置模型缓存与图谱单例。`$字段名` 值从 settings 解引用。
     """
     spec = VARIANTS.get(name)
     if spec is None:
@@ -80,9 +98,15 @@ def apply_variant(name: str) -> VariantSpec:
 
     if spec.settings_overrides:
         valid_fields = type(settings).model_fields
-        for key, value in spec.settings_overrides.items():
+        for key, raw in spec.settings_overrides.items():
             if key not in valid_fields:
                 msg = f"变体 {name} 覆盖了不存在的配置字段：{key}"
+                raise KeyError(msg)
+            value = (
+                getattr(settings, raw[1:]) if isinstance(raw, str) and raw.startswith("$") else raw
+            )
+            if isinstance(raw, str) and raw.startswith("$") and not value:
+                msg = f"变体 {name} 间接引用的配置字段 {raw[1:]} 为空（请在 .env 配置后重试）"
                 raise KeyError(msg)
             setattr(settings, key, value)
 
@@ -95,8 +119,12 @@ def apply_variant(name: str) -> VariantSpec:
                 raise KeyError(msg)
             _apply_prompt_override(key, value)
 
-    # 缓存联动重置（实测陷阱见模块 docstring）
-    if "llm_model" in spec.settings_overrides:
+    # 缓存联动重置（实测陷阱见模块 docstring）：
+    # 模型/供应商（base_url/key）任一变化都使 ChatOpenAI 缓存失效
+    provider_changed = bool(
+        {"llm_model", "llm_base_url", "llm_api_key"} & set(spec.settings_overrides)
+    )
+    if provider_changed:
         from services.llm.client import reset_model_cache
 
         reset_model_cache()

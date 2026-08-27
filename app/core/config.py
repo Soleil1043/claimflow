@@ -87,6 +87,12 @@ class Settings(BaseSettings):
     otel_endpoint: str = "http://localhost:4317"
     otel_sampling_ratio: float = 1.0
 
+    # ===== 跨供应商 A/B 变体（T041） =====
+    # GLM（智谱）OpenAI 兼容接口；供 evals/variants.py 的 glm-5.3-flash 变体经
+    # $ 字段间接引用（$glm_api_key / $glm_api_base_url）切换供应商
+    glm_api_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
+    glm_api_key: str = ""
+
     # ===== Embedding（BGE-M3，本地 sentence-transformers） =====
     embedding_model: str = "BAAI/bge-m3"
     embedding_device: str = "cpu"

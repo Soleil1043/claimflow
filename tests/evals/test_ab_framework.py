@@ -55,8 +55,8 @@ def test_z_test_direction() -> None:
 
 
 def test_registry_contains_key_variants() -> None:
-    """注册表含基线/图谱对比/Pro 模型变体。"""
-    for name in ("baseline", "hybrid", "pure_rag", "deepseek-v4-pro"):
+    """注册表含基线/图谱对比/跨供应商变体。"""
+    for name in ("baseline", "hybrid", "pure_rag", "deepseek-v4-pro", "glm-5.3-flash"):
         assert name in VARIANTS
         assert VARIANTS[name].description
 
@@ -68,22 +68,76 @@ def test_apply_unknown_variant_raises() -> None:
 
 def test_apply_variant_settings_override_roundtrip() -> None:
     """settings 覆盖生效并可还原（共享单例，测试必须恢复）。"""
-    original = settings.graph_rag_enabled
-    original_model = settings.llm_model
+    original = (
+        settings.graph_rag_enabled,
+        settings.llm_model,
+        settings.llm_base_url,
+        settings.llm_api_key,
+    )
     try:
         apply_variant("pure_rag")
         assert settings.graph_rag_enabled is False
         apply_variant("deepseek-v4-pro")
         assert settings.llm_model == "deepseek-v4-pro"
+        # baseline 现在显式固定供应商（跨供应商变体切换后可还原到 DeepSeek）
+        apply_variant("baseline")
+        assert settings.llm_model == "deepseek-v4-flash"
+        assert settings.llm_base_url == "https://api.deepseek.com"
     finally:
-        settings.graph_rag_enabled = original
-        settings.llm_model = original_model
+        (
+            settings.graph_rag_enabled,
+            settings.llm_model,
+            settings.llm_base_url,
+            settings.llm_api_key,
+        ) = original
         from services.llm.client import reset_model_cache
 
         reset_model_cache()
         from services.rag import graph_retriever
 
         graph_retriever.reset_knowledge_graph()
+
+
+def test_apply_variant_env_indirection_and_empty_guard() -> None:
+    """$ 字段间接引用：从 settings 解引用生效；引用空字段时拒绝（防裸奔跑评测）。"""
+    original = (
+        settings.llm_model,
+        settings.llm_base_url,
+        settings.llm_api_key,
+        settings.glm_api_key,
+    )
+    VARIANTS["_env_test"] = VariantSpec(
+        name="_env_test",
+        description="测试 $ 间接引用",
+        settings_overrides={"llm_model": "glm-5.3-flash", "llm_api_key": "$glm_api_key"},
+    )
+    try:
+        settings.glm_api_key = "test-glm-key-123"
+        apply_variant("_env_test")
+        assert settings.llm_model == "glm-5.3-flash"
+        assert settings.llm_api_key == "test-glm-key-123"
+
+        settings.glm_api_key = ""  # 空引用 → 拒绝并保持未应用状态
+        with pytest.raises(KeyError, match="为空"):
+            apply_variant("_env_test")
+    finally:
+        (
+            settings.llm_model,
+            settings.llm_base_url,
+            settings.llm_api_key,
+            settings.glm_api_key,
+        ) = original
+        del VARIANTS["_env_test"]
+        from services.llm.client import reset_model_cache
+
+        reset_model_cache()
+
+
+def test_registry_contains_cross_vendor_variant() -> None:
+    """跨供应商变体（T041 用户切换：deepseek-v4-pro → glm-5.3-flash）已注册。"""
+    spec = VARIANTS["glm-5.3-flash"]
+    assert spec.settings_overrides["llm_model"] == "glm-5.3-flash"
+    assert spec.settings_overrides["llm_api_key"] == "$glm_api_key"
 
 
 def test_apply_variant_rejects_invalid_setting_field() -> None:

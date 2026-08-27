@@ -1,0 +1,2139 @@
+{
+  "experiment": {
+    "name": "t041_glm",
+    "dataset": "main",
+    "dataset_version": "1.0.0",
+    "category": null,
+    "sample_size": 200,
+    "variants": [
+      "baseline",
+      "glm-5.3-flash"
+    ],
+    "generated_at": "2026-08-27 08:22:38",
+    "variant_summaries": {
+      "baseline": {
+        "total": 200,
+        "passed": 181,
+        "task_completion_rate": 0.905,
+        "tool_accuracy": 0.9631578947368421,
+        "tool_scored_passed": 183,
+        "tool_scored_total": 190,
+        "compliance_pass_rate": 0.995,
+        "human_precision": 0.0,
+        "avg_duration_s": 21.201,
+        "avg_vector_hits": 2.02,
+        "avg_graph_hits": 1.01,
+        "graph_coverage": 0.245,
+        "by_category": {
+          "simple_faq": {
+            "total": 30.0,
+            "passed": 28.0,
+            "rate": 0.9333333333333333
+          },
+          "single_domain": {
+            "total": 60.0,
+            "passed": 49.0,
+            "rate": 0.8166666666666667
+          },
+          "multi_step": {
+            "total": 80.0,
+            "passed": 76.0,
+            "rate": 0.95
+          },
+          "edge_case": {
+            "total": 30.0,
+            "passed": 28.0,
+            "rate": 0.9333333333333333
+          }
+        },
+        "total_tokens": 1759953,
+        "tokens_by_model": {
+          "deepseek-v4-flash": 1759953
+        },
+        "description": "基线：deepseek-v4-flash + 图谱混合召回（T027 基线口径）"
+      },
+      "glm-5.3-flash": {
+        "total": 200,
+        "passed": 179,
+        "task_completion_rate": 0.895,
+        "tool_accuracy": 0.9578947368421052,
+        "tool_scored_passed": 182,
+        "tool_scored_total": 190,
+        "compliance_pass_rate": 1.0,
+        "human_precision": 0.0,
+        "avg_duration_s": 107.534,
+        "avg_vector_hits": 2.06,
+        "avg_graph_hits": 1.04,
+        "graph_coverage": 0.235,
+        "by_category": {
+          "simple_faq": {
+            "total": 30.0,
+            "passed": 28.0,
+            "rate": 0.9333333333333333
+          },
+          "single_domain": {
+            "total": 60.0,
+            "passed": 48.0,
+            "rate": 0.8
+          },
+          "multi_step": {
+            "total": 80.0,
+            "passed": 77.0,
+            "rate": 0.9625
+          },
+          "edge_case": {
+            "total": 30.0,
+            "passed": 26.0,
+            "rate": 0.8666666666666667
+          }
+        },
+        "total_tokens": 2030783,
+        "tokens_by_model": {
+          "glm-5.3-flash": 2030783
+        },
+        "description": "glm-5.3-flash（智谱，跨供应商对比，OpenAI 兼容接口）"
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "baseline": "baseline",
+      "variant": "glm-5.3-flash",
+      "task_completion": {
+        "baseline": 0.905,
+        "variant": 0.895,
+        "delta_pp": -1.0,
+        "z": 0.333,
+        "significant_p05": false
+      },
+      "tool_accuracy": {
+        "baseline": 0.9631578947368421,
+        "variant": 0.9578947368421052,
+        "delta_pp": -0.5,
+        "z": 0.263,
+        "significant_p05": false
+      },
+      "avg_duration_s": {
+        "baseline": 21.201,
+        "variant": 107.534,
+        "delta_s": 86.33
+      },
+      "llm_tokens": {
+        "baseline": {
+          "deepseek-v4-flash": 1759953
+        },
+        "variant": {
+          "glm-5.3-flash": 2030783
+        },
+        "total_baseline": 1759953,
+        "total_variant": 2030783
+      }
+    }
+  ],
+  "case_results": {
+    "baseline": [
+      {
+        "case_id": "FAQ-001",
+        "passed": true,
+        "duration_s": 21.184
+      },
+      {
+        "case_id": "FAQ-002",
+        "passed": true,
+        "duration_s": 5.648
+      },
+      {
+        "case_id": "FAQ-003",
+        "passed": true,
+        "duration_s": 4.438
+      },
+      {
+        "case_id": "FAQ-004",
+        "passed": true,
+        "duration_s": 8.818
+      },
+      {
+        "case_id": "FAQ-005",
+        "passed": true,
+        "duration_s": 8.068
+      },
+      {
+        "case_id": "FAQ-006",
+        "passed": true,
+        "duration_s": 4.223
+      },
+      {
+        "case_id": "FAQ-007",
+        "passed": true,
+        "duration_s": 7.424
+      },
+      {
+        "case_id": "FAQ-008",
+        "passed": true,
+        "duration_s": 9.045
+      },
+      {
+        "case_id": "FAQ-009",
+        "passed": true,
+        "duration_s": 7.194
+      },
+      {
+        "case_id": "FAQ-010",
+        "passed": true,
+        "duration_s": 9.166
+      },
+      {
+        "case_id": "FAQ-011",
+        "passed": true,
+        "duration_s": 7.544
+      },
+      {
+        "case_id": "FAQ-012",
+        "passed": true,
+        "duration_s": 4.99
+      },
+      {
+        "case_id": "FAQ-013",
+        "passed": true,
+        "duration_s": 5.354
+      },
+      {
+        "case_id": "FAQ-014",
+        "passed": true,
+        "duration_s": 5.062
+      },
+      {
+        "case_id": "FAQ-015",
+        "passed": true,
+        "duration_s": 5.551
+      },
+      {
+        "case_id": "FAQ-016",
+        "passed": true,
+        "duration_s": 22.593
+      },
+      {
+        "case_id": "FAQ-017",
+        "passed": true,
+        "duration_s": 4.644
+      },
+      {
+        "case_id": "FAQ-018",
+        "passed": true,
+        "duration_s": 4.561
+      },
+      {
+        "case_id": "FAQ-019",
+        "passed": true,
+        "duration_s": 4.549
+      },
+      {
+        "case_id": "FAQ-020",
+        "passed": true,
+        "duration_s": 5.924
+      },
+      {
+        "case_id": "FAQ-021",
+        "passed": false,
+        "duration_s": 6.385
+      },
+      {
+        "case_id": "FAQ-022",
+        "passed": true,
+        "duration_s": 6.738
+      },
+      {
+        "case_id": "FAQ-023",
+        "passed": false,
+        "duration_s": 8.935
+      },
+      {
+        "case_id": "FAQ-024",
+        "passed": true,
+        "duration_s": 6.007
+      },
+      {
+        "case_id": "FAQ-025",
+        "passed": true,
+        "duration_s": 6.178
+      },
+      {
+        "case_id": "FAQ-026",
+        "passed": true,
+        "duration_s": 4.926
+      },
+      {
+        "case_id": "FAQ-027",
+        "passed": true,
+        "duration_s": 5.52
+      },
+      {
+        "case_id": "FAQ-028",
+        "passed": true,
+        "duration_s": 7.264
+      },
+      {
+        "case_id": "FAQ-029",
+        "passed": true,
+        "duration_s": 7.269
+      },
+      {
+        "case_id": "FAQ-030",
+        "passed": true,
+        "duration_s": 6.78
+      },
+      {
+        "case_id": "POL-001",
+        "passed": true,
+        "duration_s": 5.558
+      },
+      {
+        "case_id": "POL-002",
+        "passed": true,
+        "duration_s": 5.545
+      },
+      {
+        "case_id": "POL-003",
+        "passed": true,
+        "duration_s": 5.207
+      },
+      {
+        "case_id": "POL-004",
+        "passed": true,
+        "duration_s": 6.406
+      },
+      {
+        "case_id": "POL-005",
+        "passed": false,
+        "duration_s": 11.564
+      },
+      {
+        "case_id": "POL-006",
+        "passed": true,
+        "duration_s": 6.583
+      },
+      {
+        "case_id": "POL-007",
+        "passed": true,
+        "duration_s": 9.708
+      },
+      {
+        "case_id": "POL-008",
+        "passed": false,
+        "duration_s": 7.044
+      },
+      {
+        "case_id": "POL-009",
+        "passed": true,
+        "duration_s": 6.679
+      },
+      {
+        "case_id": "POL-010",
+        "passed": false,
+        "duration_s": 9.861
+      },
+      {
+        "case_id": "POL-011",
+        "passed": false,
+        "duration_s": 7.115
+      },
+      {
+        "case_id": "POL-012",
+        "passed": true,
+        "duration_s": 11.399
+      },
+      {
+        "case_id": "POL-013",
+        "passed": true,
+        "duration_s": 56.184
+      },
+      {
+        "case_id": "POL-014",
+        "passed": false,
+        "duration_s": 7.016
+      },
+      {
+        "case_id": "POL-015",
+        "passed": true,
+        "duration_s": 7.553
+      },
+      {
+        "case_id": "POL-016",
+        "passed": true,
+        "duration_s": 4.681
+      },
+      {
+        "case_id": "POL-017",
+        "passed": false,
+        "duration_s": 8.145
+      },
+      {
+        "case_id": "POL-018",
+        "passed": true,
+        "duration_s": 13.937
+      },
+      {
+        "case_id": "POL-019",
+        "passed": false,
+        "duration_s": 5.5
+      },
+      {
+        "case_id": "POL-020",
+        "passed": false,
+        "duration_s": 9.095
+      },
+      {
+        "case_id": "MED-001",
+        "passed": true,
+        "duration_s": 8.516
+      },
+      {
+        "case_id": "MED-002",
+        "passed": true,
+        "duration_s": 6.731
+      },
+      {
+        "case_id": "MED-003",
+        "passed": true,
+        "duration_s": 5.119
+      },
+      {
+        "case_id": "MED-004",
+        "passed": true,
+        "duration_s": 16.15
+      },
+      {
+        "case_id": "MED-005",
+        "passed": true,
+        "duration_s": 4.791
+      },
+      {
+        "case_id": "MED-006",
+        "passed": true,
+        "duration_s": 4.7
+      },
+      {
+        "case_id": "MED-007",
+        "passed": true,
+        "duration_s": 4.52
+      },
+      {
+        "case_id": "MED-008",
+        "passed": true,
+        "duration_s": 5.037
+      },
+      {
+        "case_id": "MED-009",
+        "passed": true,
+        "duration_s": 5.815
+      },
+      {
+        "case_id": "MED-010",
+        "passed": true,
+        "duration_s": 4.487
+      },
+      {
+        "case_id": "MED-011",
+        "passed": true,
+        "duration_s": 8.911
+      },
+      {
+        "case_id": "MED-012",
+        "passed": true,
+        "duration_s": 6.561
+      },
+      {
+        "case_id": "MED-013",
+        "passed": true,
+        "duration_s": 16.749
+      },
+      {
+        "case_id": "MED-014",
+        "passed": true,
+        "duration_s": 7.556
+      },
+      {
+        "case_id": "MED-015",
+        "passed": false,
+        "duration_s": 6.254
+      },
+      {
+        "case_id": "MED-016",
+        "passed": true,
+        "duration_s": 5.55
+      },
+      {
+        "case_id": "MED-017",
+        "passed": true,
+        "duration_s": 5.905
+      },
+      {
+        "case_id": "MED-018",
+        "passed": true,
+        "duration_s": 4.44
+      },
+      {
+        "case_id": "MED-019",
+        "passed": true,
+        "duration_s": 5.202
+      },
+      {
+        "case_id": "MED-020",
+        "passed": true,
+        "duration_s": 5.103
+      },
+      {
+        "case_id": "CMP-001",
+        "passed": true,
+        "duration_s": 4.844
+      },
+      {
+        "case_id": "CMP-002",
+        "passed": true,
+        "duration_s": 15.412
+      },
+      {
+        "case_id": "CMP-003",
+        "passed": true,
+        "duration_s": 7.263
+      },
+      {
+        "case_id": "CMP-004",
+        "passed": true,
+        "duration_s": 10.491
+      },
+      {
+        "case_id": "CMP-005",
+        "passed": true,
+        "duration_s": 6.598
+      },
+      {
+        "case_id": "CMP-006",
+        "passed": true,
+        "duration_s": 7.023
+      },
+      {
+        "case_id": "CMP-007",
+        "passed": true,
+        "duration_s": 18.265
+      },
+      {
+        "case_id": "CMP-008",
+        "passed": false,
+        "duration_s": 11.066
+      },
+      {
+        "case_id": "CMP-009",
+        "passed": true,
+        "duration_s": 6.543
+      },
+      {
+        "case_id": "CMP-010",
+        "passed": false,
+        "duration_s": 10.856
+      },
+      {
+        "case_id": "CMP-011",
+        "passed": true,
+        "duration_s": 6.706
+      },
+      {
+        "case_id": "CMP-012",
+        "passed": true,
+        "duration_s": 14.364
+      },
+      {
+        "case_id": "CMP-013",
+        "passed": true,
+        "duration_s": 5.034
+      },
+      {
+        "case_id": "CMP-014",
+        "passed": true,
+        "duration_s": 5.19
+      },
+      {
+        "case_id": "CMP-015",
+        "passed": true,
+        "duration_s": 7.858
+      },
+      {
+        "case_id": "CMP-016",
+        "passed": true,
+        "duration_s": 33.134
+      },
+      {
+        "case_id": "CMP-017",
+        "passed": true,
+        "duration_s": 11.349
+      },
+      {
+        "case_id": "CMP-018",
+        "passed": true,
+        "duration_s": 4.36
+      },
+      {
+        "case_id": "CMP-019",
+        "passed": true,
+        "duration_s": 6.052
+      },
+      {
+        "case_id": "CMP-020",
+        "passed": true,
+        "duration_s": 5.118
+      },
+      {
+        "case_id": "MS-001",
+        "passed": true,
+        "duration_s": 33.669
+      },
+      {
+        "case_id": "MS-002",
+        "passed": true,
+        "duration_s": 80.833
+      },
+      {
+        "case_id": "MS-003",
+        "passed": true,
+        "duration_s": 38.22
+      },
+      {
+        "case_id": "MS-004",
+        "passed": true,
+        "duration_s": 79.046
+      },
+      {
+        "case_id": "MS-005",
+        "passed": true,
+        "duration_s": 57.929
+      },
+      {
+        "case_id": "MS-006",
+        "passed": true,
+        "duration_s": 33.757
+      },
+      {
+        "case_id": "MS-007",
+        "passed": true,
+        "duration_s": 44.324
+      },
+      {
+        "case_id": "MS-008",
+        "passed": true,
+        "duration_s": 40.659
+      },
+      {
+        "case_id": "MS-009",
+        "passed": true,
+        "duration_s": 42.128
+      },
+      {
+        "case_id": "MS-010",
+        "passed": true,
+        "duration_s": 43.102
+      },
+      {
+        "case_id": "MS-011",
+        "passed": false,
+        "duration_s": 118.661
+      },
+      {
+        "case_id": "MS-012",
+        "passed": true,
+        "duration_s": 51.122
+      },
+      {
+        "case_id": "MS-013",
+        "passed": true,
+        "duration_s": 65.835
+      },
+      {
+        "case_id": "MS-014",
+        "passed": true,
+        "duration_s": 37.807
+      },
+      {
+        "case_id": "MS-015",
+        "passed": true,
+        "duration_s": 35.459
+      },
+      {
+        "case_id": "MS-016",
+        "passed": true,
+        "duration_s": 39.307
+      },
+      {
+        "case_id": "MS-017",
+        "passed": true,
+        "duration_s": 41.997
+      },
+      {
+        "case_id": "MS-018",
+        "passed": true,
+        "duration_s": 56.896
+      },
+      {
+        "case_id": "MS-019",
+        "passed": true,
+        "duration_s": 45.024
+      },
+      {
+        "case_id": "MS-020",
+        "passed": true,
+        "duration_s": 38.635
+      },
+      {
+        "case_id": "MS-021",
+        "passed": true,
+        "duration_s": 42.44
+      },
+      {
+        "case_id": "MS-022",
+        "passed": true,
+        "duration_s": 46.012
+      },
+      {
+        "case_id": "MS-023",
+        "passed": true,
+        "duration_s": 38.957
+      },
+      {
+        "case_id": "MS-024",
+        "passed": true,
+        "duration_s": 46.044
+      },
+      {
+        "case_id": "MS-025",
+        "passed": true,
+        "duration_s": 41.619
+      },
+      {
+        "case_id": "MS-026",
+        "passed": true,
+        "duration_s": 51.158
+      },
+      {
+        "case_id": "MS-027",
+        "passed": true,
+        "duration_s": 42.085
+      },
+      {
+        "case_id": "MS-028",
+        "passed": true,
+        "duration_s": 42.597
+      },
+      {
+        "case_id": "MS-029",
+        "passed": true,
+        "duration_s": 10.95
+      },
+      {
+        "case_id": "MS-030",
+        "passed": true,
+        "duration_s": 6.877
+      },
+      {
+        "case_id": "MS-031",
+        "passed": true,
+        "duration_s": 11.797
+      },
+      {
+        "case_id": "MS-032",
+        "passed": true,
+        "duration_s": 9.722
+      },
+      {
+        "case_id": "MS-033",
+        "passed": true,
+        "duration_s": 12.011
+      },
+      {
+        "case_id": "MS-034",
+        "passed": true,
+        "duration_s": 5.826
+      },
+      {
+        "case_id": "MS-035",
+        "passed": true,
+        "duration_s": 11.738
+      },
+      {
+        "case_id": "MS-036",
+        "passed": true,
+        "duration_s": 6.065
+      },
+      {
+        "case_id": "MS-037",
+        "passed": true,
+        "duration_s": 6.662
+      },
+      {
+        "case_id": "MS-038",
+        "passed": true,
+        "duration_s": 11.4
+      },
+      {
+        "case_id": "MS-039",
+        "passed": true,
+        "duration_s": 7.123
+      },
+      {
+        "case_id": "MS-040",
+        "passed": true,
+        "duration_s": 6.93
+      },
+      {
+        "case_id": "MS-041",
+        "passed": true,
+        "duration_s": 5.765
+      },
+      {
+        "case_id": "MS-042",
+        "passed": true,
+        "duration_s": 7.666
+      },
+      {
+        "case_id": "MS-043",
+        "passed": true,
+        "duration_s": 8.965
+      },
+      {
+        "case_id": "MS-044",
+        "passed": true,
+        "duration_s": 7.065
+      },
+      {
+        "case_id": "MS-045",
+        "passed": true,
+        "duration_s": 64.038
+      },
+      {
+        "case_id": "MS-046",
+        "passed": true,
+        "duration_s": 64.431
+      },
+      {
+        "case_id": "MS-047",
+        "passed": true,
+        "duration_s": 94.747
+      },
+      {
+        "case_id": "MS-048",
+        "passed": true,
+        "duration_s": 52.729
+      },
+      {
+        "case_id": "MS-049",
+        "passed": true,
+        "duration_s": 51.812
+      },
+      {
+        "case_id": "MS-050",
+        "passed": true,
+        "duration_s": 47.602
+      },
+      {
+        "case_id": "MS-051",
+        "passed": true,
+        "duration_s": 65.772
+      },
+      {
+        "case_id": "MS-052",
+        "passed": true,
+        "duration_s": 47.148
+      },
+      {
+        "case_id": "MS-053",
+        "passed": true,
+        "duration_s": 48.173
+      },
+      {
+        "case_id": "MS-054",
+        "passed": true,
+        "duration_s": 72.957
+      },
+      {
+        "case_id": "MS-055",
+        "passed": true,
+        "duration_s": 43.677
+      },
+      {
+        "case_id": "MS-056",
+        "passed": true,
+        "duration_s": 46.237
+      },
+      {
+        "case_id": "MS-057",
+        "passed": false,
+        "duration_s": 8.321
+      },
+      {
+        "case_id": "MS-058",
+        "passed": false,
+        "duration_s": 24.447
+      },
+      {
+        "case_id": "MS-059",
+        "passed": true,
+        "duration_s": 49.266
+      },
+      {
+        "case_id": "MS-060",
+        "passed": true,
+        "duration_s": 55.393
+      },
+      {
+        "case_id": "MS-061",
+        "passed": true,
+        "duration_s": 7.769
+      },
+      {
+        "case_id": "MS-062",
+        "passed": true,
+        "duration_s": 8.103
+      },
+      {
+        "case_id": "MS-063",
+        "passed": true,
+        "duration_s": 69.819
+      },
+      {
+        "case_id": "MS-064",
+        "passed": true,
+        "duration_s": 16.743
+      },
+      {
+        "case_id": "MS-065",
+        "passed": true,
+        "duration_s": 45.434
+      },
+      {
+        "case_id": "MS-066",
+        "passed": true,
+        "duration_s": 81.806
+      },
+      {
+        "case_id": "MS-067",
+        "passed": true,
+        "duration_s": 7.942
+      },
+      {
+        "case_id": "MS-068",
+        "passed": true,
+        "duration_s": 11.551
+      },
+      {
+        "case_id": "MS-069",
+        "passed": true,
+        "duration_s": 11.056
+      },
+      {
+        "case_id": "MS-070",
+        "passed": true,
+        "duration_s": 9.759
+      },
+      {
+        "case_id": "MS-071",
+        "passed": true,
+        "duration_s": 9.913
+      },
+      {
+        "case_id": "MS-072",
+        "passed": true,
+        "duration_s": 4.86
+      },
+      {
+        "case_id": "MS-073",
+        "passed": true,
+        "duration_s": 25.307
+      },
+      {
+        "case_id": "MS-074",
+        "passed": false,
+        "duration_s": 37.435
+      },
+      {
+        "case_id": "MS-075",
+        "passed": true,
+        "duration_s": 5.664
+      },
+      {
+        "case_id": "MS-076",
+        "passed": true,
+        "duration_s": 16.257
+      },
+      {
+        "case_id": "MS-077",
+        "passed": true,
+        "duration_s": 8.829
+      },
+      {
+        "case_id": "MS-078",
+        "passed": true,
+        "duration_s": 34.833
+      },
+      {
+        "case_id": "MS-079",
+        "passed": true,
+        "duration_s": 65.39
+      },
+      {
+        "case_id": "MS-080",
+        "passed": true,
+        "duration_s": 55.131
+      },
+      {
+        "case_id": "EDGE-001",
+        "passed": true,
+        "duration_s": 19.875
+      },
+      {
+        "case_id": "EDGE-002",
+        "passed": false,
+        "duration_s": 5.633
+      },
+      {
+        "case_id": "EDGE-003",
+        "passed": true,
+        "duration_s": 11.59
+      },
+      {
+        "case_id": "EDGE-004",
+        "passed": true,
+        "duration_s": 11.063
+      },
+      {
+        "case_id": "EDGE-005",
+        "passed": true,
+        "duration_s": 101.261
+      },
+      {
+        "case_id": "EDGE-006",
+        "passed": true,
+        "duration_s": 73.512
+      },
+      {
+        "case_id": "EDGE-007",
+        "passed": true,
+        "duration_s": 7.793
+      },
+      {
+        "case_id": "EDGE-008",
+        "passed": true,
+        "duration_s": 5.24
+      },
+      {
+        "case_id": "EDGE-009",
+        "passed": true,
+        "duration_s": 25.535
+      },
+      {
+        "case_id": "EDGE-010",
+        "passed": true,
+        "duration_s": 14.431
+      },
+      {
+        "case_id": "EDGE-011",
+        "passed": true,
+        "duration_s": 49.728
+      },
+      {
+        "case_id": "EDGE-012",
+        "passed": true,
+        "duration_s": 13.622
+      },
+      {
+        "case_id": "EDGE-013",
+        "passed": true,
+        "duration_s": 5.536
+      },
+      {
+        "case_id": "EDGE-014",
+        "passed": true,
+        "duration_s": 26.116
+      },
+      {
+        "case_id": "EDGE-015",
+        "passed": true,
+        "duration_s": 27.615
+      },
+      {
+        "case_id": "EDGE-016",
+        "passed": true,
+        "duration_s": 5.129
+      },
+      {
+        "case_id": "EDGE-017",
+        "passed": false,
+        "duration_s": 6.622
+      },
+      {
+        "case_id": "EDGE-018",
+        "passed": true,
+        "duration_s": 5.408
+      },
+      {
+        "case_id": "EDGE-019",
+        "passed": true,
+        "duration_s": 6.023
+      },
+      {
+        "case_id": "EDGE-020",
+        "passed": true,
+        "duration_s": 9.654
+      },
+      {
+        "case_id": "EDGE-021",
+        "passed": true,
+        "duration_s": 6.201
+      },
+      {
+        "case_id": "EDGE-022",
+        "passed": true,
+        "duration_s": 9.182
+      },
+      {
+        "case_id": "EDGE-023",
+        "passed": true,
+        "duration_s": 7.729
+      },
+      {
+        "case_id": "EDGE-024",
+        "passed": true,
+        "duration_s": 6.944
+      },
+      {
+        "case_id": "EDGE-025",
+        "passed": true,
+        "duration_s": 5.423
+      },
+      {
+        "case_id": "EDGE-026",
+        "passed": true,
+        "duration_s": 7.975
+      },
+      {
+        "case_id": "EDGE-027",
+        "passed": true,
+        "duration_s": 5.341
+      },
+      {
+        "case_id": "EDGE-028",
+        "passed": true,
+        "duration_s": 35.278
+      },
+      {
+        "case_id": "EDGE-029",
+        "passed": true,
+        "duration_s": 73.386
+      },
+      {
+        "case_id": "EDGE-030",
+        "passed": true,
+        "duration_s": 6.675
+      }
+    ],
+    "glm-5.3-flash": [
+      {
+        "case_id": "FAQ-001",
+        "passed": true,
+        "duration_s": 48.838
+      },
+      {
+        "case_id": "FAQ-002",
+        "passed": true,
+        "duration_s": 34.238
+      },
+      {
+        "case_id": "FAQ-003",
+        "passed": true,
+        "duration_s": 41.852
+      },
+      {
+        "case_id": "FAQ-004",
+        "passed": true,
+        "duration_s": 30.098
+      },
+      {
+        "case_id": "FAQ-005",
+        "passed": true,
+        "duration_s": 40.022
+      },
+      {
+        "case_id": "FAQ-006",
+        "passed": true,
+        "duration_s": 93.733
+      },
+      {
+        "case_id": "FAQ-007",
+        "passed": true,
+        "duration_s": 36.741
+      },
+      {
+        "case_id": "FAQ-008",
+        "passed": true,
+        "duration_s": 40.909
+      },
+      {
+        "case_id": "FAQ-009",
+        "passed": true,
+        "duration_s": 40.46
+      },
+      {
+        "case_id": "FAQ-010",
+        "passed": true,
+        "duration_s": 29.132
+      },
+      {
+        "case_id": "FAQ-011",
+        "passed": true,
+        "duration_s": 51.923
+      },
+      {
+        "case_id": "FAQ-012",
+        "passed": true,
+        "duration_s": 31.561
+      },
+      {
+        "case_id": "FAQ-013",
+        "passed": true,
+        "duration_s": 23.221
+      },
+      {
+        "case_id": "FAQ-014",
+        "passed": true,
+        "duration_s": 126.89
+      },
+      {
+        "case_id": "FAQ-015",
+        "passed": true,
+        "duration_s": 60.521
+      },
+      {
+        "case_id": "FAQ-016",
+        "passed": true,
+        "duration_s": 179.573
+      },
+      {
+        "case_id": "FAQ-017",
+        "passed": true,
+        "duration_s": 114.147
+      },
+      {
+        "case_id": "FAQ-018",
+        "passed": true,
+        "duration_s": 23.325
+      },
+      {
+        "case_id": "FAQ-019",
+        "passed": true,
+        "duration_s": 75.637
+      },
+      {
+        "case_id": "FAQ-020",
+        "passed": true,
+        "duration_s": 25.26
+      },
+      {
+        "case_id": "FAQ-021",
+        "passed": false,
+        "duration_s": 41.823
+      },
+      {
+        "case_id": "FAQ-022",
+        "passed": true,
+        "duration_s": 52.594
+      },
+      {
+        "case_id": "FAQ-023",
+        "passed": false,
+        "duration_s": 61.279
+      },
+      {
+        "case_id": "FAQ-024",
+        "passed": true,
+        "duration_s": 44.454
+      },
+      {
+        "case_id": "FAQ-025",
+        "passed": true,
+        "duration_s": 44.633
+      },
+      {
+        "case_id": "FAQ-026",
+        "passed": true,
+        "duration_s": 47.75
+      },
+      {
+        "case_id": "FAQ-027",
+        "passed": true,
+        "duration_s": 35.492
+      },
+      {
+        "case_id": "FAQ-028",
+        "passed": true,
+        "duration_s": 29.956
+      },
+      {
+        "case_id": "FAQ-029",
+        "passed": true,
+        "duration_s": 222.895
+      },
+      {
+        "case_id": "FAQ-030",
+        "passed": true,
+        "duration_s": 35.183
+      },
+      {
+        "case_id": "POL-001",
+        "passed": true,
+        "duration_s": 65.67
+      },
+      {
+        "case_id": "POL-002",
+        "passed": true,
+        "duration_s": 44.406
+      },
+      {
+        "case_id": "POL-003",
+        "passed": true,
+        "duration_s": 31.742
+      },
+      {
+        "case_id": "POL-004",
+        "passed": true,
+        "duration_s": 43.533
+      },
+      {
+        "case_id": "POL-005",
+        "passed": false,
+        "duration_s": 57.566
+      },
+      {
+        "case_id": "POL-006",
+        "passed": false,
+        "duration_s": 56.656
+      },
+      {
+        "case_id": "POL-007",
+        "passed": true,
+        "duration_s": 71.549
+      },
+      {
+        "case_id": "POL-008",
+        "passed": false,
+        "duration_s": 55.236
+      },
+      {
+        "case_id": "POL-009",
+        "passed": true,
+        "duration_s": 53.586
+      },
+      {
+        "case_id": "POL-010",
+        "passed": false,
+        "duration_s": 166.32
+      },
+      {
+        "case_id": "POL-011",
+        "passed": false,
+        "duration_s": 48.872
+      },
+      {
+        "case_id": "POL-012",
+        "passed": true,
+        "duration_s": 59.653
+      },
+      {
+        "case_id": "POL-013",
+        "passed": true,
+        "duration_s": 133.294
+      },
+      {
+        "case_id": "POL-014",
+        "passed": false,
+        "duration_s": 81.259
+      },
+      {
+        "case_id": "POL-015",
+        "passed": true,
+        "duration_s": 47.377
+      },
+      {
+        "case_id": "POL-016",
+        "passed": true,
+        "duration_s": 55.936
+      },
+      {
+        "case_id": "POL-017",
+        "passed": false,
+        "duration_s": 179.426
+      },
+      {
+        "case_id": "POL-018",
+        "passed": false,
+        "duration_s": 65.805
+      },
+      {
+        "case_id": "POL-019",
+        "passed": false,
+        "duration_s": 37.268
+      },
+      {
+        "case_id": "POL-020",
+        "passed": false,
+        "duration_s": 46.862
+      },
+      {
+        "case_id": "MED-001",
+        "passed": true,
+        "duration_s": 48.906
+      },
+      {
+        "case_id": "MED-002",
+        "passed": true,
+        "duration_s": 56.197
+      },
+      {
+        "case_id": "MED-003",
+        "passed": true,
+        "duration_s": 67.619
+      },
+      {
+        "case_id": "MED-004",
+        "passed": true,
+        "duration_s": 56.45
+      },
+      {
+        "case_id": "MED-005",
+        "passed": true,
+        "duration_s": 45.634
+      },
+      {
+        "case_id": "MED-006",
+        "passed": true,
+        "duration_s": 45.673
+      },
+      {
+        "case_id": "MED-007",
+        "passed": true,
+        "duration_s": 42.077
+      },
+      {
+        "case_id": "MED-008",
+        "passed": true,
+        "duration_s": 47.064
+      },
+      {
+        "case_id": "MED-009",
+        "passed": true,
+        "duration_s": 45.116
+      },
+      {
+        "case_id": "MED-010",
+        "passed": true,
+        "duration_s": 57.307
+      },
+      {
+        "case_id": "MED-011",
+        "passed": true,
+        "duration_s": 62.627
+      },
+      {
+        "case_id": "MED-012",
+        "passed": true,
+        "duration_s": 37.044
+      },
+      {
+        "case_id": "MED-013",
+        "passed": true,
+        "duration_s": 41.728
+      },
+      {
+        "case_id": "MED-014",
+        "passed": true,
+        "duration_s": 40.487
+      },
+      {
+        "case_id": "MED-015",
+        "passed": true,
+        "duration_s": 112.972
+      },
+      {
+        "case_id": "MED-016",
+        "passed": true,
+        "duration_s": 44.551
+      },
+      {
+        "case_id": "MED-017",
+        "passed": true,
+        "duration_s": 46.973
+      },
+      {
+        "case_id": "MED-018",
+        "passed": true,
+        "duration_s": 45.365
+      },
+      {
+        "case_id": "MED-019",
+        "passed": true,
+        "duration_s": 55.091
+      },
+      {
+        "case_id": "MED-020",
+        "passed": true,
+        "duration_s": 28.252
+      },
+      {
+        "case_id": "CMP-001",
+        "passed": false,
+        "duration_s": 58.15
+      },
+      {
+        "case_id": "CMP-002",
+        "passed": true,
+        "duration_s": 80.809
+      },
+      {
+        "case_id": "CMP-003",
+        "passed": true,
+        "duration_s": 62.456
+      },
+      {
+        "case_id": "CMP-004",
+        "passed": true,
+        "duration_s": 162.631
+      },
+      {
+        "case_id": "CMP-005",
+        "passed": true,
+        "duration_s": 46.271
+      },
+      {
+        "case_id": "CMP-006",
+        "passed": true,
+        "duration_s": 72.287
+      },
+      {
+        "case_id": "CMP-007",
+        "passed": true,
+        "duration_s": 113.37
+      },
+      {
+        "case_id": "CMP-008",
+        "passed": true,
+        "duration_s": 53.266
+      },
+      {
+        "case_id": "CMP-009",
+        "passed": true,
+        "duration_s": 192.504
+      },
+      {
+        "case_id": "CMP-010",
+        "passed": false,
+        "duration_s": 72.101
+      },
+      {
+        "case_id": "CMP-011",
+        "passed": true,
+        "duration_s": 68.264
+      },
+      {
+        "case_id": "CMP-012",
+        "passed": true,
+        "duration_s": 52.951
+      },
+      {
+        "case_id": "CMP-013",
+        "passed": true,
+        "duration_s": 42.089
+      },
+      {
+        "case_id": "CMP-014",
+        "passed": true,
+        "duration_s": 36.967
+      },
+      {
+        "case_id": "CMP-015",
+        "passed": true,
+        "duration_s": 47.515
+      },
+      {
+        "case_id": "CMP-016",
+        "passed": true,
+        "duration_s": 122.2
+      },
+      {
+        "case_id": "CMP-017",
+        "passed": true,
+        "duration_s": 132.157
+      },
+      {
+        "case_id": "CMP-018",
+        "passed": true,
+        "duration_s": 40.107
+      },
+      {
+        "case_id": "CMP-019",
+        "passed": true,
+        "duration_s": 45.295
+      },
+      {
+        "case_id": "CMP-020",
+        "passed": true,
+        "duration_s": 26.376
+      },
+      {
+        "case_id": "MS-001",
+        "passed": true,
+        "duration_s": 127.808
+      },
+      {
+        "case_id": "MS-002",
+        "passed": true,
+        "duration_s": 128.837
+      },
+      {
+        "case_id": "MS-003",
+        "passed": true,
+        "duration_s": 113.527
+      },
+      {
+        "case_id": "MS-004",
+        "passed": true,
+        "duration_s": 105.506
+      },
+      {
+        "case_id": "MS-005",
+        "passed": true,
+        "duration_s": 142.202
+      },
+      {
+        "case_id": "MS-006",
+        "passed": true,
+        "duration_s": 131.626
+      },
+      {
+        "case_id": "MS-007",
+        "passed": true,
+        "duration_s": 114.562
+      },
+      {
+        "case_id": "MS-008",
+        "passed": true,
+        "duration_s": 164.266
+      },
+      {
+        "case_id": "MS-009",
+        "passed": true,
+        "duration_s": 129.953
+      },
+      {
+        "case_id": "MS-010",
+        "passed": true,
+        "duration_s": 153.8
+      },
+      {
+        "case_id": "MS-011",
+        "passed": true,
+        "duration_s": 109.564
+      },
+      {
+        "case_id": "MS-012",
+        "passed": true,
+        "duration_s": 129.836
+      },
+      {
+        "case_id": "MS-013",
+        "passed": true,
+        "duration_s": 354.755
+      },
+      {
+        "case_id": "MS-014",
+        "passed": true,
+        "duration_s": 319.3
+      },
+      {
+        "case_id": "MS-015",
+        "passed": true,
+        "duration_s": 259.143
+      },
+      {
+        "case_id": "MS-016",
+        "passed": true,
+        "duration_s": 219.743
+      },
+      {
+        "case_id": "MS-017",
+        "passed": true,
+        "duration_s": 136.772
+      },
+      {
+        "case_id": "MS-018",
+        "passed": true,
+        "duration_s": 206.664
+      },
+      {
+        "case_id": "MS-019",
+        "passed": true,
+        "duration_s": 232.494
+      },
+      {
+        "case_id": "MS-020",
+        "passed": true,
+        "duration_s": 138.074
+      },
+      {
+        "case_id": "MS-021",
+        "passed": true,
+        "duration_s": 249.643
+      },
+      {
+        "case_id": "MS-022",
+        "passed": true,
+        "duration_s": 242.38
+      },
+      {
+        "case_id": "MS-023",
+        "passed": true,
+        "duration_s": 171.038
+      },
+      {
+        "case_id": "MS-024",
+        "passed": true,
+        "duration_s": 230.272
+      },
+      {
+        "case_id": "MS-025",
+        "passed": true,
+        "duration_s": 228.832
+      },
+      {
+        "case_id": "MS-026",
+        "passed": true,
+        "duration_s": 150.021
+      },
+      {
+        "case_id": "MS-027",
+        "passed": true,
+        "duration_s": 131.732
+      },
+      {
+        "case_id": "MS-028",
+        "passed": true,
+        "duration_s": 133.883
+      },
+      {
+        "case_id": "MS-029",
+        "passed": true,
+        "duration_s": 40.677
+      },
+      {
+        "case_id": "MS-030",
+        "passed": true,
+        "duration_s": 74.501
+      },
+      {
+        "case_id": "MS-031",
+        "passed": true,
+        "duration_s": 58.459
+      },
+      {
+        "case_id": "MS-032",
+        "passed": true,
+        "duration_s": 118.83
+      },
+      {
+        "case_id": "MS-033",
+        "passed": true,
+        "duration_s": 183.102
+      },
+      {
+        "case_id": "MS-034",
+        "passed": true,
+        "duration_s": 70.136
+      },
+      {
+        "case_id": "MS-035",
+        "passed": true,
+        "duration_s": 50.604
+      },
+      {
+        "case_id": "MS-036",
+        "passed": true,
+        "duration_s": 44.8
+      },
+      {
+        "case_id": "MS-037",
+        "passed": true,
+        "duration_s": 88.86
+      },
+      {
+        "case_id": "MS-038",
+        "passed": true,
+        "duration_s": 56.442
+      },
+      {
+        "case_id": "MS-039",
+        "passed": true,
+        "duration_s": 197.443
+      },
+      {
+        "case_id": "MS-040",
+        "passed": true,
+        "duration_s": 94.629
+      },
+      {
+        "case_id": "MS-041",
+        "passed": true,
+        "duration_s": 82.081
+      },
+      {
+        "case_id": "MS-042",
+        "passed": true,
+        "duration_s": 208.233
+      },
+      {
+        "case_id": "MS-043",
+        "passed": true,
+        "duration_s": 204.409
+      },
+      {
+        "case_id": "MS-044",
+        "passed": true,
+        "duration_s": 70.995
+      },
+      {
+        "case_id": "MS-045",
+        "passed": true,
+        "duration_s": 272.425
+      },
+      {
+        "case_id": "MS-046",
+        "passed": true,
+        "duration_s": 180.473
+      },
+      {
+        "case_id": "MS-047",
+        "passed": true,
+        "duration_s": 185.073
+      },
+      {
+        "case_id": "MS-048",
+        "passed": true,
+        "duration_s": 306.282
+      },
+      {
+        "case_id": "MS-049",
+        "passed": true,
+        "duration_s": 281.468
+      },
+      {
+        "case_id": "MS-050",
+        "passed": true,
+        "duration_s": 315.232
+      },
+      {
+        "case_id": "MS-051",
+        "passed": true,
+        "duration_s": 207.166
+      },
+      {
+        "case_id": "MS-052",
+        "passed": true,
+        "duration_s": 161.743
+      },
+      {
+        "case_id": "MS-053",
+        "passed": true,
+        "duration_s": 273.534
+      },
+      {
+        "case_id": "MS-054",
+        "passed": true,
+        "duration_s": 437.342
+      },
+      {
+        "case_id": "MS-055",
+        "passed": true,
+        "duration_s": 215.62
+      },
+      {
+        "case_id": "MS-056",
+        "passed": true,
+        "duration_s": 341.723
+      },
+      {
+        "case_id": "MS-057",
+        "passed": false,
+        "duration_s": 61.669
+      },
+      {
+        "case_id": "MS-058",
+        "passed": true,
+        "duration_s": 169.724
+      },
+      {
+        "case_id": "MS-059",
+        "passed": true,
+        "duration_s": 206.356
+      },
+      {
+        "case_id": "MS-060",
+        "passed": true,
+        "duration_s": 108.604
+      },
+      {
+        "case_id": "MS-061",
+        "passed": false,
+        "duration_s": 60.654
+      },
+      {
+        "case_id": "MS-062",
+        "passed": true,
+        "duration_s": 50.247
+      },
+      {
+        "case_id": "MS-063",
+        "passed": true,
+        "duration_s": 405.263
+      },
+      {
+        "case_id": "MS-064",
+        "passed": true,
+        "duration_s": 62.146
+      },
+      {
+        "case_id": "MS-065",
+        "passed": true,
+        "duration_s": 309.648
+      },
+      {
+        "case_id": "MS-066",
+        "passed": true,
+        "duration_s": 95.868
+      },
+      {
+        "case_id": "MS-067",
+        "passed": true,
+        "duration_s": 40.671
+      },
+      {
+        "case_id": "MS-068",
+        "passed": true,
+        "duration_s": 45.132
+      },
+      {
+        "case_id": "MS-069",
+        "passed": true,
+        "duration_s": 323.379
+      },
+      {
+        "case_id": "MS-070",
+        "passed": true,
+        "duration_s": 32.956
+      },
+      {
+        "case_id": "MS-071",
+        "passed": true,
+        "duration_s": 38.39
+      },
+      {
+        "case_id": "MS-072",
+        "passed": true,
+        "duration_s": 40.218
+      },
+      {
+        "case_id": "MS-073",
+        "passed": true,
+        "duration_s": 60.551
+      },
+      {
+        "case_id": "MS-074",
+        "passed": false,
+        "duration_s": 149.706
+      },
+      {
+        "case_id": "MS-075",
+        "passed": true,
+        "duration_s": 55.703
+      },
+      {
+        "case_id": "MS-076",
+        "passed": true,
+        "duration_s": 161.532
+      },
+      {
+        "case_id": "MS-077",
+        "passed": true,
+        "duration_s": 55.381
+      },
+      {
+        "case_id": "MS-078",
+        "passed": true,
+        "duration_s": 109.497
+      },
+      {
+        "case_id": "MS-079",
+        "passed": true,
+        "duration_s": 179.504
+      },
+      {
+        "case_id": "MS-080",
+        "passed": true,
+        "duration_s": 141.269
+      },
+      {
+        "case_id": "EDGE-001",
+        "passed": false,
+        "duration_s": 70.223
+      },
+      {
+        "case_id": "EDGE-002",
+        "passed": false,
+        "duration_s": 78.729
+      },
+      {
+        "case_id": "EDGE-003",
+        "passed": true,
+        "duration_s": 58.613
+      },
+      {
+        "case_id": "EDGE-004",
+        "passed": false,
+        "duration_s": 121.375
+      },
+      {
+        "case_id": "EDGE-005",
+        "passed": true,
+        "duration_s": 174.915
+      },
+      {
+        "case_id": "EDGE-006",
+        "passed": true,
+        "duration_s": 186.5
+      },
+      {
+        "case_id": "EDGE-007",
+        "passed": false,
+        "duration_s": 105.227
+      },
+      {
+        "case_id": "EDGE-008",
+        "passed": true,
+        "duration_s": 57.275
+      },
+      {
+        "case_id": "EDGE-009",
+        "passed": true,
+        "duration_s": 214.525
+      },
+      {
+        "case_id": "EDGE-010",
+        "passed": true,
+        "duration_s": 36.244
+      },
+      {
+        "case_id": "EDGE-011",
+        "passed": true,
+        "duration_s": 360.888
+      },
+      {
+        "case_id": "EDGE-012",
+        "passed": true,
+        "duration_s": 91.599
+      },
+      {
+        "case_id": "EDGE-013",
+        "passed": true,
+        "duration_s": 59.606
+      },
+      {
+        "case_id": "EDGE-014",
+        "passed": true,
+        "duration_s": 197.857
+      },
+      {
+        "case_id": "EDGE-015",
+        "passed": true,
+        "duration_s": 91.858
+      },
+      {
+        "case_id": "EDGE-016",
+        "passed": true,
+        "duration_s": 40.934
+      },
+      {
+        "case_id": "EDGE-017",
+        "passed": true,
+        "duration_s": 30.811
+      },
+      {
+        "case_id": "EDGE-018",
+        "passed": true,
+        "duration_s": 28.746
+      },
+      {
+        "case_id": "EDGE-019",
+        "passed": true,
+        "duration_s": 27.369
+      },
+      {
+        "case_id": "EDGE-020",
+        "passed": true,
+        "duration_s": 57.329
+      },
+      {
+        "case_id": "EDGE-021",
+        "passed": true,
+        "duration_s": 46.936
+      },
+      {
+        "case_id": "EDGE-022",
+        "passed": true,
+        "duration_s": 76.754
+      },
+      {
+        "case_id": "EDGE-023",
+        "passed": true,
+        "duration_s": 69.149
+      },
+      {
+        "case_id": "EDGE-024",
+        "passed": true,
+        "duration_s": 56.876
+      },
+      {
+        "case_id": "EDGE-025",
+        "passed": true,
+        "duration_s": 46.413
+      },
+      {
+        "case_id": "EDGE-026",
+        "passed": true,
+        "duration_s": 214.678
+      },
+      {
+        "case_id": "EDGE-027",
+        "passed": true,
+        "duration_s": 53.088
+      },
+      {
+        "case_id": "EDGE-028",
+        "passed": true,
+        "duration_s": 201.145
+      },
+      {
+        "case_id": "EDGE-029",
+        "passed": true,
+        "duration_s": 147.922
+      },
+      {
+        "case_id": "EDGE-030",
+        "passed": true,
+        "duration_s": 39.552
+      }
+    ]
+  }
+}
