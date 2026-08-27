@@ -22,6 +22,9 @@
 | 工具结果缓存 | 幂等查询工具 Redis 缓存（dev 内存降级），命中指标可观测 |
 | 长期记忆 | 会话摘要 + 关键实体向量化入 Qdrant（user_id 隔离），新会话首轮注入——「我上次问的那张保单」跨会话正确引用 |
 | HITL 人工介入 | REJECT 走 LangGraph interrupt 挂起；坐席工作台回写结论 → Command(resume) 恢复会话，结论经合规复审后返回用户 |
+| GraphRAG 混合召回 | LLM 从 12 篇条款抽取知识图谱（106 实体/116 关系），实体链接 + 双向 BFS 与向量检索融合——复杂关联问题补充结构化事实（图谱覆盖 87.5%） |
+| OTel 全链路追踪 | FastAPI server span + LLM/工具/合规裁决 span，trace_id 贯穿 A06→节点→工具（单轮 25 span 调用树，token 用量入 span 属性） |
+| A/B 实验框架 | 变体注册表（模型/供应商/prompt 切换）+ 双比例 z 检验显著性 + token 差分；200 条实测 deepseek vs glm 跨供应商质量等价，配置三行迁移 |
 
 ## 架构
 
@@ -39,7 +42,8 @@ graph TD
     synth --> compliance
     compliance -->|PASS| END([__end__])
     compliance -->|MODIFY| revise[回答修订] --> compliance
-    compliance -->|REJECT| END
+    compliance -->|REJECT| human_review[人工审核<br/>interrupt 挂起]
+    human_review -->|坐席 resolve<br/>Command(resume) 恢复| END
 ```
 
 - **4 个 Agent**：Orchestrator（调度）/ Claim（理赔核算）/ Medical（医疗审核）/ Compliance（合规风控，一票否决）
@@ -131,6 +135,17 @@ cd workbench && npm install && npm run dev
 
 ![工单详情](docs/screenshots/workbench-ticket-detail.png)
 
+### 7. 追踪栈（可选：OTel Collector + Jaeger）
+
+```bash
+docker compose --profile tracing up -d   # Jaeger UI 16686 + OTLP Collector 4317
+# .env 设 OTEL_ENABLED=true 后重启后端，发消息即在 Jaeger 看到完整调用树
+```
+
+- 采样率 `OTEL_SAMPLING_RATIO` 可配（默认 1.0）；开关关闭时全部埋点 no-op 零开销
+- 单轮 multi_step 请求约 25 个 span：A06 server → intent/planner/worker（LLM span 带
+  分环节 token 用量）→ 工具 span → 合规裁决 span（verdict / risk_score 属性）
+
 ## API
 
 | 接口 | 方法 | 说明 |
@@ -164,7 +179,7 @@ cd workbench && npm install && npm run dev
 ## 测试与验证
 
 ```bash
-uv run pytest tests -q        # 346 用例全绿（工具单测 + 图级集成 + API 端到端 + 监控/缓存/token/记忆/HITL）
+uv run pytest tests -q        # 367 用例全绿（工具单测 + 图级集成 + API 端到端 + 监控/缓存/token/记忆/HITL/AB 框架）
 uv run ruff check .           # lint
 ```
 
@@ -198,13 +213,28 @@ uv run python -m evals.test_suite --out my_report.json     # 指定输出
 判分规则：`must_include`（必含关键词）/ `any_of`（同义容错）/ `must_not_include`
 （合规红线，命中即败）/ 期望工具子集匹配 / 转人工一致性；失败明细可从报告 failures 字段逐条溯源。
 
+**GraphRAG 对比**（24 条复杂关联用例，`--dataset graph_assoc`）：纯 RAG 与混合召回完成率持平
+（95.8%），混合召回增益在检索信号维度——图谱覆盖 87.5%、每例 +6.9 条跨文档结构化事实
+（小语料下完成率天花板效应，语料扩大后增益预期放大）。
+
+**A/B 实验**（T040 框架 + T041 实战）：
+
+```bash
+uv run python -m evals.ab_test --variants baseline,glm-5.3-flash   # 跨供应商 200 条全量
+```
+
+变体注册表支持模型 / 供应商（$ 配置间接引用）/ prompt 路径切换；组间对比含双比例 z 检验
+显著性粗判与 LLM token 差分。实战结论（D019）：deepseek-v4-flash vs glm-5.3-flash 质量统计
+等价（完成率 90.5% vs 89.5%、工具准确率 96.3% vs 95.8%，均不显著），主链路维持 DeepSeek，
+glm 注册为容灾备选——跨供应商可迁移性实证（配置三行切换）。
+
 ## 项目结构
 
 ```
 app/          FastAPI 入口与路由        agents/     4 个 Agent 定义
 nodes/        LangGraph 节点（8 个）     tools/      工具层（claim/medical/compliance）
 workflows/    主图组装                  services/   LLM / RAG / DB / 缓存 / 观测
-schemas/      Pydantic 模型             tests/      346 个测试用例
+schemas/      Pydantic 模型             tests/      367 个测试用例
 scripts/      seed 与验收脚本           data/       Mock 数据与知识库文档
 ui/           Gradio 演示界面           evals/      评测集与运行器（200 条）
 grafana/      仪表盘 JSON               prometheus/  抓取配置
@@ -220,8 +250,13 @@ grafana/      仪表盘 JSON               prometheus/  抓取配置
 3. **Worker Agent 结构化输出**：每步产出经 Pydantic schema 校验的 JSON 结论，写入共享数据池
    供后续步骤与整合节点消费
 4. **OCR 降级语义**：识别失败返回预置 Mock 数据并显式标记 `source`，下游计算拿到的金额要么可信要么来源明确
+5. **长期记忆写路径幂等**：point id = uuid5(conversation_id) 确定性，一会话一条记忆重复写覆盖；
+   读注入按 user_id filter 隔离，无历史用户检索空直跳零影响
+6. **坐席结论也过合规门禁**：HITL 恢复的坐席结论经同一 review_answer 复审——实测复述违规词的
+   结论被拦截（保守话术返回），F10 在人工路径同样成立
 
 ## 范围说明（MVP 边界）
 
-保单 / 医疗系统为可信 Mock 数据（OCR 为真实 vision API + Mock 兜底）；GraphRAG、
-A/B 测试、OpenTelemetry 全链路追踪为 Phase 4 规划，见 `.agent/spec.md` 非目标一节。
+保单 / 医疗系统为可信 Mock 数据（OCR 为真实 vision API + Mock 兜底）。原"MVP 边界"中
+列为 Phase 4 规划的 GraphRAG / A/B 测试 / OTel 追踪均已交付（见上文各章节）；决策记录与
+构建过程见 `.agent/`（decisions D001-D019 / progress 全量日志）。

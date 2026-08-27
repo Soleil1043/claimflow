@@ -189,22 +189,25 @@ Orchestrator 理解意图 → 判断任务类型
 ```python
 class ToolInput(BaseModel):
     """工具输入基类"""
+
     pass
+
 
 class ToolOutput(BaseModel):
     """工具输出基类"""
+
     success: bool
     error_message: str | None = None
     data: dict
+
 
 class BaseTool:
     name: str
     description: str
     input_schema: type[ToolInput]
     output_schema: type[ToolOutput]
-    
-    async def execute(self, input_data: ToolInput) -> ToolOutput:
-        ...
+
+    async def execute(self, input_data: ToolInput) -> ToolOutput: ...
 ```
 
 ### 4.2 工具注册与发现
@@ -367,10 +370,15 @@ class AgentState(TypedDict):
 ├─────────────────────────────────────────────────┤
 │  长期记忆（Long-term Memory）                    │
 │  └─ 用户历史对话摘要（向量存储）                 │
-│  └─ 用户偏好、历史理赔记录                       │
+│  └─ 关键实体（保单号/诊断/金额）随摘要入库       │
 │  └─ 存储在 Qdrant，按 user_id 检索               │
 └─────────────────────────────────────────────────┘
 ```
+
+> **落地（T034/T035）**：独立 collection `long_term_memory`；每 N 轮（默认 3）或转人工终态
+> 由 LLM 生成摘要 + 实体（失败降级正则提取），point id = uuid5(conversation_id) 幂等覆盖；
+> 新会话首轮按 user_id filter 检索 top-2（min_score 0.4 噪声过滤）注入 system prompt
+> （Token 预算 1200 字符），实测「我上次问的那张保单」跨会话正确引用历史保单号与金额。
 
 ### 6.2 记忆管理策略
 
@@ -523,30 +531,27 @@ class AgentState(TypedDict):
 
 ## 11. 开发路线图
 
-### Phase 1：MVP（核心流程跑通）
-- [ ] 项目脚手架搭建（FastAPI + LangGraph + Docker）
-- [ ] Orchestrator Agent 基础框架
-- [ ] 2-3 个核心工具实现（保单查询、理赔规则 RAG、计算器）
-- [ ] 简单的单 Agent ReAct 流程
-- [ ] 基础对话界面（Streamlit / Gradio）
+### Phase 1：MVP（核心流程跑通）— ✅ 已交付（2026-08-25，T001-T014）
+- [x] 项目脚手架（FastAPI + LangGraph + Docker Compose + CI）
+- [x] 4 Agent 定义 + Prompt 体系；9 工具（保单/计算器/RAG/就诊/ICD-10/OCR/规则/评分/脱敏）
+- [x] 单 Agent ReAct 核心流程 + 完整主图（intent 分流 → 多步/RAG/ReAct → 合规门禁）
+- [x] Gradio 演示界面 + A02-A07 API
 
-### Phase 2：多智能体协作
-- [ ] Worker Agent 拆分（Claim / Medical / Compliance）
-- [ ] Orchestrator-Worker 协作流程
-- [ ] 共享状态与记忆机制
-- [ ] 任务规划与步骤执行
+### Phase 2：多智能体协作 — ✅ 已交付（2026-08-25，T015-T022）
+- [x] Orchestrator-Worker 协作（规划 → 步骤执行循环 → 整合）
+- [x] 合规三态流转（PASS/MODIFY 修订闭环/REJECT 拦截）+ 端到端场景测试
 
-### Phase 3：工程化与优化
-- [ ] 容错机制（重试 + 熔断 + Fallback）
-- [ ] 可观测性（Prometheus + Grafana）
-- [ ] 评测体系搭建
-- [ ] 性能优化（缓存、Token 预算控制）
+### Phase 3：工程化与优化 — ✅ 已交付（2026-08-25，T023-T030）
+- [x] 容错（超时/重试/熔断/全链路降级）+ Prometheus/Grafana 监控
+- [x] 评测体系（200 条溯源测试集 + 运行器，基线 89.5%）+ 工具缓存 + Token 预算
 
-### Phase 4：深度与亮点
-- [ ] GraphRAG 引入（理赔规则知识图谱）
-- [ ] 合规风控模型优化
-- [ ] A/B 测试框架
-- [ ] 人工介入工作台
+### Phase 4：深度与亮点 — ✅ 已交付（2026-08-26/27，T031-T041）
+- [x] GraphRAG（T031-T033：知识图谱 106 实体/116 关系 + 混合召回 + 24 条对比评测）
+- [x] 长期记忆（T034/T035：摘要+实体向量化入库，user_id 隔离，首轮注入）
+- [x] HITL 人工介入（T036-T038：工单后端 + LangGraph interrupt 恢复 + Next.js 坐席工作台）
+- [x] OTel 全链路追踪（T039：tracing profile，单轮 25 span 调用树）
+- [x] A/B 实验框架与实战（T040/T041：变体注册表 + z 检验，glm-5.3-flash 跨供应商对比，结论见 ADR-006）
+- （合规风控模型优化按 D017 决策不纳入：规则引擎红线违规 0/200 已达标）
 
 ---
 
@@ -600,3 +605,11 @@ class AgentState(TypedDict):
   2. OCR 仅在图片材料场景调用，vision-exp 失败有 Mock 兜底，单点风险隔离
   3. 与 6.3 节"分级模型"成本策略自洽：高频文本任务与低频视觉任务各用所长
   4. 真实多模态 OCR 相比纯 Mock 是演示亮点，成本几乎不变（单张图片最高折算 384 token）
+
+### ADR-006：跨供应商 LLM 选型结论（T041 实战实验，决策记录 D019）
+- **背景**：200 条全量 A/B（evals/reports/t041_glm_20260827_082238）对比 deepseek-v4-flash 与
+  glm-5.3-flash（智谱），量化任务完成率/工具准确率/耗时/token 四维
+- **决策**：主链路维持 deepseek-v4-flash；glm-5.3-flash 注册为容灾备选变体
+- **理由**：质量维度统计等价（完成率 90.5% vs 89.5%、工具准确率 96.3% vs 95.8%，z 检验均不显著），
+  切换无质量收益；glm 当前 Key 档位限流明显（串行评测持续 429），token +15%；
+  供应商可迁移性经 OpenAI 兼容接口三行配置实证，作为 DeepSeek 故障时的降级路径保留
