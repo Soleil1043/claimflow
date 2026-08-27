@@ -11,8 +11,6 @@ from __future__ import annotations
 import asyncio
 import time
 
-from langchain_core.messages import HumanMessage
-
 from app.core.config import settings
 from services.rag.reranker import rerank_chunks
 from services.rag.retriever import search_kb
