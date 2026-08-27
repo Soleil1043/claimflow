@@ -102,12 +102,17 @@ def apply_variant(name: str) -> VariantSpec:
             if key not in valid_fields:
                 msg = f"变体 {name} 覆盖了不存在的配置字段：{key}"
                 raise KeyError(msg)
-            value = (
-                getattr(settings, raw[1:]) if isinstance(raw, str) and raw.startswith("$") else raw
-            )
-            if isinstance(raw, str) and raw.startswith("$") and not value:
-                msg = f"变体 {name} 间接引用的配置字段 {raw[1:]} 为空（请在 .env 配置后重试）"
-                raise KeyError(msg)
+            if isinstance(raw, str) and raw.startswith("$"):
+                source_field = raw[1:]
+                value = getattr(settings, source_field)
+                # 空引用守卫只拦"取了别的空字段"（如 $glm_api_key 未配置）；
+                # 自引用（$llm_api_key → llm_api_key，还原语义）允许空——CI 无 .env
+                # 的合法环境里 api_key 就是空串，不应拒绝（实测 CI 失败根因）
+                if source_field != key and not value:
+                    msg = f"变体 {name} 间接引用的配置字段 {source_field} 为空（请在 .env 配置后重试）"
+                    raise KeyError(msg)
+            else:
+                value = raw
             setattr(settings, key, value)
 
     if spec.prompt_overrides:

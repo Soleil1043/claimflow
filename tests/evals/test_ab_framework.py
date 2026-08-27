@@ -227,3 +227,27 @@ def test_snapshot_llm_tokens_reads_counter() -> None:
     snap = snapshot_llm_tokens()
     # 恰好 15：若把 _created（Unix 时间戳 ≈1.75e9）算入会得到天文数字
     assert snap[model] == 15
+
+
+def test_apply_variant_self_reference_allows_empty() -> None:
+    """$ 自引用（还原语义）允许空值：CI 无 .env 时 llm_api_key="" 是合法状态（实测 CI 坑）。"""
+    original = (settings.llm_model, settings.llm_base_url, settings.llm_api_key)
+    VARIANTS["_self_ref"] = VariantSpec(
+        name="_self_ref",
+        description="测试自引用",
+        settings_overrides={
+            "llm_model": "glm-5.3-flash",
+            "llm_api_key": "$llm_api_key",  # 自引用：把当前值（可能为空）写回自身
+        },
+    )
+    try:
+        settings.llm_api_key = ""  # CI 场景：无 .env
+        apply_variant("_self_ref")  # 不应因空值被拒
+        assert settings.llm_model == "glm-5.3-flash"
+        assert settings.llm_api_key == ""
+    finally:
+        settings.llm_model, settings.llm_base_url, settings.llm_api_key = original
+        del VARIANTS["_self_ref"]
+        from services.llm.client import reset_model_cache
+
+        reset_model_cache()

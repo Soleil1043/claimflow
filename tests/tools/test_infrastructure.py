@@ -167,7 +167,9 @@ async def test_executor_timeout_falls_back(registry: ToolRegistry) -> None:
 # ---------- ToolExecutor：重试 ----------
 
 
-async def test_executor_retries_then_succeeds(registry: ToolRegistry, executor: ToolExecutor) -> None:
+async def test_executor_retries_then_succeeds(
+    registry: ToolRegistry, executor: ToolExecutor
+) -> None:
     """瞬时故障：前 2 次失败、第 3 次成功 → 重试后成功（总尝试 3 次）。"""
     tool = registry.get("flaky")
     assert isinstance(tool, FlakyTool)
@@ -239,7 +241,7 @@ async def test_circuit_breaker_half_open_recovery(registry: ToolRegistry) -> Non
             await ex.execute("flaky", {"fail_times": 99})
     assert ex.breaker_state("flaky") == _BreakerState.OPEN
 
-    await asyncio.sleep(0.06)  # 越过冷却期
+    await asyncio.sleep(0.5)  # 越过冷却期（cooldown 的 10 倍余量，抗 CI 慢调度）
     # 探测成功（fail_times=0）：熔断器关闭
     result = await ex.execute("flaky", {"fail_times": 0})
     assert result.success is True
@@ -252,7 +254,7 @@ async def test_circuit_breaker_half_open_failure_reopens(registry: ToolRegistry)
     for _ in range(5):
         with pytest.raises(ToolExecutionError):
             await ex.execute("flaky", {"fail_times": 99})
-    await asyncio.sleep(0.06)
+    await asyncio.sleep(0.5)  # cooldown 的 10 倍余量
 
     # 探测仍失败
     with pytest.raises(ToolExecutionError):
