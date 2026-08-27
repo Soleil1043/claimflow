@@ -530,7 +530,7 @@ class AgentState(TypedDict):
 | 缓存 | Redis | 会话缓存、工具结果缓存、限流 |
 | LLM | 主链路：deepseek-v4-flash；图片 OCR 专职：deepseek-v4-flash-vision-exp（失败降级 Mock，详见 ADR-005） | 两者价格相同、均支持 function calling；主链路用正式版稳定，vision-exp 提供真实多模态 OCR |
 | Embedding | BGE-M3 | 中文效果好、多语言支持 |
-| 重排序 | ~~BGE-Reranker-v2-m3~~ | 规划项，未实现——12 篇小语料下向量+图谱混合召回已够用（T033 评测结论），语料扩大后再评估 |
+| 重排序 | BGE-Reranker-v2-m3（T043 落地，`RERANK_ENABLED` 默认关） | 与 BGE-M3 同生态；实测 top1 0/5 变化、次序去重改善、完成率 +3.3pp 不显著——小语料下默认关，语料扩大后开启（D020）；Qwen3-Reranker 系列经决策树对照排除（4B 纯 CPU 不可行、0.6B 生态/延迟劣于 bge） |
 | 部署 | Docker + Docker Compose | 本地开发和生产部署一致 |
 | 监控 | Prometheus + Grafana | 标准选型、生态成熟 |
 | 包管理 | uv | 速度快、锁文件可靠 |

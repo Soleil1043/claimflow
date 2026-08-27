@@ -81,6 +81,17 @@ VARIANTS: dict[str, VariantSpec] = {
             "llm_api_key": "$glm_api_key",
         },
     ),
+    # T043 重排序精排对比变体（simple_faq 子集：rag_node 路径）
+    "rerank_off": VariantSpec(
+        name="rerank_off",
+        description="精排关闭（向量 top-4 直出，对照组）",
+        settings_overrides={"rerank_enabled": False},
+    ),
+    "rerank_on": VariantSpec(
+        name="rerank_on",
+        description="bge-reranker-v2-m3 精排开启（top-8 召回 → 重排 → top-4）",
+        settings_overrides={"rerank_enabled": True},
+    ),
 }
 
 

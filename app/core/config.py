@@ -57,6 +57,17 @@ class Settings(BaseSettings):
     # 知识图谱增强检索开关；false 时 rag 路径行为与引入前完全一致
     graph_rag_enabled: bool = True
 
+    # ===== 重排序精排（T043，D020） =====
+    # 开关默认关：小语料（53 chunk）下收益趋近于零（T033 结论），作为"语料扩大后"的预留层
+    rerank_enabled: bool = False
+    rerank_model: str = "BAAI/bge-reranker-v2-m3"
+    rerank_device: str = "cpu"
+    # 后端：torch（默认，稳定）| onnx（INT8 动态量化 ~200MB，首次启用时自动导出）
+    rerank_backend: str = "torch"
+    # 精排流水线：先召回 rerank_recall_k 条 → CrossEncoder 重排 → 取 rerank_top_k 条
+    rerank_recall_k: int = 8
+    rerank_top_k: int = 4
+
     # ===== 长期记忆（T034/T035，architecture.md 6.3） =====
     # 会话摘要写入记忆 collection 的开关；每 N 轮（用户消息数）触发一次摘要更新
     memory_enabled: bool = True

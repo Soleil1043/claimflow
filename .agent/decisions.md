@@ -346,3 +346,37 @@ T041 要求 200 条全量 A/B 对比产出选型结论。原计划对比 deepsee
 
 **影响**：
 T042 收尾叙事（跨供应商可迁移性实证）；生产部署建议增加"LLM 供应商健康探测 + 一键切换"的运维预案（不在本项目范围）。
+
+## D020: 重排序选型——排除 Qwen3-Reranker，落地 bge-reranker-v2-m3 可开关精排层 — 2026-08-27
+
+**背景**：
+用户调研掘金《主流开源 Rerank 模型解析与选型指南（2026 版）》后提议增加重排序、选型 Qwen3-Reranker 系列。按文章自身决策树对照 claimflow 画像分析（分析结论：不建议 ~75-80%），用户拍板折中方案：落地 bge-reranker-v2-m3 可开关精排层 + 真实评测验证。
+
+**选项对比（按文章决策树逐条对照）**：
+| 维度 | Qwen3-Reranker-4B | Qwen3-Reranker-0.6B | bge-reranker-v2-m3（567M） |
+|------|------|------|------|
+| 部署 | FP16 14GB 显存，**本项目纯 CPU 不可行** | CPU 可跑但 LLM 式打分延迟更高 | CPU 可跑，INT8 量化 <200MB（后续路径） |
+| 生态 | 独立 prompt 格式，非 ST CrossEncoder | 同左 | **与 BGE-M3 同生态，ST CrossEncoder 开箱即用** |
+| 候选规模匹配 | 候选 <50 场景文章指向轻量型 | 同左 | 契合 |
+| 卖点匹配 | 32K 长文本——本项目 chunk ≤800 字，卖点用不上 | — | — |
+
+**最终选择**：bge-reranker-v2-m3 + 可开关精排层（`RERANK_ENABLED` 默认关）：
+rag_node top-8 召回 → CrossEncoder 重排 → top-4；失败回退向量序零影响。
+
+**实测数据（真实模型 + simple_faq 30 条 ×2 A/B，evals/reports/t043_rerank_20260827_135845）**：
+- 任务完成率 93.3% → 96.7%（+3.3pp，z=-0.592 **不显著**，n=30）；FAQ-021 翻转为 PASS
+- 检索质量：top1 五类标准查询 0/5 变化（向量序已对）；**次序去重改善**——"理赔需要什么材料"
+  基线 top4 混 3 条重复的"进度查询"，精排把 FAQ 材料条目顶上来
+- 延迟：重排 1.3s/查询（torch fp32 CPU，8 候选）；端到端 +0.9s（7.8→8.7s，+12%）
+- token +3.3%；模型加载 11s（惰性，仅开启时）
+
+**结论**：
+小语料（53 chunk）下重排序增益真实存在但幅度小（次序去重 > top1 修正，完成率不显著），
+默认关符合 T033"语料扩大后再评估"的既定结论；**Qwen3-Reranker 系列正式排除**
+（4B 硬件不可行、0.6B 在本项目 CPU + CrossEncoder 生态下全面劣于 bge）。语料扩到千级
+chunk 或接入 GPU 时重新评估，届时优先验证 onnx-int8 后端（服务已留开关位，需另装
+optimum/onnxruntime 并导出量化模型）。
+
+**影响**：
+nodes/rag.py（召回-精排两段式）、services/rag/reranker.py、配置 RERANK_* 六项、
+variants rerank_off/rerank_on、architecture.md 技术选型表重排序行更新为已落地。

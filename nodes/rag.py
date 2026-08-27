@@ -12,6 +12,7 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from services.rag.graph_retriever import search_graph
 from services.rag.retriever import search_kb
@@ -35,8 +36,19 @@ async def rag_node(state: AgentState) -> dict[str, Any]:
         shared["rag_context"] = {"summary": "空输入，未执行检索"}
         return {"shared_data": shared}
 
+    # T043 可开关精排：开启时先多召回（rerank_recall_k）→ CrossEncoder 重排 → 取 top_k；
+    # 关闭时行为与 T021 引入时完全一致。开关每次调用时读 settings（A/B 变体运行时可切换）。
+    # settings 走模块级引用（与 reranker 同一对象）——避免 test_logging reload config 产生的
+    # settings 双实例分叉（T028/T029 同款陷阱，本处是第三连击）。
+    reranked = False
     try:
-        chunks = await search_kb(query=query, top_k=_RAG_TOP_K)
+        if settings.rerank_enabled:
+            from services.rag.reranker import rerank_chunks
+
+            chunks = await search_kb(query=query, top_k=settings.rerank_recall_k)
+            chunks, reranked = rerank_chunks(query, chunks, top_k=_RAG_TOP_K)
+        else:
+            chunks = await search_kb(query=query, top_k=_RAG_TOP_K)
     except Exception as exc:  # noqa: BLE001 检索故障不阻断：synthesize 走兜底
         log.warning("rag_node_error", error=str(exc)[:200])
         chunks = []
@@ -80,6 +92,10 @@ async def rag_node(state: AgentState) -> dict[str, Any]:
         rag_ctx["graph_facts"] = graph_facts
     shared["rag_context"] = rag_ctx
     log.info(
-        "rag_node_done", query=query[:50], hits=len(chunks), graph_facts=graph_facts is not None
+        "rag_node_done",
+        query=query[:50],
+        hits=len(chunks),
+        graph_facts=graph_facts is not None,
+        reranked=reranked,
     )
     return {"shared_data": shared}

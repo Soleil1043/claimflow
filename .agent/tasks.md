@@ -73,6 +73,7 @@
 - [x] T040: A/B 实验框架 | 依赖: T030 | 涉及文件: evals/ab_test.py、evals/variants.py（或配置文件） | 验收: 实验配置定义变体（模型/参数/prompt 路径切换）；同一评测集分流运行多变体并产出对比报告（复用 metrics 聚合，组间差异 + 显著性粗判）；结果 JSON 落盘；--variant 参数与 test_suite 兼容
 - [x] T041: A/B 实战实验（glm-5.3-flash 跨供应商对比） | 依赖: T040 | 涉及文件: evals/reports/、.agent/decisions.md（实验结论 D019） | 验收: deepseek-v4-flash（基线）vs glm-5.3-flash（智谱，用户切换对比组；原 deepseek-v4-pro 因思考型 token 成本高、长跑慢而调整）200 条全量对比，产出结论报告（任务完成率/工具准确率/耗时/token 成本四维对比 + 跨供应商选型建议写入 decisions.md）；预算 ≤ ¥10
 - [x] T042: Phase 4 收尾验证 | 依赖: 全部 | 涉及文件: README.md、docs/architecture.md、.github/workflows/ci.yml | 验收: ruff + pytest 全绿；GraphRAG/长期记忆/工作台/OTel/AB 五个方向的 README 章节与架构图更新；D017/D018/D019（实验结论）齐备；push 后 CI 全绿
+- [x] T043: 重排序精排层（bge-reranker-v2-m3 可开关） | 依赖: T042 | 涉及文件: services/rag/reranker.py、nodes/rag.py、evals/reports/、.agent/decisions.md（D020） | 验收: rag_node top-8 召回 → CrossEncoder 重排 → top-4，开关默认关（关态与 T021 行为一致）；精排故障回退向量序零影响；单测覆盖开关/排序/回退；真实评测三指标对比（完成率/延迟/检索质量）+ 结论 D020
 
 ---
 
@@ -110,7 +111,7 @@ T001 → T002 → T003 → T004 → T005
 
 ## 进度统计
 
-- 总任务数：42（MVP 23 + Phase 3 七个 + Phase 4 十二个）
-- 已完成：42（全部完成，2026-08-27）
+- 总任务数：43（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量）
+- 已完成：43（全部完成，2026-08-27）
 - 进行中：0
 - 待开始：0

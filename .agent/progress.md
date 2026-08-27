@@ -1149,3 +1149,35 @@
 **Git**：`docs: architecture.md 过时表述修正 + 文档状态头（设计 vs 实际对齐）`
 
 <!-- 遇到的问题记录在此，方便回溯 -->
+### [T043] 重排序精排层（bge-reranker-v2-m3 可开关）— 2026-08-27
+
+**操作**：
+- 背景：用户调研掘金《2026 版 Rerank 选型指南》提议 Qwen3-Reranker；按文章决策树对照分析后
+  用户拍板方案 2（bge 轻量 + 可开关 + 评测验证），Qwen3 系列排除（结论见 D020）
+- `services/rag/reranker.py`（新建）：CrossEncoder 惰性单例（backend=torch 默认/onnx 预留位，
+  onnx-int8 需 optimum+onnxruntime 后续路径）+ rerank_scores + rerank_chunks（失败回退向量序零影响）
+- `nodes/rag.py`：可开关两段式——开 = top-8 召回 → 精排 → top-4（score 覆盖为精排分）；
+  关 = 与 T021 行为完全一致；settings 模块级引用（规避 T028/T029 settings 双实例陷阱第三连击：
+  test_logging reload 导致函数内 import 拿到新对象、测试 patch 旧对象，全量跑分叉）
+- 配置 RERANK_* 六项（开关默认关/模型/设备/后端/召回数/精排数）；variants 注册 rerank_off/rerank_on
+- `tests/rag/test_reranker.py`（新建 6 用例，mock CrossEncoder）：排序截取/故障回退/空候选/
+  rag_node 开关语义（开=召回 8+精排第一/关=行为不变/精排故障不致命）
+- `scripts/verify_rerank.py`：真实模型验收（5 类标准查询）
+- `evals/reports/t043_rerank_20260827_135845.json/.md` + t043_run.log 存档
+
+**验证方式（真实模型 + 真实 LLM A/B，simple_faq 30 条 ×2）**：
+- 延迟：重排 1.3s/查询（torch fp32 CPU，8 候选）；模型加载 11s 惰性；端到端 7.8→8.7s（+12%）
+- 检索质量：top1 0/5 变化（向量序已对）；**次序去重改善**（"理赔材料"基线 top4 混 3 条重复
+  进度查询，精排把 FAQ 材料条目顶上来）
+- A/B：完成率 93.3% → 96.7%（+3.3pp，z=-0.592 不显著，n=30）；FAQ-021 翻转 PASS；
+  工具准确率/合规 100% 持平；token +3.3%
+- `uv run python -m pytest -q` → 374 passed（原 368 + 新增 6）；ruff 全绿
+
+**结论（D020）**：默认关维持 T033 结论；语料扩大/GPU 接入时重评估，届时优先 onnx-int8 后端；
+Qwen3-Reranker 系列正式排除（4B 纯 CPU 不可行、0.6B 生态/延迟全面劣于 bge）。
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T043 重排序精排层（bge-reranker-v2-m3 可开关 + A/B 评测 + D020）`
+
+<!-- 遇到的问题记录在此，方便回溯 -->

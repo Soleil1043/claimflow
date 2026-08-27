@@ -1,0 +1,410 @@
+{
+  "experiment": {
+    "name": "t043_rerank",
+    "dataset": "main",
+    "dataset_version": "1.0.0",
+    "category": "simple_faq",
+    "sample_size": 30,
+    "variants": [
+      "rerank_off",
+      "rerank_on"
+    ],
+    "generated_at": "2026-08-27 13:58:45",
+    "variant_summaries": {
+      "rerank_off": {
+        "total": 30,
+        "passed": 28,
+        "task_completion_rate": 0.9333333333333333,
+        "tool_accuracy": 1.0,
+        "tool_scored_passed": 30,
+        "tool_scored_total": 30,
+        "compliance_pass_rate": 1.0,
+        "human_precision": 0.0,
+        "avg_duration_s": 7.831,
+        "avg_vector_hits": 3.87,
+        "avg_graph_hits": 1.87,
+        "graph_coverage": 0.3667,
+        "by_category": {
+          "simple_faq": {
+            "total": 30.0,
+            "passed": 28.0,
+            "rate": 0.9333333333333333
+          }
+        },
+        "total_tokens": 79553,
+        "tokens_by_model": {
+          "deepseek-v4-flash": 79553
+        },
+        "description": "精排关闭（向量 top-4 直出，对照组）"
+      },
+      "rerank_on": {
+        "total": 30,
+        "passed": 29,
+        "task_completion_rate": 0.9666666666666667,
+        "tool_accuracy": 1.0,
+        "tool_scored_passed": 30,
+        "tool_scored_total": 30,
+        "compliance_pass_rate": 1.0,
+        "human_precision": 0.0,
+        "avg_duration_s": 8.732,
+        "avg_vector_hits": 3.87,
+        "avg_graph_hits": 1.87,
+        "graph_coverage": 0.3667,
+        "by_category": {
+          "simple_faq": {
+            "total": 30.0,
+            "passed": 29.0,
+            "rate": 0.9666666666666667
+          }
+        },
+        "total_tokens": 82208,
+        "tokens_by_model": {
+          "deepseek-v4-flash": 82208
+        },
+        "description": "bge-reranker-v2-m3 精排开启（top-8 召回 → 重排 → top-4）"
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "baseline": "rerank_off",
+      "variant": "rerank_on",
+      "task_completion": {
+        "baseline": 0.9333333333333333,
+        "variant": 0.9666666666666667,
+        "delta_pp": 3.3,
+        "z": -0.592,
+        "significant_p05": false
+      },
+      "tool_accuracy": {
+        "baseline": 1.0,
+        "variant": 1.0,
+        "delta_pp": 0.0,
+        "z": 0.0,
+        "significant_p05": false,
+        "note": "池化方差为 0（两组比例相同）"
+      },
+      "avg_duration_s": {
+        "baseline": 7.831,
+        "variant": 8.732,
+        "delta_s": 0.9
+      },
+      "llm_tokens": {
+        "baseline": {
+          "deepseek-v4-flash": 79553
+        },
+        "variant": {
+          "deepseek-v4-flash": 82208
+        },
+        "total_baseline": 79553,
+        "total_variant": 82208
+      }
+    }
+  ],
+  "case_results": {
+    "rerank_off": [
+      {
+        "case_id": "FAQ-001",
+        "passed": true,
+        "duration_s": 20.075
+      },
+      {
+        "case_id": "FAQ-002",
+        "passed": true,
+        "duration_s": 5.155
+      },
+      {
+        "case_id": "FAQ-003",
+        "passed": true,
+        "duration_s": 5.552
+      },
+      {
+        "case_id": "FAQ-004",
+        "passed": true,
+        "duration_s": 4.491
+      },
+      {
+        "case_id": "FAQ-005",
+        "passed": true,
+        "duration_s": 5.732
+      },
+      {
+        "case_id": "FAQ-006",
+        "passed": true,
+        "duration_s": 4.449
+      },
+      {
+        "case_id": "FAQ-007",
+        "passed": true,
+        "duration_s": 6.083
+      },
+      {
+        "case_id": "FAQ-008",
+        "passed": true,
+        "duration_s": 7.096
+      },
+      {
+        "case_id": "FAQ-009",
+        "passed": true,
+        "duration_s": 5.448
+      },
+      {
+        "case_id": "FAQ-010",
+        "passed": true,
+        "duration_s": 5.687
+      },
+      {
+        "case_id": "FAQ-011",
+        "passed": true,
+        "duration_s": 6.363
+      },
+      {
+        "case_id": "FAQ-012",
+        "passed": true,
+        "duration_s": 6.93
+      },
+      {
+        "case_id": "FAQ-013",
+        "passed": true,
+        "duration_s": 7.43
+      },
+      {
+        "case_id": "FAQ-014",
+        "passed": true,
+        "duration_s": 8.594
+      },
+      {
+        "case_id": "FAQ-015",
+        "passed": true,
+        "duration_s": 8.234
+      },
+      {
+        "case_id": "FAQ-016",
+        "passed": true,
+        "duration_s": 19.321
+      },
+      {
+        "case_id": "FAQ-017",
+        "passed": true,
+        "duration_s": 5.264
+      },
+      {
+        "case_id": "FAQ-018",
+        "passed": true,
+        "duration_s": 4.628
+      },
+      {
+        "case_id": "FAQ-019",
+        "passed": true,
+        "duration_s": 6.42
+      },
+      {
+        "case_id": "FAQ-020",
+        "passed": true,
+        "duration_s": 5.369
+      },
+      {
+        "case_id": "FAQ-021",
+        "passed": false,
+        "duration_s": 7.579
+      },
+      {
+        "case_id": "FAQ-022",
+        "passed": true,
+        "duration_s": 8.128
+      },
+      {
+        "case_id": "FAQ-023",
+        "passed": false,
+        "duration_s": 9.639
+      },
+      {
+        "case_id": "FAQ-024",
+        "passed": true,
+        "duration_s": 5.861
+      },
+      {
+        "case_id": "FAQ-025",
+        "passed": true,
+        "duration_s": 5.192
+      },
+      {
+        "case_id": "FAQ-026",
+        "passed": true,
+        "duration_s": 7.787
+      },
+      {
+        "case_id": "FAQ-027",
+        "passed": true,
+        "duration_s": 22.466
+      },
+      {
+        "case_id": "FAQ-028",
+        "passed": true,
+        "duration_s": 7.422
+      },
+      {
+        "case_id": "FAQ-029",
+        "passed": true,
+        "duration_s": 5.892
+      },
+      {
+        "case_id": "FAQ-030",
+        "passed": true,
+        "duration_s": 6.641
+      }
+    ],
+    "rerank_on": [
+      {
+        "case_id": "FAQ-001",
+        "passed": true,
+        "duration_s": 10.663
+      },
+      {
+        "case_id": "FAQ-002",
+        "passed": true,
+        "duration_s": 5.441
+      },
+      {
+        "case_id": "FAQ-003",
+        "passed": true,
+        "duration_s": 10.896
+      },
+      {
+        "case_id": "FAQ-004",
+        "passed": true,
+        "duration_s": 11.186
+      },
+      {
+        "case_id": "FAQ-005",
+        "passed": true,
+        "duration_s": 7.682
+      },
+      {
+        "case_id": "FAQ-006",
+        "passed": true,
+        "duration_s": 7.901
+      },
+      {
+        "case_id": "FAQ-007",
+        "passed": true,
+        "duration_s": 11.112
+      },
+      {
+        "case_id": "FAQ-008",
+        "passed": true,
+        "duration_s": 7.571
+      },
+      {
+        "case_id": "FAQ-009",
+        "passed": true,
+        "duration_s": 6.237
+      },
+      {
+        "case_id": "FAQ-010",
+        "passed": true,
+        "duration_s": 6.492
+      },
+      {
+        "case_id": "FAQ-011",
+        "passed": true,
+        "duration_s": 8.892
+      },
+      {
+        "case_id": "FAQ-012",
+        "passed": true,
+        "duration_s": 5.716
+      },
+      {
+        "case_id": "FAQ-013",
+        "passed": true,
+        "duration_s": 8.487
+      },
+      {
+        "case_id": "FAQ-014",
+        "passed": true,
+        "duration_s": 6.506
+      },
+      {
+        "case_id": "FAQ-015",
+        "passed": true,
+        "duration_s": 11.091
+      },
+      {
+        "case_id": "FAQ-016",
+        "passed": true,
+        "duration_s": 29.98
+      },
+      {
+        "case_id": "FAQ-017",
+        "passed": true,
+        "duration_s": 6.477
+      },
+      {
+        "case_id": "FAQ-018",
+        "passed": true,
+        "duration_s": 6.108
+      },
+      {
+        "case_id": "FAQ-019",
+        "passed": true,
+        "duration_s": 8.027
+      },
+      {
+        "case_id": "FAQ-020",
+        "passed": true,
+        "duration_s": 7.102
+      },
+      {
+        "case_id": "FAQ-021",
+        "passed": true,
+        "duration_s": 6.241
+      },
+      {
+        "case_id": "FAQ-022",
+        "passed": true,
+        "duration_s": 7.158
+      },
+      {
+        "case_id": "FAQ-023",
+        "passed": false,
+        "duration_s": 10.346
+      },
+      {
+        "case_id": "FAQ-024",
+        "passed": true,
+        "duration_s": 7.389
+      },
+      {
+        "case_id": "FAQ-025",
+        "passed": true,
+        "duration_s": 7.727
+      },
+      {
+        "case_id": "FAQ-026",
+        "passed": true,
+        "duration_s": 7.899
+      },
+      {
+        "case_id": "FAQ-027",
+        "passed": true,
+        "duration_s": 6.237
+      },
+      {
+        "case_id": "FAQ-028",
+        "passed": true,
+        "duration_s": 10.76
+      },
+      {
+        "case_id": "FAQ-029",
+        "passed": true,
+        "duration_s": 9.005
+      },
+      {
+        "case_id": "FAQ-030",
+        "passed": true,
+        "duration_s": 5.632
+      }
+    ]
+  }
+}
