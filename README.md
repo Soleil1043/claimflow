@@ -43,7 +43,7 @@ graph TD
     compliance -->|PASS| END([__end__])
     compliance -->|MODIFY| revise[回答修订] --> compliance
     compliance -->|REJECT| human_review[人工审核<br/>interrupt 挂起]
-    human_review -->|坐席 resolve<br/>Command(resume) 恢复| END
+    human_review -->|坐席 resolve<br/>Command（resume）恢复| END
 ```
 
 - **4 个 Agent**：Orchestrator（调度）/ Claim（理赔核算）/ Medical（医疗审核）/ Compliance（合规风控，一票否决）
