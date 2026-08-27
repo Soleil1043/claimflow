@@ -1107,3 +1107,29 @@
 **Git**：`feat: T041 A/B 实战实验（glm-5.3-flash 跨供应商对比 + D019 选型结论）`
 
 <!-- 遇到的问题记录在此，方便回溯 -->
+### [T042] Phase 4 收尾验证 — 2026-08-27（全部 42 任务完成）
+
+**操作**：
+- README 五方向收尾：核心能力表 +GraphRAG/OTel/A-B 三行（累计 Phase 4 六行）；架构图 REJECT 分支
+  更新为 human_review（interrupt 挂起 → 坐席 Command(resume) 恢复）；快速开始 +「7. 追踪栈」
+  （tracing profile + 采样率 + 25 span 调用树说明）；评测体系 +GraphRAG 对比结论（图谱覆盖 87.5%、
+  每例 +6.9 条结构化事实）与 A/B 章节（ab_test 用法 + D019 结论）；设计要点 +长期记忆幂等/坐席结论
+  过合规门禁两条；测试数 346→367；范围说明改写为 Phase 4 已交付口径
+- docs/architecture.md：开发路线图 Phase 1-4 全部勾选并注明实际产出与任务区间；6.1 长期记忆架构
+  补落地标注（collection/幂等/首轮注入参数）；新增 ADR-006（跨供应商选型结论，引用 D019）
+- D017/D018/D019 齐备核查 ✓；ruff 全绿 + pytest 368 passed + compose 默认/monitoring/tracing 三 profile 校验通过
+
+**CI 排障（push 后首跑失败 → 根因修复 → 复跑全绿）**：
+- run 33040150634（f9822a5）Lint & Test pytest 步骤失败；CI 日志 403 无法匿名拉取 → 本地起
+  Linux 容器（CI 同 Dockerfile 依赖）挂载 tests/evals/data 复现，锁定根因：
+  **T041 给 baseline 变体加的 `$llm_api_key` 自引用在无 .env 环境（CI）被空值守卫误拒**——
+  Windows 本地有真实 Key 故未暴露。修复：自引用（还原语义）豁免空检查，跨字段引用守卫保留；
+  顺手把熔断 half-open 两测的冷却等待余量 0.06s→0.5s（10 倍，抗 CI 慢调度）并补自引用回归用例
+- run 33040950687（0e3a3a4）两 job 全绿 → F42 全部验收通过
+- 排障基建沉淀：Linux 复现命令（local-test 镜像 + 挂载 .dockerignore 排除目录），后续 CI 失败可一键复现
+
+**状态**：✅ 通过验证（CI 全绿）
+
+**Git**：`feat: T042 Phase 4 收尾验证（README/架构文档五方向更新 + ADR-006 + 路线图全勾）`
+
+<!-- 遇到的问题记录在此，方便回溯 -->
