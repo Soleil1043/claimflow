@@ -1,5 +1,9 @@
 # 多智能体保险理赔助手 — Agent 架构设计文档
 
+> **文档状态**：设计于 2026-08-24（规划期），2026-08-27（T042）已按实际实现回填标注。
+> 与设计的偏差以落地标注与 ADR 为准，演进决策全链见 ADR-001~006 与 `.agent/decisions.md`（D001-D019）；
+> 设计期原貌由 Git 历史承担（checkout 早期 commit 可查看）。
+
 ## 1. 项目概述
 
 ### 1.1 背景与问题
@@ -382,11 +386,14 @@ class AgentState(TypedDict):
 
 ### 6.2 记忆管理策略
 
-| 记忆类型 | 存储介质 | 生命周期 | 检索方式 |
+| 记忆类型 | 存储介质（实际落地） | 生命周期 | 检索方式 |
 |---|---|---|---|
-| 短期记忆 | 内存（State） | 单轮对话 | 直接读取 |
-| 工作记忆 | MySQL | 会话级持久化 | 按会话 ID 查询 |
-| 长期记忆 | Qdrant + MySQL | 跨会话持久 | 向量相似度检索 + 时间过滤 |
+| 短期记忆 | LangGraph State + Checkpoint（dev=InMemorySaver / prod=PostgreSQLSaver） | 会话内多轮 | 直接读取 |
+| 工作记忆 | State 的 shared_data（Agent 结论）+ 审计表 messages（tool_trace/agent_steps） | 单轮任务 / 会话级审计 | 按会话 ID 查询 |
+| 长期记忆 | Qdrant 独立 collection `long_term_memory`（摘要 + 实体） | 跨会话持久 | user_id filter + 向量相似度检索（T034/T035） |
+
+> 落地说明：设计期的"工作记忆 MySQL"未单独建表——其职责由 shared_data（Agent 间传递）
+> 与 messages 审计字段（tool_trace/agent_steps）分担；业务库实际为 SQLite（dev）/ PostgreSQL（prod）。
 
 ### 6.3 Token 预算控制
 
@@ -395,7 +402,8 @@ class AgentState(TypedDict):
 1. **滑动窗口**：只保留最近 N 条消息，超出部分截断
 2. **摘要压缩**：对话超过阈值时，对历史消息生成摘要，用摘要替代原始对话
 3. **实体提取**：从历史对话中提取结构化实体（保单号、诊断等），后续引用实体而非原文
-4. **分级模型**：简单任务用小模型（GPT-4o-mini / DeepSeek-V3），复杂任务才用大模型
+4. **分级模型**：主链路 deepseek-v4-flash，OCR 专职 vision-exp（失败降级 Mock），
+   glm-5.3-flash 为跨供应商容灾变体（ADR-006）
 
 ---
 
@@ -522,7 +530,7 @@ class AgentState(TypedDict):
 | 缓存 | Redis | 会话缓存、工具结果缓存、限流 |
 | LLM | 主链路：deepseek-v4-flash；图片 OCR 专职：deepseek-v4-flash-vision-exp（失败降级 Mock，详见 ADR-005） | 两者价格相同、均支持 function calling；主链路用正式版稳定，vision-exp 提供真实多模态 OCR |
 | Embedding | BGE-M3 | 中文效果好、多语言支持 |
-| 重排序 | BGE-Reranker-v2-m3 | 中文精排效果好 |
+| 重排序 | ~~BGE-Reranker-v2-m3~~ | 规划项，未实现——12 篇小语料下向量+图谱混合召回已够用（T033 评测结论），语料扩大后再评估 |
 | 部署 | Docker + Docker Compose | 本地开发和生产部署一致 |
 | 监控 | Prometheus + Grafana | 标准选型、生态成熟 |
 | 包管理 | uv | 速度快、锁文件可靠 |

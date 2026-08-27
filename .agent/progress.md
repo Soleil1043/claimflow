@@ -1133,3 +1133,19 @@
 **Git**：`feat: T042 Phase 4 收尾验证（README/架构文档五方向更新 + ADR-006 + 路线图全勾）`
 
 <!-- 遇到的问题记录在此，方便回溯 -->
+### [DOCS] architecture.md 过时表述修正与文档状态头 — 2026-08-27（T042 后续对齐）
+
+**操作**（用户确认的轻量方案，否决了"architecture_final.md 双文档"提案——分析结论：不需要 ~75-80%）：
+- 文档顶部加 3 行"文档状态"头：设计于规划期、T042 已按实际回填、偏差以落地标注与 ADR 为准、
+  设计原貌由 Git 历史承担
+- 修正 4 处设计 vs 实际偏差：6.2 记忆管理策略表 MySQL → 实际介质（Checkpoint/shared_data+审计字段/
+  Qdrant 记忆 collection）+ 落地说明；6.3 分级模型例子 → 实际的 flash/vision-exp/glm 变体；
+  技术选型表重排序 BGE-Reranker 标注"规划项，未实现"（T033 小语料评测结论佐证）
+
+**验证方式**：ruff 全绿 + pytest 368 passed（docs-only 改动，回归确认无意外影响）
+
+**状态**：✅ 完成
+
+**Git**：`docs: architecture.md 过时表述修正 + 文档状态头（设计 vs 实际对齐）`
+
+<!-- 遇到的问题记录在此，方便回溯 -->
