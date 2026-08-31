@@ -449,3 +449,26 @@ middleware 钩子体系），需新增 `langchain>=1.0` 依赖（列入 T044）�
 docs/architecture.md（§2.4/§4.1/§5.3/§6/§11/ADR-007 验证补记/文档状态头）、.agent/plan.md（§1/§3/§5）、
 .agent/tasks.md（T044 新增 langchain 依赖 + @tool、T046/T047 改 create_agent）。
 实施时仍须以实装源码签名为准（inspect.signature 复核），2026 年后续版本演进不在此验证范围内。
+
+## D023: 意图分类 multi_step 更名为 complex_consult — 2026-09-01
+
+**背景**：
+用户指出 `multi_step` 命名描述的是**解法**（要执行多步）而非**问题本身**，与同组其他四个意图
+（simple_faq / single_domain / chitchat / other，均为问题视角）分类轴不一致；且"几步"应是
+supervisor 运行时决策，不应烙进意图分类。
+
+**选项**：
+1. `multi_intent`（复合诉求）——NLU 标准术语，名字即判据（数诉求个数），标注一致性最好（模型推荐）
+2. `cross_domain`（跨领域咨询）——与 single_domain 同轴对称最干净，但"单领域多诉求"会被误名
+3. `complex_consult`（复杂理赔咨询）——业务语义直白、宽容度最大（跨域/多诉求/多步推理全兜住），
+   边界相对模糊需靠 few-shot 定义
+
+**最终选择**：`complex_consult`（用户拍板）。
+
+**影响**：
+- v2 设计即时同步：architecture.md §5.2/§5.3、docs/diagrams/agent_flow_v2.mmd
+- 实施放 T045（本就要重写意图模块）：VALID_INTENTS / INTENT_CLASSIFICATION_PROMPT few-shot /
+  关键词兜底规则 / route_intent；20 条意图测试集与 200 条评测集标注批量替换；
+  messages 表历史 intent 值读取时做旧值映射（multi_step → complex_consult）保持 API/审计连续；
+  A06 返回新值
+- v1 代码与 README 现行实现不动（T045 前 multi_step 仍为实际生效值）

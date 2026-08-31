@@ -331,7 +331,7 @@ class AgentState(TypedDict, total=False):
 
 ```
 __start__ → intent（意图枚举，条件边分流）
-  ├─ multi_step → supervisor
+  ├─ complex_consult（v1 名 multi_step，D023 更名）→ supervisor
   │     ├─ Command(goto="claim")   → claim 子图   ──→ supervisor（循环）
   │     ├─ Command(goto="medical") → medical 子图 ──→ supervisor（循环）
   │     └─ Command(goto="FINISH")  → synthesize
@@ -344,7 +344,7 @@ compliance ─┬─ PASS → __end__
                         恢复 → 合规复审 → __end__）
 ```
 
-与 v1 的结构差异：multi_step 路径的 planner + step_executor 游标循环并入 **supervisor 循环**
+与 v1 的结构差异：complex_consult 路径的 planner + step_executor 游标循环并入 **supervisor 循环**
 （Command 动态路由）；Worker 从"节点内函数调用"变为**图上子图节点**；
 react 路径的手写循环换 prebuilt 子图。合规门禁与 HITL 结构不变（已是官方标准）。
 
@@ -357,7 +357,7 @@ react 路径的手写循环换 prebuilt 子图。合规门禁与 HITL 结构不�
 class IntentType(str, Enum):
     simple_faq = "simple_faq"
     single_domain = "single_domain"
-    multi_step = "multi_step"
+    complex_consult = "complex_consult"  # 复杂理赔咨询（v1 名 multi_step，D023 更名）
     chitchat = "chitchat"
     other = "other"
 

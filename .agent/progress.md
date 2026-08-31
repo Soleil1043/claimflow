@@ -1268,4 +1268,20 @@ BaseTool.model_fields 含 args_schema、IndexConfig TypedDict 含 dims/embed/fie
 
 **Git**：`chore: 新增 langchain 1.3.18（create_agent）+ langchain-core 1.6.1，langgraph 系列确认最新`
 
+### [DOCS] 意图分类 multi_step 更名 complex_consult（D023）— 2026-09-01
+
+**操作**：
+- 背景：multi_step 命名描述的是解法（多步执行）而非问题本身，与同组四个意图（问题视角）分类轴
+  不一致；步骤数本应由 supervisor 运行时决定
+- 候选：multi_intent（模型推荐，名字即判据）/ cross_domain（与 single_domain 对称但有误名场景）/
+  complex_consult（业务直白、宽容度大）；用户拍板 complex_consult
+- 即时同步（v2 设计层）：architecture.md §5.2 主图 / §5.3 IntentType 枚举、
+  docs/diagrams/agent_flow_v2.mmd 流程图
+- 实施项挂到 T045 验收（本就要重写意图模块）：代码/标注/历史值映射/A06 全链更名清单已写入任务
+- v1 代码与 README 不动（T045 前 multi_step 仍为实际生效值）
+
+**状态**：✅ 决策记录 + v2 设计同步完成；代码更名待 T045 实施
+
+**Git**：`docs: 意图 multi_step 更名 complex_consult（D023）——v2 设计同步 + T045 验收挂接`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
