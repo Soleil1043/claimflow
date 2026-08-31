@@ -410,3 +410,42 @@ docs/architecture.md（v2 重设计，ADR-007）、.agent/tasks.md（Phase 5：T
 AGENTS.md 6.1/6.2（与 v2 冲突，T044 前置修订）、pyproject.toml（langgraph 下限收紧，
 create_react_agent 的 prompt/response_format 需较新 0.2.x）。
 风险控制：200 条评测基线回归，任务完成率相对基线 89.5% 回退 ≤1pp 为验收线。
+
+## D022: v2 设计 API 全量验证——create_react_agent 已废弃，改选 langchain.agents.create_agent — 2026-09-01
+
+**背景**：
+D021 完成后用户要求：先查官方文档，再全量验证 plan.md / architecture.md 的 API 写法，
+保证符合 uv.lock 实锁版本（langgraph 1.2.11 / langgraph-prebuilt 1.1.0 / langchain-core 1.6.0 /
+langchain-openai 1.6.0 / langgraph-checkpoint-postgres 3.1.2）。验证方式：官方文档（docs.langchain.com）
++ .venv 实装源码签名双重核对。
+
+**验证通过（无需改动）**：
+`Command(goto/update/resume)`、`interrupt`、`ToolNode(handle_tool_errors)`、`tools_condition`、
+`with_structured_output`、`Runnable.with_retry / with_fallbacks`、`bind_tools`、
+`BaseTool.args_schema + _arun`（model_fields 确认）、`InMemorySaver` / `AsyncPostgresSaver`、
+`InMemoryStore(index=IndexConfig{dims,embed,fields})`、`response_format → structured_response` 状态键。
+
+**发现并修正（4 项）**：
+1. `convert_to_openai_tool` 已从 langchain-core 1.x 移除——architecture.md §4.1 删除该提法（只保留 bind_tools）
+2. `AsyncPostgresStore` 实际路径 `langgraph.store.postgres`（langgraph 主包提供、复用 psycopg），
+   非 langgraph-checkpoint-postgres——§6 注记修正
+3. **`langgraph.prebuilt.create_react_agent` 自 LangGraph 1.0 起标记 @deprecated**
+   （源码确认，官方文档指向 `langchain.agents.create_agent` 为现行标准）
+4. 官方文档 1.x 主推 `@tool` 装饰器定义工具（docstring=描述、类型注解=schema、
+   `@tool(args_schema=...)`、`runtime: ToolRuntime` 上下文注入）——§4.1 改为 @tool 主推、
+   BaseTool 子类作有状态（依赖注入）备选
+
+**最终选择**：v2 Worker/单领域子图构造器改用 `langchain.agents.create_agent`
+（system_prompt 静态 + 动态任务指令经输入 messages 注入 + response_format → structured_response +
+middleware 钩子体系），需新增 `langchain>=1.0` 依赖（列入 T044）。
+备选（不采用）：已装的 create_react_agent——deprecated 但 langgraph-prebuilt 1.1.0 完整可用，
+若坚持零新增依赖可退回此选项。
+
+**plan.md 历史遗留修正（3 处）**：`PostgreSQLSaver` 类名 ×2 → PostgresSaver/AsyncPostgresSaver（D009
+口径）；包名 `langgraph-checkpoint-postgresql` → `langgraph-checkpoint-postgres`；依赖表更新为 uv.lock
+实锁版本。
+
+**影响**：
+docs/architecture.md（§2.4/§4.1/§5.3/§6/§11/ADR-007 验证补记/文档状态头）、.agent/plan.md（§1/§3/§5）、
+.agent/tasks.md（T044 新增 langchain 依赖 + @tool、T046/T047 改 create_agent）。
+实施时仍须以实装源码签名为准（inspect.signature 复核），2026 年后续版本演进不在此验证范围内。

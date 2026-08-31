@@ -12,7 +12,7 @@
 | 层面 | 选择 | 理由 |
 |------|------|------|
 | 语言 | Python 3.12 | 全量类型注解，AGENTS.md 约定 |
-| Agent 框架 | LangGraph ≥0.2 | 状态机 + Checkpoint（PostgreSQLSaver），条件边保证合规节点必经（ADR-001） |
+| Agent 框架 | LangGraph ≥0.2（实锁 1.2.11） | 状态机 + Checkpoint（AsyncPostgresSaver），条件边保证合规节点必经（ADR-001） |
 | Web 框架 | FastAPI | async、类型安全、与 Pydantic 深度集成 |
 | 关系数据库 | PostgreSQL 16 + SQLAlchemy 2.0 async | Checkpoint 原生支持；JSONB 存工具调用轨迹 |
 | 向量数据库 | Qdrant ≥1.12 | 单容器轻量；开发期 local mode 零容器（D001 / ADR-004） |
@@ -150,7 +150,7 @@ claim-agent/
 
 **Qdrant Collection**：`claim_rules`，向量 1024 维（BGE-M3），payload：`doc_id / title / category / chunk_index / text`。
 
-**LangGraph checkpoint 表**：由 PostgreSQLSaver 自动建表管理，不手工建模（D006）。
+**LangGraph checkpoint 表**：由 PostgresSaver / AsyncPostgresSaver 自动建表管理，不手工建模（D006/D009：类名无 "QL"，实际接入 AsyncPostgresSaver）。
 
 ### 表关系
 
@@ -172,26 +172,30 @@ claim-agent/
 
 ## 5. 第三方依赖
 
-> 版本以 `uv add` 实际锁定为准，下表为最低版本约束。
+> 版本以 `uv add` 实际锁定为准。**2026-09-01 校验修正（D022）**：原表存在两处笔误——包名
+> `langgraph-checkpoint-postgresql` 实为 `langgraph-checkpoint-postgres`（D009 已确认），
+> Checkpoint 类名 `PostgreSQLSaver` 实为 `PostgresSaver` / `AsyncPostgresSaver`；
+> 下表已按 uv.lock 实锁版本更新。
 
-| 包名 | 版本 | 用途 |
+| 包名 | 实锁版本（uv.lock） | 用途 |
 |------|------|------|
-| fastapi | ≥0.115 | Web 框架 |
-| uvicorn[standard] | ≥0.30 | ASGI 服务器 |
-| langgraph | ≥0.2 | Agent 状态机 |
-| langgraph-checkpoint-postgresql | ≥2.0 | PostgreSQL Checkpoint |
-| langchain-core | ≥0.3 | 消息/工具抽象 |
-| langchain-openai | ≥0.2 | DeepSeek（OpenAI 兼容）调用 |
-| sqlalchemy[asyncio] | ≥2.0 | ORM |
+| fastapi | 0.141.1 | Web 框架 |
+| uvicorn[standard] | 0.52.4 | ASGI 服务器 |
+| langgraph | 1.2.11 | Agent 状态机 |
+| langgraph-checkpoint-postgres | 3.1.2 | PostgreSQL Checkpoint（AsyncPostgresSaver） |
+| langchain-core | 1.6.0 | 消息/工具抽象 |
+| langchain-openai | 1.6.0 | DeepSeek（OpenAI 兼容）调用 |
+| langchain | 计划新增 ≥1.0（Phase 5，D022） | `create_agent` 官方 agent 标准 |
+| sqlalchemy[asyncio] | 2.0.52 | ORM |
 | asyncpg / aiosqlite | 最新 | PostgreSQL / 开发降级驱动 |
-| alembic | ≥1.13 | 迁移 |
-| qdrant-client | ≥1.12 | 向量库（含 local mode） |
-| sentence-transformers | ≥3.0 | 本地 BGE-M3 |
-| redis | ≥5.0 | 缓存 |
-| pydantic / pydantic-settings | ≥2.9 | 模型与配置 |
-| structlog | ≥24.0 | 结构化日志 |
-| httpx | ≥0.27 | HTTP 客户端（Mock/LLM） |
-| gradio | ≥5.0 | 演示界面 |
+| alembic | 1.19.1 | 迁移 |
+| qdrant-client | 1.19.0 | 向量库（含 local mode） |
+| sentence-transformers | 6.0.0 | 本地 BGE-M3 |
+| redis | 8.1.0 | 缓存 |
+| pydantic / pydantic-settings | 2.13.4 | 模型与配置 |
+| structlog | 26.1.0 | 结构化日志 |
+| httpx | 0.28.1 | HTTP 客户端（Mock/LLM） |
+| gradio | 6.25.0 | 演示界面 |
 | pytest / pytest-asyncio / pytest-cov | 最新 | 测试 |
 
 ## 6. 关键技术决策

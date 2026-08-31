@@ -3,7 +3,9 @@
 > **文档状态**：v1 设计于 2026-08-24（规划期），2026-08-27（T042）按实际实现回填；
 > **v2 重设计于 2026-09-01（D021/ADR-007）：全面对齐 LangGraph/LangChain 标准构件，未实施**——
 > v2 内容以「v2」标注，实施前代码以 v1 落地描述为准；迁移任务见第 11 节 Phase 5（T044-T048）。
-> 演进决策全链见 ADR-001~007 与 `.agent/decisions.md`（D001-D021）；
+> **2026-09-01 全量验证修正（D022）**：v2 全部 API 写法已对照官方文档与实锁版本逐一核实
+> （langgraph 1.2.11 / langgraph-prebuilt 1.1.0 / langchain-core 1.6.0 / langchain-openai 1.6.0）。
+> 演进决策全链见 ADR-001~007 与 `.agent/decisions.md`（D001-D022）；
 > v1 设计期原貌由 Git 历史承担（checkout 早期 commit 可查看）。
 
 ## 1. 项目概述
@@ -128,9 +130,9 @@ v2 以「LangGraph 图结构为骨架」重构：**主图 = StateGraph，一切�
 |---|---|---|
 | 意图识别 | 手写 JSON 解析（`_parse_llm_json`）+ 条件边 | `with_structured_output`（IntentType 枚举）+ 条件边；关键词兜底保留为降级路径 |
 | 多步调度 | planner 一次性计划 + step_executor 游标循环 | supervisor 节点：结构化输出 RoutingDecision + `Command(goto=...)` 动态路由（官方 multi-agent 模式） |
-| Worker Agent | AgentDefinition + 手写 ReAct 循环（runner.py） | `create_react_agent(model, tools, prompt, response_format)` 子图 |
-| 单领域路径 | 手写 ReactAgentNode + should_continue | `create_react_agent` + `tools_condition` |
-| 工具定义 | 自研 BaseTool（input_schema / output_schema / execute / to_openai_tool） | `langchain_core.tools.BaseTool` 子类（`args_schema` + `_arun`） |
+| Worker Agent | AgentDefinition + 手写 ReAct 循环（runner.py） | `create_agent(model, tools, system_prompt, response_format)`（`langchain.agents`，官方现行标准）子图 |
+| 单领域路径 | 手写 ReactAgentNode + should_continue | `create_agent` 子图（工具循环内置，无需手写 tools_condition） |
+| 工具定义 | 自研 BaseTool（input_schema / output_schema / execute / to_openai_tool） | `@tool` 装饰器（官方主推）/ `langchain_core.tools.BaseTool` 子类（args_schema + `_arun`，有状态工具） |
 | 工具执行 | 自研 ToolExecutor（超时/重试/熔断集中层） | 官方 `ToolNode`（`handle_tool_errors`）+ Runnable `.with_retry()` / `.with_fallbacks()` |
 | 结构化输出 | 手写 JSON 解析 ×4 处（意图/规划/Worker/合规） | `with_structured_output` / `response_format` |
 | 长期记忆 | 自研 Qdrant collection + 注入管线 | LangGraph `Store`（InMemoryStore / AsyncPostgresStore + 内建向量 index） |
@@ -233,35 +235,49 @@ phase_ainvoke 包装、Qdrant 长期记忆管线。
 > ToolOutput 信封 / ToolRegistry / ToolExecutor 集中层由官方机制取代（映射见 2.4）。
 > 实施前代码以 v1 现状为准（tools/base.py、tools/executor.py 等）。
 
-### 4.1 工具接口标准（v2）
+### 4.1 工具接口标准（v2，已按 langchain-core 1.6.0 验证）
 
-所有工具继承 `langchain_core.tools.BaseTool`：
+官方主推 **`@tool` 装饰器**：函数签名类型注解即入参 schema，docstring 即工具描述：
 
 ```python
+from langchain_core.tools import tool
+
+
 class PolicyQueryInput(BaseModel):
     """保单查询入参：policy_no 与 id_card 至少提供一个。"""
     policy_no: str | None = None
     id_card: str | None = None
 
 
-class PolicyQueryTool(BaseTool):
-    """保单查询（示例）。"""
+@tool(args_schema=PolicyQueryInput)
+async def policy_query(
+    policy_no: str | None = None, id_card: str | None = None
+) -> dict:
+    """根据保单号或身份证号查询保单详情……用户询问'我的保单'、'能赔多少'时使用。"""
+    ...  # 业务逻辑：查询保单并返回结果 dict
+```
 
+需要 **依赖注入 / 有状态** 的工具（如注入 DB 会话工厂）用 `BaseTool` 子类（1.6.0 验证有效：
+`args_schema` 为合法模型字段，`_arun` 返回 `str | dict`，支持 artifact）：
+
+```python
+class PolicyQueryTool(BaseTool):
     name: str = "policy_query"
-    description: str = (
-        "根据保单号或身份证号查询保单详情……用户询问'我的保单'、'能赔多少'时使用。"
-    )
+    description: str = "根据保单号或身份证号查询保单详情……"
     args_schema: type[PolicyQueryInput] = PolicyQueryInput
 
     async def _arun(self, *, policy_no: str | None = None, id_card: str | None = None) -> dict:
-        ...  # 业务逻辑：查询保单并返回结果 dict
+        ...
 ```
 
-- **入参校验**：框架按 `args_schema` 自动完成（v1 的手动 `model_validate` 删除）
-- **OpenAI 工具 schema**：`bind_tools` / `convert_to_openai_tool` 自动生成（v1 的 `to_openai_tool()` 删除）
+- **入参校验**：框架按 schema 自动完成（v1 的手动 `model_validate` 删除）
+- **OpenAI 工具 schema**：`bind_tools` 自动生成（v1 的 `to_openai_tool()` 删除；
+  `convert_to_openai_tool` 在 langchain-core 1.x 已移除，不再提）
 - **失败语义**：业务失败（保单不存在等）作为正常返回内容，由 LLM 向用户解释；
-  系统异常抛出，由官方 `ToolNode(handle_tool_errors=...)` 统一转 ToolMessage 错误回执，不中断图
-- **装配**：图工厂函数直接构造工具实例列表传给 `create_react_agent(tools=...)`（LangChain 惯例）；
+  系统异常抛出，由 `ToolNode(handle_tool_errors=...)` 统一转 ToolMessage 错误回执，不中断图
+- **上下文访问**（官方 1.x 能力）：工具签名可加 `runtime: ToolRuntime` 访问图状态 /
+  Store / config（模型不可见该参数），替代 v1 经执行器透传上下文的做法
+- **装配**：图工厂函数直接构造工具实例列表传给 `create_agent(tools=...)`；
   v1 的 ToolRegistry 删除，测试 mock 经工厂参数注入
 - **Adapter 模式保留**：第三方系统（保单/医疗 API、RAG、OCR）仍经 Adapter 封装，挂接在工具实现内部
 
@@ -380,26 +396,35 @@ async def supervisor_node(state: AgentState) -> Command:
 - Worker 结论经子图返回写入 shared_data（reducer 合并），供后续步骤与整合节点读取
 
 #### Worker 子图（claim / medical）
-官方 prebuilt，`AgentDefinition` 三要素（prompt / 工具集 / 输出 schema）直接映射到参数：
+官方现行标准 **`langchain.agents.create_agent`**（LangChain 1.x 起为 agent 构造标准；
+`langgraph.prebuilt.create_react_agent` 自 LangGraph 1.0 起标记 deprecated，虽然已装可用但不采用。
+`create_agent` 需新增 `langchain>=1.0` 依赖，列入 T044）：
 
 ```python
-claim_agent = create_react_agent(
+from langchain.agents import create_agent
+
+claim_agent = create_agent(
     model=get_chat_model(),
     tools=[policy_query, claim_calculator, claim_rule_rag, claim_status_query],
-    prompt=lambda state: [  # callable 读图 state（官方机制），注入任务指令与 shared_data
-        SystemMessage(content=CLAIM_AGENT_PROMPT),
-        HumanMessage(content=_task_instruction(state)),
-    ],
-    response_format=ClaimAgentOutput,  # 结构化终局输出 → state["structured_response"]
+    system_prompt=CLAIM_AGENT_PROMPT,          # 静态系统提示
+    response_format=ClaimAgentOutput,          # 结构化终局输出 → state["structured_response"]
+    checkpointer=...,                          # 子图按需挂 checkpoint（主图已挂则不必）
 )
+# 调用侧（step 包装节点）以输入 messages 注入动态任务指令与 shared_data：
+await claim_agent.ainvoke({
+    "messages": [HumanMessage(content=_task_instruction(instruction, shared_data))]
+})
 ```
 
-- 工具循环（LLM ↔ ToolNode）由 prebuilt 内置，`tools_condition` 决定继续 / 终止
+- `AgentDefinition` 三要素映射：system_prompt / tools / response_format（输出 schema）
+- 动态任务指令 + shared_data 经**输入 messages** 注入（调用侧构造），无需动态 prompt 钩子；
+  如需模型前/后处理钩子，官方机制是 `middleware`（替代旧 pre_model_hook / post_model_hook）
+- 工具循环（LLM ↔ ToolNode + tools_condition）由 prebuilt 内置，无需手写
 - `response_format` 替代 v1 手写 `_parse_agent_json` + schema 校验
 - 降级保留：解析失败 → 包装节点 catch → `{"summary": 原文前 500 字}`（v1 语义）
 
 #### React 子图（单领域 / 闲聊 / 其他）
-`create_react_agent` 通用助手（全量工具）+ `tools_condition`；
+`create_agent` 通用助手（全量工具），工具循环内置；
 v1 手写 ReactAgentNode 与 should_continue 删除。
 LLM 故障降级话术（T022 语义）经 `.with_fallbacks()` 或外层包装节点保留。
 
@@ -557,9 +582,12 @@ MODIFY → revise_answer → 复审闭环；REJECT → human_review）。
 > 落地说明：设计期的"工作记忆 MySQL"未单独建表——其职责由 shared_data（Agent 间传递）
 > 与 messages 审计字段（tool_trace/agent_steps）分担；业务库实际为 SQLite（dev）/ PostgreSQL（prod）。
 
-> **v2（未实施）**：长期记忆收敛到官方 **LangGraph Store** 体系——dev=`InMemoryStore`、
-> prod=`AsyncPostgresStore`（langgraph-checkpoint-postgres 自带），namespace 按 `(user_id,)` 隔离，
-> 向量检索用 Store 内建 index 配置（embed 仍用 BGE-M3）。T034/T035 的摘要 + 实体写入逻辑保留，
+> **v2（未实施）**：长期记忆收敛到官方 **LangGraph Store** 体系——dev=`InMemoryStore`
+> （`langgraph.store.memory`）、prod=`AsyncPostgresStore`（`langgraph.store.postgres`，
+> langgraph 主包提供，复用 psycopg 驱动），namespace 按 `(user_id,)` 隔离，
+> 向量检索用 Store 内建 index 配置（`IndexConfig`：`dims` / `embed` / `fields`，
+> embed 仍用 BGE-M3——以上均按 langgraph 1.2.11 实装源码验证）。
+> T034/T035 的摘要 + 实体写入逻辑保留，
 > 落点改为 `store.put`；检索注入改为节点内 `store.get/search`（官方 cross-thread memory 模式）。
 > 自研 Qdrant `long_term_memory` collection 与注入管线删除；**Qdrant 仅保留 RAG 知识库用途**。
 > 短期记忆（Checkpointer）不变；工作记忆的审计字段随 5.1 状态精简改由 messages 派生。
@@ -736,22 +764,24 @@ MODIFY → revise_answer → 复审闭环；REJECT → human_review）。
 
 ### Phase 5：LangGraph 标准构件对齐重构 — ⏸ 待启动（T044-T048，D021/ADR-007）
 
-- [ ] T044 工具层标准化：9 个工具迁移 `langchain_core.tools.BaseTool`（args_schema + _arun），
-      重试/降级换 `.with_retry()` / `.with_fallbacks()`，删 ToolOutput 信封 / ToolRegistry /
-      ToolExecutor 集中层；熔断器与缓存白名单保留为最小自研
+- [ ] T044 工具层标准化：9 个工具迁移官方工具定义（`@tool` 装饰器主推，有状态工具用
+      `BaseTool` 子类 args_schema + _arun），重试/降级换 `.with_retry()` / `.with_fallbacks()`，
+      删 ToolOutput 信封 / ToolRegistry / ToolExecutor 集中层；熔断器与缓存白名单保留为最小自研；
+      **新增 `langchain>=1.0` 依赖**（create_agent 官方标准所需）
 - [ ] T045 决策点结构化输出原生化：意图 / 合规判决改 `with_structured_output`（枚举 Literal），
       手写 `_parse_llm_json` ×2 删除，关键词 / 确定性兜底保留
-- [ ] T046 Worker 子图化：AgentDefinition ×3 → `create_react_agent` 子图（prompt callable
-      注入 shared_data + response_format），手写 ReAct 循环删除；tool_trace 改 messages 派生
-      + callbacks 归集
+- [ ] T046 Worker 子图化：AgentDefinition ×3 → `langchain.agents.create_agent` 子图
+      （system_prompt + 输入 messages 注入 shared_data + response_format → structured_response），
+      手写 ReAct 循环删除；tool_trace 改 messages 派生 + callbacks 归集
 - [ ] T047 supervisor 动态路由化：planner + step_executor 并入 supervisor 节点
-      （RoutingDecision + `Command(goto)`，支持重规划）；react 路径换 prebuilt + `tools_condition`；
+      （RoutingDecision + `Command(goto)`，支持重规划）；react 路径换 `create_agent` 子图；
       State 精简（删 current_step / tool_trace / agent_steps）
 - [ ] T048 长期记忆 Store 化 + 全量回归：迁官方 Store（InMemoryStore / AsyncPostgresStore +
       内建向量 index），删 Qdrant 记忆 collection；200 条评测基线回归（完成率 89.5% 回退 ≤1pp）；
       文档回填"已实施"、README 架构图更新
 
-> 启动前置：AGENTS.md 6.1/6.2 与 v2 冲突需先修订（列入 T044）；pyproject langgraph 下限收紧。
+> 启动前置：AGENTS.md 6.1/6.2 与 v2 冲突需先修订（列入 T044）；pyproject 新增 langchain≥1.0
+> （langgraph 实锁 1.2.11 已满足全部 API）。
 
 ---
 
@@ -835,3 +865,15 @@ MODIFY → revise_answer → 复审闭环；REJECT → human_review）。
 - **影响**：AGENTS.md 6.1/6.2 同步修订（T044 前置）；pyproject langgraph 下限收紧；
   Qdrant 仅保留 RAG 用途；tool_trace/agent_steps 改由 messages 派生 + callbacks 归集；
   200 条评测基线回归（完成率相对 89.5% 回退 ≤1pp 为验收线）
+
+> **验证补记（2026-09-01，D022）**：v2 全部 API 写法已对照官方文档与实锁版本逐一核实
+> （langgraph 1.2.11 / langgraph-prebuilt 1.1.0 / langchain-core 1.6.0 / langchain-openai 1.6.0）。
+> 验证通过：`Command(goto/update/resume)`、`interrupt`、`ToolNode(handle_tool_errors)`、
+> `tools_condition`、`with_structured_output`、`.with_retry` / `.with_fallbacks`、`bind_tools`、
+> `BaseTool.args_schema` + `_arun`、`InMemorySaver` / `AsyncPostgresSaver`、
+> `Store.index`（IndexConfig：dims/embed/fields）、`response_format → structured_response` 键。
+> 三处修正：① `convert_to_openai_tool` 已从 langchain-core 1.x 移除（只保留 bind_tools 提法）；
+> ② `AsyncPostgresStore` 实际路径 `langgraph.store.postgres`（langgraph 主包，非 checkpoint-postgres）；
+> ③ **`create_react_agent` 自 LangGraph 1.0 起 deprecated**——v2 Worker/单领域子图改用官方现行标准
+> `langchain.agents.create_agent`（新增 langchain≥1.0 依赖，动态指令经输入 messages 注入、
+> 钩子经 middleware），`@tool` 装饰器为工具定义主推方式。

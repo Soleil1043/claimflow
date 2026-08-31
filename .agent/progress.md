@@ -1211,4 +1211,36 @@ ReAct 循环、四处手写 JSON 解析、tool_trace/agent_steps 状态字段、
 
 **Git**：`docs: 架构 v2 LangGraph 标准构件对齐设计（supervisor + create_react_agent + ToolNode + Store）+ D021 + Phase 5 任务清单`
 
+### [DOCS] v2 设计 API 全量验证修正（官方文档 + uv.lock 实锁版本核对，D022）— 2026-09-01
+
+**操作**：
+- 背景：用户指出模型知识截止（约 2025 后期）与项目实锁版本（langgraph 1.2.11 / langgraph-prebuilt
+  1.1.0 / langchain-core 1.6.0 / langchain-openai 1.6.0）之间存在空窗，要求先查官方文档
+  （docs.langchain.com），再全量验证 plan.md / architecture.md 的 API 写法
+- 验证方法：官方文档 WebFetch + `.venv` 实装源码 inspect.signature 双重核对
+- **验证通过 12 项**：Command(goto/update/resume)、interrupt、ToolNode(handle_tool_errors)、
+  tools_condition、with_structured_output、with_retry/with_fallbacks、bind_tools、
+  BaseTool.args_schema+_arun、InMemorySaver/AsyncPostgresSaver、InMemoryStore(IndexConfig)、
+  response_format→structured_response 键
+- **修正 4 项**：① convert_to_openai_tool 已从 langchain-core 1.x 移除（删提法）；
+  ② AsyncPostgresStore 实际在 langgraph.store.postgres（langgraph 主包，非 checkpoint-postgres）；
+  ③ create_react_agent 自 LangGraph 1.0 起 @deprecated → v2 改选 langchain.agents.create_agent
+  （需新增 langchain≥1.0 依赖，列入 T044；动态指令经输入 messages 注入、钩子经 middleware）；
+  ④ 官方 1.x 工具定义主推 @tool 装饰器（args_schema/runtime 注入）→ §4.1 改 @tool 主推 +
+  BaseTool 子类备选
+- **plan.md 历史遗留修正 3 处**：PostgreSQLSaver 类名 ×2（D009 口径未同步）、包名
+  langgraph-checkpoint-postgresql、依赖表更新为 uv.lock 实锁版本（fastapi 0.141.1 等 11 项）
+- architecture.md 修改点：文档状态头（D022 标注）、§2.4 映射表、§4.1 重写、§5.3 Worker/React
+  子图改 create_agent、§6 Store 路径、§11 T044-T047、ADR-007 验证补记
+- tasks.md 同步：T044（+langchain 依赖 +@tool）、T046/T047（create_agent）
+
+**验证方式**：uv run python inspect.signature 实测（create_react_agent 12 参数含 deprecated_kwargs、
+ToolNode handle_tool_errors、ChatOpenAI.with_structured_output(schema,method,include_raw,strict,tools)、
+BaseTool.model_fields 含 args_schema、IndexConfig TypedDict 含 dims/embed/fields）；
+官方文档 docs.langchain.com（agents/tools 页）交叉确认。
+
+**状态**：✅ 验证完成，v2 文档全部写法与实锁版本一致；Phase 5 仍待用户确认启动
+
+**Git**：`docs: v2 设计 API 全量验证修正（create_react_agent 已废弃改 create_agent + @tool 主推 + Store 路径修正）+ D022`
+
 <!-- 遇到的问题记录在此，方便回溯 -->
