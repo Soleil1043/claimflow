@@ -380,3 +380,33 @@ optimum/onnxruntime 并导出量化模型）。
 **影响**：
 nodes/rag.py（召回-精排两段式）、services/rag/reranker.py、配置 RERANK_* 六项、
 variants rerank_off/rerank_on、architecture.md 技术选型表重排序行更新为已落地。
+
+## D021: 架构 v2 全面对齐 LangGraph/LangChain 标准构件（supervisor 化 + 文档先行）— 2026-09-01
+
+**背景**：
+评审发现 v1 的 Agent/工具层偏离 LangGraph/LangChain 官方模式：自研 BaseTool（信封/注册中心/集中执行器）、
+AgentDefinition + 两处手写 ReAct 循环、四个 LLM 决策点手写 JSON 解析；而图编排层（StateGraph/条件边/
+checkpoint/interrupt）本身已是官方标准。用户指示以 LangGraph 图结构为基础重新设计架构，原则：
+**所有部分尽量按 LangGraph/LangChain 已定义的方法、类、架构实施，非必要不增加自定义内容**。
+
+**选项**：
+1. C 维持现状 + 补决策记录说明偏离理由——成本最低，但不满足"对齐官方"诉求
+2. A 温和对齐：保留 plan-execute 调度，仅工具换 langchain BaseTool、Worker 换 create_react_agent——
+   改动小，但调度层仍非官方范式
+3. B 全面原生化：supervisor 动态路由（Command(goto)）+ create_react_agent 子图 + ToolNode +
+   with_structured_output + 官方 Store 记忆——最贴官方文档，改动大
+
+**最终选择**：B，且**文档先行**（v2 设计写入 architecture.md，代码零改动，迁移任务 T044-T048 待确认后执行）。
+两个关键子决策由用户拍板：① 多步调度采用 supervisor 动态路由（planner + step_executor 游标循环并入
+supervisor 节点，支持执行中重规划）；② 本次仅交付文档与状态记录。
+
+**仅保留自研清单**（框架无对应物，ADR-007 逐项论证必要性）：熔断器、工具结果缓存白名单、
+领域工具/Prompt/各降级规则。**删除项**：自研 BaseTool 与 ToolOutput 信封、ToolRegistry、
+ToolExecutor 集中层、AgentDefinition、两处手写 ReAct 循环、四处手写 JSON 解析、
+tool_trace/agent_steps 状态字段、phase_ainvoke 包装、Qdrant 长期记忆管线（迁官方 Store）。
+
+**影响**：
+docs/architecture.md（v2 重设计，ADR-007）、.agent/tasks.md（Phase 5：T044-T048）、
+AGENTS.md 6.1/6.2（与 v2 冲突，T044 前置修订）、pyproject.toml（langgraph 下限收紧，
+create_react_agent 的 prompt/response_format 需较新 0.2.x）。
+风险控制：200 条评测基线回归，任务完成率相对基线 89.5% 回退 ≤1pp 为验收线。

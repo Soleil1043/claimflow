@@ -1,8 +1,10 @@
 # 多智能体保险理赔助手 — Agent 架构设计文档
 
-> **文档状态**：设计于 2026-08-24（规划期），2026-08-27（T042）已按实际实现回填标注。
-> 与设计的偏差以落地标注与 ADR 为准，演进决策全链见 ADR-001~006 与 `.agent/decisions.md`（D001-D019）；
-> 设计期原貌由 Git 历史承担（checkout 早期 commit 可查看）。
+> **文档状态**：v1 设计于 2026-08-24（规划期），2026-08-27（T042）按实际实现回填；
+> **v2 重设计于 2026-09-01（D021/ADR-007）：全面对齐 LangGraph/LangChain 标准构件，未实施**——
+> v2 内容以「v2」标注，实施前代码以 v1 落地描述为准；迁移任务见第 11 节 Phase 5（T044-T048）。
+> 演进决策全链见 ADR-001~007 与 `.agent/decisions.md`（D001-D021）；
+> v1 设计期原貌由 Git 历史承担（checkout 早期 commit 可查看）。
 
 ## 1. 项目概述
 
@@ -53,6 +55,11 @@
 1. **领域边界清晰**：保单查询、医疗审核、合规风控是三个独立领域
 2. **专业能力差异大**：每个领域需要的工具和推理逻辑不同
 3. **风控要求高**：合规审查需要独立角色，避免利益冲突
+
+> **v2 落地方式**：Orchestrator-Worker 在 LangGraph 中的标准表达即 **Supervisor 多智能体模式**
+> （官方 multi-agent 文档范式）：supervisor 节点每轮结构化输出下一步动作，经 `Command(goto=...)`
+> 路由到 Worker 子图，FINISH 后整合。v1 的"planner 一次性计划 + 游标循环"是 Plan-Execute 变体，
+> v2 统一收敛到 supervisor（计划感知，支持执行中重规划）。
 
 ### 2.2 架构图
 
@@ -110,9 +117,45 @@ Orchestrator 理解意图 → 判断任务类型
         合规不通过 → 触发人工复核 / 拒绝回答
 ```
 
+### 2.4 v2 总体原则：标准构件优先（D021）
+
+v2 以「LangGraph 图结构为骨架」重构：**主图 = StateGraph，一切模块皆为图上标准构件**。
+凡 LangGraph/LangChain 已定义的类、方法、架构一律使用；自研仅保留框架确实没有对应物的最小集合。
+
+**模块 → 官方构件映射**（v1 现状 vs v2 目标）：
+
+| 模块 | v1（已实现） | v2（官方标准构件） |
+|---|---|---|
+| 意图识别 | 手写 JSON 解析（`_parse_llm_json`）+ 条件边 | `with_structured_output`（IntentType 枚举）+ 条件边；关键词兜底保留为降级路径 |
+| 多步调度 | planner 一次性计划 + step_executor 游标循环 | supervisor 节点：结构化输出 RoutingDecision + `Command(goto=...)` 动态路由（官方 multi-agent 模式） |
+| Worker Agent | AgentDefinition + 手写 ReAct 循环（runner.py） | `create_react_agent(model, tools, prompt, response_format)` 子图 |
+| 单领域路径 | 手写 ReactAgentNode + should_continue | `create_react_agent` + `tools_condition` |
+| 工具定义 | 自研 BaseTool（input_schema / output_schema / execute / to_openai_tool） | `langchain_core.tools.BaseTool` 子类（`args_schema` + `_arun`） |
+| 工具执行 | 自研 ToolExecutor（超时/重试/熔断集中层） | 官方 `ToolNode`（`handle_tool_errors`）+ Runnable `.with_retry()` / `.with_fallbacks()` |
+| 结构化输出 | 手写 JSON 解析 ×4 处（意图/规划/Worker/合规） | `with_structured_output` / `response_format` |
+| 长期记忆 | 自研 Qdrant collection + 注入管线 | LangGraph `Store`（InMemoryStore / AsyncPostgresStore + 内建向量 index） |
+| 轨迹 / Token 统计 | 自研 tool_trace 状态字段 + phase_ainvoke 包装 | `BaseCallbackHandler`（标准扩展点）+ 从 messages 中 ToolMessage 派生 |
+| HITL / 短期记忆 | `interrupt`/`Command(resume)` + Checkpointer（已标准） | 不变 |
+
+**标准 vs 自研边界**——v2 仅保留的自研项（必要性论证见 ADR-007）：
+
+| 自研项 | 保留理由 |
+|---|---|
+| 熔断器（连续失败 → 熔断 → 半开探测） | LangGraph/LangChain 无对应物，Phase 3 容错硬需求 |
+| 工具结果缓存白名单（T028） | 框架无工具级结果缓存标准 |
+| 领域工具、Prompt、各降级规则 | 业务内容而非框架替代（关键词兜底 / 确定性合规判决 / summary 降级等） |
+
+对应删除的自研层：ToolOutput 信封、ToolRegistry、ToolExecutor 集中层、AgentDefinition、
+两处手写 ReAct 循环、四处手写 JSON 解析、tool_trace/agent_steps 状态字段、
+phase_ainvoke 包装、Qdrant 长期记忆管线。
+
 ---
 
 ## 3. Agent 角色定义
+
+> **v2 表达**：Orchestrator = 主图上的 **supervisor 节点**（计划 + 动态路由）；
+> 每个 Worker = **`create_react_agent` 子图**（system prompt + 工具集 + response_format 结构化输出，
+> 见 5.3）。角色职责、工具集、输出 schema 定义不变，仅承载方式从自研定义类换为官方 prebuilt。
 
 ### 3.1 Orchestrator Agent（调度代理）
 
@@ -186,96 +229,215 @@ Orchestrator 理解意图 → 判断任务类型
 
 ## 4. 工具设计规范
 
-### 4.1 工具接口标准
+> **v2（未实施）**：工具层全面换用 `langchain_core.tools` 标准构件；v1 的自研 BaseTool /
+> ToolOutput 信封 / ToolRegistry / ToolExecutor 集中层由官方机制取代（映射见 2.4）。
+> 实施前代码以 v1 现状为准（tools/base.py、tools/executor.py 等）。
 
-所有工具统一实现以下接口（基于 Pydantic schema）：
+### 4.1 工具接口标准（v2）
+
+所有工具继承 `langchain_core.tools.BaseTool`：
 
 ```python
-class ToolInput(BaseModel):
-    """工具输入基类"""
-
-    pass
-
-
-class ToolOutput(BaseModel):
-    """工具输出基类"""
-
-    success: bool
-    error_message: str | None = None
-    data: dict
+class PolicyQueryInput(BaseModel):
+    """保单查询入参：policy_no 与 id_card 至少提供一个。"""
+    policy_no: str | None = None
+    id_card: str | None = None
 
 
-class BaseTool:
-    name: str
-    description: str
-    input_schema: type[ToolInput]
-    output_schema: type[ToolOutput]
+class PolicyQueryTool(BaseTool):
+    """保单查询（示例）。"""
 
-    async def execute(self, input_data: ToolInput) -> ToolOutput: ...
+    name: str = "policy_query"
+    description: str = (
+        "根据保单号或身份证号查询保单详情……用户询问'我的保单'、'能赔多少'时使用。"
+    )
+    args_schema: type[PolicyQueryInput] = PolicyQueryInput
+
+    async def _arun(self, *, policy_no: str | None = None, id_card: str | None = None) -> dict:
+        ...  # 业务逻辑：查询保单并返回结果 dict
 ```
 
-### 4.2 工具注册与发现
+- **入参校验**：框架按 `args_schema` 自动完成（v1 的手动 `model_validate` 删除）
+- **OpenAI 工具 schema**：`bind_tools` / `convert_to_openai_tool` 自动生成（v1 的 `to_openai_tool()` 删除）
+- **失败语义**：业务失败（保单不存在等）作为正常返回内容，由 LLM 向用户解释；
+  系统异常抛出，由官方 `ToolNode(handle_tool_errors=...)` 统一转 ToolMessage 错误回执，不中断图
+- **装配**：图工厂函数直接构造工具实例列表传给 `create_react_agent(tools=...)`（LangChain 惯例）；
+  v1 的 ToolRegistry 删除，测试 mock 经工厂参数注入
+- **Adapter 模式保留**：第三方系统（保单/医疗 API、RAG、OCR）仍经 Adapter 封装，挂接在工具实现内部
 
-采用 **Adapter 模式** 封装第三方 API，统一工具调用接口：
+### 4.2 工具执行与保障（v2）
 
-```
-工具调用层
-    ├── ToolRegistry（工具注册中心）
-    ├── ToolAdapter（适配器基类）
-    │   ├── PolicyApiAdapter（保单系统 API 适配器）
-    │   ├── MedicalApiAdapter（医疗系统 API 适配器）
-    │   ├── RagToolAdapter（RAG 检索适配器）
-    │   └── CalculatorAdapter（计算工具适配器）
-    └── ToolExecutor（工具执行器，含超时、重试、熔断）
-```
+执行：官方 `ToolNode`（`create_react_agent` 内置）。保障机制按官方构件分层承载：
 
-### 4.3 工具执行保障
-
-| 机制 | 说明 | 配置 |
+| 机制 | v2 承载（官方/标准） | 对应 v1 |
 |---|---|---|
-| 超时控制 | 每个工具调用有独立超时时间 | 默认 10s，可配置 |
-| 重试策略 | 网络错误等瞬时故障自动重试 | 最多 2 次，指数退避 |
-| 熔断保护 | 连续失败达到阈值后熔断 | 5 次失败 → 熔断 30s |
-| Fallback | 关键工具失败时提供降级方案 | 如 RAG 失败 → 返回兜底模板 |
-| 调用日志 | 记录每次工具调用的入参、出参、耗时 | 全量写入，用于调试和评测 |
+| 入参校验 | 框架按 args_schema 校验 | BaseTool.execute 手动校验 |
+| 错误回执 | `ToolNode(handle_tool_errors=...)` | ToolOutput 信封 error_message |
+| 重试 | Runnable `.with_retry()`（指数退避） | ToolExecutor 内置重试 |
+| 降级 | Runnable `.with_fallbacks()` | ToolExecutor fallback 参数 |
+| 超时 | `asyncio.timeout` 包在 `_arun` 内（stdlib，无自研层） | ToolExecutor 超时控制 |
+| 熔断 | **自研轻量包装（保留）**——框架无对应物，见 ADR-007 | ToolExecutor 熔断器 |
+| 结果缓存 | **自研白名单缓存（保留）**——框架无工具级缓存标准 | T028 工具缓存 |
+| 指标 / 追踪 / 调用日志 | `BaseCallbackHandler`（标准扩展点）+ 既有 Prometheus / OTel | ToolExecutor 内埋点 |
 
 ---
 
 ## 5. 工作流设计（基于 LangGraph）
 
-### 5.1 状态定义（State）
+> **v2（未实施）**：5.1–5.4 为 v2 目标设计（官方构件，D021/ADR-007）；
+> 5.5–5.6 保留 v1 现行设计供对照，Phase 5（T044-T048）迁移完成后移除。
+
+### 5.1 状态定义（v2）
 
 ```python
-class AgentState(TypedDict):
-    # 对话基础信息
+class AgentState(TypedDict, total=False):
+    """主图状态（v2 精简：调度改 supervisor 动态路由，轨迹由 messages 派生）。"""
+
     conversation_id: str
-    user_id: str
-    message_history: list[Message]
-    
-    # 用户信息（逐步收集）
-    user_profile: dict  # 保单号、身份证号、姓名等
-    uploaded_files: list[str]  # 用户上传的文件/图片
-    
-    # 意图与任务规划
-    intent: str | None  # 意图分类结果
-    task_plan: list[TaskStep] | None  # 执行计划
-    current_step: int  # 当前执行到第几步
-    
-    # 各 Agent 输出结果
-    medical_result: dict | None
-    claim_result: dict | None
-    compliance_result: dict | None
-    
-    # 共享记忆池（Agent 间传递的信息）
-    shared_data: dict
-    
-    # 系统状态
-    need_human_intervention: bool
-    intervention_reason: str | None
-    final_answer: str | None
+    messages: Annotated[list[AnyMessage], add_messages]  # 对话主通道（checkpoint 持久化）
+    intent: str | None                                    # 意图枚举值（IntentType）
+    task_plan: list[TaskStep]                             # supervisor 计划（可重规划）
+    shared_data: Annotated[dict, merge_shared_data]       # 各 Worker 结论（reducer 合并）
+    final_answer: str
+    compliance_result: dict | None                        # ComplianceVerdict
+    compliance_rounds: int                                # MODIFY 修订闭环轮数（防死循环）
+    memory_context: str                                   # Store 检索的跨会话记忆（见 6）
 ```
 
-### 5.2 核心节点
+相对 v1 删除的字段：
+- `current_step`（游标）——supervisor 动态路由取代固定循环
+- `tool_trace` / `agent_steps`——从 messages 中 ToolMessage 派生 + callbacks 归集
+  （A06 used_tools 与审计口径不变）
+- `medical_result` / `claim_result` / `need_human_intervention` 等——v1 已实际由
+  shared_data / compliance_result / interrupt 承担，v2 状态收敛到实际使用的键
+
+### 5.2 主图（v2）
+
+```
+__start__ → intent（意图枚举，条件边分流）
+  ├─ multi_step → supervisor
+  │     ├─ Command(goto="claim")   → claim 子图   ──→ supervisor（循环）
+  │     ├─ Command(goto="medical") → medical 子图 ──→ supervisor（循环）
+  │     └─ Command(goto="FINISH")  → synthesize
+  ├─ simple_faq → rag → synthesize
+  └─ 其他（single_domain / chitchat / other）→ react 子图 → compliance
+synthesize → compliance（F10 必经门禁，条件边保证无旁路出口）
+compliance ─┬─ PASS → __end__
+            ├─ MODIFY（未达轮数上限）→ revise_answer → compliance（复审闭环）
+            └─ REJECT → human_review（interrupt 挂起；坐席 Command(resume=结论)
+                        恢复 → 合规复审 → __end__）
+```
+
+与 v1 的结构差异：multi_step 路径的 planner + step_executor 游标循环并入 **supervisor 循环**
+（Command 动态路由）；Worker 从"节点内函数调用"变为**图上子图节点**；
+react 路径的手写循环换 prebuilt 子图。合规门禁与 HITL 结构不变（已是官方标准）。
+
+### 5.3 节点标准机制（v2）
+
+#### Intent（意图识别）
+官方 Routing 模式：**LLM 结构化输出（枚举）+ 条件边**。
+
+```python
+class IntentType(str, Enum):
+    simple_faq = "simple_faq"
+    single_domain = "single_domain"
+    multi_step = "multi_step"
+    chitchat = "chitchat"
+    other = "other"
+
+
+class IntentClassification(BaseModel):
+    intent: IntentType
+    reason: str
+
+
+structured = get_chat_model(temperature=0.0).with_structured_output(IntentClassification)
+result = await structured.ainvoke([HumanMessage(content=INTENT_CLASSIFICATION_PROMPT.format(...))])
+# 节点返回 {"intent": result.intent.value}；条件边按 intent 分发（v1 已是条件边，仅解析层原生化）
+```
+
+降级保留：`with_structured_output` 抛错 / 输出非法 → try/except 走关键词规则兜底（规则集与 v1 一致）。
+
+#### Supervisor（调度）
+官方 multi-agent supervisor 模式（核心 API 实现，不引 langgraph-supervisor 三方包——
+核心 API 模式即官方文档标准，且避免额外依赖）：
+
+```python
+class RoutingDecision(BaseModel):
+    next: Literal["claim", "medical", "FINISH"]
+    plan: list[TaskStep]   # 首轮产出完整计划；后续轮可重规划（replan）
+    reason: str
+
+
+async def supervisor_node(state: AgentState) -> Command:
+    decision = await structured_model.ainvoke(...)  # 输入：用户诉求 + 计划进度 + shared_data
+    return Command(goto=decision.next, update={"task_plan": decision.plan, ...})
+```
+
+- 首轮产出计划；每轮依据计划进度与 shared_data 决定下一步；步骤失败可重规划
+  （v1 5.6 承诺的"动态调整"未实现，v2 由 supervisor 落实）
+- 防失控：`recursion_limit`（替代 v1 的 current_step 游标与 MAX_TOOL_ROUNDS）
+- Worker 结论经子图返回写入 shared_data（reducer 合并），供后续步骤与整合节点读取
+
+#### Worker 子图（claim / medical）
+官方 prebuilt，`AgentDefinition` 三要素（prompt / 工具集 / 输出 schema）直接映射到参数：
+
+```python
+claim_agent = create_react_agent(
+    model=get_chat_model(),
+    tools=[policy_query, claim_calculator, claim_rule_rag, claim_status_query],
+    prompt=lambda state: [  # callable 读图 state（官方机制），注入任务指令与 shared_data
+        SystemMessage(content=CLAIM_AGENT_PROMPT),
+        HumanMessage(content=_task_instruction(state)),
+    ],
+    response_format=ClaimAgentOutput,  # 结构化终局输出 → state["structured_response"]
+)
+```
+
+- 工具循环（LLM ↔ ToolNode）由 prebuilt 内置，`tools_condition` 决定继续 / 终止
+- `response_format` 替代 v1 手写 `_parse_agent_json` + schema 校验
+- 降级保留：解析失败 → 包装节点 catch → `{"summary": 原文前 500 字}`（v1 语义）
+
+#### React 子图（单领域 / 闲聊 / 其他）
+`create_react_agent` 通用助手（全量工具）+ `tools_condition`；
+v1 手写 ReactAgentNode 与 should_continue 删除。
+LLM 故障降级话术（T022 语义）经 `.with_fallbacks()` 或外层包装节点保留。
+
+#### Compliance（合规门禁，ADR-002 不变）
+结构化判决 + 三态条件边：
+
+```python
+class ComplianceVerdict(BaseModel):
+    verdict: Literal["PASS", "MODIFY", "REJECT"]
+    violations: list[str]
+    suggestion: str
+    risk_score: float
+```
+
+`with_structured_output(ComplianceVerdict)` + 条件边三态流转（PASS → END；
+MODIFY → revise_answer → 复审闭环；REJECT → human_review）。
+所有输出路径必经 compliance 的条件边汇聚结构不变；LLM 失败的确定性兜底判决规则原样保留。
+
+#### Human Review（HITL，不变）
+`interrupt()` 挂起 + 坐席 `Command(resume=...)` 恢复——v1 已是官方标准用法。
+
+#### Synthesize（整合，不变）
+普通节点：汇总 shared_data 生成最终回答；LLM 失败降级为各数据源 summary 拼接（v1 语义保留）。
+
+### 5.4 降级语义对照（v1 → v2）
+
+每一条 v1 手写兜底在 v2 都有等价承载，一条不丢：
+
+| 决策点 | v1 手写兜底 | v2 承载方式 |
+|---|---|---|
+| 意图识别 | `_parse_llm_json` + 关键词规则 | `with_structured_output` try/except + 同一套关键词规则 |
+| 任务规划 | `_parse_llm_json` + 关键词计划 | supervisor 解析失败 → 关键词计划（同规则） |
+| Worker 输出 | `_parse_agent_json` → summary 降级 | `response_format` 失败 catch → summary 降级 |
+| 合规判决 | `_parse_llm_json` + 确定性判决 | `with_structured_output` 失败 → 确定性判决（同规则） |
+| 单 Agent LLM 故障 | 节点 try/except 降级话术 | `.with_fallbacks()` / 包装节点（同话术） |
+| 整合节点 LLM 故障 | summary 确定性拼接 | 不变（普通节点 try/except） |
+
+### 5.5 v1 现行主图（已实现，Phase 5 迁移后由 5.2 取代）
 
 ```
                     ┌──────────────┐
@@ -329,7 +491,7 @@ class AgentState(TypedDict):
               └──────────┘
 ```
 
-### 5.3 关键节点设计
+### 5.6 v1 关键节点设计（参考，Phase 5 迁移后移除）
 
 #### Intent Node（意图识别节点）
 - **功能**：将用户问题分类为「简单FAQ / 单领域查询 / 多步复杂任务 / 闲聊 / 其他」
@@ -390,10 +552,17 @@ class AgentState(TypedDict):
 |---|---|---|---|
 | 短期记忆 | LangGraph State + Checkpoint（dev=InMemorySaver / prod=PostgreSQLSaver） | 会话内多轮 | 直接读取 |
 | 工作记忆 | State 的 shared_data（Agent 结论）+ 审计表 messages（tool_trace/agent_steps） | 单轮任务 / 会话级审计 | 按会话 ID 查询 |
-| 长期记忆 | Qdrant 独立 collection `long_term_memory`（摘要 + 实体） | 跨会话持久 | user_id filter + 向量相似度检索（T034/T035） |
+| 长期记忆 | Qdrant 独立 collection `long_term_memory`（摘要 + 实体）；**v2 目标：LangGraph Store**（见下方注记） | 跨会话持久 | user_id filter + 向量相似度检索（T034/T035） |
 
 > 落地说明：设计期的"工作记忆 MySQL"未单独建表——其职责由 shared_data（Agent 间传递）
 > 与 messages 审计字段（tool_trace/agent_steps）分担；业务库实际为 SQLite（dev）/ PostgreSQL（prod）。
+
+> **v2（未实施）**：长期记忆收敛到官方 **LangGraph Store** 体系——dev=`InMemoryStore`、
+> prod=`AsyncPostgresStore`（langgraph-checkpoint-postgres 自带），namespace 按 `(user_id,)` 隔离，
+> 向量检索用 Store 内建 index 配置（embed 仍用 BGE-M3）。T034/T035 的摘要 + 实体写入逻辑保留，
+> 落点改为 `store.put`；检索注入改为节点内 `store.get/search`（官方 cross-thread memory 模式）。
+> 自研 Qdrant `long_term_memory` collection 与注入管线删除；**Qdrant 仅保留 RAG 知识库用途**。
+> 短期记忆（Checkpointer）不变；工作记忆的审计字段随 5.1 状态精简改由 messages 派生。
 
 ### 6.3 Token 预算控制
 
@@ -424,6 +593,10 @@ class AgentState(TypedDict):
        └─ 多轮重试后仍失败、合规拦截、高风险场景
        └─ 策略：收集好所有信息，转人工客服，并附带系统整理的上下文
 ```
+
+> **v2 映射**：一级（工具级）→ Runnable `.with_retry()` + 熔断器（自研保留项，4.2）；
+> 二级（降级）→ `.with_fallbacks()` + 各节点降级路径（5.4 对照表）；
+> 三级（人工介入）→ `interrupt` 转人工（已是官方标准，不变）。
 
 ### 7.2 熔断设计（Circuit Breaker）
 
@@ -561,6 +734,25 @@ class AgentState(TypedDict):
 - [x] A/B 实验框架与实战（T040/T041：变体注册表 + z 检验，glm-5.3-flash 跨供应商对比，结论见 ADR-006）
 - （合规风控模型优化按 D017 决策不纳入：规则引擎红线违规 0/200 已达标）
 
+### Phase 5：LangGraph 标准构件对齐重构 — ⏸ 待启动（T044-T048，D021/ADR-007）
+
+- [ ] T044 工具层标准化：9 个工具迁移 `langchain_core.tools.BaseTool`（args_schema + _arun），
+      重试/降级换 `.with_retry()` / `.with_fallbacks()`，删 ToolOutput 信封 / ToolRegistry /
+      ToolExecutor 集中层；熔断器与缓存白名单保留为最小自研
+- [ ] T045 决策点结构化输出原生化：意图 / 合规判决改 `with_structured_output`（枚举 Literal），
+      手写 `_parse_llm_json` ×2 删除，关键词 / 确定性兜底保留
+- [ ] T046 Worker 子图化：AgentDefinition ×3 → `create_react_agent` 子图（prompt callable
+      注入 shared_data + response_format），手写 ReAct 循环删除；tool_trace 改 messages 派生
+      + callbacks 归集
+- [ ] T047 supervisor 动态路由化：planner + step_executor 并入 supervisor 节点
+      （RoutingDecision + `Command(goto)`，支持重规划）；react 路径换 prebuilt + `tools_condition`；
+      State 精简（删 current_step / tool_trace / agent_steps）
+- [ ] T048 长期记忆 Store 化 + 全量回归：迁官方 Store（InMemoryStore / AsyncPostgresStore +
+      内建向量 index），删 Qdrant 记忆 collection；200 条评测基线回归（完成率 89.5% 回退 ≤1pp）；
+      文档回填"已实施"、README 架构图更新
+
+> 启动前置：AGENTS.md 6.1/6.2 与 v2 冲突需先修订（列入 T044）；pyproject langgraph 下限收紧。
+
 ---
 
 ## 附录：关键技术决策记录
@@ -621,3 +813,25 @@ class AgentState(TypedDict):
 - **理由**：质量维度统计等价（完成率 90.5% vs 89.5%、工具准确率 96.3% vs 95.8%，z 检验均不显著），
   切换无质量收益；glm 当前 Key 档位限流明显（串行评测持续 429），token +15%；
   供应商可迁移性经 OpenAI 兼容接口三行配置实证，作为 DeepSeek 故障时的降级路径保留
+
+### ADR-007：架构 v2——全面对齐 LangGraph/LangChain 标准构件（决策记录 D021）
+- **背景**：评审指出 v1 的 Agent/工具层偏离官方模式（自研 BaseTool/ToolExecutor/ToolRegistry、
+  AgentDefinition + 手写 ReAct 循环、四个 LLM 决策点手写 JSON 解析）；图编排层本身已是官方标准。
+  用户确立重构原则：**所有部分尽量按 LangGraph/LangChain 已定义的方法、类、架构实施，非必要不增加自定义内容**
+- **选项**：
+  A 温和对齐（保留 plan-execute 调度，仅换工具基类与 prebuilt Worker）；
+  B 全面原生化（supervisor 动态路由 + create_react_agent 子图 + ToolNode + with_structured_output + 官方 Store）；
+  C 维持现状 + 补决策记录说明偏离理由
+- **决策**：B（supervisor 调度由用户拍板），文档先行、代码零改动，迁移任务 T044-T048 待确认后执行
+- **理由**：
+  1. 官方构件享有版本演进与社区验证红利，删除约 500 行自维护框架胶水（信封/注册中心/集中执行器/手写循环/手写解析）
+  2. supervisor 是官方 multi-agent 文档标准范式，且落实 v1 承诺未实现的"执行中重规划"
+  3. 手写 JSON 解析 ×4 处收敛为 `with_structured_output` / `response_format`，异常路径更短
+  4. 长期记忆收敛官方 Store 接口，dev/prod 同构（InMemoryStore / AsyncPostgresStore），删自研 Qdrant 记忆管线
+- **仅保留自研（必要性论证）**：
+  1. 熔断器——LangGraph/LangChain 无对应物，Phase 3 容错硬需求
+  2. 工具结果缓存白名单——框架无工具级结果缓存标准（T028 特性）
+  3. 领域工具 / Prompt / 各降级规则——业务内容而非框架替代（关键词兜底、确定性合规判决、summary 降级）
+- **影响**：AGENTS.md 6.1/6.2 同步修订（T044 前置）；pyproject langgraph 下限收紧；
+  Qdrant 仅保留 RAG 用途；tool_trace/agent_steps 改由 messages 派生 + callbacks 归集；
+  200 条评测基线回归（完成率相对 89.5% 回退 ≤1pp 为验收线）

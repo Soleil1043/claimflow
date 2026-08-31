@@ -1180,4 +1180,35 @@ Qwen3-Reranker 系列正式排除（4B 纯 CPU 不可行、0.6B 生态/延迟全
 
 **Git**：`feat: T043 重排序精排层（bge-reranker-v2-m3 可开关 + A/B 评测 + D020）`
 
+### [DOCS] 架构 v2 LangGraph 标准构件对齐设计（D021/ADR-007）— 2026-09-01
+
+**操作**：
+- 背景：评审发现 agents/tools 层偏离 LangGraph/LangChain 官方模式（自研 BaseTool/ToolExecutor/
+  AgentDefinition、两处手写 ReAct 循环、四处手写 JSON 解析；图编排层本身已标准）；用户指示以
+  LangGraph 图结构为基础重新设计，原则「尽量用官方已定义的方法/类/架构，非必要不自研」
+- 两个关键子决策（用户拍板）：① 多步调度采用 supervisor 动态路由（planner+step_executor 并入）；
+  ② 本次仅文档与状态记录，代码零改动，迁移任务待确认后执行
+- `docs/architecture.md` v2 重设计：文档状态头（v2 未实施标注）；§2.4 图即架构 + 模块→官方构件
+  映射表 + 标准 vs 自研边界表；§4 工具规范重写（langchain BaseTool + args_schema + ToolNode +
+  .with_retry/.with_fallbacks）；§5 重写（v2 State 精简 / supervisor 主图 / 各节点标准机制 /
+  降级语义对照表；v1 图与节点保留为 5.5/5.6 对照节）；§6 长期记忆迁官方 Store 注记；
+  §7 三级容错 v2 映射；§11 Phase 5 路线；附录 ADR-007
+- `.agent/decisions.md` D021（选项 C/A/B 对比、仅保留自研清单：熔断器/缓存白名单/领域工具与降级规则）
+- `.agent/tasks.md` Phase 5：T044 工具层标准化 → T045 决策点结构化输出 → T046 Worker 子图化 →
+  T047 supervisor 化 → T048 Store 化+全量回归；进度统计 43/48（待开始 5）
+
+**官方构件选用核心**：with_structured_output（意图/调度/合规判决枚举）+ Command(goto)（supervisor
+动态路由，支持执行中重规划）+ create_react_agent 子图（Worker prompt/tools/response_format）+
+tools_condition（单领域路径）+ ToolNode（handle_tool_errors）+ Runnable .with_retry/.with_fallbacks +
+官方 Store（InMemoryStore/AsyncPostgresStore + 内建向量 index）+ BaseCallbackHandler（轨迹/Token）。
+**删除的自研**：ToolOutput 信封、ToolRegistry、ToolExecutor 集中层、AgentDefinition、两处手写
+ReAct 循环、四处手写 JSON 解析、tool_trace/agent_steps 状态字段、phase_ainvoke 包装、Qdrant 记忆管线。
+
+**验证方式**：文档变更，无代码改动（pytest/ruff 不受影响）；v1 现行设计保留为对照节，
+实施前以 v1 为准；评测基线（89.5%）作为 T048 回归验收线。
+
+**状态**：✅ 设计完成，Phase 5（T044-T048）待用户确认启动
+
+**Git**：`docs: 架构 v2 LangGraph 标准构件对齐设计（supervisor + create_react_agent + ToolNode + Store）+ D021 + Phase 5 任务清单`
+
 <!-- 遇到的问题记录在此，方便回溯 -->

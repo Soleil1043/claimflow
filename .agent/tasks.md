@@ -1,8 +1,8 @@
 # 任务清单 (Tasks)
 
-> Phase 3 产出，Phase 4 规划于 2026-08-25 更新（D017/D018）。基于 plan.md 与架构文档拆解。
+> Phase 3 产出，Phase 4 规划于 2026-08-25 更新（D017/D018）；Phase 5 规划于 2026-09-01 更新（D021/ADR-007）。基于 plan.md 与架构文档拆解。
 > 规则：1 个任务 = 1 个可独立验证的功能点 | 严格按顺序执行 | 不跳依赖
-> 覆盖范围：MVP（F01-F14）+ Phase 3（工程化）+ Phase 4（深度亮点）
+> 覆盖范围：MVP（F01-F14）+ Phase 3（工程化）+ Phase 4（深度亮点）+ Phase 5（LangGraph 标准构件对齐）
 
 ---
 
@@ -75,6 +75,17 @@
 - [x] T042: Phase 4 收尾验证 | 依赖: 全部 | 涉及文件: README.md、docs/architecture.md、.github/workflows/ci.yml | 验收: ruff + pytest 全绿；GraphRAG/长期记忆/工作台/OTel/AB 五个方向的 README 章节与架构图更新；D017/D018/D019（实验结论）齐备；push 后 CI 全绿
 - [x] T043: 重排序精排层（bge-reranker-v2-m3 可开关） | 依赖: T042 | 涉及文件: services/rag/reranker.py、nodes/rag.py、evals/reports/、.agent/decisions.md（D020） | 验收: rag_node top-8 召回 → CrossEncoder 重排 → top-4，开关默认关（关态与 T021 行为一致）；精排故障回退向量序零影响；单测覆盖开关/排序/回退；真实评测三指标对比（完成率/延迟/检索质量）+ 结论 D020
 
+### Phase 5：LangGraph 标准构件对齐重构（D021/ADR-007）— ⏸ 待用户确认启动
+
+> 原则：所有部分尽量按 LangGraph/LangChain 已定义的方法、类、架构实施，非必要不自研。
+> 仅保留自研：熔断器、工具缓存白名单、领域工具/Prompt/降级规则。每个任务验收含「官方构件清单 + 自研清单」核对。
+
+- [ ] T044: 工具层标准化 | 依赖: 无 | 涉及文件: tools/base.py、tools/claim/*、tools/medical/*、tools/compliance/*、tools/registry.py、tools/executor.py、schemas/tools.py、AGENTS.md（6.1）、pyproject.toml | 验收: 9 个工具全部改为 langchain_core.tools.BaseTool 子类（args_schema + _arun，业务失败为正常返回、系统异常交 ToolNode handle_tool_errors）；重试/降级换 .with_retry()/.with_fallbacks()，超时用 asyncio.timeout；熔断器与缓存白名单保留为最小自研；ToolOutput 信封与 ToolRegistry 删除；AGENTS.md 6.1 同步修订；langgraph 版本下限收紧；单测等价迁移全绿
+- [ ] T045: 决策点结构化输出原生化 | 依赖: 无（可与 T044 并行，按顺序执行） | 涉及文件: nodes/intent.py、nodes/compliance.py、schemas/agent.py、services/llm/prompts.py | 验收: 意图/合规判决改 with_structured_output（Literal 枚举：IntentType / ComplianceVerdict），手写 _parse_llm_json ×2 删除；关键词/确定性兜底保留且有单测；意图测试集 20 条准确率 ≥ 基线（19/20）
+- [ ] T046: Worker Agent 子图化 | 依赖: T044 | 涉及文件: agents/*、nodes/step_executor.py、nodes/generator.py、workflows/main_graph.py、schemas/agent_outputs.py | 验收: AgentDefinition ×3 换 create_react_agent 子图（prompt callable 注入 shared_data + response_format 结构化终局输出，解析失败降级 summary）；agents/runner.py 手写循环删除；tool_trace 改由 messages 中 ToolMessage 派生 + BaseCallbackHandler 归集，A06 used_tools 口径不变；多步场景测试通过
+- [ ] T047: supervisor 动态路由化 + react 路径 prebuilt 化 | 依赖: T046 | 涉及文件: nodes/planner.py（并入）、nodes/step_executor.py（删除）、nodes/supervisor.py（新增）、nodes/generator.py、workflows/main_graph.py、state.py | 验收: planner+游标循环移除，supervisor 节点 RoutingDecision{next/plan/reason} + Command(goto) 动态路由，支持执行中重规划，recursion_limit 防失控；单领域路径换 create_react_agent+tools_condition（LLM 降级话术保留）；State 删 current_step/tool_trace/agent_steps；多步场景端到端测试通过
+- [ ] T048: 长期记忆 Store 化 + 全量回归收尾 | 依赖: T047 | 涉及文件: services/memory/long_term.py、services/memory/short_term.py、app/api/v1/conversations.py、evals/、README.md、docs/architecture.md | 验收: 长期记忆迁官方 Store（dev=InMemoryStore / prod=AsyncPostgresStore + 内建向量 index，embed=BGE-M3），Qdrant long_term_memory collection 与注入管线删除（Qdrant 仅存 RAG）；跨会话记忆场景测试通过；200 条评测全量回归——任务完成率相对基线 89.5% 回退 ≤1pp、工具准确率 ≥95%；architecture.md 回填"已实施"、README 架构图更新；v1 对照节（5.5/5.6）移除
+
 ---
 
 ## 依赖关系图
@@ -107,11 +118,14 @@ T001 → T002 → T003 → T004 → T005
                   T030 → T039（OTel+Jaeger）
                   T030 → T040（A/B 框架）→ T041（v4-pro 实战实验）
                   全部 → T042（收尾）
+                                  ↓
+        Phase 5:  T044（工具层标准化）→ T046（Worker 子图化）→ T047（supervisor 化）→ T048（Store 化 + 回归）
+                  T045（决策点结构化输出，独立链，T044 后执行）
 ```
 
 ## 进度统计
 
-- 总任务数：43（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量）
-- 已完成：43（全部完成，2026-08-27）
+- 总任务数：48（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个）
+- 已完成：43（2026-08-27 完成 T001-T043）
 - 进行中：0
-- 待开始：0
+- 待开始：5（Phase 5：T044-T048，待用户确认启动，D021/ADR-007）
