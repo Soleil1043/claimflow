@@ -183,9 +183,9 @@ claim-agent/
 | uvicorn[standard] | 0.52.4 | ASGI 服务器 |
 | langgraph | 1.2.11 | Agent 状态机 |
 | langgraph-checkpoint-postgres | 3.1.2 | PostgreSQL Checkpoint（AsyncPostgresSaver） |
-| langchain-core | 1.6.0 | 消息/工具抽象 |
+| langchain-core | 1.6.1 | 消息/工具抽象 |
 | langchain-openai | 1.6.0 | DeepSeek（OpenAI 兼容）调用 |
-| langchain | 计划新增 ≥1.0（Phase 5，D022） | `create_agent` 官方 agent 标准 |
+| langchain | 1.3.18（2026-09-01 已装，D022） | `create_agent` 官方 agent 标准 |
 | sqlalchemy[asyncio] | 2.0.52 | ORM |
 | asyncpg / aiosqlite | 最新 | PostgreSQL / 开发降级驱动 |
 | alembic | 1.19.1 | 迁移 |

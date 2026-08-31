@@ -1243,4 +1243,29 @@ BaseTool.model_fields 含 args_schema、IndexConfig TypedDict 含 dims/embed/fie
 
 **Git**：`docs: v2 设计 API 全量验证修正（create_react_agent 已废弃改 create_agent + @tool 主推 + Store 路径修正）+ D022`
 
+### [DEPS] langchain/langgraph 依赖更新（Phase 5 前置，D022 后续）— 2026-09-01
+
+**操作**：
+- 查阿里云源（项目默认 index）最新稳定版：langchain 1.3.18、langchain-core 1.6.1、
+  langgraph 1.2.11、langchain-openai 1.6.0、langgraph-prebuilt 1.1.0、
+  langgraph-checkpoint 4.2.0、langgraph-checkpoint-postgres 3.1.2
+- pyproject：**新增 `langchain>=1.0`**（create_agent 官方标准所需）；下限对齐实锁线
+  （langgraph>=0.2→1.2、langchain-core>=0.3→1.6、langchain-openai>=0.2→1.6）
+- `uv lock --upgrade-package langchain --upgrade-package langchain-core` + `uv sync`：
+  langchain 1.3.18 装入、langchain-core 1.6.0→1.6.1；顺带清掉 venv 残留的旧项目
+  claim-agent==0.1.0 可编辑安装（更名前遗留）
+- langgraph 系列确认全部已是最新版，无升级动作
+
+**验证方式**：
+- `from langchain.agents import create_agent` 实测可导入，签名：
+  (model, tools, system_prompt, middleware, response_format, state_schema, context_schema,
+  checkpointer, store, interrupt_before, interrupt_after, debug, name, cache, transformers)
+  ——与 v2 文档写法一致（system_prompt/response_format/middleware/name 均在），另有官方
+  cache/transformers 参数可后续利用
+- `uv run python -m pytest -q` → 374 passed；ruff 全绿（升级零破坏）
+
+**状态**：✅ 通过验证（T044 的依赖前置已完成，任务本体仍待确认启动）
+
+**Git**：`chore: 新增 langchain 1.3.18（create_agent）+ langchain-core 1.6.1，langgraph 系列确认最新`
+
 <!-- 遇到的问题记录在此，方便回溯 -->

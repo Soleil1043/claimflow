@@ -79,6 +79,7 @@
 
 > 原则：所有部分尽量按 LangGraph/LangChain 已定义的方法、类、架构实施，非必要不自研。
 > 仅保留自研：熔断器、工具缓存白名单、领域工具/Prompt/降级规则。每个任务验收含「官方构件清单 + 自研清单」核对。
+> 依赖前置已于 2026-09-01 完成：langchain 1.3.18 新增、langchain-core 1.6.1，langgraph 系列确认均为最新版。
 
 - [ ] T044: 工具层标准化 | 依赖: 无 | 涉及文件: tools/base.py、tools/claim/*、tools/medical/*、tools/compliance/*、tools/registry.py、tools/executor.py、schemas/tools.py、AGENTS.md（6.1）、pyproject.toml、uv.lock | 验收: 9 个工具改为官方工具定义（@tool 装饰器主推，有状态/需 DI 的用 BaseTool 子类 args_schema + _arun，业务失败为正常返回、系统异常交 ToolNode handle_tool_errors）；重试/降级换 .with_retry()/.with_fallbacks()，超时用 asyncio.timeout；熔断器与缓存白名单保留为最小自研；ToolOutput 信封与 ToolRegistry 删除；pyproject 新增 langchain≥1.0 依赖（create_agent 官方标准，D022）；AGENTS.md 6.1 同步修订；单测等价迁移全绿
 - [ ] T045: 决策点结构化输出原生化 | 依赖: 无（可与 T044 并行，按顺序执行） | 涉及文件: nodes/intent.py、nodes/compliance.py、schemas/agent.py、services/llm/prompts.py | 验收: 意图/合规判决改 with_structured_output（Literal 枚举：IntentType / ComplianceVerdict），手写 _parse_llm_json ×2 删除；关键词/确定性兜底保留且有单测；意图测试集 20 条准确率 ≥ 基线（19/20）
