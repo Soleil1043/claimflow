@@ -173,6 +173,21 @@ OCR_EXTRACT_PROMPT = """\
 }}
 只输出 JSON，不要输出其他内容。"""
 
+# OCR 字段提取·文本版（T049，D024）：PDF/Word 抽出的文本走主链路模型，输出 schema 与图片版一致
+OCR_EXTRACT_TEXT_PROMPT = """\
+你是保险理赔材料识别助手。以下是从用户上传的 PDF/Word 材料（诊断证明 / 病历 / 发票）中
+抽取的文本内容，请从中提取以下字段，以 JSON 输出：
+{{
+  "patient_name": "患者姓名（文本中不存在则为 null）",
+  "diagnosis": "诊断结论（文本中不存在则为 null）",
+  "amount": 金额数字（无金额则为 null，纯数字不带单位）,
+  "date": "日期 YYYY-MM-DD（文本中不存在则为 null）"
+}}
+只输出 JSON，不要输出其他内容。
+
+材料文本：
+{content}"""
+
 # 合规审查（T018，F10）：Compliance 节点专用（裁决用 human 消息模板，system 用 COMPLIANCE_AGENT_PROMPT）
 COMPLIANCE_REVIEW_PROMPT = """\
 待审查内容（拟返回给用户的回答草稿）：

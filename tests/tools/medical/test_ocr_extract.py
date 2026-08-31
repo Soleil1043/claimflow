@@ -191,11 +191,11 @@ async def test_a07_upload_image_returns_fields(api_client) -> None:
     assert history["total"] == 2
     assistant = history["items"][1]
     assert "材料识别结果" in assistant["content"]
-    assert assistant["tool_trace"][0]["tool"] == "ocr_extract"
+    assert assistant["tool_trace"][0]["tool"] == "material_extract"
 
 
-async def test_a07_non_image_rejected_422(api_client) -> None:
-    """A07：非图片文件（pdf MIME + txt 扩展名）→ 422（F12 验收）。"""
+async def test_a07_pdf_accepted_txt_rejected_422(api_client) -> None:
+    """A07（T049，D024）：PDF 已支持（伪字节解析失败走 Mock 兜底不报错）；txt 仍 422。"""
     conv = (await api_client.post("/api/v1/conversations", json={})).json()
     cid = conv["conversation_id"]
 
@@ -203,9 +203,12 @@ async def test_a07_non_image_rejected_422(api_client) -> None:
         f"/api/v1/conversations/{cid}/images",
         files={"file": ("report.pdf", b"%PDF-1.4 fake", "application/pdf")},
     )
-    assert resp.status_code == 422
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["file_type"] == "pdf"
+    assert body["source"] == "mock_fallback"  # 伪 PDF 无法解析 → 服务内兜底
 
-    # MIME 缺失但扩展名非图片 → 422
+    # MIME 缺失且扩展名不支持 → 422
     resp2 = await api_client.post(
         f"/api/v1/conversations/{cid}/images",
         files={"file": ("data.txt", b"plain text", None)},

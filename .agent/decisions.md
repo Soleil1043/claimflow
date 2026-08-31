@@ -472,3 +472,60 @@ supervisor 运行时决策，不应烙进意图分类。
   messages 表历史 intent 值读取时做旧值映射（multi_step → complex_consult）保持 API/审计连续；
   A06 返回新值
 - v1 代码与 README 现行实现不动（T045 前 multi_step 仍为实际生效值）
+
+## D024: 材料上传支持 PDF 与 Word（两段式提取 + 兼容别名端点）— 2026-09-01
+
+**背景**：
+用户要求上传材料必须支持 PDF/Word——真实理赔场景中诊断证明/病历常为 PDF 或 Word 而非图片。
+现状 A07 仅收 png/jpeg/webp/bmp，其余一律 422。
+
+**选项**：
+1. 全走 vision 渲染——PDF 可渲染成图，Word 无法可靠渲染，且文本型材料走视觉浪费成本
+2. 两段式分派：PDF 先 `pypdf` 抽文本（文本型），文本不足（扫描件）→ `pypdfium2` 渲染前 N 页
+   走既有 vision OCR；Word(.docx) 用 `python-docx` 抽正文+表格 → 主链路 flash 模型结构化提取
+   （新增文本版 prompt，输出 schema 与图片版一致）
+3. 引入重型文档解析框架（unstructured 等）——依赖重，项目量级不需要
+
+**最终选择**：2。文本型材料走主链路模型与 D008 分级模型策略自洽（文本任务不占 vision）；
+扫描件才走 vision；`.doc` 旧格式不支持（422 明确提示转存 .docx）。
+
+**护栏与兼容**：
+- 大小上限 `MATERIAL_MAX_SIZE_MB`（默认 10MB）；扫描件渲染页数 `MATERIAL_PDF_RENDER_PAGES`（默认 3）；
+  PDF 文本 < `MATERIAL_PDF_TEXT_MIN_CHARS`（默认 50 字符）判为扫描件
+- 端点新增规范路径 `POST /materials`，`/images` 保留为兼容别名（同一处理函数，双路由装饰器）
+- 任何提取失败 → 既有 Mock 兜底（source=mock_fallback），接口不报错（D008 语义延续）
+- 响应体新增 `file_type`（image/pdf/docx）
+
+**影响**：
+pyproject（+pypdf/pypdfium2/python-docx）、app/core/config.py、.env.example、
+services/llm/prompts.py（OCR_EXTRACT_TEXT_PROMPT）、services/materials.py（新）、
+app/api/v1/conversations.py（A07 泛化）、schemas/api.py、ui/app.py（文件选择器+端点）、
+tests/、plan.md A07 行、README。任务编号 T049（独立于 Phase 5 的用户直接需求）。
+
+## D025: PDF 识别技术栈定位——材料提取维持「两段式 + API VLM」，RAG 知识库摄入预留 Docling — 2026-09-01
+
+**背景**：
+用户调研 2026 年 PDF 解析技术栈全景（VLM-first：Docling / Marker / GOT-OCR；传统版面分析：
+Unstructured / MinerU / PyMuPDF+pdfplumber；商业 API：LlamaParse / Firecrawl / Reducto；
+多阶段流水线趋势），要求据此确定本项目 PDF 识别选型。
+
+**场景区分（选型关键）**：
+1. A07 材料提取（T049）：1-3 页诊断证明/病历/发票 → 4 个结构化字段，非版面忠实转换任务
+2. RAG 知识库摄入（潜在）：条款 PDF → 高质量 Markdown/结构化 chunk（当前 KB 为手写 markdown，
+   暂无此需求；语料扩大到真实条款 PDF 时启动）
+
+**决策**：
+- A07 维持 D024 两段式。趋势「Vision-First 替代传统流水线」本项目已采用：扫描件版面理解
+  直接委托 vision VLM（deepseek-vision-exp），等价于合并多阶段流水线的 Layout Detection +
+  Multimodal Extraction；API VLM 而非本地 VLM 是 CPU-only 约束下的正确形态
+- RAG 知识库摄入 PDF 时选 **Docling**：CPU 可跑（torch 已在依赖树）、MIT、面向 RAG 的
+  Markdown/JSON 输出与结构化分块、LF AI 活跃维护——开源方案中唯一同时满足全部约束者
+
+**排除理由**：
+- Marker/Surya、MinerU、GOT-OCR 2.0：GPU 面向，纯 CPU 延迟/体积不可接受
+- Unstructured.io：Windows 系统依赖（libmagic 等）痛苦，dev 环境为 Windows
+- PyMuPDF：AGPL 许可，保险场景商用隐患（pypdfium2 为 BSD/Apache 已选）
+- LlamaParse / Firecrawl / Reducto：理赔材料含身份证/病历 PII，不新增第三方数据出境通道，
+  与 D003 本地优先原则及保险合规叙事冲突
+
+**影响**：T049 按现实现收尾；知识库 PDF 摄入立项时按本决策选 Docling（开新任务，不进 T049）。

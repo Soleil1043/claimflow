@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     # 图片 OCR 专职模型，失败降级 Mock（D008）
     llm_vision_model: str = "deepseek-v4-flash-vision-exp"
 
+    # ===== 材料上传（T049，D024：PDF/Word 支持） =====
+    material_max_size_mb: int = 10
+    # 扫描件 PDF 最多渲染页数（走 vision OCR）
+    material_pdf_render_pages: int = 3
+    # PDF 抽取文本低于该字符数视为扫描件（转渲染）
+    material_pdf_text_min_chars: int = 50
+
     # ===== PostgreSQL（prod） / SQLite（dev 降级） =====
     postgres_host: str = "localhost"
     postgres_port: int = 5432

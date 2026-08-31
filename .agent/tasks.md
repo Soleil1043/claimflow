@@ -87,6 +87,10 @@
 - [ ] T047: supervisor 动态路由化 + react 路径 prebuilt 化 | 依赖: T046 | 涉及文件: nodes/planner.py（并入）、nodes/step_executor.py（删除）、nodes/supervisor.py（新增）、nodes/generator.py、workflows/main_graph.py、state.py | 验收: planner+游标循环移除，supervisor 节点 RoutingDecision{next/plan/reason} + Command(goto) 动态路由，支持执行中重规划，recursion_limit 防失控；单领域路径换 create_agent 子图（工具循环内置，LLM 降级话术保留）；State 删 current_step/tool_trace/agent_steps；多步场景端到端测试通过
 - [ ] T048: 长期记忆 Store 化 + 全量回归收尾 | 依赖: T047 | 涉及文件: services/memory/long_term.py、services/memory/short_term.py、app/api/v1/conversations.py、evals/、README.md、docs/architecture.md | 验收: 长期记忆迁官方 Store（dev=InMemoryStore / prod=AsyncPostgresStore + 内建向量 index，embed=BGE-M3），Qdrant long_term_memory collection 与注入管线删除（Qdrant 仅存 RAG）；跨会话记忆场景测试通过；200 条评测全量回归——任务完成率相对基线 89.5% 回退 ≤1pp、工具准确率 ≥95%；architecture.md 回填"已实施"、README 架构图更新；v1 对照节（5.5/5.6）移除
 
+### 增量任务（用户直接需求，独立于 Phase 5）
+
+- [x] T049: 材料上传支持 PDF/Word（D024） | 依赖: 无 | 涉及文件: services/materials.py（新）、app/api/v1/conversations.py、schemas/api.py、services/llm/prompts.py、app/core/config.py、.env.example、ui/app.py、pyproject.toml、tests/ | 验收: PDF 两段式（pypdf 文本提取 → 扫描件 pypdfium2 渲染走 vision，逐页取首个有效页）；.docx 文本提取走主链路模型；.doc 旧格式 422 提示转存；`/materials` 新端点 + `/images` 兼容别名双路由；≤10MB / 渲染≤3 页 / PDF 文本<50 字符判扫描件三护栏可配置；任何失败 Mock 兜底（source=mock_fallback）不报错；响应含 file_type；提取服务单测 + API 测试全绿 ✅ 2026-09-01（394 passed；PDF 识别技术栈定位另见 D025）
+
 ---
 
 ## 依赖关系图
@@ -126,7 +130,7 @@ T001 → T002 → T003 → T004 → T005
 
 ## 进度统计
 
-- 总任务数：48（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个）
-- 已完成：43（2026-08-27 完成 T001-T043）
+- 总任务数：49（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049）
+- 已完成：44（2026-08-27 完成 T001-T043；2026-09-01 完成 T049 材料上传 PDF/Word）
 - 进行中：0
 - 待开始：5（Phase 5：T044-T048，待用户确认启动，D021/ADR-007）

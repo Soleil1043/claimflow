@@ -16,7 +16,7 @@
 | 重排序精排（可选开关） | bge-reranker-v2-m3 CrossEncoder：top-8 召回 → 精排 → top-4，默认关（小语料下评测结论：次序去重有改善、完成率不显著，D020） |
 | 合规一票否决 | 所有输出必经 Compliance 节点（图结构保证无旁路）：PASS 直通 / MODIFY 自动修订复审 / REJECT 拦截转人工 |
 | 敏感信息脱敏 | 身份证 / 银行卡 / 手机号正则脱敏（`3301**********1234`） |
-| OCR 材料识别 | vision 模型提取诊断证明字段（姓名 / 诊断 / 金额 / 日期），API 异常自动降级 Mock 兜底 |
+| 材料识别（图片/PDF/Word） | 上传诊断证明等材料提取字段（姓名 / 诊断 / 金额 / 日期）：文本型 PDF/Word 走主链路模型、扫描件渲染走 vision VLM、API 异常自动降级 Mock 兜底（T049/D024） |
 | 状态持久化 | LangGraph Checkpoint（prod=PostgreSQLSaver），多轮上下文连贯、服务重启可恢复 |
 | 可观测性 | Prometheus 三类指标（工具 / LLM / 业务）+ Grafana 自动加载仪表盘 + 分环节 Token 预算 |
 | 评测体系 | 200 条标注测试集（期望值全量溯源），一键产出任务完成率 / 工具准确率基线报告 |
@@ -156,7 +156,7 @@ docker compose --profile tracing up -d   # Jaeger UI 16686 + OTLP Collector 4317
 | `/api/v1/conversations/{id}` | GET | 会话详情 + 最近消息摘要 |
 | `/api/v1/conversations/{id}/messages` | GET | 消息历史（含审计字段） |
 | `/api/v1/conversations/{id}/messages` | POST | 发消息（触发完整主图流程） |
-| `/api/v1/conversations/{id}/images` | POST | 上传图片材料（vision OCR + Mock 兜底） |
+| `/api/v1/conversations/{id}/materials` | POST | 上传材料·图片/PDF/Word（兼容别名 `/images`；两段式提取 + Mock 兜底） |
 | `/api/v1/interventions` | GET | HITL 工单列表（status 筛选 + 分页） |
 | `/api/v1/interventions/{id}` | GET | 工单详情 + 聚合上下文（会话轨迹 / 合规快照 / 拦截原因） |
 | `/api/v1/interventions/{id}/resolve` | POST | 坐席解决并回写结论（触发 interrupt 恢复，结论经复审返回） |

@@ -113,15 +113,17 @@ class MessageSendResponse(BaseModel):
 
 
 class OcrResultResponse(BaseModel):
-    """POST /api/v1/conversations/{id}/images 响应：OCR 结构化字段 + 来源标记。"""
+    """POST /api/v1/conversations/{id}/materials（兼容别名 /images）响应：结构化字段 + 来源标记。"""
 
     patient_name: str | None = None
     diagnosis: str | None = None
     amount: float | None = None
     date: str | None = None
-    # vision（真实识别） / mock_fallback（vision 失败降级）
+    # vision（图片/扫描件识别） / text_model（PDF/Word 文本提取） / mock_fallback（失败降级）
     source: str
     filename: str
+    # image / pdf / docx（T049）
+    file_type: str = "image"
 
 
 # ---------- A04 会话详情 ----------

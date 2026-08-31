@@ -1284,4 +1284,32 @@ BaseTool.model_fields 含 args_schema、IndexConfig TypedDict 含 dims/embed/fie
 
 **Git**：`docs: 意图 multi_step 更名 complex_consult（D023）——v2 设计同步 + T045 验收挂接`
 
+### [T049] 材料上传支持 PDF/Word（D024/D025）— 2026-09-01
+
+**操作**：
+- 背景：用户要求上传材料必须支持 PDF/Word（真实理赔材料常为此二格式，原 A07 仅收四种图片）
+- 新增 `services/materials.py` 材料提取服务：图片走既有 OcrExtractTool（vision）；PDF 两段式
+  （pypdf 抽文本 ≥50 字符走主链路模型 OCR_EXTRACT_TEXT_PROMPT，扫描件 pypdfium2 渲染 ≤3 页
+  逐页 vision 取首个有效页）；docx 用 python-docx 抽正文+表格走主模型；任何失败 Mock 兜底不报错
+- A07 端点泛化：`/materials` 新规范路径 + `/images` 兼容别名（双路由同函数）；.doc 旧格式 422
+  提示转存；护栏 MATERIAL_MAX_SIZE_MB=10 / MATERIAL_PDF_RENDER_PAGES=3 /
+  MATERIAL_PDF_TEXT_MIN_CHARS=50 三项入 config + .env.example；审计 tool 名改 material_extract；
+  响应新增 file_type（image/pdf/docx）
+- ui/app.py：文件选择器扩 pdf/docx、走 /materials、source 标签增 text_model 文案
+- D025：PDF 识别技术栈定位——A07 维持两段式+API VLM（Vision-First 趋势已采用，CPU-only 下
+  正确形态）；RAG 知识库未来摄入 PDF 条款预留 Docling；排除 GPU 系（Marker/MinerU/GOT-OCR）、
+  Unstructured（Windows 依赖）、PyMuPDF（AGPL）、商业 API（PII 出境）
+
+**验证方式**：
+- tests/services/test_materials.py（新 11 用例）：类型识别（MIME/扩展名/.doc 拒绝）、金额归一化、
+  四分派路径（图片工具/docx 文本/PDF 文本/PDF 扫描逐页）、模型失败→渲染续走、全失败 Mock 兜底
+- tests/api/test_upload_materials.py（新 9 用例）：docx/pdf/图片上传 200、/images 别名兼容、
+  审计落库、.doc 422 提示、不支持类型/空文件/超限 422（真实 docx 现场构造）
+- 旧 A07 测试适配新行为（pdf 由 422 改为支持、审计 tool 名更新）
+- `uv run python -m pytest -q` → **394 passed**（原 374 + 新 20）；ruff 全绿
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T049 材料上传支持 PDF/Word（两段式提取 + 兼容别名端点 + Mock 兜底）+ D024/D025`
+
 <!-- 遇到的问题记录在此，方便回溯 -->

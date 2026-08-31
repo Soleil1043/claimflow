@@ -168,7 +168,7 @@ claim-agent/
 | A04 | GET | /api/v1/conversations/{id} | 会话详情 | - | 200 {会话 + 最近消息摘要}；不存在返回 404 |
 | A05 | GET | /api/v1/conversations/{id}/messages | 消息历史 | ?limit=50 | 200 [{role, content, intent, tool_trace, compliance_status, created_at}] |
 | A06 | POST | /api/v1/conversations/{id}/messages | 发送消息（核心接口） | {content: str} | 200 {answer, intent, used_tools[], agent_steps[], compliance_status, need_human_intervention, intervention_reason?} |
-| A07 | POST | /api/v1/conversations/{id}/files | 上传图片材料（vision-exp 真实 OCR + Mock 兜底） | multipart/form-data: file | 201 {file_id, ocr_result: {name, diagnosis, amount, date}, source: vision \| mock_fallback}；非图片 422 |
+| A07 | POST | /api/v1/conversations/{id}/materials（T049 起支持图片/PDF/Word，兼容别名 /images） | 上传材料提取结构化字段 | multipart/form-data: file | 200 {patient_name, diagnosis, amount, date, source: vision \| text_model \| mock_fallback, filename, file_type: image \| pdf \| docx}；不支持类型/.doc 旧格式/空文件/超限 422（D024） |
 
 ## 5. 第三方依赖
 
