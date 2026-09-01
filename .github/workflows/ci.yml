@@ -7,10 +7,11 @@ on:
 
 jobs:
   lint-test:
-    name: Lint & Test
+    name: Lint & Test 测试
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: 拉取项目代码到ubuntu
+        uses: actions/checkout@v4
 
       - name: 安装 uv
         uses: astral-sh/setup-uv@v5
@@ -31,7 +32,8 @@ jobs:
     name: Docker Build & Compose 校验
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: 拉取项目代码到ubuntu
+        uses: actions/checkout@v4
 
       - name: Compose 配置校验
         run: docker compose config -q
