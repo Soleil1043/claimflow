@@ -2,7 +2,7 @@
 
 结构（architecture.md 5.2）：
 
-    __start__ → intent ─┬─ multi_step → planner → step_executor ─┬─ next → step_executor（循环）
+    __start__ → intent ─┬─ complex_consult → planner → step_executor ─┬─ next → step_executor（循环）
                         │                                        └─ done → synthesize
                         ├─ simple_faq → rag_node → synthesize
                         └─ 其他（single_domain / chitchat / other）→ react_agent
@@ -40,9 +40,9 @@ from tools.registry import ToolRegistry
 
 
 def route_intent(state: AgentState) -> str:
-    """意图分流条件边：multi_step → planner；simple_faq → rag；其余 → react。"""
+    """意图分流条件边：complex_consult → planner；simple_faq → rag；其余 → react。"""
     intent = state.get("intent") or ""
-    if intent == "multi_step":
+    if intent == "complex_consult":  # v1 名 multi_step（D023 更名）
         return "planner"
     if intent == "simple_faq":
         return "rag"

@@ -41,7 +41,8 @@ class EvalCase(BaseModel):
     )
     expected_intent: str | None = Field(
         default=None,
-        description="期望意图标签（simple_faq/single_domain/multi_step/chitchat/other）",
+        # complex_consult 即 v1 multi_step（D023 更名，T045）
+        description="期望意图标签（simple_faq/single_domain/complex_consult/chitchat/other）",
     )
     must_include: list[str] = Field(
         default_factory=list, description="回答必须包含的关键词（子串匹配，全部命中才得分）"

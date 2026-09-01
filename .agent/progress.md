@@ -1348,4 +1348,40 @@ BaseTool.model_fields 含 args_schema、IndexConfig TypedDict 含 dims/embed/fie
 
 **Git**：`feat: T044 工具层标准化（langchain BaseTool + 官方重试 + 守卫下沉工具层 + 工厂装配）`
 
+### [T045] 决策点结构化输出原生化 + 意图更名 complex_consult（D023 落地）— 2026-09-01
+
+**操作**：
+- **意图决策点**（nodes/intent.py）：手写 `_parse_llm_json` 删除，改 `with_structured_output(
+  IntentClassification, method="function_calling")`；IntentType 为 StrEnum 五分类
+  （schemas/agent.py）；关键词规则兜底保留（try/except 承载，原规则集不变仅更名）
+- **合规决策点**（nodes/compliance.py）：`_parse_llm_json` 删除，改
+  `with_structured_output(ComplianceAgentOutput, method="function_calling")`——复用输出模型
+  本身作为结构化 schema，verdict 收紧为 `ComplianceVerdict = Literal["PASS","MODIFY","REJECT"]`，
+  risk_score 加 0-100 约束；确定性兜底判决规则原样保留；合规 system prompt 的 JSON 格式段
+  改为结构化字段说明
+- **更名落地（D023）**：INTENT_CLASSIFICATION_PROMPT 分类标准、ORCHESTRATOR/TASK_PLANNER
+  prompt 示例、route_intent（complex_consult → planner）、intent 关键词规则、planner/step_executor
+  注释同步更名；data/mock/intent_test_cases.json（4 条标注）与 eval_dataset.json（80 条
+  expected_intent）+ eval_graph_assoc.json 批量替换——**eval category 板块名（multi_step）
+  保持不动**（数据集分类学 ≠ 意图标签，evals/schemas.py 的 EvalCategory 不变）；
+  gen_eval_dataset.py / verify_e2e.py 脚本同步
+- **历史值映射**：schemas/agent.py 新增 normalize_intent（multi_step → complex_consult），
+  挂在 to_message_item（A05 消息历史与 T036 工单上下文共用读取点）；A06 返回新值（state 直出）
+- **测试适配**：test_intent.py 重写（FakeModel.with_structured_output 返回可控 Runnable，
+  对应 function calling 链路的成功/异常/校验失败三路径）；test_compliance.py FakeModel 同构升级
+  （response 传 schema 实例，校验失败以 raise 模拟）；test_full_graph / test_a06_scenarios /
+  test_interrupt / test_phase1_graph 的意图与合规假模型补 with_structured_output 能力；
+  tests 内 multi_step 引用全量更名（eval category 键 2 处保持）
+
+**验证方式**：
+- `uv run python -m pytest -q` → **393 passed**（398 − 5 个 _parse_llm_json 纯函数用例随函数删除）；
+  ruff 全绿
+- 全图路径回归：multi_step→complex_consult 全链路（intent→planner→step_executor→synthesize→
+  compliance）、react/rerank/interrupt 场景全过
+- 真实 LLM 意图准确率（20 条 ≥19/20）本地无 API Key 未跑，**并入 T048 的 200 条全量回归**验收
+
+**状态**：✅ 通过验证（Phase 5 进行中：T046-T048 待执行）
+
+**Git**：`feat: T045 决策点结构化输出原生化（with_structured_output 枚举判决）+ 意图更名 complex_consult`
+
 <!-- 遇到的问题记录在此，方便回溯 -->

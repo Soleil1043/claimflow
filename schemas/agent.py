@@ -1,14 +1,44 @@
-"""Agent 层相关类型（意图结果、任务计划步骤等，T013/T017 使用）。"""
+"""Agent 层相关类型（意图结果、任务计划步骤等，T013/T017/T045 使用）。"""
 
 from __future__ import annotations
+
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class IntentResult(BaseModel):
-    """意图分类结果（F03）。"""
+class IntentType(StrEnum):
+    """意图五分类（T045 结构化输出枚举；complex_consult 即 v1 multi_step，D023 更名）。"""
 
-    intent: str  # simple_faq / single_domain / multi_step / chitchat / other
+    simple_faq = "simple_faq"
+    single_domain = "single_domain"
+    complex_consult = "complex_consult"
+    chitchat = "chitchat"
+    other = "other"
+
+
+# 历史值映射：T045 前落库的旧意图名（D023 更名）读取时归一
+_LEGACY_INTENT_NAMES = {"multi_step": IntentType.complex_consult.value}
+
+
+def normalize_intent(value: str | None) -> str | None:
+    """意图值归一：multi_step（历史数据）→ complex_consult，其余原样。"""
+    if not value:
+        return value
+    return _LEGACY_INTENT_NAMES.get(value, value)
+
+
+class IntentClassification(BaseModel):
+    """意图分类 LLM 结构化输出（with_structured_output，T045）。"""
+
+    intent: IntentType
+    reason: str = ""
+
+
+class IntentResult(BaseModel):
+    """意图分类结果（F03，节点层返回：intent 为枚举值字符串）。"""
+
+    intent: str  # IntentType 枚举值
     reason: str = ""
     # True 表示 LLM 失败走了关键词兜底（可观测性）
     fallback: bool = False

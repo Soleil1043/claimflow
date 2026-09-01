@@ -7,7 +7,7 @@
   prod 部署下为 PostgreSQL 持久化，语义相同）
 
 覆盖场景：
-1. multi_step："我做了阑尾炎手术能赔多少"（医疗审核→理赔核算 两步）
+1. complex_consult："我做了阑尾炎手术能赔多少"（医疗审核→理赔核算 两步）
 2. simple_faq："阑尾炎手术有等待期吗"（RAG 检索路径）
 3. chitchat："你好"（ReAct 直答路径）
 4. F14 多轮上下文：同会话追问，第二轮引用第一轮结论
@@ -71,14 +71,14 @@ async def main() -> None:
     graph = build_main_graph(executor=executor, checkpointer=checkpointer)
     cfg = {"configurable": {"thread_id": "verify-e2e"}}
 
-    # ===== 场景 1：multi_step 多步任务全链路 =====
+    # ===== 场景 1：complex_consult 多步任务全链路 =====
     q1 = "我做了阑尾炎手术能赔多少"
     result1 = await graph.ainvoke(
         {**RESET_INPUT, "messages": [HumanMessage(content=q1)]}, config=cfg
     )
-    _print_result(f"multi_step: {q1}", result1)
+    _print_result(f"complex_consult: {q1}", result1)
 
-    assert result1.get("intent") == "multi_step", f"意图错误：{result1.get('intent')}"
+    assert result1.get("intent") == "complex_consult", f"意图错误：{result1.get('intent')}"
     steps = result1.get("agent_steps") or []
     assert len(steps) >= 2, f"步骤数不足：{len(steps)}"
     assert [s["agent"] for s in steps][:2] == ["medical", "claim"], "步骤顺序错误"

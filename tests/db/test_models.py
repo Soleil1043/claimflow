@@ -63,7 +63,7 @@ async def test_conversation_with_messages(db_session) -> None:
         conversation_id=conv.id,
         role="assistant",
         content="预估赔付金额为 792,000 元",
-        intent="multi_step",
+        intent="complex_consult",
         tool_trace=[
             {"tool": "policy_query", "input": {"policy_no": "POL-2025-0001"}, "duration_ms": 35},
             {"tool": "claim_calculator", "input": {"amount": 1000000}, "duration_ms": 12},
@@ -77,7 +77,7 @@ async def test_conversation_with_messages(db_session) -> None:
     result = await db_session.execute(select(Message).where(Message.conversation_id == conv.id))
     loaded = result.scalar_one()
     assert loaded.role == "assistant"
-    assert loaded.intent == "multi_step"
+    assert loaded.intent == "complex_consult"
     assert len(loaded.tool_trace) == 2
     assert loaded.tool_trace[0]["tool"] == "policy_query"
     assert loaded.agent_steps[0]["agent"] == "medical"

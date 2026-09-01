@@ -160,12 +160,17 @@ async def list_messages(
 
 
 def to_message_item(m: Message) -> MessageItem:
-    """ORM → 对外展示模型（工单聚合上下文复用，T036）。"""
+    """ORM → 对外展示模型（工单聚合上下文复用，T036）。
+
+    intent 经 normalize_intent 归一：T045 前落库的 multi_step → complex_consult（D023）。
+    """
+    from schemas.agent import normalize_intent
+
     return MessageItem(
         id=m.id,
         role=m.role,
         content=m.content,
-        intent=m.intent,
+        intent=normalize_intent(m.intent),
         tool_trace=m.tool_trace,
         agent_steps=m.agent_steps,
         compliance_status=m.compliance_status,

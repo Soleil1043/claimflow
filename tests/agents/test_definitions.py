@@ -95,11 +95,13 @@ def test_orchestrator_prompt_has_routing_principles() -> None:
 
 
 def test_prompts_are_valid_format_templates() -> None:
-    """输出格式段含 JSON 示例（{{}} 转义，format 时不炸）。"""
+    """输出格式段可被 format 安全使用（{{}} 转义），且有输出说明（JSON 示例或结构化字段说明）。"""
     for agent in ALL_AGENTS.values():
-        assert "{{" in agent.system_prompt or "JSON" in agent.system_prompt, (
-            f"{agent.name} prompt 缺输出格式说明"
-        )
+        assert (
+            "{{" in agent.system_prompt
+            or "JSON" in agent.system_prompt
+            or "结构化" in agent.system_prompt
+        ), f"{agent.name} prompt 缺输出格式说明"
 
 
 # ---------- 输出 schema 校验 ----------
@@ -154,14 +156,14 @@ def test_orchestrator_plan_schema() -> None:
     """Orchestrator 计划：步骤列表结构化校验。"""
     plan = OrchestratorPlan.model_validate(
         {
-            "intent": "multi_step",
+            "intent": "complex_consult",
             "steps": [
                 {"agent": "medical", "description": "核对诊断与保障范围"},
                 {"agent": "claim", "description": "计算预估赔付金额"},
             ],
         }
     )
-    assert plan.intent == "multi_step"
+    assert plan.intent == "complex_consult"
     assert [s.agent for s in plan.steps] == ["medical", "claim"]
 
 

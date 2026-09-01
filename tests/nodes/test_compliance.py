@@ -28,6 +28,7 @@ from nodes.compliance import (
     review_answer,
     revise_answer_node,
 )
+from schemas.agent_outputs import ComplianceAgentOutput, Violation
 from tools.compliance.risk_scoring import score_risk
 from tools.compliance.rule_check import check_text
 from tools.executor import ToolExecutor
@@ -35,21 +36,28 @@ from tools.registry import ToolRegistry
 
 
 class FakeModel:
-    """可控 LLM：返回预设响应或抛异常。"""
+    """可控 LLM（T045 结构化输出）。
+
+    response：ComplianceAgentOutput 实例（结构化输出成功结果）；
+    raise_exc：LLM 调用异常或 schema 校验失败（二者在兜底路径等价）。
+    with_structured_output(method="function_calling") 返回自身（ainvoke 产出实例）。
+    """
 
     def __init__(self, response: Any = None, raise_exc: Exception | None = None) -> None:
         self._response = response
         self._raise = raise_exc
 
+    def with_structured_output(self, schema: Any, method: str | None = None) -> FakeModel:
+        assert method == "function_calling"
+        return self
+
     async def ainvoke(self, messages: Any, **kwargs: Any) -> Any:
         if self._raise:
             raise self._raise
-
-        class _Resp:
-            def __init__(self, content: str) -> None:
-                self.content = content
-
-        return _Resp(self._response)
+        if isinstance(self._response, Exception):
+            raise self._response
+        assert self._response is not None
+        return self._response
 
 
 def _patch_model(monkeypatch: pytest.MonkeyPatch, model: FakeModel) -> None:
@@ -137,10 +145,13 @@ def test_score_risk_capped_at_100() -> None:
 
 async def test_review_llm_modify(monkeypatch: pytest.MonkeyPatch) -> None:
     """LLM 正常裁决 MODIFY（含违规明细与建议）。"""
-    raw = """{"verdict": "MODIFY", "violations": [
-        {"type": "PROMISE", "detail": "保证赔付", "suggestion": "改为预估表述"}],
-        "risk_score": 30, "reason": "检出承诺性话术"}"""
-    _patch_model(monkeypatch, FakeModel(response=raw))
+    output = ComplianceAgentOutput(
+        verdict="MODIFY",
+        violations=[Violation(type="PROMISE", detail="保证赔付", suggestion="改为预估表述")],
+        risk_score=30,
+        reason="检出承诺性话术",
+    )
+    _patch_model(monkeypatch, FakeModel(response=output))
     verdict = await review_answer("本次住院保证赔付 4640 元", ToolExecutor(_registry_with_compliance()))
     assert verdict.verdict == "MODIFY"
     assert verdict.violations[0].type == "PROMISE"
@@ -148,8 +159,8 @@ async def test_review_llm_modify(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_review_llm_reject(monkeypatch: pytest.MonkeyPatch) -> None:
-    raw = '{"verdict": "REJECT", "violations": [], "risk_score": 90, "reason": "高风险"}'
-    _patch_model(monkeypatch, FakeModel(response=raw))
+    output = ComplianceAgentOutput(verdict="REJECT", violations=[], risk_score=90, reason="高风险")
+    _patch_model(monkeypatch, FakeModel(response=output))
     verdict = await review_answer("高风险内容")
     assert verdict.verdict == "REJECT"
 
@@ -178,12 +189,16 @@ async def test_review_llm_exception_clean_fallback_pass(monkeypatch: pytest.Monk
 
 
 async def test_review_llm_invalid_output_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    """LLM 输出非法（非 JSON / 非法 verdict）：走确定性兜底。"""
-    _patch_model(monkeypatch, FakeModel(response="我认为没问题"))
+    """结构化输出失败（schema 校验不通过，等价旧'非法 verdict'路径）：走确定性兜底。"""
+    _patch_model(
+        monkeypatch, FakeModel(response=ValueError("校验失败：verdict 非法值 MAYBE"))
+    )
     verdict = await review_answer("保证赔付 100 元")
     assert verdict.verdict == "MODIFY"  # 规则检出 PROMISE
 
-    _patch_model(monkeypatch, FakeModel(response='{"verdict": "MAYBE"}'))
+    _patch_model(
+        monkeypatch, FakeModel(response=ValueError("校验失败：verdict 非法值 MAYBE"))
+    )
     verdict = await review_answer("正常回答")
     assert verdict.verdict == "PASS"
 

@@ -97,7 +97,7 @@ async def test_synthesize_without_memory_keeps_semantics(spy_model: SpyModel) ->
 
 
 async def test_step_executor_appends_memory_to_instruction(monkeypatch: pytest.MonkeyPatch) -> None:
-    """multi_step 路径：memory_context 非空 → Worker 指令附加记忆段；为空不附加。"""
+    """complex_consult 路径：memory_context 非空 → Worker 指令附加记忆段；为空不附加。"""
     import nodes.step_executor as step_executor_module
     from nodes.step_executor import StepExecutorNode
 

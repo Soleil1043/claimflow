@@ -5,7 +5,7 @@
 产出 evals/datasets/eval_dataset.json（200 条），配比按架构 9.2：
 - simple_faq  30 条：RAG 知识库问答（条款/规则/免责/材料/流程）
 - single_domain 60 条：保单 20 / 医疗 20 / 合规 20
-- multi_step  80 条：模板 × 参数（病种/保单/金额/句式）组合，含计算类锚点用例
+- complex_consult  80 条：模板 × 参数（病种/保单/金额/句式）组合，含计算类锚点用例
 - edge_case  30 条：不存在数据 / 等待期临界 / 免责 / 过期退保 / 越界请求
 
 期望值溯源：
@@ -178,7 +178,7 @@ def _build_single_domain() -> list[EvalCase]:
     return cases
 
 
-# ===== multi_step（80 条）：模板 × 参数组合 =====
+# ===== complex_consult（80 条）：模板 × 参数组合 =====
 
 # 计算锚点（kb_docs/03 示例）：阑尾炎 15800 / 社保 6000 / 免赔剩余 4000 / 80% = 4640
 _CALC_ANCHOR_MUST = ["4640", "4,640"]
@@ -273,7 +273,7 @@ _MS_EXTRAS = [
 ]
 
 
-def _build_multi_step() -> list[EvalCase]:
+def _build_complex_consult() -> list[EvalCase]:
     cases: list[EvalCase] = []
     idx = 0
     # 强锚点计算类：3 模板 × 4 参数 = 12 条（含 kb03 标准锚点 3 条）
@@ -287,7 +287,7 @@ def _build_multi_step() -> list[EvalCase]:
                 must, any_of, note = [], ["免赔", "赔付比例", "计算"], f"policies.json {policy} 计算要点"
             cases.append(EvalCase(
                 id=f"MS-{idx:03d}", category=EvalCategory.MULTI_STEP, user_input=q,
-                expected_tools=["policy_query", "claim_calculator"], expected_intent="multi_step",
+                expected_tools=["policy_query", "claim_calculator"], expected_intent="complex_consult",
                 must_include=must, any_of=any_of, note=note,
             ))
     # 自由模板 × 5 病种 = 25 条
@@ -297,7 +297,7 @@ def _build_multi_step() -> list[EvalCase]:
             q = tmpl["t"].format(disease=disease, amount="12000", policy=_DISEASE_POLICY[disease])
             cases.append(EvalCase(
                 id=f"MS-{idx:03d}", category=EvalCategory.MULTI_STEP, user_input=q,
-                expected_tools=tmpl["tools"], expected_intent="multi_step",
+                expected_tools=tmpl["tools"], expected_intent="complex_consult",
                 any_of=tmpl["any"], note=tmpl["note"],
             ))
     # 长尾复杂表述 10 条
@@ -305,7 +305,7 @@ def _build_multi_step() -> list[EvalCase]:
         idx += 1
         cases.append(EvalCase(
             id=f"MS-{idx:03d}", category=EvalCategory.MULTI_STEP, user_input=q,
-            expected_tools=tools, expected_intent="multi_step", any_of=any_of, note=note,
+            expected_tools=tools, expected_intent="complex_consult", any_of=any_of, note=note,
         ))
     return cases
 
@@ -370,7 +370,7 @@ def _build_edge_cases() -> list[EvalCase]:
 
 def main() -> None:
     """生成 200 条评测数据集并落盘。"""
-    cases = _build_faq() + _build_single_domain() + _build_multi_step() + _build_edge_cases()
+    cases = _build_faq() + _build_single_domain() + _build_complex_consult() + _build_edge_cases()
     counts = {c.value: sum(1 for x in cases if x.category == c) for c in EvalCategory}
     dataset = EvalDataset(
         version=VERSION,

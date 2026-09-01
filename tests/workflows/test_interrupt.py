@@ -42,13 +42,31 @@ _RESET_INPUT = {
 
 
 class FakeModel:
-    """可控 LLM：固定响应（AIMessage，含空 tool_calls 供 react 条件边判断）。"""
+    """可控 LLM：固定响应（AIMessage，含空 tool_calls 供 react 条件边判断）。
+
+    with_structured_output 按 schema 解析预设 JSON（T045 结构化输出链路）。
+    """
 
     def __init__(self, content: str) -> None:
         self._content = content
 
     async def ainvoke(self, messages: Any, **kwargs: Any) -> AIMessage:
         return AIMessage(content=self._content)
+
+    def with_structured_output(self, schema: Any, method: str | None = None) -> Any:
+        assert method == "function_calling"
+
+        class _Structured:
+            def __init__(self, content: str, schema: Any) -> None:
+                self._content = content
+                self._schema = schema
+
+            async def ainvoke(self, messages: Any, **kwargs: Any) -> Any:
+                import json as _json
+
+                return self._schema.model_validate(_json.loads(self._content))
+
+        return _Structured(self._content, schema)
 
 
 class ScriptedLLM:

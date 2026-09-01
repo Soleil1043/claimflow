@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
+
+# 合规三态判决（T045：Literal 枚举，with_structured_output 承载）
+ComplianceVerdict = Literal["PASS", "MODIFY", "REJECT"]
 
 
 class ClaimAgentOutput(BaseModel):
@@ -33,11 +38,11 @@ class Violation(BaseModel):
 
 
 class ComplianceAgentOutput(BaseModel):
-    """Compliance Agent 结构化输出（三态审查结论）。"""
+    """Compliance Agent 结构化输出（三态审查结论，T045 起即 LLM 结构化输出 schema）。"""
 
-    verdict: str  # PASS / MODIFY / REJECT
+    verdict: ComplianceVerdict
     violations: list[Violation] = Field(default_factory=list)
-    risk_score: int = 0
+    risk_score: int = Field(default=0, ge=0, le=100)
     reason: str = ""
 
 

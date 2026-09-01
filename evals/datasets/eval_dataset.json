@@ -1592,7 +1592,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [
         "4640",
         "4,640"
@@ -1610,7 +1610,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -1629,7 +1629,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -1648,7 +1648,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -1667,7 +1667,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [
         "4640",
         "4,640"
@@ -1685,7 +1685,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -1704,7 +1704,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -1723,7 +1723,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -1742,7 +1742,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [
         "4640",
         "4,640"
@@ -1760,7 +1760,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -1779,7 +1779,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -1798,7 +1798,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -1814,7 +1814,7 @@
       "category": "multi_step",
       "user_input": "我做了阑尾炎手术，能赔吗，顺便算算能赔多少钱",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "等待期",
@@ -1831,7 +1831,7 @@
       "category": "multi_step",
       "user_input": "我做了急性阑尾炎手术，能赔吗，顺便算算能赔多少钱",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "等待期",
@@ -1848,7 +1848,7 @@
       "category": "multi_step",
       "user_input": "我做了肾结石手术，能赔吗，顺便算算能赔多少钱",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "等待期",
@@ -1865,7 +1865,7 @@
       "category": "multi_step",
       "user_input": "我做了胆石症手术，能赔吗，顺便算算能赔多少钱",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "等待期",
@@ -1882,7 +1882,7 @@
       "category": "multi_step",
       "user_input": "我做了胆石症胆囊切除手术，能赔吗，顺便算算能赔多少钱",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "等待期",
@@ -1899,7 +1899,7 @@
       "category": "multi_step",
       "user_input": "我做了肺炎手术，能赔吗，顺便算算能赔多少钱",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "等待期",
@@ -1916,7 +1916,7 @@
       "category": "multi_step",
       "user_input": "我做了急性支气管炎手术，能赔吗，顺便算算能赔多少钱",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "等待期",
@@ -1933,7 +1933,7 @@
       "category": "multi_step",
       "user_input": "我做了支气管哮喘手术，能赔吗，顺便算算能赔多少钱",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "等待期",
@@ -1950,7 +1950,7 @@
       "category": "multi_step",
       "user_input": "帮我核对一下阑尾炎是否在保障范围内，并计算大概赔付金额",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "K35",
@@ -1966,7 +1966,7 @@
       "category": "multi_step",
       "user_input": "帮我核对一下急性阑尾炎是否在保障范围内，并计算大概赔付金额",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "K35",
@@ -1982,7 +1982,7 @@
       "category": "multi_step",
       "user_input": "帮我核对一下肾结石是否在保障范围内，并计算大概赔付金额",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "K35",
@@ -1998,7 +1998,7 @@
       "category": "multi_step",
       "user_input": "帮我核对一下胆石症是否在保障范围内，并计算大概赔付金额",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "K35",
@@ -2014,7 +2014,7 @@
       "category": "multi_step",
       "user_input": "帮我核对一下胆石症胆囊切除是否在保障范围内，并计算大概赔付金额",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "K35",
@@ -2030,7 +2030,7 @@
       "category": "multi_step",
       "user_input": "帮我核对一下肺炎是否在保障范围内，并计算大概赔付金额",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "K35",
@@ -2046,7 +2046,7 @@
       "category": "multi_step",
       "user_input": "帮我核对一下急性支气管炎是否在保障范围内，并计算大概赔付金额",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "K35",
@@ -2062,7 +2062,7 @@
       "category": "multi_step",
       "user_input": "帮我核对一下支气管哮喘是否在保障范围内，并计算大概赔付金额",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "K35",
@@ -2080,7 +2080,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2098,7 +2098,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2116,7 +2116,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2134,7 +2134,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2152,7 +2152,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2170,7 +2170,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2188,7 +2188,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2206,7 +2206,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2224,7 +2224,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2241,7 +2241,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2258,7 +2258,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2275,7 +2275,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2292,7 +2292,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2309,7 +2309,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2326,7 +2326,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2343,7 +2343,7 @@
       "expected_tools": [
         "claim_rule_rag"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "诊断证明",
@@ -2360,7 +2360,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "住院",
@@ -2378,7 +2378,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "住院",
@@ -2396,7 +2396,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "住院",
@@ -2414,7 +2414,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "住院",
@@ -2432,7 +2432,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "住院",
@@ -2450,7 +2450,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "住院",
@@ -2468,7 +2468,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "住院",
@@ -2486,7 +2486,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "住院",
@@ -2504,7 +2504,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -2522,7 +2522,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "病理",
@@ -2540,7 +2540,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -2557,7 +2557,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "80%",
@@ -2573,7 +2573,7 @@
       "category": "multi_step",
       "user_input": "我既有医疗险又有重疾险，阑尾炎手术两边都能报吗",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "费用补偿",
@@ -2589,7 +2589,7 @@
       "category": "multi_step",
       "user_input": "慢性胃炎好几年了最近加重住院，POL-2025-0001 能赔吗",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "既往症",
@@ -2604,7 +2604,7 @@
       "category": "multi_step",
       "user_input": "刚投保半个月就查出肾结石，POL-2026-0005 能赔吗",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "等待期",
@@ -2622,7 +2622,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔"
@@ -2636,7 +2636,7 @@
       "category": "multi_step",
       "user_input": "阑尾炎手术商业保险报完，单位补充医疗还能再报吗",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "分割单",
@@ -2651,7 +2651,7 @@
       "category": "multi_step",
       "user_input": "我想给刚出生的宝宝也买一份这个保险，怎么办理",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "投保",
@@ -2669,7 +2669,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -2684,7 +2684,7 @@
       "category": "multi_step",
       "user_input": "住院期间用了进口抗生素，费用能计入 POL-2025-0001 的报销基数吗",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "目录外",
@@ -2702,7 +2702,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "60%",
@@ -2719,7 +2719,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "年龄",
@@ -2735,7 +2735,7 @@
       "category": "multi_step",
       "user_input": "先门诊检查后住院，检查费和住院费能一起报吗",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "住院前",
@@ -2751,7 +2751,7 @@
       "category": "multi_step",
       "user_input": "出院后复查的费用算在这次理赔里吗",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "出院后",
@@ -2767,7 +2767,7 @@
       "category": "multi_step",
       "user_input": "事故认定书写的对方全责，我的意外险和对方车险怎么赔",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "代位",
@@ -2783,7 +2783,7 @@
       "category": "multi_step",
       "user_input": "我想撤销已经提交的理赔申请可以吗",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "撤销",
@@ -2799,7 +2799,7 @@
       "category": "multi_step",
       "user_input": "理赔款打到别人账户可以吗",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "本人",
@@ -2815,7 +2815,7 @@
       "category": "multi_step",
       "user_input": "补交材料有截止时间吗",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "材料",
@@ -2831,7 +2831,7 @@
       "category": "multi_step",
       "user_input": "claim 到 paid 状态一般要几天",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "10 日",
@@ -2849,7 +2849,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "预估",
@@ -2865,7 +2865,7 @@
       "category": "multi_step",
       "user_input": "出院小结还没拿到，先用诊断证明能立案吗",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "材料",
@@ -2883,7 +2883,7 @@
       "expected_tools": [
         "policy_query"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -2898,7 +2898,7 @@
       "category": "multi_step",
       "user_input": "网上说阑尾炎手术最多赔 2 万是真的吗",
       "expected_tools": [],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "保额",
@@ -2917,7 +2917,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -2935,7 +2935,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "免赔",
@@ -2953,7 +2953,7 @@
         "policy_query",
         "claim_calculator"
       ],
-      "expected_intent": "multi_step",
+      "expected_intent": "complex_consult",
       "must_include": [],
       "any_of": [
         "4640",

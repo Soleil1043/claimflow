@@ -3,7 +3,7 @@
 流程（decisions.md D012）：
 1. 规则工具取证（rule_check + risk_scoring，经 ToolExecutor；
    工具不可用时回退纯函数，拦截能力恒在）
-2. LLM 裁决（COMPLIANCE_AGENT_PROMPT + 工具证据）→ ComplianceAgentOutput；
+2. LLM 裁决（with_structured_output → ComplianceAgentOutput，verdict 为 Literal 三态枚举）；
    LLM 失败走确定性兜底：FRAUD_RISK 或 risk≥80 → REJECT；其他违规 → MODIFY；无违规 → PASS
 3. 三态流转（条件边 compliance_route）：
    - PASS → END（回答原样返回）
@@ -61,23 +61,6 @@ _DETERMINISTIC_REPLACEMENTS: list[tuple[str, str]] = [
     ("百分之百报销", "按条款比例报销"),
     ("包赔", "按条款赔付"),
 ]
-
-
-def _parse_llm_json(raw: str) -> dict[str, Any] | None:
-    """解析 LLM 输出的 JSON（容忍 markdown 包裹/前后缀文本）。"""
-    text = raw.strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text.startswith("json"):
-            text = text[4:]
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end <= start:
-        return None
-    try:
-        parsed = json.loads(text[start : end + 1])
-    except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
 
 
 async def _run_rule_check(text: str, executor: ToolExecutor | None) -> list[dict[str, Any]]:
@@ -139,8 +122,9 @@ async def review_answer(text: str, executor: ToolExecutor | None = None) -> Comp
     evidence = json.dumps({"violations": violations, "risk": risk}, ensure_ascii=False, default=str)
     try:
         model = get_chat_model(temperature=0.0)
-        response = await phase_ainvoke(
-            model,
+        structured = model.with_structured_output(ComplianceAgentOutput, method="function_calling")
+        output = await phase_ainvoke(
+            structured,
             [
                 SystemMessage(content=COMPLIANCE_AGENT_PROMPT),
                 HumanMessage(
@@ -149,20 +133,10 @@ async def review_answer(text: str, executor: ToolExecutor | None = None) -> Comp
             ],
             phase="compliance",
         )
-        parsed = _parse_llm_json(response.content or "")
-        if parsed and parsed.get("verdict") in {"PASS", "MODIFY", "REJECT"}:
-            output = ComplianceAgentOutput.model_validate(
-                {
-                    "verdict": parsed["verdict"],
-                    "violations": parsed.get("violations") or [],
-                    "risk_score": int(parsed.get("risk_score") or risk.get("risk_score", 0)),
-                    "reason": str(parsed.get("reason", "")),
-                }
-            )
-            log.info("compliance_reviewed", verdict=output.verdict, fallback=False)
-            return output
-        log.warning("compliance_llm_invalid_output", raw=(response.content or "")[:100])
-    except Exception as exc:  # noqa: BLE001 LLM 故障 → 确定性兜底
+        # verdict 为 Literal 枚举 + 字段经 schema 校验（risk_score 限 0-100），非法即抛 → 兜底
+        log.info("compliance_reviewed", verdict=output.verdict, fallback=False)
+        return output
+    except Exception as exc:  # noqa: BLE001 LLM 故障 / 校验失败 → 确定性兜底
         log.warning("compliance_llm_error", error=str(exc)[:200])
 
     verdict = _fallback_verdict(violations, risk)

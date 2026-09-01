@@ -1,7 +1,7 @@
 """A06 端到端场景测试（T022）：正常 / 异常 / 边界全覆盖（mock LLM，真实工具链 + 真实 DB）。
 
 场景（对应验收标准）：
-1. 正常 multi_step：完整响应结构（intent/agent_steps/compliance_status/used_tools）+ 审计落库
+1. 正常 complex_consult：完整响应结构（intent/agent_steps/compliance_status/used_tools）+ 审计落库
 2. 边界·保单不存在：react 路径真实调 policy_query（空库）→ success=false 轨迹 + 兜底回答
 3. 异常·LLM 全线超时：intent 关键词兜底 / react 降级话术 / compliance 确定性兜底，接口 200 不报错
 4. 异常·合规 REJECT：违规内容不返回用户 + need_human_intervention + 会话 transferred
@@ -43,7 +43,7 @@ class ScriptedLLM:
 
 
 class FakeModel:
-    """固定内容 LLM。"""
+    """固定内容 LLM（with_structured_output 按 schema 解析，T045）。"""
 
     def __init__(self, content: str) -> None:
         self._content = content
@@ -53,6 +53,21 @@ class FakeModel:
             content = self._content
 
         return _Resp()
+
+    def with_structured_output(self, schema: Any, method: str | None = None) -> Any:
+        assert method == "function_calling"
+
+        class _Structured:
+            def __init__(self, content: str, schema: Any) -> None:
+                self._content = content
+                self._schema = schema
+
+            async def ainvoke(self, messages: Any, **kwargs: Any) -> Any:
+                import json as _json
+
+                return self._schema.model_validate(_json.loads(self._content))
+
+        return _Structured(self._content, schema)
 
 
 class RaisingModel:
@@ -113,15 +128,15 @@ async def _send(ac: AsyncClient, cid: str, content: str) -> dict:
     return resp.json()
 
 
-# ---------- 场景 1：正常 multi_step 完整结构 ----------
+# ---------- 场景 1：正常 complex_consult 完整结构 ----------
 
 
-async def test_scenario_multi_step_full_structure(api_env, monkeypatch) -> None:
+async def test_scenario_complex_consult_full_structure(api_env, monkeypatch) -> None:
     """正常多步：完整响应结构 + 审计落库（intent/agent_steps/compliance_status/tool_trace）。"""
     monkeypatch.setattr(
         intent_module,
         "get_chat_model",
-        lambda *a, **k: FakeModel('{"intent": "multi_step", "reason": "多步任务"}'),
+        lambda *a, **k: FakeModel('{"intent": "complex_consult", "reason": "多步任务"}'),
     )
     monkeypatch.setattr(
         planner_module,
@@ -154,7 +169,7 @@ async def test_scenario_multi_step_full_structure(api_env, monkeypatch) -> None:
     cid = await _create_conversation(api_env)
     body = await _send(api_env, cid, "我做了阑尾炎手术能赔多少")
 
-    assert body["intent"] == "multi_step"
+    assert body["intent"] == "complex_consult"
     assert body["answer"] == "预估可赔付 4,640 元，最终以理赔审核结果为准"
     assert len(body["agent_steps"]) == 2
     assert body["agent_steps"][0]["agent"] == "medical"
@@ -169,7 +184,7 @@ async def test_scenario_multi_step_full_structure(api_env, monkeypatch) -> None:
     history = (await api_env.get(f"/api/v1/conversations/{cid}/messages")).json()
     assert history["total"] == 2
     assistant = history["items"][1]
-    assert assistant["intent"] == "multi_step"
+    assert assistant["intent"] == "complex_consult"
     assert len(assistant["agent_steps"]) == 2
     assert assistant["compliance_status"] == "PASS"
     assert assistant["tool_trace"][0]["tool"] == "record_query"
@@ -330,7 +345,7 @@ async def test_scenario_multi_turn_state_isolation(api_env, monkeypatch) -> None
     monkeypatch.setattr(
         intent_module,
         "get_chat_model",
-        lambda *a, **k: FakeModel('{"intent": "multi_step", "reason": "多步"}'),
+        lambda *a, **k: FakeModel('{"intent": "complex_consult", "reason": "多步"}'),
     )
     monkeypatch.setattr(
         planner_module,

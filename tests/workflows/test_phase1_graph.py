@@ -56,10 +56,30 @@ def graph_env(monkeypatch):
     import nodes.generator as generator_module
     import nodes.intent as intent_module
 
-    # 意图分类 LLM：固定 single_domain（走 react_agent 路径）
-    class _IntentModel:
+    # 意图分类 LLM：固定 single_domain（走 react_agent 路径；with_structured_output 按 schema 解析）
+    class _StructuredMixin:
+        _content: str = ""
+
+        def with_structured_output(self, schema: Any, method: str | None = None) -> Any:
+            assert method == "function_calling"
+
+            class _Structured:
+                def __init__(self, content: str, schema: Any) -> None:
+                    self._content = content
+                    self._schema = schema
+
+                async def ainvoke(self, messages: list[Any], **kwargs: Any) -> Any:
+                    import json as _json
+
+                    return self._schema.model_validate(_json.loads(self._content))
+
+            return _Structured(self._content, schema)
+
+    class _IntentModel(_StructuredMixin):
+        _content = '{"intent": "single_domain", "reason": "查数据"}'
+
         async def ainvoke(self, messages: list[Any], config: Any = None) -> AIMessage:
-            return AIMessage(content='{"intent": "single_domain", "reason": "查数据"}')
+            return AIMessage(content=self._content)
 
     monkeypatch.setattr(intent_module, "get_chat_model", lambda *a, **k: _IntentModel())
 
@@ -78,10 +98,12 @@ def graph_env(monkeypatch):
     )
     monkeypatch.setattr(generator_module, "get_chat_model", lambda: scripted)
 
-    # 合规审查 LLM：固定返回 PASS（回答无违规，走直通路径）
-    class _PassModel:
+    # 合规审查 LLM：固定返回 PASS（回答无违规，走直通路径；结构化输出同上）
+    class _PassModel(_StructuredMixin):
+        _content = '{"verdict": "PASS", "violations": [], "risk_score": 0, "reason": "无违规"}'
+
         async def ainvoke(self, messages: list[Any], config: Any = None) -> AIMessage:
-            return AIMessage(content='{"verdict": "PASS", "violations": [], "risk_score": 0, "reason": "无违规"}')
+            return AIMessage(content=self._content)
 
     monkeypatch.setattr(compliance_module, "get_chat_model", lambda *a, **k: _PassModel())
 

@@ -2,7 +2,7 @@
 
 覆盖（mock LLM，不耗真实 token）：
 - route_intent 三分支路由
-- multi_step 全链路：intent → planner → step_executor 循环 → synthesize → compliance
+- complex_consult 全链路：intent → planner → step_executor 循环 → synthesize → compliance
 - simple_faq 全链路：intent → rag_node → synthesize → compliance
 - A06 完整响应结构（answer/intent/used_tools/agent_steps/compliance_status）
 - F14：共享 checkpointer 的两个图实例模拟"服务重启后恢复历史会话"
@@ -44,7 +44,7 @@ _RESET_INPUT = {
 
 
 class FakeModel:
-    """可控 LLM：固定响应。"""
+    """可控 LLM：ainvoke 返回预设文本；with_structured_output 按 schema 解析（T045）。"""
 
     def __init__(self, content: str) -> None:
         self._content = content
@@ -55,11 +55,28 @@ class FakeModel:
 
         return _Resp()
 
+    def with_structured_output(self, schema: Any, method: str | None = None) -> Any:
+        assert method == "function_calling"
+        return _Structured(self._content, schema)
+
+
+class _Structured:
+    """结构化链路假件：预设 JSON 经 schema 校验返回实例（与真实 function calling 链路同构）。"""
+
+    def __init__(self, content: str, schema: Any) -> None:
+        self._content = content
+        self._schema = schema
+
+    async def ainvoke(self, messages: Any, **kwargs: Any) -> Any:
+        import json as _json
+
+        return self._schema.model_validate(_json.loads(self._content))
+
 
 def _patch_all(
     monkeypatch: pytest.MonkeyPatch,
     *,
-    intent: str = "multi_step",
+    intent: str = "complex_consult",
     plan: dict[str, Any] | None = None,
     compliance: str = "PASS",
 ) -> None:
@@ -94,7 +111,7 @@ def _make_graph() -> Any:
 
 
 def test_route_intent_three_branches() -> None:
-    assert route_intent({"intent": "multi_step"}) == "planner"
+    assert route_intent({"intent": "complex_consult"}) == "planner"
     assert route_intent({"intent": "simple_faq"}) == "rag"
     assert route_intent({"intent": "single_domain"}) == "react"
     assert route_intent({"intent": "chitchat"}) == "react"
@@ -102,14 +119,14 @@ def test_route_intent_three_branches() -> None:
     assert route_intent({}) == "react"
 
 
-# ---------- multi_step 全链路 ----------
+# ---------- complex_consult 全链路 ----------
 
 
-async def test_multi_step_full_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    """multi_step：intent → planner（2 步）→ step_executor×2 → synthesize → compliance PASS。"""
+async def test_complex_consult_full_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """complex_consult：intent → planner（2 步）→ step_executor×2 → synthesize → compliance PASS。"""
     _patch_all(
         monkeypatch,
-        intent="multi_step",
+        intent="complex_consult",
         plan={
             "steps": [
                 {"agent": "medical", "description": "医疗审核"},
@@ -142,7 +159,7 @@ async def test_multi_step_full_path(monkeypatch: pytest.MonkeyPatch) -> None:
     state = {**_RESET_INPUT, "messages": [HumanMessage(content="我做了阑尾炎手术能赔多少")]}
     result = await graph.ainvoke(state, config={"configurable": {"thread_id": "t-multi"}})
 
-    assert result["intent"] == "multi_step"
+    assert result["intent"] == "complex_consult"
     assert result["final_answer"] == "综合结论：预估可赔付 4640 元，以理赔审核结果为准"
     assert [s["agent"] for s in result["task_plan"]] == ["medical", "claim"]
     assert all(s["status"] == "done" for s in result["task_plan"])
@@ -154,11 +171,11 @@ async def test_multi_step_full_path(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result["need_human_intervention"] is False
 
 
-async def test_multi_step_synthesize_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_complex_consult_synthesize_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     """synthesize LLM 故障：确定性兜底拼接各 Agent summary，不抛错。"""
     _patch_all(
         monkeypatch,
-        intent="multi_step",
+        intent="complex_consult",
         plan={"steps": [{"agent": "claim", "description": "核算"}]},
     )
 
@@ -281,7 +298,7 @@ async def test_restart_recovers_history(monkeypatch: pytest.MonkeyPatch) -> None
 
     _patch_all(
         monkeypatch,
-        intent="multi_step",
+        intent="complex_consult",
         plan={"steps": [{"agent": "claim", "description": "核算"}]},
     )
 

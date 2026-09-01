@@ -66,7 +66,7 @@ def test_record_llm_call_without_tokens() -> None:
 def test_record_turn_human_intervention() -> None:
     """need_human=True 时转人工计数递增。"""
     before = _counter_value("claimflow_human_interventions_total")
-    metrics.record_turn("multi_step", 5.0, "REJECTED", True)
+    metrics.record_turn("complex_consult", 5.0, "REJECTED", True)
     assert _counter_value("claimflow_human_interventions_total") == before + 1.0
 
 

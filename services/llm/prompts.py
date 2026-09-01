@@ -22,20 +22,17 @@ INTENT_CLASSIFICATION_PROMPT = """\
 
 - simple_faq：知识类问答，只需检索理赔规则知识库即可回答（条款、等待期、免责、材料清单、报销规则等咨询）
 - single_domain：单领域查询，需要查询具体业务数据（查保单、查理赔进度、按身份证查名下保单等）
-- multi_step：多步复杂任务，需要跨多个系统/多步推理（既查数据又算金额、核对材料+计算赔付、完整理赔咨询流程等）
+- complex_consult：复杂理赔咨询，需要跨多个系统/多步推理（既查数据又算金额、核对材料+计算赔付、完整理赔咨询流程等）
 - chitchat：寒暄闲聊（问候、感谢、与业务无关的日常对话）
 - other：超出保险理赔客服范围的其他请求（写论文、股票咨询等与理赔无关的专业请求）
 
 分类原则：
-1. 只要涉及"算/计算赔付金额"或"同时要多个信息"即为 multi_step
+1. 只要涉及"算/计算赔付金额"或"同时要多个信息"即为 complex_consult
 2. 带具体单号/证件号的数据查询为 single_domain
 3. 纯知识咨询（无具体单号）为 simple_faq
 4. 输出必须是五类之一，不确定时倾向 simple_faq
 
-用户输入：{user_input}
-
-以 JSON 输出：{{"intent": "分类结果", "reason": "一句话理由"}}
-"""
+用户输入：{user_input}"""
 
 # ===== Worker Agent system prompts（T015，AGENTS.md 6.2：Agent 不直接调工具，输出结构化结论） =====
 
@@ -106,21 +103,17 @@ COMPLIANCE_AGENT_PROMPT = """\
 2. REJECT 意味着内容不得以任何形式返回给用户，必须转人工
 3. MODIFY 必须给出具体可执行的修改建议
 
-## 输出格式（JSON）
-{{
-  "verdict": "PASS / MODIFY / REJECT",
-  "violations": [{{"type": "违规类型", "detail": "原文片段", "suggestion": "修改建议"}}],
-  "risk_score": 0-100,
-  "reason": "审查理由"
-}}
-"""
+## 输出字段（结构化 schema 承载）
+verdict：PASS / MODIFY / REJECT 三态判决；
+violations：违规列表（type 违规类型 / detail 原文片段 / suggestion 修改建议）；
+risk_score：0-100 风险分；reason：审查理由"""
 
 ORCHESTRATOR_AGENT_PROMPT = """\
 你是调度专家（Orchestrator Agent），负责理解用户意图、制定执行计划并整合结果。
 
 ## 职责
-- 意图识别：将用户诉求分类（simple_faq / single_domain / multi_step / chitchat / other）
-- 任务规划：对 multi_step 任务拆解为有序步骤，每步指定一个 Worker Agent
+- 意图识别：将用户诉求分类（simple_faq / single_domain / complex_consult / chitchat / other）
+- 任务规划：对复杂理赔咨询（complex_consult）拆解为有序步骤，每步指定一个 Worker Agent
 - 结果整合：汇总各 Worker 结论，生成面向用户的最终回答
 
 ## 规划原则
@@ -230,7 +223,7 @@ TASK_PLANNER_PROMPT = """\
 
 ## 示例
 用户：我做了阑尾炎手术能赔多少
-输出：{{"intent": "multi_step", "steps": [
+输出：{{"intent": "complex_consult", "steps": [
   {{"agent": "medical", "description": "查询就诊记录并核对阑尾炎诊断是否在保障范围内、是否有等待期或材料缺失"}},
   {{"agent": "claim", "description": "查询相关保单信息，结合医疗审核结论与费用计算预估赔付金额"}}
 ]}}

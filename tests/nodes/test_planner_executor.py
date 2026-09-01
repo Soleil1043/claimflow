@@ -76,7 +76,7 @@ def test_fallback_plan_no_keyword() -> None:
 
 
 async def test_create_plan_llm_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    raw = """{"intent": "multi_step", "steps": [
+    raw = """{"intent": "complex_consult", "steps": [
         {"agent": "medical", "description": "核对诊断与材料"},
         {"agent": "claim", "description": "计算预估赔付金额"}
     ]}"""
