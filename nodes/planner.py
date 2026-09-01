@@ -1,13 +1,13 @@
 """任务规划节点（T017，F08）。
 
-Orchestrator 规划器：将 multi_step 用户诉求拆解为有序步骤计划，
+Orchestrator 规划器：将 complex_consult 用户诉求拆解为有序步骤计划，
 每步指定一个 Worker Agent（medical / claim）。
 
 LLM 结构化输出（TASK_PLANNER_PROMPT）+ 关键词规则兜底：
 LLM 输出异常（解析失败 / 非法 Agent 名 / 空步骤）时按规则给出保底计划，
 保证节点永不报错（可靠性要求与 intent 节点一致）。
 
-T021 组装主图时由 intent 分流接入（multi_step → planner）。
+T021 组装主图时由 intent 分流接入（complex_consult → planner）。
 """
 
 from __future__ import annotations
