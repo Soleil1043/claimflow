@@ -99,11 +99,8 @@ def _build_task_message(instruction: str, shared_data: dict[str, Any]) -> HumanM
 def _derive_tool_trace(
     agent_name: str, messages: list[Any], known_tools: set[str]
 ) -> list[dict[str, Any]]:
-    """从子图 messages 派生工具轨迹（A06 used_tools 口径）。
-
-    AIMessage.tool_calls（id→name/args）与 ToolMessage（tool_call_id→output）配对；
-    排除 response_format 的结构化输出工具（不在 known_tools 中）。
-    """
+    """从 Worker 子图 messages 派生工具轨迹（按本 Agent 工具白名单过滤）。"""
+    known = known_tools
     calls: dict[str, dict[str, Any]] = {}
     for m in messages:
         for tc in getattr(m, "tool_calls", None) or []:
@@ -111,7 +108,7 @@ def _derive_tool_trace(
 
     trace: list[dict[str, Any]] = []
     for m in messages:
-        if not isinstance(m, ToolMessage) or m.name not in known_tools:
+        if not isinstance(m, ToolMessage) or m.name not in known:
             continue
         tc = calls.get(m.tool_call_id, {})
         try:
@@ -124,48 +121,79 @@ def _derive_tool_trace(
     return trace
 
 
-async def run_worker_agent(
-    agent_def: AgentDefinition,
-    instruction: str,
-    shared_data: dict[str, Any],
-    tool_trace: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
-    """执行一个 Worker Agent 任务，返回结构化结论 dict。
+def derive_tool_trace(messages: list[Any]) -> list[dict[str, Any]]:
+    """任意消息列表 → 工具轨迹（A06 used_tools / 评测口径）。
 
-    Args:
-        tool_trace: 可选轨迹列表（就地追加）：本步骤内每次工具调用记录
-            {agent, tool, input, output}，供 A06 used_tools / F08 执行追溯。
+    AIMessage.tool_calls（id→name/args，AIMessage.name 为产出 Agent）与
+    ToolMessage（tool_call_id→output）跨消息配对；response_format 的隐藏
+    结构化工具不出现在 tool_calls 消费侧之外，天然不入列。
+    """
+    calls: dict[str, tuple[str, dict[str, Any], str]] = {}
+    trace: list[dict[str, Any]] = []
+    for m in messages:
+        owner = getattr(m, "name", None) or ""
+        for tc in getattr(m, "tool_calls", None) or []:
+            calls[tc["id"]] = (tc["name"], tc.get("args", {}) or {}, owner)
+        if not isinstance(m, ToolMessage):
+            continue
+        name, args, owner = calls.get(m.tool_call_id, (getattr(m, "name", "") or "", {}, owner))
+        try:
+            output = json.loads(m.content) if isinstance(m.content, str) else m.content
+        except (json.JSONDecodeError, TypeError):
+            output = {"raw": str(m.content)[:500]}
+        trace.append({"agent": owner, "tool": name, "input": args, "output": output})
+    return trace
 
-    任何解析失败都不抛错：降级为 {"summary": 原始文本} 由上层整合；
-    子图执行异常向上抛（step_executor 捕获记 failed）。
+
+async def invoke_worker(
+    agent_def: AgentDefinition, instruction: str, shared_data: dict[str, Any]
+) -> tuple[dict[str, Any], list[Any]]:
+    """执行一个 Worker 子图，返回（结构化结论 dict, 新增消息列表）。
+
+    新增消息 = 子图 messages 中除注入任务消息外的全部（工具调用轨迹随之
+    可被上层节点并入主图 messages，A06/评测从 messages 派生 used_tools）。
+    结构化失败降级 {"summary": 原文}（不抛错）；子图执行异常向上抛。
     """
     worker = get_worker_subgraph(agent_def)
+    input_messages = [_build_task_message(instruction, shared_data)]
 
     with track_phase("executor"):
         result = await worker.ainvoke(
-            {"messages": [_build_task_message(instruction, shared_data)]},
+            {"messages": input_messages},
             config={
                 "recursion_limit": _RECURSION_LIMIT,
                 "callbacks": [_WorkerTokenHandler()],
             },
         )
 
-    # 轨迹派生（含 token 记账的 phase 归集随 track_phase 完成）
-    if tool_trace is not None:
-        known = set(agent_def.tool_names)
-        tool_trace.extend(_derive_tool_trace(agent_def.name, result["messages"], known))
+    new_messages = list(result["messages"][len(input_messages) :])
 
     structured = result.get("structured_response")
     if structured is not None:
-        log.info(
-            "worker_agent_done",
-            agent=agent_def.name,
-            structured=True,
-        )
-        return structured.model_dump()
+        log.info("worker_agent_done", agent=agent_def.name, structured=True)
+        return structured.model_dump(), new_messages
 
     # 降级：模型未调用结构化输出工具 → 最后一条有内容的 AIMessage 原文（v1 语义）
-    ai_messages = [m for m in result["messages"] if isinstance(m, AIMessage) and m.content]
+    ai_messages = [m for m in new_messages if isinstance(m, AIMessage) and m.content]
     raw = str(ai_messages[-1].content)[:500] if ai_messages else ""
     log.warning("worker_output_unstructured", agent=agent_def.name, raw=raw[:100])
-    return {"summary": raw}
+    return {"summary": raw}, new_messages
+
+
+async def run_worker_agent(
+    agent_def: AgentDefinition,
+    instruction: str,
+    shared_data: dict[str, Any],
+    tool_trace: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """执行一个 Worker Agent 任务，返回结构化结论 dict（兼容入口，T046 测试口径）。
+
+    Args:
+        tool_trace: 可选轨迹列表（就地追加）：本步骤内每次工具调用记录
+            {agent, tool, input, output}，供 A06 used_tools / F08 执行追溯。
+    """
+    result, new_messages = await invoke_worker(agent_def, instruction, shared_data)
+    if tool_trace is not None:
+        known = set(agent_def.tool_names)
+        tool_trace.extend(_derive_tool_trace(agent_def.name, new_messages, known))
+    return result
