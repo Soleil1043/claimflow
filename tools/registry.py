@@ -1,10 +1,14 @@
-"""工具注册中心：注册 / 发现 / 批量导出 OpenAI 工具定义。"""
+"""工具注册中心（T044 过渡形态）。
+
+v1 的「import 即全局注册」副作用已删除：默认注册中心从工具工厂
+（tools/factory.py）惰性填充，装配显式化。本类保留为名称→工具的轻量容器，
+供 v1 消费端（ToolExecutor 兼容壳）与测试渐进迁移；T046/T047 消费端
+子图化改持工具列表后，本模块整体删除。
+"""
 
 from __future__ import annotations
 
-from typing import Any
-
-from tools.base import BaseTool
+from langchain_core.tools import BaseTool
 
 
 class ToolNotFoundError(KeyError):
@@ -12,19 +16,19 @@ class ToolNotFoundError(KeyError):
 
 
 class ToolRegistry:
-    """工具注册中心（进程内单例使用，见 get_default_registry）。"""
+    """工具容器（进程内默认实例见 get_default_registry）。"""
 
     def __init__(self) -> None:
-        self._tools: dict[str, BaseTool[Any, Any]] = {}
+        self._tools: dict[str, BaseTool] = {}
 
-    def register(self, tool: BaseTool[Any, Any]) -> None:
+    def register(self, tool: BaseTool) -> None:
         """注册工具；重名视为编程错误，直接抛异常（内部代码信任约定）。"""
         if tool.name in self._tools:
             msg = f"工具重复注册: {tool.name}"
             raise ValueError(msg)
         self._tools[tool.name] = tool
 
-    def get(self, name: str) -> BaseTool[Any, Any]:
+    def get(self, name: str) -> BaseTool:
         """按名称获取工具。"""
         try:
             return self._tools[name]
@@ -35,22 +39,17 @@ class ToolRegistry:
         """全部已注册工具名。"""
         return sorted(self._tools)
 
-    def to_openai_tools(self, names: list[str] | None = None) -> list[dict[str, Any]]:
-        """导出 OpenAI 工具定义；names 为空导出全部（LLM bind_tools 用）。"""
-        targets = names if names is not None else self.list_names()
-        return [self.get(name).to_openai_tool() for name in targets]
-
 
 _default_registry: ToolRegistry | None = None
 
 
 def get_default_registry() -> ToolRegistry:
-    """默认全局注册中心（惰性单例）。
-
-    各具体工具模块在 import 时调用 register；应用入口统一 import
-    tools 包完成装配（T008 起补充）。
-    """
+    """默认注册中心：惰性从工具工厂装配填充（v1 调用方零改动）。"""
     global _default_registry
     if _default_registry is None:
+        from tools.factory import get_default_tool_map
+
         _default_registry = ToolRegistry()
+        for tool in get_default_tool_map().values():
+            _default_registry.register(tool)
     return _default_registry

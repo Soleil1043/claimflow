@@ -1,34 +1,17 @@
-"""医疗类工具装配：import 即注册到默认注册中心。"""
+"""医疗类工具导出（T044 起全局注册副作用删除，装配见 tools/factory.py）。"""
 
 from tools.medical.diagnosis_matcher import (
     DiagnosisMatcherInput,
-    DiagnosisMatcherOutput,
     DiagnosisMatcherTool,
 )
-from tools.medical.ocr_extract import (
-    OcrExtractInput,
-    OcrExtractOutput,
-    OcrExtractTool,
-)
-from tools.medical.record_query import (
-    RecordQueryInput,
-    RecordQueryOutput,
-    RecordQueryTool,
-)
-from tools.registry import get_default_registry
-
-get_default_registry().register(RecordQueryTool())
-get_default_registry().register(DiagnosisMatcherTool())
-get_default_registry().register(OcrExtractTool())
+from tools.medical.ocr_extract import OcrExtractInput, OcrExtractTool
+from tools.medical.record_query import RecordQueryInput, RecordQueryTool
 
 __all__ = [
     "RecordQueryTool",
     "RecordQueryInput",
-    "RecordQueryOutput",
     "DiagnosisMatcherTool",
     "DiagnosisMatcherInput",
-    "DiagnosisMatcherOutput",
     "OcrExtractTool",
     "OcrExtractInput",
-    "OcrExtractOutput",
 ]

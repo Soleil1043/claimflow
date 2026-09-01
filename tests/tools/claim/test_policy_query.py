@@ -14,6 +14,7 @@ import datetime as dt
 from decimal import Decimal
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from services.db.models import Base, Policy
@@ -94,9 +95,9 @@ async def tool():
 
 async def test_query_by_policy_no(tool: PolicyQueryTool) -> None:
     """按保单号查询：返回完整详情（F04 验收主路径）。"""
-    result = await tool.execute({"policy_no": "POL-2025-0001"})
-    assert result.success is True
-    policy = result.data["policy"]
+    result = await tool.ainvoke({"policy_no": "POL-2025-0001"})
+    assert result["success"] is True
+    policy = result["policy"]
     assert policy["holder_name"] == "张伟"
     assert policy["product_type"] == "医疗险"
     assert policy["coverage_amount"] == 1000000.0
@@ -108,39 +109,38 @@ async def test_query_by_policy_no(tool: PolicyQueryTool) -> None:
 
 async def test_policy_not_found(tool: PolicyQueryTool) -> None:
     """不存在的保单号：success=False 结构化错误（不抛异常）。"""
-    result = await tool.execute({"policy_no": "POL-9999-XXXX"})
-    assert result.success is False
-    assert "未找到保单" in (result.error_message or "")
-    assert "POL-9999-XXXX" in (result.error_message or "")
+    result = await tool.ainvoke({"policy_no": "POL-9999-XXXX"})
+    assert result["success"] is False
+    assert "未找到保单" in (result["error_message"] or "")
+    assert "POL-9999-XXXX" in (result["error_message"] or "")
 
 
 async def test_query_by_id_card_single(tool: PolicyQueryTool) -> None:
     """按身份证查询单张保单。"""
-    result = await tool.execute({"id_card": "330105198811072546"})
-    assert result.success is True
-    assert result.data["policy"]["policy_no"] == "POL-2025-0002"
+    result = await tool.ainvoke({"id_card": "330105198811072546"})
+    assert result["success"] is True
+    assert result["policy"]["policy_no"] == "POL-2025-0002"
 
 
 async def test_query_by_id_card_multiple(tool: PolicyQueryTool) -> None:
     """按身份证查询命中多张保单：返回 policies 列表。"""
-    result = await tool.execute({"id_card": "330106199203154817"})
-    assert result.success is True
-    numbers = {p["policy_no"] for p in result.data["policies"]}
+    result = await tool.ainvoke({"id_card": "330106199203154817"})
+    assert result["success"] is True
+    numbers = {p["policy_no"] for p in result["policies"]}
     assert numbers == {"POL-2025-0001", "POL-2026-0009"}
 
 
 async def test_input_requires_identifier(tool: PolicyQueryTool) -> None:
-    """入参校验：policy_no 与 id_card 都缺 → success=False。"""
-    result = await tool.execute({})
-    assert result.success is False
-    assert "至少提供一个" in (result.error_message or "")
+    """入参校验：policy_no 与 id_card 都缺 → ainvoke 抛 ValidationError（提示至少提供一个）。"""
+    with pytest.raises(ValidationError, match="至少提供一个"):
+        await tool.ainvoke({})
 
 
 async def test_expired_policy_is_returned_with_status(tool: PolicyQueryTool) -> None:
     """过期保单正常返回（status=expired），由 Agent 结合状态解释。"""
-    result = await tool.execute({"policy_no": "POL-2024-0003"})
-    assert result.success is True
-    assert result.data["policy"]["status"] == "expired"
+    result = await tool.ainvoke({"policy_no": "POL-2024-0003"})
+    assert result["success"] is True
+    assert result["policy"]["status"] == "expired"
 
 
 def test_openai_tool_definition() -> None:

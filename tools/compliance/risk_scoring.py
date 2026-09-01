@@ -14,8 +14,8 @@ from typing import Any
 
 from pydantic import Field
 
-from schemas.tools import ToolInput, ToolOutput
-from tools.base import BaseTool
+from schemas.tools import ToolInput
+from tools.base import ClaimflowTool
 from tools.compliance.rule_check import check_text
 
 # 各违规类型的基础分值
@@ -73,20 +73,20 @@ class RiskScoringInput(ToolInput):
     text: str = Field(description="待评分的回答文本", min_length=1)
 
 
-class RiskScoringOutput(ToolOutput):
-    """评分输出：data 含 risk_score / risk_level / breakdown。"""
-
-
-class RiskScoringTool(BaseTool[RiskScoringInput, RiskScoringOutput]):
-    name = "risk_scoring"
-    description = (
+class RiskScoringTool(ClaimflowTool):
+    # 注：name/description 必须带类型注解——pydantic 要求子类覆盖父类字段时显式标注
+    name: str = "risk_scoring"
+    description: str = (
         "对拟返回给用户的回答计算合规风险分（0-100）与等级（low/medium/high）："
         "综合承诺话术、绝对化用语、误导表述、欺诈风险、隐私泄露等信号加权。"
         "合规审查评估风险等级时使用。"
     )
-    input_schema = RiskScoringInput
-    output_schema = RiskScoringOutput
+    args_schema: type[RiskScoringInput] = RiskScoringInput
 
-    async def _run(self, input_data: RiskScoringInput) -> RiskScoringOutput:
-        result = score_risk(input_data.text)
-        return RiskScoringOutput(success=True, data=result)
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        """同步壳（langchain 1.x 要求实现 _run）：本项目全链路 async，同步路径不可用。"""
+        raise NotImplementedError(f"{self.name} 仅支持异步调用（ainvoke）")
+
+    async def _arun(self, *, text: str) -> dict[str, Any]:
+        result = score_risk(text)
+        return {"success": True, **result}

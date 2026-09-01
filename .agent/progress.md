@@ -1312,4 +1312,40 @@ BaseTool.model_fields 含 args_schema、IndexConfig TypedDict 含 dims/embed/fie
 
 **Git**：`feat: T049 材料上传支持 PDF/Word（两段式提取 + 兼容别名端点 + Mock 兜底）+ D024/D025`
 
+### [T044] 工具层标准化（Phase 5 启动，D021/ADR-007 落地第一步）— 2026-09-01
+
+**操作**：
+- 新基础设施三件套：
+  - `tools/base.py`：ClaimflowTool（继承 langchain_core.tools.BaseTool）+ 过渡 to_openai_tool()
+  - `tools/guards.py`：守卫下沉——CircuitBreaker（v1 executor 原样迁入）+ GuardedTool
+    （缓存白名单 → 熔断 → 超时，包在官方重试外层），metrics 打点随守卫迁入
+  - `tools/factory.py`：工厂装配替代 import 全局注册（raw → .with_retry() → GuardedTool），
+    get_default_tool_map 惰性单例（熔断器随工具常驻进程，跨会话共享）
+- 9 个工具全部迁移：args_schema + `_arun(**kwargs) -> dict`（业务失败含 success=False 键平铺返回），
+  DI 用 PrivateAttr 模式；三个包 `__init__` 去注册副作用
+- 兼容层（T046/T047 消费端迁移后删除）：ToolExecutor 保留公共接口改为薄适配壳
+  （ainvoke → dict→ToolOutput 信封适配 + tracing span + per-call fallback）；registry 降级为
+  惰性工厂填充的名称容器——**nodes/agents 消费端零改动**
+- 实测发现并处理的 langchain-core 1.6.1 硬约束：① 覆盖 name/description 必须带类型注解
+  （PydanticUserError）；② `_run` 是抽象方法，异步工具需补同步壳 raise NotImplementedError
+  （9 工具 + GuardedTool 统一处理）
+- 语义对齐两处修正：守卫 fallback 在重试耗尽后也返回（v1 语义）；TimeoutError 消息带超时秒数
+- 语义偏差一处（已接受并记录）：超时从「每次尝试独立 10s」改为「总预算 10s（含重试）」——更保守
+- AGENTS.md 6.1 重写 + 第 5 节 tools 结构图更新；scripts/verify_ocr.py 适配 ainvoke；
+  services/materials.py 图片路径走 ainvoke
+- 测试迁移：test_infrastructure 重写为守卫层测试（registry/工厂/超时/重试/熔断五态/兼容壳），
+  test_tool_cache/test_metrics/test_tracing 改守卫装配路径，6 个工具测试文件 .execute→.ainvoke
+  机械适配（业务断言值全保留）
+
+**验证方式**：
+- `uv run python -m pytest -q` → **398 passed**（v1 374 → 迁移 355 + 守卫层/兼容壳新增 43）；ruff 全绿
+- 冒烟：app.main / evals.test_suite 导入链路 OK；默认注册中心惰性填充 9 个守卫工具；
+  A06 全图场景测试（经兼容壳 + 守卫工具）通过
+- 过程注：两个执行子代理先后完成工具文件迁移与测试适配（后者因 API 配额中断，
+  剩余 2 用例由主线补齐）；子代理产出经 diff 抽查确认未改业务断言
+
+**状态**：✅ 通过验证（Phase 5 进行中：T045-T048 待执行）
+
+**Git**：`feat: T044 工具层标准化（langchain BaseTool + 官方重试 + 守卫下沉工具层 + 工厂装配）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->

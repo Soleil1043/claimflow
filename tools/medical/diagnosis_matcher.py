@@ -11,8 +11,8 @@ from typing import Any
 
 from pydantic import Field
 
-from schemas.tools import ToolInput, ToolOutput
-from tools.base import BaseTool
+from schemas.tools import ToolInput
+from tools.base import ClaimflowTool
 
 # 保障范围对照表（与 data/kb_docs/10-ICD10与保障范围对照.md 一致，规则内置常量）
 _ICD10_COVERAGE: dict[str, dict[str, Any]] = {
@@ -66,53 +66,55 @@ class DiagnosisMatcherInput(ToolInput):
     policy_effective_date: str | None = Field(default=None, description="保单生效日期 YYYY-MM-DD")
 
 
-class DiagnosisMatcherOutput(ToolOutput):
-    """匹配输出：data 含 icd10 / 保障范围 / 等待期状态。"""
-
-
-class DiagnosisMatcherTool(BaseTool[DiagnosisMatcherInput, DiagnosisMatcherOutput]):
-    name = "diagnosis_matcher"
-    description = (
+class DiagnosisMatcherTool(ClaimflowTool):
+    # 注：name/description 必须带类型注解——pydantic 要求子类覆盖父类字段时显式标注
+    name: str = "diagnosis_matcher"
+    description: str = (
         "将诊断描述与 ICD-10 编码匹配并判断是否在保障范围内；"
         "提供就诊日期与保单生效日期时同步计算等待期状态（医疗险疾病等待期 30 天）。"
         "用户描述病情/诊断、询问是否在保障范围、判断能否理赔时使用。"
     )
-    input_schema = DiagnosisMatcherInput
-    output_schema = DiagnosisMatcherOutput
+    args_schema: type[DiagnosisMatcherInput] = DiagnosisMatcherInput
 
-    async def _run(self, input_data: DiagnosisMatcherInput) -> DiagnosisMatcherOutput:
-        desc = input_data.diagnosis_desc.strip()
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        """同步壳（langchain 1.x 要求实现 _run）：本项目全链路 async，同步路径不可用。"""
+        raise NotImplementedError(f"{self.name} 仅支持异步调用（ainvoke）")
+
+    async def _arun(
+        self,
+        *,
+        diagnosis_desc: str,
+        visit_date: str | None = None,
+        policy_effective_date: str | None = None,
+    ) -> dict[str, Any]:
+        desc = diagnosis_desc.strip()
 
         # 1. ICD-10 匹配：显式编码优先，其次关键词
         icd10 = self._match_icd10(desc)
         if icd10 is None:
-            return DiagnosisMatcherOutput(
-                success=True,
-                data={
-                    "icd10_code": None,
-                    "diagnosis_desc": desc,
-                    "covered": None,
-                    "coverage_note": "未匹配到已知 ICD-10 编码，需人工核对诊断",
-                    "waiting_period": None,
-                },
-            )
+            return {
+                "success": True,
+                "icd10_code": None,
+                "diagnosis_desc": desc,
+                "covered": None,
+                "coverage_note": "未匹配到已知 ICD-10 编码，需人工核对诊断",
+                "waiting_period": None,
+            }
 
         coverage = _ICD10_COVERAGE[icd10]
 
         # 2. 等待期计算（两个日期都提供时）
-        waiting = self._check_waiting_period(input_data)
+        waiting = self._check_waiting_period(visit_date, policy_effective_date)
 
-        return DiagnosisMatcherOutput(
-            success=True,
-            data={
-                "icd10_code": icd10,
-                "diagnosis_name": coverage["name"],
-                "diagnosis_desc": desc,
-                "covered": coverage["covered"],
-                "coverage_note": coverage["scope"],
-                "waiting_period": waiting,
-            },
-        )
+        return {
+            "success": True,
+            "icd10_code": icd10,
+            "diagnosis_name": coverage["name"],
+            "diagnosis_desc": desc,
+            "covered": coverage["covered"],
+            "coverage_note": coverage["scope"],
+            "waiting_period": waiting,
+        }
 
     @staticmethod
     def _match_icd10(desc: str) -> str | None:
@@ -130,13 +132,15 @@ class DiagnosisMatcherTool(BaseTool[DiagnosisMatcherInput, DiagnosisMatcherOutpu
         return None
 
     @staticmethod
-    def _check_waiting_period(input_data: DiagnosisMatcherInput) -> dict[str, Any] | None:
+    def _check_waiting_period(
+        visit_date: str | None, policy_effective_date: str | None
+    ) -> dict[str, Any] | None:
         """等待期状态：就诊日期距保单生效日不足 30 天 → in_waiting_period=True。"""
-        if not input_data.visit_date or not input_data.policy_effective_date:
+        if not visit_date or not policy_effective_date:
             return None
         try:
-            visit = dt.date.fromisoformat(input_data.visit_date)
-            effective = dt.date.fromisoformat(input_data.policy_effective_date)
+            visit = dt.date.fromisoformat(visit_date)
+            effective = dt.date.fromisoformat(policy_effective_date)
         except ValueError:
             return None
 

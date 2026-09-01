@@ -10,7 +10,7 @@
 不会再次命中后续正则，天然去重）。
 
 纯函数 mask_sensitive / find_sensitive 供合规链路直接调用；
-BaseTool 封装注册后供 Compliance Agent（T015 定义）使用。
+工具经 tools/factory.py 装配后供 Compliance Agent（T015 定义）使用。
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ from typing import Any
 
 from pydantic import Field
 
-from schemas.tools import ToolInput, ToolOutput
-from tools.base import BaseTool
+from schemas.tools import ToolInput
+from tools.base import ClaimflowTool
 from tools.compliance.rule_check import _BANK_CARD_RE, _ID_CARD_RE, _PHONE_RE
 
 
@@ -77,28 +77,26 @@ class SensitiveFilterInput(ToolInput):
     text: str = Field(description="待脱敏的文本", min_length=1)
 
 
-class SensitiveFilterOutput(ToolOutput):
-    """脱敏输出：data 含 masked_text / findings / masked_count。"""
-
-
-class SensitiveFilterTool(BaseTool[SensitiveFilterInput, SensitiveFilterOutput]):
-    name = "sensitive_filter"
-    description = (
+class SensitiveFilterTool(ClaimflowTool):
+    # 注：name/description 必须带类型注解——pydantic 要求子类覆盖父类字段时显式标注
+    name: str = "sensitive_filter"
+    description: str = (
         "对文本中的敏感信息脱敏：18 位身份证号保留前 4 后 4 位（如 3301**********1234）、"
         "银行卡号保留前 4 后 4 位、手机号保留前 3 后 4 位。"
         "回答中包含用户证件号/卡号/手机号需要脱敏时使用。"
     )
-    input_schema = SensitiveFilterInput
-    output_schema = SensitiveFilterOutput
+    args_schema: type[SensitiveFilterInput] = SensitiveFilterInput
 
-    async def _run(self, input_data: SensitiveFilterInput) -> SensitiveFilterOutput:
-        findings = find_sensitive(input_data.text)
-        masked = mask_sensitive(input_data.text)
-        return SensitiveFilterOutput(
-            success=True,
-            data={
-                "masked_text": masked,
-                "findings": findings,
-                "masked_count": len(findings),
-            },
-        )
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        """同步壳（langchain 1.x 要求实现 _run）：本项目全链路 async，同步路径不可用。"""
+        raise NotImplementedError(f"{self.name} 仅支持异步调用（ainvoke）")
+
+    async def _arun(self, *, text: str) -> dict[str, Any]:
+        findings = find_sensitive(text)
+        masked = mask_sensitive(text)
+        return {
+            "success": True,
+            "masked_text": masked,
+            "findings": findings,
+            "masked_count": len(findings),
+        }

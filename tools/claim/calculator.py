@@ -9,18 +9,19 @@
 设计说明：
 - 纯计算工具（无 DB / 网络依赖），入参由调用方（LLM）从 policy_query 结果提取
 - Decimal 全程计算保证金额精度，出口转 float 便于 JSON 序列化
-- 业务规则违反（如费用为负、免赔超保额）返回 success=False 说明原因，
-  由 Agent 向用户解释，不抛异常（T007 失败语义）
+- 业务规则违反（如费用为负、免赔超保额）返回含 success=False 的结果 dict
+  说明原因，由 Agent 向用户解释，不抛异常（T007 失败语义）
 """
 
 from __future__ import annotations
 
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 
 from pydantic import Field, field_validator
 
-from schemas.tools import ToolInput, ToolOutput
-from tools.base import BaseTool
+from schemas.tools import ToolInput
+from tools.base import ClaimflowTool
 
 
 class ClaimCalculatorInput(ToolInput):
@@ -40,25 +41,29 @@ class ClaimCalculatorInput(ToolInput):
         return Decimal(str(v))
 
 
-class ClaimCalculatorOutput(ToolOutput):
-    """理赔计算输出：data 含预估赔付金额与计算明细。"""
-
-
-class ClaimCalculatorTool(BaseTool[ClaimCalculatorInput, ClaimCalculatorOutput]):
-    name = "claim_calculator"
-    description = (
+class ClaimCalculatorTool(ClaimflowTool):
+    # 注：name/description 必须带类型注解——pydantic 要求子类覆盖父类字段时显式标注
+    name: str = "claim_calculator"
+    description: str = (
         "根据医疗费用、保额、免赔额、赔付比例计算预估赔付金额。"
         "在查询到保单详情后，用户询问'能赔多少'、'赔付金额'时使用。"
         "计算规则：可赔基数 = max(0, min(医疗费用, 保额) - 免赔额)，预估赔付 = 可赔基数 × 赔付比例。"
     )
-    input_schema = ClaimCalculatorInput
-    output_schema = ClaimCalculatorOutput
+    args_schema: type[ClaimCalculatorInput] = ClaimCalculatorInput
 
-    async def _run(self, input_data: ClaimCalculatorInput) -> ClaimCalculatorOutput:
-        expense: Decimal = input_data.medical_expense
-        coverage: Decimal = input_data.coverage_amount
-        deductible: Decimal = input_data.deductible
-        ratio: Decimal = input_data.payout_ratio
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        """同步壳（langchain 1.x 要求实现 _run）：本项目全链路 async，同步路径不可用。"""
+        raise NotImplementedError(f"{self.name} 仅支持异步调用（ainvoke）")
+
+    async def _arun(
+        self,
+        *,
+        medical_expense: Decimal,
+        coverage_amount: Decimal,
+        deductible: Decimal,
+        payout_ratio: Decimal,
+    ) -> dict[str, Any]:
+        expense, coverage, ratio = medical_expense, coverage_amount, payout_ratio
 
         # 标准绝对免赔算法：费用先封顶到保额，再扣除免赔额，下限 0
         payable_base = min(expense, coverage) - deductible
@@ -67,25 +72,19 @@ class ClaimCalculatorTool(BaseTool[ClaimCalculatorInput, ClaimCalculatorOutput])
                 reason = f"免赔额（{deductible} 元）不低于保额（{coverage} 元），无可赔付空间"
             else:
                 reason = f"医疗费用（{expense} 元）未超过免赔额（{deductible} 元），费用需自行承担"
-            return ClaimCalculatorOutput(
-                success=False,
-                error_message=reason,
-                data={"estimated_payout": 0.0},
-            )
+            return {"success": False, "error_message": reason, "estimated_payout": 0.0}
 
         payout = (payable_base * ratio).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-        return ClaimCalculatorOutput(
-            success=True,
-            data={
-                "estimated_payout": float(payout),
-                # 计算明细：供 Agent 向用户解释金额构成
-                "calculation_detail": {
-                    "medical_expense": float(expense),
-                    "coverage_amount": float(coverage),
-                    "deductible": float(deductible),
-                    "payable_base": float(payable_base),  # 可赔基数
-                    "payout_ratio": float(ratio),
-                },
+        return {
+            "success": True,
+            "estimated_payout": float(payout),
+            # 计算明细：供 Agent 向用户解释金额构成
+            "calculation_detail": {
+                "medical_expense": float(expense),
+                "coverage_amount": float(coverage),
+                "deductible": float(deductible),
+                "payable_base": float(payable_base),  # 可赔基数
+                "payout_ratio": float(ratio),
             },
-        )
+        }

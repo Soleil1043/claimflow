@@ -15,8 +15,8 @@ from typing import Any
 
 from pydantic import Field
 
-from schemas.tools import ToolInput, ToolOutput
-from tools.base import BaseTool
+from schemas.tools import ToolInput
+from tools.base import ClaimflowTool
 
 # 违规类型 → (正则, 修改建议)
 _TEXT_PATTERNS: list[tuple[str, str, str]] = [
@@ -94,27 +94,25 @@ class RuleCheckInput(ToolInput):
     text: str = Field(description="待检查的回答文本", min_length=1)
 
 
-class RuleCheckOutput(ToolOutput):
-    """检查输出：data 含 violations / violation_count / violation_types。"""
-
-
-class ComplianceRuleCheckTool(BaseTool[RuleCheckInput, RuleCheckOutput]):
-    name = "compliance_rule_check"
-    description = (
+class ComplianceRuleCheckTool(ClaimflowTool):
+    # 注：name/description 必须带类型注解——pydantic 要求子类覆盖父类字段时显式标注
+    name: str = "compliance_rule_check"
+    description: str = (
         "对拟返回给用户的回答做合规规则检查（正则）：识别承诺性话术（保证赔付等）、"
         "绝对化用语、误导性表述、保险欺诈风险表述、未脱敏的身份证/银行卡/手机号。"
         "合规审查回答是否违规时使用。"
     )
-    input_schema = RuleCheckInput
-    output_schema = RuleCheckOutput
+    args_schema: type[RuleCheckInput] = RuleCheckInput
 
-    async def _run(self, input_data: RuleCheckInput) -> RuleCheckOutput:
-        violations = check_text(input_data.text)
-        return RuleCheckOutput(
-            success=True,
-            data={
-                "violations": violations,
-                "violation_count": len(violations),
-                "violation_types": sorted({v["type"] for v in violations}),
-            },
-        )
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        """同步壳（langchain 1.x 要求实现 _run）：本项目全链路 async，同步路径不可用。"""
+        raise NotImplementedError(f"{self.name} 仅支持异步调用（ainvoke）")
+
+    async def _arun(self, *, text: str) -> dict[str, Any]:
+        violations = check_text(text)
+        return {
+            "success": True,
+            "violations": violations,
+            "violation_count": len(violations),
+            "violation_types": sorted({v["type"] for v in violations}),
+        }

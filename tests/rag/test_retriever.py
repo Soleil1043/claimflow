@@ -158,10 +158,10 @@ async def test_search_empty_collection_returns_empty(tmp_path, monkeypatch) -> N
 async def test_claim_rule_rag_tool_success(rag_env) -> None:
     """工具层：检索成功返回 results 列表（含 score/title/text）。"""
     tool = ClaimRuleRagTool()
-    result = await tool.execute({"query": "阑尾炎有等待期吗", "top_k": 2})
-    assert result.success is True
-    assert len(result.data["results"]) == 2
-    first = result.data["results"][0]
+    result = await tool.ainvoke({"query": "阑尾炎有等待期吗", "top_k": 2})
+    assert result["success"] is True
+    assert len(result["results"]) == 2
+    first = result["results"][0]
     assert first["title"] == "t_appendix"
     assert "score" in first and "text" in first and "source_file" in first
 
@@ -174,9 +174,9 @@ async def test_claim_rule_rag_tool_empty_kb(rag_env, monkeypatch) -> None:
         return []
 
     monkeypatch.setattr("tools.claim.claim_rule_rag.search_kb", fake_search)
-    result = await ClaimRuleRagTool().execute({"query": "任意"})
-    assert result.success is False
-    assert "无结果" in (result.error_message or "")
+    result = await ClaimRuleRagTool().ainvoke({"query": "任意"})
+    assert result["success"] is False
+    assert "无结果" in (result["error_message"] or "")
 
 
 def test_openai_tool_definition() -> None:

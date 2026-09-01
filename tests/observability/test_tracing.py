@@ -15,9 +15,9 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 import services.observability.tracing as tracing_module
-from schemas.tools import ToolInput, ToolOutput
+from schemas.tools import ToolInput
 from services.observability.tracing import ATTR_PHASE, ATTR_TOOL_NAME
-from tools.base import BaseTool
+from tools.base import ClaimflowTool
 from tools.executor import ToolExecutor
 from tools.registry import ToolRegistry
 
@@ -39,15 +39,17 @@ class _EchoInput(ToolInput):
     text: str
 
 
-class _EchoTool(BaseTool):
-    name = "echo_tool"
-    description = "测试用回显工具"
+class _EchoTool(ClaimflowTool):
+    name: str = "echo_tool"
+    description: str = "测试用回显工具"
 
-    input_schema = _EchoInput
-    output_schema = ToolOutput
+    args_schema: type[_EchoInput] = _EchoInput
 
-    async def _run(self, input_data: _EchoInput) -> ToolOutput:
-        return ToolOutput(success=True, data={"echo": input_data.text})
+    def _run(self, *args: object, **kwargs: object) -> dict:
+        raise NotImplementedError("仅支持异步调用")
+
+    async def _arun(self, *, text: str) -> dict:
+        return {"success": True, "echo": text}
 
 
 @pytest.fixture()

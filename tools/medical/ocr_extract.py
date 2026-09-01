@@ -17,9 +17,9 @@ from langchain_core.messages import HumanMessage
 from pydantic import Field
 
 from app.core.logging import get_logger
-from schemas.tools import ToolInput, ToolOutput
+from schemas.tools import ToolInput
 from services.llm.prompts import OCR_EXTRACT_PROMPT
-from tools.base import BaseTool
+from tools.base import ClaimflowTool
 
 log = get_logger(__name__)
 
@@ -32,10 +32,6 @@ class OcrExtractInput(ToolInput):
     image_base64: str = Field(description="图片的 base64 编码（不带 data: 前缀）", min_length=1)
     # 图片 MIME 类型（默认 png，用于多模态消息的 data URL）
     mime_type: str = Field(default="image/png", description="图片 MIME 类型，如 image/png")
-
-
-class OcrExtractOutput(ToolOutput):
-    """提取输出：data 含 patient_name / diagnosis / amount / date / source。"""
 
 
 def _parse_llm_json(raw: str) -> dict[str, Any] | None:
@@ -75,36 +71,44 @@ def _normalize_amount(value: Any) -> float | None:
         return None
 
 
-class OcrExtractTool(BaseTool[OcrExtractInput, OcrExtractOutput]):
-    name = "ocr_extract"
-    description = (
+class OcrExtractTool(ClaimflowTool):
+    # 注：name/description 必须带类型注解——pydantic 要求子类覆盖父类字段时显式标注
+    name: str = "ocr_extract"
+    description: str = (
         "从诊断证明/病历/发票图片中提取结构化字段（患者姓名、诊断、金额、日期）。"
         "用户上传理赔材料图片时使用；vision API 异常时自动返回预置 Mock 数据。"
     )
-    input_schema = OcrExtractInput
-    output_schema = OcrExtractOutput
+    args_schema: type[OcrExtractInput] = OcrExtractInput
 
-    async def _run(self, input_data: OcrExtractInput) -> OcrExtractOutput:
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        """同步壳（langchain 1.x 要求实现 _run）：本项目全链路 async，同步路径不可用。"""
+        raise NotImplementedError(f"{self.name} 仅支持异步调用（ainvoke）")
+
+    async def _arun(
+        self, *, image_base64: str, mime_type: str = "image/png"
+    ) -> dict[str, Any]:
         try:
-            fields = await self._extract_via_vision(input_data)
+            fields = await self._extract_via_vision(image_base64, mime_type)
         except Exception as exc:  # noqa: BLE001 vision API 任何异常 → Mock 兜底
             log.warning("ocr_vision_error", error=str(exc)[:200])
             fields = None
 
         if fields is not None:
             log.info("ocr_extract_done", source="vision")
-            return OcrExtractOutput(success=True, data=fields)
+            return {"success": True, **fields}
 
         # Mock 兜底：接口不报错（F12）
         fallback = _load_fallback()
         log.info("ocr_extract_done", source="mock_fallback")
-        return OcrExtractOutput(success=True, data=fallback)
+        return {"success": True, **fallback}
 
-    async def _extract_via_vision(self, input_data: OcrExtractInput) -> dict[str, Any] | None:
+    async def _extract_via_vision(
+        self, image_base64: str, mime_type: str
+    ) -> dict[str, Any] | None:
         """调 vision 模型提取字段；失败返回 None（由上层兜底）。"""
         from services.llm.client import get_vision_model
 
-        data_url = f"data:{input_data.mime_type};base64,{input_data.image_base64}"
+        data_url = f"data:{mime_type};base64,{image_base64}"
         message = HumanMessage(
             content=[
                 {"type": "text", "text": OCR_EXTRACT_PROMPT},

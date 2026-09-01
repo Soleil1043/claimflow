@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from tools.compliance.sensitive_filter import (
     SensitiveFilterTool,
@@ -133,11 +134,11 @@ def test_find_sensitive_empty() -> None:
 
 async def test_tool_execute() -> None:
     tool = SensitiveFilterTool()
-    result = await tool.execute({"text": "联系 13812345678"})
-    assert result.success is True
-    assert result.data["masked_text"] == "联系 138****5678"
-    assert result.data["masked_count"] == 1
-    assert result.data["findings"][0]["type"] == "phone"
+    result = await tool.ainvoke({"text": "联系 13812345678"})
+    assert result["success"] is True
+    assert result["masked_text"] == "联系 138****5678"
+    assert result["masked_count"] == 1
+    assert result["findings"][0]["type"] == "phone"
 
 
 async def test_tool_registered() -> None:
@@ -156,9 +157,10 @@ def test_tool_schema_export() -> None:
 
 
 async def test_tool_rejects_empty_input() -> None:
+    """空文本被 schema 拒绝（min_length=1）：ainvoke 抛 ValidationError。"""
     tool = SensitiveFilterTool()
-    result = await tool.execute({"text": ""})
-    assert result.success is False
+    with pytest.raises(ValidationError):
+        await tool.ainvoke({"text": ""})
 
 
 def test_registry_registration_isolated() -> None:

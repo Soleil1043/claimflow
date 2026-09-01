@@ -63,8 +63,7 @@ async def main() -> None:
     # ===== 场景 1：真实 vision OCR =====
     print("===== 场景 1：真实 vision OCR（期望 source=vision） =====")
     tool = OcrExtractTool()
-    result = await tool.execute({"image_base64": image_b64})
-    data = result.data
+    data = await tool.ainvoke({"image_base64": image_b64})
     print(
         f"识别结果：姓名={data.get('patient_name')} | 诊断={data.get('diagnosis')} | "
         f"金额={data.get('amount')} | 日期={data.get('date')} | source={data.get('source')}"
@@ -87,16 +86,15 @@ async def main() -> None:
 
     llm_client_module.get_vision_model = _broken_vision  # type: ignore[assignment]
     try:
-        result2 = await tool.execute({"image_base64": image_b64})
+        data2 = await tool.ainvoke({"image_base64": image_b64})
     finally:
         llm_client_module.get_vision_model = original  # type: ignore[assignment]
 
-    data2 = result2.data
     print(
         f"兜底结果：姓名={data2.get('patient_name')} | 诊断={data2.get('diagnosis')} | "
         f"金额={data2.get('amount')} | 日期={data2.get('date')} | source={data2.get('source')}"
     )
-    assert result2.success is True, "vision 故障时接口不应报错"
+    assert data2.get("success", True), "vision 故障时接口不应报错"
     assert data2.get("source") == "mock_fallback"
     assert data2.get("patient_name") == "张伟"  # 预置 Mock 数据
 

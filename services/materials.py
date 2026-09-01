@@ -135,13 +135,12 @@ async def _extract_image_via_tool(content: bytes, mime: str) -> dict[str, Any]:
     """图片走既有 OcrExtractTool（内部自带 vision→Mock 兜底）。"""
     from tools.medical.ocr_extract import OcrExtractTool
 
-    result = await OcrExtractTool().execute(
+    return await OcrExtractTool().ainvoke(
         {
             "image_base64": base64.b64encode(content).decode("ascii"),
             "mime_type": mime,
         }
     )
-    return result.data if result.success else {}
 
 
 def _pdf_text(content: bytes) -> str:

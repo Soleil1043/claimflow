@@ -81,7 +81,8 @@
 > 仅保留自研：熔断器、工具缓存白名单、领域工具/Prompt/降级规则。每个任务验收含「官方构件清单 + 自研清单」核对。
 > 依赖前置已于 2026-09-01 完成：langchain 1.3.18 新增、langchain-core 1.6.1，langgraph 系列确认均为最新版。
 
-- [ ] T044: 工具层标准化 | 依赖: 无 | 涉及文件: tools/base.py、tools/claim/*、tools/medical/*、tools/compliance/*、tools/registry.py、tools/executor.py、schemas/tools.py、AGENTS.md（6.1）、pyproject.toml、uv.lock | 验收: 9 个工具改为官方工具定义（@tool 装饰器主推，有状态/需 DI 的用 BaseTool 子类 args_schema + _arun，业务失败为正常返回、系统异常交 ToolNode handle_tool_errors）；重试/降级换 .with_retry()/.with_fallbacks()，超时用 asyncio.timeout；熔断器与缓存白名单保留为最小自研；ToolOutput 信封与 ToolRegistry 删除；pyproject 新增 langchain≥1.0 依赖（create_agent 官方标准，D022）；AGENTS.md 6.1 同步修订；单测等价迁移全绿
+- [x] T044: 工具层标准化 | 依赖: 无 | 涉及文件: tools/base.py、tools/guards.py（新）、tools/factory.py（新）、tools/registry.py、tools/executor.py、tools/{claim,medical,compliance}/*、services/materials.py、AGENTS.md（6.1 + 结构图）、scripts/verify_ocr.py、tests/ | 验收: 9 个工具改为官方工具定义（ClaimflowTool 继承 langchain BaseTool，args_schema + _arun 返回 dict，业务失败为正常返回、系统异常交守卫层）；重试/降级换官方 .with_retry()（含全部异常指数退避），超时用 asyncio.timeout；熔断器与缓存白名单保留为最小自研（GuardedTool 工具层守卫，agent 循环内外统一生效）；pyproject 新增 langchain≥1.0（前置已完成 26c4c74）；AGENTS.md 6.1 同步修订；单测等价迁移全绿 ✅ 2026-09-01（398 passed：374→迁 355 + 守卫层新增 43）
+  > 过渡说明：ToolOutput 信封与 ToolRegistry 按 D021 属删除项——信封已从工具层移除（工具返回 dict），ToolOutput 类暂存活于 ToolExecutor 兼容壳做消费端适配；registry 降级为惰性工厂填充的名称容器（import 即注册副作用已删）；两者随 T046/T047 消费端子图化后删除
 - [ ] T045: 决策点结构化输出原生化 + 意图更名 | 依赖: 无（可与 T044 并行，按顺序执行） | 涉及文件: nodes/intent.py、nodes/compliance.py、schemas/agent.py、services/llm/prompts.py、workflows/main_graph.py、data/mock/intent_test_cases.json、evals/datasets/ | 验收: 意图/合规判决改 with_structured_output（Literal 枚举：IntentType / ComplianceVerdict），手写 _parse_llm_json ×2 删除；关键词/确定性兜底保留且有单测；意图测试集 20 条准确率 ≥ 基线（19/20）；**意图 multi_step → complex_consult 更名（D023）**：VALID_INTENTS/prompt few-shot/关键词规则/route_intent 同步，测试集与评测集标注批量替换，messages 历史值读取时映射兼容（multi_step→complex_consult），A06 返回新值
 - [ ] T046: Worker Agent 子图化 | 依赖: T044 | 涉及文件: agents/*、nodes/step_executor.py、nodes/generator.py、workflows/main_graph.py、schemas/agent_outputs.py | 验收: AgentDefinition ×3 换 langchain.agents.create_agent 子图（system_prompt 静态 + 动态任务指令经输入 messages 注入 shared_data + response_format → structured_response，解析失败降级 summary；create_react_agent 已 deprecated 不用，D022）；agents/runner.py 手写循环删除；tool_trace 改由 messages 中 ToolMessage 派生 + BaseCallbackHandler 归集，A06 used_tools 口径不变；多步场景测试通过
 - [ ] T047: supervisor 动态路由化 + react 路径 prebuilt 化 | 依赖: T046 | 涉及文件: nodes/planner.py（并入）、nodes/step_executor.py（删除）、nodes/supervisor.py（新增）、nodes/generator.py、workflows/main_graph.py、state.py | 验收: planner+游标循环移除，supervisor 节点 RoutingDecision{next/plan/reason} + Command(goto) 动态路由，支持执行中重规划，recursion_limit 防失控；单领域路径换 create_agent 子图（工具循环内置，LLM 降级话术保留）；State 删 current_step/tool_trace/agent_steps；多步场景端到端测试通过
@@ -131,6 +132,6 @@ T001 → T002 → T003 → T004 → T005
 ## 进度统计
 
 - 总任务数：49（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049）
-- 已完成：44（2026-08-27 完成 T001-T043；2026-09-01 完成 T049 材料上传 PDF/Word）
+- 已完成：45（2026-08-27 完成 T001-T043；2026-09-01 完成 T049 材料上传、T044 工具层标准化）
 - 进行中：0
-- 待开始：5（Phase 5：T044-T048，待用户确认启动，D021/ADR-007）
+- 待开始：4（Phase 5：T045-T048，D021/ADR-007）

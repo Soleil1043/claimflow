@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from tools.claim.calculator import ClaimCalculatorTool
 
@@ -27,7 +28,7 @@ async def test_standard_case(tool: ClaimCalculatorTool) -> None:
 
     可赔基数 = min(15800, 1000000) - 10000 = 5800；赔付 = 5800×0.8 = 4640
     """
-    result = await tool.execute(
+    result = await tool.ainvoke(
         {
             "medical_expense": 15800,
             "coverage_amount": 1000000,
@@ -35,15 +36,15 @@ async def test_standard_case(tool: ClaimCalculatorTool) -> None:
             "payout_ratio": 0.8,
         }
     )
-    assert result.success is True
-    assert result.data["estimated_payout"] == 4640.0
-    detail = result.data["calculation_detail"]
+    assert result["success"] is True
+    assert result["estimated_payout"] == 4640.0
+    detail = result["calculation_detail"]
     assert detail["payable_base"] == 5800.0
 
 
 async def test_expense_exceeds_coverage_capped(tool: ClaimCalculatorTool) -> None:
     """费用超保额：基数封顶为（保额-免赔额）。"""
-    result = await tool.execute(
+    result = await tool.ainvoke(
         {
             "medical_expense": 2000000,
             "coverage_amount": 1000000,
@@ -51,14 +52,14 @@ async def test_expense_exceeds_coverage_capped(tool: ClaimCalculatorTool) -> Non
             "payout_ratio": 0.8,
         }
     )
-    assert result.success is True
+    assert result["success"] is True
     # 基数 = 1000000 - 10000 = 990000，赔付 = 792000
-    assert result.data["estimated_payout"] == 792000.0
+    assert result["estimated_payout"] == 792000.0
 
 
 async def test_expense_below_deductible(tool: ClaimCalculatorTool) -> None:
     """费用低于免赔额：可赔基数为 0 → 无法赔付并说明自担原因。"""
-    result = await tool.execute(
+    result = await tool.ainvoke(
         {
             "medical_expense": 8000,
             "coverage_amount": 1000000,
@@ -66,14 +67,14 @@ async def test_expense_below_deductible(tool: ClaimCalculatorTool) -> None:
             "payout_ratio": 0.8,
         }
     )
-    assert result.success is False
-    assert "未超过免赔额" in (result.error_message or "")
-    assert result.data["estimated_payout"] == 0.0
+    assert result["success"] is False
+    assert "未超过免赔额" in (result["error_message"] or "")
+    assert result["estimated_payout"] == 0.0
 
 
 async def test_deductible_exceeds_coverage(tool: ClaimCalculatorTool) -> None:
     """免赔额超保额：无可赔空间，success=False 且说明原因（验收边界用例）。"""
-    result = await tool.execute(
+    result = await tool.ainvoke(
         {
             "medical_expense": 50000,
             "coverage_amount": 30000,
@@ -81,14 +82,14 @@ async def test_deductible_exceeds_coverage(tool: ClaimCalculatorTool) -> None:
             "payout_ratio": 0.7,
         }
     )
-    assert result.success is False
-    assert "无可赔付空间" in (result.error_message or "")
-    assert result.data["estimated_payout"] == 0.0
+    assert result["success"] is False
+    assert "无可赔付空间" in (result["error_message"] or "")
+    assert result["estimated_payout"] == 0.0
 
 
 async def test_zero_deductible_full_ratio(tool: ClaimCalculatorTool) -> None:
     """零免赔 + 100% 比例（重疾险场景，POL-2025-0002）：赔付 = min(费用, 保额)。"""
-    result = await tool.execute(
+    result = await tool.ainvoke(
         {
             "medical_expense": 500000,
             "coverage_amount": 500000,
@@ -96,13 +97,13 @@ async def test_zero_deductible_full_ratio(tool: ClaimCalculatorTool) -> None:
             "payout_ratio": 1.0,
         }
     )
-    assert result.success is True
-    assert result.data["estimated_payout"] == 500000.0
+    assert result["success"] is True
+    assert result["estimated_payout"] == 500000.0
 
 
 async def test_rounding_precision(tool: ClaimCalculatorTool) -> None:
     """金额四舍五入到分：1599.995 → 1600.00 级别精度。"""
-    result = await tool.execute(
+    result = await tool.ainvoke(
         {
             "medical_expense": 2000.55,
             "coverage_amount": 1000000,
@@ -110,14 +111,14 @@ async def test_rounding_precision(tool: ClaimCalculatorTool) -> None:
             "payout_ratio": 0.8,
         }
     )
-    assert result.success is True
+    assert result["success"] is True
     # 2000.55 × 0.8 = 1600.44（ROUND_HALF_UP 到分）
-    assert result.data["estimated_payout"] == 1600.44
+    assert result["estimated_payout"] == 1600.44
 
 
 async def test_input_accepts_string_numbers(tool: ClaimCalculatorTool) -> None:
     """入参宽松性：LLM 可能给字符串数字，validator 统一转 Decimal。"""
-    result = await tool.execute(
+    result = await tool.ainvoke(
         {
             "medical_expense": "15800",
             "coverage_amount": "1000000",
@@ -125,35 +126,34 @@ async def test_input_accepts_string_numbers(tool: ClaimCalculatorTool) -> None:
             "payout_ratio": "0.8",
         }
     )
-    assert result.success is True
-    assert result.data["estimated_payout"] == 4640.0
+    assert result["success"] is True
+    assert result["estimated_payout"] == 4640.0
 
 
 async def test_input_rejects_invalid_ratio(tool: ClaimCalculatorTool) -> None:
-    """非法比例（>1）被 schema 拒绝：success=False 入参校验失败。"""
-    result = await tool.execute(
-        {
-            "medical_expense": 10000,
-            "coverage_amount": 1000000,
-            "deductible": 0,
-            "payout_ratio": 1.5,
-        }
-    )
-    assert result.success is False
-    assert "入参校验失败" in (result.error_message or "")
+    """非法比例（>1）被 schema 拒绝：ainvoke 抛 ValidationError。"""
+    with pytest.raises(ValidationError):
+        await tool.ainvoke(
+            {
+                "medical_expense": 10000,
+                "coverage_amount": 1000000,
+                "deductible": 0,
+                "payout_ratio": 1.5,
+            }
+        )
 
 
 async def test_input_rejects_negative_expense(tool: ClaimCalculatorTool) -> None:
-    """负数费用被 schema 拒绝。"""
-    result = await tool.execute(
-        {
-            "medical_expense": -100,
-            "coverage_amount": 1000000,
-            "deductible": 0,
-            "payout_ratio": 0.8,
-        }
-    )
-    assert result.success is False
+    """负数费用被 schema 拒绝：ainvoke 抛 ValidationError。"""
+    with pytest.raises(ValidationError):
+        await tool.ainvoke(
+            {
+                "medical_expense": -100,
+                "coverage_amount": 1000000,
+                "deductible": 0,
+                "payout_ratio": 0.8,
+            }
+        )
 
 
 def test_openai_tool_definition() -> None:

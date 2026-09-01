@@ -128,9 +128,11 @@ claim-agent/
 ├── state.py                   # AgentState 定义
 │
 ├── tools/                     # 工具层
-│   ├── base.py                # BaseTool 基类
-│   ├── registry.py            # 工具注册中心
-│   ├── executor.py            # 工具执行器（超时/重试/熔断）
+│   ├── base.py                # ClaimflowTool 基类（继承 langchain 官方 BaseTool）
+│   ├── guards.py              # 守卫：熔断/缓存/超时（GuardedTool，D021 自研保留项）
+│   ├── factory.py             # 工厂装配（.with_retry + 守卫，替代全局注册）
+│   ├── registry.py            # 名称→工具容器（过渡，T046/T047 后删除）
+│   ├── executor.py            # ToolExecutor 兼容壳（过渡，T046/T047 后删除）
 │   ├── claim/                 # 理赔类工具
 │   │   ├── policy_query.py
 │   │   ├── calculator.py
@@ -202,25 +204,26 @@ claim-agent/
 
 ## 6. 实现约定
 
-### 6.1 工具层约定
+### 6.1 工具层约定（T044 起对齐 LangChain 官方基类）
 
-每个工具必须继承 `BaseTool`，实现以下接口：
+每个工具继承 langchain 官方基类（项目基类 `ClaimflowTool`，见 `tools/base.py`）：
 
 ```python
 # 伪代码，实际以 base.py 为准
-class BaseTool:
+class MyTool(ClaimflowTool):            # 继承 langchain_core.tools.BaseTool
     name: str
-    description: str  # 给 LLM 看的描述，要清晰说明什么时候用这个工具
-    input_schema: type[BaseModel]
-    output_schema: type[BaseModel]
+    description: str                    # 给 LLM 看的描述，要清晰说明什么时候用这个工具
+    args_schema: type[BaseModel]        # 入参校验（框架自动）+ bind_tools 自动生成 schema
 
-    async def execute(self, input_data: BaseModel) -> BaseModel:
-        ...
+    async def _arun(self, **kwargs) -> dict: ...
 ```
 
-- 工具执行器（`ToolExecutor`）统一处理：超时、重试、熔断、日志、指标上报
+- 业务失败作为正常返回内容（dict 含 `success=False` / `error_message` 键），系统异常向上抛
+- 守卫由 `tools/factory.py` 统一装配：官方 `.with_retry()` 重试 + `GuardedTool`（`tools/guards.py`：
+  超时 / 熔断 / 缓存白名单——熔断与缓存为 D021 仅有的自研保留项）
 - 外部 API 调用通过 Adapter 模式封装，方便 mock 和替换
-- 工具失败抛出 `ToolExecutionError`，由执行器统一处理
+- `ToolExecutor`（`tools/executor.py`）为 v1 兼容壳，供现有节点渐进迁移，T046/T047 后删除
+- 自研 `BaseTool`（input_schema/output_schema/execute 信封）与全局注册中心已废弃（D021/D022）
 
 ### 6.2 Agent 层约定
 

@@ -61,9 +61,9 @@ async def record_tool():
 
 async def test_record_query_returns_records_desc(record_tool: RecordQueryTool) -> None:
     """按身份证查询：返回两条记录，按就诊日期倒序。"""
-    result = await record_tool.execute({"id_card": "330106199203154817"})
-    assert result.success is True
-    records = result.data["records"]
+    result = await record_tool.ainvoke({"id_card": "330106199203154817"})
+    assert result["success"] is True
+    records = result["records"]
     assert len(records) == 2
     assert records[0]["diagnosis_desc"] == "急性阑尾炎"  # 最新在前
     assert records[0]["icd10_code"] == "K35"
@@ -73,9 +73,9 @@ async def test_record_query_returns_records_desc(record_tool: RecordQueryTool) -
 
 async def test_record_query_no_records(record_tool: RecordQueryTool) -> None:
     """无就诊记录：success=False。"""
-    result = await record_tool.execute({"id_card": "330000000000000000"})
-    assert result.success is False
-    assert "未找到就诊记录" in (result.error_message or "")
+    result = await record_tool.ainvoke({"id_card": "330000000000000000"})
+    assert result["success"] is False
+    assert "未找到就诊记录" in (result["error_message"] or "")
 
 
 # ---------- diagnosis_matcher ----------
@@ -88,9 +88,9 @@ def matcher_tool() -> DiagnosisMatcherTool:
 
 async def test_matcher_appendicitis_covered(matcher_tool: DiagnosisMatcherTool) -> None:
     """F09 验收主用例：'急性阑尾炎' → K35 + 保障范围结论。"""
-    result = await matcher_tool.execute({"diagnosis_desc": "急性阑尾炎"})
-    assert result.success is True
-    data = result.data
+    result = await matcher_tool.ainvoke({"diagnosis_desc": "急性阑尾炎"})
+    assert result["success"] is True
+    data = result
     assert data["icd10_code"] == "K35"
     assert data["diagnosis_name"] == "急性阑尾炎"
     assert data["covered"] is True
@@ -99,29 +99,29 @@ async def test_matcher_appendicitis_covered(matcher_tool: DiagnosisMatcherTool) 
 
 async def test_matcher_explicit_code(matcher_tool: DiagnosisMatcherTool) -> None:
     """描述中含显式编码（'急性阑尾炎 K35'）：直接识别。"""
-    result = await matcher_tool.execute({"diagnosis_desc": "急性阑尾炎 K35"})
-    assert result.data["icd10_code"] == "K35"
+    result = await matcher_tool.ainvoke({"diagnosis_desc": "急性阑尾炎 K35"})
+    assert result["icd10_code"] == "K35"
 
 
 async def test_matcher_unknown_diagnosis(matcher_tool: DiagnosisMatcherTool) -> None:
     """未知诊断：covered=None 提示人工核对（不报错）。"""
-    result = await matcher_tool.execute({"diagnosis_desc": "罕见综合征XYZ"})
-    assert result.success is True
-    assert result.data["icd10_code"] is None
-    assert result.data["covered"] is None
-    assert "人工核对" in result.data["coverage_note"]
+    result = await matcher_tool.ainvoke({"diagnosis_desc": "罕见综合征XYZ"})
+    assert result["success"] is True
+    assert result["icd10_code"] is None
+    assert result["covered"] is None
+    assert "人工核对" in result["coverage_note"]
 
 
 async def test_matcher_waiting_period_in(matcher_tool: DiagnosisMatcherTool) -> None:
     """等待期内：保单 08-01 生效 + 08-20 就诊 → 19 天 < 30 天，in_waiting_period=True。"""
-    result = await matcher_tool.execute(
+    result = await matcher_tool.ainvoke(
         {
             "diagnosis_desc": "急性阑尾炎",
             "visit_date": "2026-08-20",
             "policy_effective_date": "2026-08-01",
         }
     )
-    waiting = result.data["waiting_period"]
+    waiting = result["waiting_period"]
     assert waiting is not None
     assert waiting["in_waiting_period"] is True
     assert waiting["days_since_effective"] == 19
@@ -130,22 +130,22 @@ async def test_matcher_waiting_period_in(matcher_tool: DiagnosisMatcherTool) -> 
 
 async def test_matcher_waiting_period_passed(matcher_tool: DiagnosisMatcherTool) -> None:
     """等待期已过：保单 2025-01-01 生效 + 2026-08-10 就诊 → 已过 30 天。"""
-    result = await matcher_tool.execute(
+    result = await matcher_tool.ainvoke(
         {
             "diagnosis_desc": "急性阑尾炎",
             "visit_date": "2026-08-10",
             "policy_effective_date": "2025-01-01",
         }
     )
-    waiting = result.data["waiting_period"]
+    waiting = result["waiting_period"]
     assert waiting["in_waiting_period"] is False
     assert "已过" in waiting["note"]
 
 
 async def test_matcher_no_dates_skips_waiting(matcher_tool: DiagnosisMatcherTool) -> None:
     """不提供日期：waiting_period=None（跳过等待期计算）。"""
-    result = await matcher_tool.execute({"diagnosis_desc": "肺炎"})
-    assert result.data["waiting_period"] is None
+    result = await matcher_tool.ainvoke({"diagnosis_desc": "肺炎"})
+    assert result["waiting_period"] is None
 
 
 def test_matcher_openai_schema() -> None:

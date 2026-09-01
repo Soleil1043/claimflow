@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
 from typing import Any
 
 from fastapi.testclient import TestClient
 from prometheus_client import REGISTRY
 from pydantic import BaseModel
 
-from schemas.tools import ToolOutput
 from services.observability import metrics
 from services.observability.llm_metrics import observed_ainvoke
-from tools.base import BaseTool
+from tools.base import ClaimflowTool
 from tools.executor import ToolExecutor
+from tools.factory import assemble_tool
 from tools.registry import ToolRegistry
 
 
@@ -70,62 +70,67 @@ def test_record_turn_human_intervention() -> None:
     assert _counter_value("claimflow_human_interventions_total") == before + 1.0
 
 
-# ===== ToolExecutor 集成：工具三态 + 熔断埋点 =====
+# ===== 守卫层集成（T044）：工具三态 + 熔断埋点（metrics 经 GuardedTool 打点） =====
 
 
 class _OkInput(BaseModel):
     x: int = 1
 
 
-class _OkOutput(ToolOutput):
-    pass
+class _OkTool(ClaimflowTool):
+    name: str = "metrics_ok_tool"
+    description: str = "总是成功的测试工具"
+    args_schema: type[_OkInput] = _OkInput
+
+    def _run(self, *args: object, **kwargs: object) -> dict:
+        raise NotImplementedError("仅支持异步调用")
+
+    async def _arun(self, *, x: int = 1) -> dict:
+        return {"success": True, "value": x}
 
 
-class _OkTool(BaseTool):
-    name = "metrics_ok_tool"
-    description = "总是成功的测试工具"
-    input_schema = _OkInput
-    output_schema = _OkOutput
+class _FailTool(ClaimflowTool):
+    name: str = "metrics_fail_tool"
+    description: str = "总是超时的测试工具"
+    args_schema: type[_OkInput] = _OkInput
 
-    async def _run(self, input_data: _OkInput) -> _OkOutput:
-        return _OkOutput(success=True, data={"value": input_data.x})
+    def _run(self, *args: object, **kwargs: object) -> dict:
+        raise NotImplementedError("仅支持异步调用")
 
-
-class _FailTool(BaseTool):
-    name = "metrics_fail_tool"
-    description = "总是超时的测试工具"
-    input_schema = _OkInput
-    output_schema = _OkOutput
-
-    async def _run(self, input_data: _OkInput) -> _OkOutput:
-        time.sleep(0.2)
+    async def _arun(self, *, x: int = 1) -> dict:
+        await asyncio.sleep(0.2)
         raise RuntimeError("boom")
 
 
-def _executor_with(tool: BaseTool, **kwargs: Any) -> ToolExecutor:
-    registry = ToolRegistry()
-    registry.register(tool)
-    # 快速失败参数：无重试等待、极短超时、1 次失败即熔断、短冷却
-    return ToolExecutor(
-        registry,
-        retry_backoff_base=0.0,
+def _executor_with(
+    tool: ClaimflowTool, *, timeout_s: float = 2.0, fallback: dict | None = None
+) -> ToolExecutor:
+    """守卫装配（快速失败参数：无重试、1 次失败即熔断、短冷却）+ 兼容壳。"""
+    guarded = assemble_tool(
+        tool,
+        timeout_s=timeout_s,
         max_retries=0,
+        backoff_initial=0.0,
         failure_threshold=1,
         breaker_cooldown=0.05,
-        **kwargs,
+        fallback=fallback,
+        enable_cache=False,
     )
+    registry = ToolRegistry()
+    registry.register(guarded)
+    return ToolExecutor(registry)
 
 
-async def test_executor_success_metrics() -> None:
-    executor = _executor_with(_OkTool(), default_timeout=2.0)
+async def test_guard_success_metrics() -> None:
+    executor = _executor_with(_OkTool(), timeout_s=2.0)
     await executor.execute("metrics_ok_tool", {"x": 1})
     assert _counter_value(
         "claimflow_tool_calls_total", tool="metrics_ok_tool", status="success"
     ) >= 1.0
 
 
-async def test_executor_error_metrics() -> None:
-    executor = _executor_with(_FailTool(), default_timeout=0.05)
+async def test_guard_error_metrics() -> None:
+    executor = _executor_with(_FailTool(), timeout_s=0.05)
     try:
         await executor.execute("metrics_fail_tool", {"x": 1})
     except Exception:  # noqa: BLE001 预期抛 ToolExecutionError
@@ -135,18 +140,20 @@ async def test_executor_error_metrics() -> None:
     ) >= 1.0
 
 
-async def test_executor_breaker_rejected_metrics() -> None:
+async def test_guard_breaker_rejected_metrics() -> None:
     """熔断打开后：拒绝计数 + fallback 状态计数。"""
-    executor = _executor_with(_FailTool(), default_timeout=0.05)
-    fallback = ToolOutput(success=False, error_message="降级")
-    # 第一次失败 → 熔断打开
-    await executor.execute("metrics_fail_tool", {"x": 1}, fallback=fallback)
+    executor = _executor_with(
+        _FailTool(), timeout_s=0.05, fallback={"success": False, "error_message": "降级"}
+    )
+    # 第一次失败（超时）→ 返回降级结果，熔断打开（threshold=1）
+    r1 = await executor.execute("metrics_fail_tool", {"x": 1})
+    assert r1.success is False and r1.error_message == "降级"
     assert _counter_value(
         "claimflow_tool_calls_total", tool="metrics_fail_tool", status="fallback"
     ) >= 1.0
-    # 第二次被熔断器直接拒绝
-    result = await executor.execute("metrics_fail_tool", {"x": 1}, fallback=fallback)
-    assert result is fallback
+    # 第二次被熔断器直接拒绝（同样降级）
+    r2 = await executor.execute("metrics_fail_tool", {"x": 1})
+    assert r2.success is False
     assert _counter_value("claimflow_tool_breaker_rejected_total", tool="metrics_fail_tool") >= 1.0
 
 

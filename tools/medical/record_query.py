@@ -8,13 +8,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import PrivateAttr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from schemas.tools import ToolInput, ToolOutput
+from schemas.tools import ToolInput
 from services.db.models import MedicalRecord
 from services.db.session import get_session_factory
-from tools.base import BaseTool
+from tools.base import ClaimflowTool
 
 
 class RecordQueryInput(ToolInput):
@@ -23,33 +24,38 @@ class RecordQueryInput(ToolInput):
     id_card: str
 
 
-class RecordQueryOutput(ToolOutput):
-    """查询输出：data.records 为就诊记录列表。"""
-
-
-class RecordQueryTool(BaseTool[RecordQueryInput, RecordQueryOutput]):
-    name = "record_query"
-    description = (
+class RecordQueryTool(ClaimflowTool):
+    # 注：name/description 必须带类型注解——pydantic 要求子类覆盖父类字段时显式标注
+    name: str = "record_query"
+    description: str = (
         "根据身份证号查询用户的就诊记录，返回医院、科室、诊断、ICD-10 编码、"
         "就诊日期、治疗方式与费用。用户提到'我看过病''我的就诊记录''我做手术'时使用。"
     )
-    input_schema = RecordQueryInput
-    output_schema = RecordQueryOutput
+    args_schema: type[RecordQueryInput] = RecordQueryInput
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession] | None = None) -> None:
-        """可注入会话工厂（测试用）。"""
+    _session_factory: async_sessionmaker[AsyncSession] | None = PrivateAttr(default=None)
+
+    def __init__(
+        self, session_factory: async_sessionmaker[AsyncSession] | None = None, **kwargs: Any
+    ) -> None:
+        """可注入会话工厂（测试用），缺省用全局工厂。"""
+        super().__init__(**kwargs)
         self._session_factory = session_factory
 
     def _factory(self) -> async_sessionmaker[AsyncSession]:
         return self._session_factory or get_session_factory()
 
-    async def _run(self, input_data: RecordQueryInput) -> RecordQueryOutput:
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        """同步壳（langchain 1.x 要求实现 _run）：本项目全链路 async，同步路径不可用。"""
+        raise NotImplementedError(f"{self.name} 仅支持异步调用（ainvoke）")
+
+    async def _arun(self, *, id_card: str) -> dict[str, Any]:
         async with self._factory()() as session:
             rows = (
                 (
                     await session.execute(
                         select(MedicalRecord)
-                        .where(MedicalRecord.patient_id_card == input_data.id_card)
+                        .where(MedicalRecord.patient_id_card == id_card)
                         .order_by(MedicalRecord.visit_date.desc())
                     )
                 )
@@ -58,13 +64,13 @@ class RecordQueryTool(BaseTool[RecordQueryInput, RecordQueryOutput]):
             )
 
         if not rows:
-            return RecordQueryOutput(
-                success=False,
-                error_message=f"未找到就诊记录（身份证: {input_data.id_card}）",
-            )
+            return {
+                "success": False,
+                "error_message": f"未找到就诊记录（身份证: {id_card}）",
+            }
 
         records = [self._to_dict(r) for r in rows]
-        return RecordQueryOutput(success=True, data={"records": records})
+        return {"success": True, "records": records}
 
     @staticmethod
     def _to_dict(r: MedicalRecord) -> dict[str, Any]:

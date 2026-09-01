@@ -3,23 +3,23 @@
 按保单号或身份证号查询保单详情（险种、保额、生效日期、免赔额等）。
 数据来源：policies 表（scripts/seed.py 从 data/mock/policies.json 入库）。
 
-业务约定（T007 确立的失败语义）：
-- 保单不存在 / 未提供查询条件 → 返回 success=False 的 ToolOutput（Agent 向用户解释）
-- 数据库连接等系统故障 → 抛异常，交给 ToolExecutor 重试/熔断
+失败语义（T007 确立，T044 迁官方工具基类后保持）：
+- 保单不存在 / 未提供查询条件 → 返回含 success=False 的结果 dict（Agent 向用户解释）
+- 数据库连接等系统故障 → 抛异常，交给守卫层（tools/guards.py）重试/熔断
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from pydantic import model_validator
+from pydantic import PrivateAttr, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from schemas.tools import ToolInput, ToolOutput
+from schemas.tools import ToolInput
 from services.db.models import Policy
 from services.db.session import get_session_factory
-from tools.base import BaseTool
+from tools.base import ClaimflowTool
 
 
 class PolicyQueryInput(ToolInput):
@@ -36,48 +36,54 @@ class PolicyQueryInput(ToolInput):
         return self
 
 
-class PolicyQueryOutput(ToolOutput):
-    """保单查询输出：data 内为保单详情（单个或列表）。"""
-
-
-class PolicyQueryTool(BaseTool[PolicyQueryInput, PolicyQueryOutput]):
-    name = "policy_query"
-    description = (
+class PolicyQueryTool(ClaimflowTool):
+    # 注：name/description 必须带类型注解——pydantic 要求子类覆盖父类字段时显式标注
+    name: str = "policy_query"
+    description: str = (
         "根据保单号或身份证号查询保单详情，返回险种、保额、免赔额、赔付比例、"
         "生效/到期日期与保单状态。用户询问'我的保单'、'能赔多少'、'保障范围'时使用。"
     )
-    input_schema = PolicyQueryInput
-    output_schema = PolicyQueryOutput
+    args_schema: type[PolicyQueryInput] = PolicyQueryInput
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession] | None = None) -> None:
+    _session_factory: async_sessionmaker[AsyncSession] | None = PrivateAttr(default=None)
+
+    def __init__(
+        self, session_factory: async_sessionmaker[AsyncSession] | None = None, **kwargs: Any
+    ) -> None:
         """可注入会话工厂（测试用），缺省用全局工厂。"""
+        super().__init__(**kwargs)
         self._session_factory = session_factory
 
     def _factory(self) -> async_sessionmaker[AsyncSession]:
         return self._session_factory or get_session_factory()
 
-    async def _run(self, input_data: PolicyQueryInput) -> PolicyQueryOutput:
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        """同步壳（langchain 1.x 要求实现 _run）：本项目全链路 async，同步路径不可用。"""
+        raise NotImplementedError(f"{self.name} 仅支持异步调用（ainvoke）")
+
+    async def _arun(
+        self, *, policy_no: str | None = None, id_card: str | None = None
+    ) -> dict[str, Any]:
         async with self._factory()() as session:
             stmt = select(Policy)
-            if input_data.policy_no:
-                stmt = stmt.where(Policy.policy_no == input_data.policy_no)
+            if policy_no:
+                stmt = stmt.where(Policy.policy_no == policy_no)
             else:
-                stmt = stmt.where(Policy.holder_id_card == input_data.id_card)
+                stmt = stmt.where(Policy.holder_id_card == id_card)
             rows = (await session.execute(stmt)).scalars().all()
 
         if not rows:
-            identifier = input_data.policy_no or input_data.id_card
-            return PolicyQueryOutput(
-                success=False,
-                error_message=f"未找到保单（查询条件: {identifier}）",
-            )
+            identifier = policy_no or id_card
+            return {
+                "success": False,
+                "error_message": f"未找到保单（查询条件: {identifier}）",
+            }
 
         # 按保单号查是唯一场景；按身份证可能命中多张，返回列表
         policies = [self._to_dict(p) for p in rows]
-        data: dict[str, Any] = (
-            {"policy": policies[0]} if len(policies) == 1 else {"policies": policies}
-        )
-        return PolicyQueryOutput(success=True, data=data)
+        if len(policies) == 1:
+            return {"success": True, "policy": policies[0]}
+        return {"success": True, "policies": policies}
 
     @staticmethod
     def _to_dict(p: Policy) -> dict[str, Any]:

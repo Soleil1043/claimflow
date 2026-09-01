@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import services.db.session as session_module
@@ -80,53 +81,54 @@ async def test_tool_vision_success(monkeypatch: pytest.MonkeyPatch) -> None:
     """vision 正常识别：source=vision。"""
     raw = '{"patient_name": "张伟", "diagnosis": "急性阑尾炎", "amount": 15800, "date": "2026-08-10"}'
     _patch_vision(monkeypatch, FakeVisionModel(response=raw))
-    result = await OcrExtractTool().execute({"image_base64": _TINY_PNG})
-    assert result.success is True
-    assert result.data["source"] == "vision"
-    assert result.data["patient_name"] == "张伟"
-    assert result.data["diagnosis"] == "急性阑尾炎"
-    assert result.data["amount"] == 15800.0
-    assert result.data["date"] == "2026-08-10"
+    result = await OcrExtractTool().ainvoke({"image_base64": _TINY_PNG})
+    assert result["success"] is True
+    assert result["source"] == "vision"
+    assert result["patient_name"] == "张伟"
+    assert result["diagnosis"] == "急性阑尾炎"
+    assert result["amount"] == 15800.0
+    assert result["date"] == "2026-08-10"
 
 
 async def test_tool_vision_exception_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     """vision API 异常：Mock 兜底，接口不抛错（F12 核心）。"""
     _patch_vision(monkeypatch, FakeVisionModel(raise_exc=RuntimeError("vision API 超时")))
-    result = await OcrExtractTool().execute({"image_base64": _TINY_PNG})
-    assert result.success is True
-    assert result.data["source"] == "mock_fallback"
-    assert result.data["patient_name"] == "张伟"
-    assert result.data["amount"] == 15800.0
+    result = await OcrExtractTool().ainvoke({"image_base64": _TINY_PNG})
+    assert result["success"] is True
+    assert result["source"] == "mock_fallback"
+    assert result["patient_name"] == "张伟"
+    assert result["amount"] == 15800.0
 
 
 async def test_tool_vision_unparsable_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     """vision 输出非 JSON：Mock 兜底。"""
     _patch_vision(monkeypatch, FakeVisionModel(response="我看不清图片内容"))
-    result = await OcrExtractTool().execute({"image_base64": _TINY_PNG})
-    assert result.success is True
-    assert result.data["source"] == "mock_fallback"
+    result = await OcrExtractTool().ainvoke({"image_base64": _TINY_PNG})
+    assert result["success"] is True
+    assert result["source"] == "mock_fallback"
 
 
 async def test_tool_vision_bad_amount_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     """金额存在但无法归一化：识别失败走兜底。"""
     raw = '{"patient_name": "张三", "diagnosis": "感冒", "amount": "很多钱", "date": "2026-01-01"}'
     _patch_vision(monkeypatch, FakeVisionModel(response=raw))
-    result = await OcrExtractTool().execute({"image_base64": _TINY_PNG})
-    assert result.data["source"] == "mock_fallback"
+    result = await OcrExtractTool().ainvoke({"image_base64": _TINY_PNG})
+    assert result["source"] == "mock_fallback"
 
 
 async def test_tool_amount_string_normalized(monkeypatch: pytest.MonkeyPatch) -> None:
     """金额字符串归一化为 float。"""
     raw = '{"patient_name": "李四", "diagnosis": "胃炎", "amount": "15,800.00 元", "date": "2026-08-01"}'
     _patch_vision(monkeypatch, FakeVisionModel(response=raw))
-    result = await OcrExtractTool().execute({"image_base64": _TINY_PNG})
-    assert result.data["amount"] == 15800.0
-    assert result.data["source"] == "vision"
+    result = await OcrExtractTool().ainvoke({"image_base64": _TINY_PNG})
+    assert result["amount"] == 15800.0
+    assert result["source"] == "vision"
 
 
 async def test_tool_empty_input_rejected() -> None:
-    result = await OcrExtractTool().execute({"image_base64": ""})
-    assert result.success is False
+    """空入参（image_base64 为空串）被 schema 拒绝：ainvoke 抛 ValidationError。"""
+    with pytest.raises(ValidationError):
+        await OcrExtractTool().ainvoke({"image_base64": ""})
 
 
 def test_tool_schema_export() -> None:
