@@ -1418,4 +1418,45 @@ BaseTool.model_fields 含 args_schema、IndexConfig TypedDict 含 dims/embed/fie
 
 **Git**：`feat: T046 Worker 子图化（langchain create_agent + response_format 结构化 + 轨迹 messages 派生）`
 
+### [T047] supervisor 动态路由化 + react 路径 prebuilt 化 — 2026-09-02
+
+**操作**：
+- **nodes/supervisor.py（新）**：调度核心——RoutingDecision{next: Literal[medical/claim/FINISH],
+  plan, reason} 结构化输出（with_structured_output）+ `Command(goto)` 动态路由；
+  SUPERVISOR_PROMPT（计划/重规划/进度感知）；对账守卫：_reconcile_plan 按 shared_data 已有
+  结论置 done，LLM 静态决策指向已完成目标时自动改投首个 pending、全 done → FINISH
+  （多轮收敛不依赖 LLM 每轮精确决策）；LLM 故障走关键词计划兜底（v1 planner 规则迁移）；
+  make_worker_node 工厂：invoke_worker → 结论入 shared_data、pending 步骤置 done（含耗时/摘要）、
+  子图新增消息并入主图 messages（工具轨迹随消息派生）；无显式步骤时指令退化为末尾用户输入
+- **nodes/generator.py 重写**：手写 ReactAgentNode + should_continue 删除，换 react_node——
+  create_agent 通用助手子图（全量守卫工具、name="react"、进程级缓存）；跨会话记忆改为追加
+  SystemMessage（置于子图静态 system prompt 之后，T035 语义不变）；LLM 故障降级话术保留（T022）；
+  synthesize 保留（_format_history 过滤 ToolMessage/空内容）
+- **workflows/main_graph.py**：节点 intent/supervisor/claim/medical/rag/react/synthesize/
+  compliance/revise_answer/human_review；Worker 完成静态边回 supervisor，supervisor 用
+  Command 动态路由（无静态出边）；react → compliance 直连（tools_condition 内置）
+- **State 精简（state.py）**：删 current_step/tool_trace/agent_steps/medical_result/claim_result；
+  used_tools 改 agents.runner.derive_tool_trace（messages 派生，AIMessage.name 归属 Agent）、
+  agent_steps 改 nodes.supervisor.derive_agent_steps（task_plan×shared_data 推导）——
+  A06 响应/审计落库/评测口径不变；A06 与 evals/test_suite 直调图的输入重置字段同步精简
+- **删除**：nodes/planner.py、nodes/step_executor.py、scripts/verify_planner.py、
+  TASK_PLANNER_PROMPT；AGENTS.md 节点结构更新（补 human_review.py）
+- **测试**：test_planner_executor.py 删除 → 新增 tests/nodes/test_supervisor.py（12 用例：兜底
+  计划/对账/路由收敛/LLM 故障/Worker 节点/derive_agent_steps）；test_full_graph 重写（supervisor
+  打桩 + 新增 react 子图带工具循环用例）；test_phase1/generator_memory/a06/interrupt 全面适配
+- **两类 duck-model 坑（create_agent 运行时接口）**：① `model.bind(**settings)`；②
+  `bind_tools(..., tool_choice=...)` ——测试假模型补齐后全通；生产 ChatOpenAI 不受影响
+- **tests/conftest.py 双护栏**：HF 离线（T046）+ 新增 react/worker 子图全局缓存 autouse 隔离
+  （跨测试文件串用假模型根治）
+
+**验证方式**：
+- `uv run python -m pytest -q` → **391 passed**；ruff 全绿
+- 多步端到端：complex_consult（supervisor ⇄ 双 Worker → synthesize → compliance PASS）、
+  synthesize 兜底、simple_faq 三态、react 工具循环+轨迹派生、F14 重启、interrupt 全套、
+  a06 十一场景（含 HITL 闭环/记忆注入/多轮隔离）全过
+
+**状态**：✅ 通过验证（Phase 5 收尾：T048 待执行）
+
+**Git**：`feat: T047 supervisor 动态路由化（Command goto + 计划对账守卫）+ react create_agent 子图化`
+
 <!-- 遇到的问题记录在此，方便回溯 -->

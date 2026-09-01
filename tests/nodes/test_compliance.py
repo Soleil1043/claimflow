@@ -292,7 +292,7 @@ def test_compliance_route_three_states() -> None:
 
 
 class ScriptedLLM:
-    """按脚本依次返回响应。"""
+    """按脚本依次返回响应（T047：react create_agent 子图模型）。"""
 
     def __init__(self, responses: list[AIMessage]) -> None:
         self._responses = list(responses)
@@ -300,7 +300,10 @@ class ScriptedLLM:
     async def ainvoke(self, messages: list[Any], config: Any = None) -> AIMessage:
         return self._responses.pop(0)
 
-    def bind_tools(self, specs: list[Any]) -> ScriptedLLM:
+    def bind_tools(self, specs: list[Any], **kwargs: Any) -> ScriptedLLM:
+        return self
+
+    def bind(self, **kwargs: Any) -> ScriptedLLM:
         return self
 
 

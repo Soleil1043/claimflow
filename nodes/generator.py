@@ -1,9 +1,10 @@
-"""ReAct Agent 节点（Phase 1 简版，F07 核心里程碑）+ 回答整合节点（T021，F08）。
+"""回答生成节点（T047 重构）：react 子图包装 + 回答整合。
 
-- ReactAgentNode：单 Agent 循环：LLM + 工具绑定 → 有 tool_calls 则执行工具并回填 →
-  无 tool_calls 则产出最终回答。由 LangGraph 条件边驱动循环（见 workflows/main_graph.py）。
+- react_node：单领域/闲聊/其他路径——官方 create_agent 通用助手子图
+  （全量守卫工具 + tools_condition 内置循环），替代 v1 手写 ReactAgentNode；
+  LLM 故障降级话术保留（T022：LLM 超时场景不 500）
 - synthesize_answer_node：多步 / RAG 路径的整合器——汇总 shared_data
-  （各 Worker Agent 结论或知识库检索上下文）生成面向用户的最终回答。
+  （各 Worker 结论或知识库检索上下文）生成面向用户的最终回答
 """
 
 from __future__ import annotations
@@ -11,124 +12,83 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, ToolMessage
-from langchain_core.runnables import ensure_config
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
 
 from app.core.logging import get_logger
 from services.llm.client import get_chat_model
 from services.llm.prompts import ANSWER_SYNTHESIS_PROMPT, GENERAL_ASSISTANT_PROMPT
 from services.observability.token_tracker import phase_ainvoke
 from state import AgentState
-from tools.executor import ToolExecutor
+from tools.factory import get_default_tool_map
 
 log = get_logger(__name__)
 
-# 防失控：单轮请求内最大工具调用轮数（含多工具并行调用）
-MAX_TOOL_ROUNDS = 8
+# react 子图缓存（编译一次；工具全量来自工厂装配的守卫工具）
+_react_agent: Any = None
 
 
-class ReactAgentNode:
-    """Phase 1 单 Agent ReAct 节点（有状态：绑定执行器与工具集）。"""
+def get_react_agent() -> Any:
+    """通用助手子图（全量工具；system prompt 静态，跨会话记忆经输入消息注入）。"""
+    global _react_agent
+    if _react_agent is None:
+        from langchain.agents import create_agent
 
-    def __init__(self, executor: ToolExecutor, tool_names: list[str] | None = None) -> None:
-        self._executor = executor
-        registry = executor.registry
-        self._tool_names = tool_names or registry.list_names()
-        # OpenAI function calling 格式的工具定义（dict），
-        # 而非项目 BaseTool 实例（langchain 无法识别自定义类）
-        self._tool_specs = [registry.get(name).to_openai_tool() for name in self._tool_names]
+        _react_agent = create_agent(
+            model=get_chat_model(),
+            tools=list(get_default_tool_map().values()),
+            system_prompt=GENERAL_ASSISTANT_PROMPT,
+            name="react",
+        )
+        log.info("react_agent_built", tools=len(get_default_tool_map()))
+    return _react_agent
 
-    async def __call__(self, state: AgentState) -> dict[str, Any]:
-        """执行一轮：调 LLM，返回新增消息与轨迹。
 
-        返回值约定（供条件边判断）：
-        - LLM 请求工具 → 新增 AIMessage(tool_calls) + 本次执行的 ToolMessage(s)，
-          conditions 检测 state 末尾是 ToolMessage 则继续循环
-        - LLM 直接回答 → 新增 AIMessage(content)，final_answer 提取
-        - LLM 故障（超时等）→ 降级话术（T022：LLM 超时场景不 500）
-        """
-        model = get_chat_model()
-        messages: list[AnyMessage] = [
-            *self._system_prefix(state.get("memory_context") or ""),
-            *state["messages"],
-        ]
-        # 透传 LangGraph 运行上下文中的回调（tracing），缺省为 None 不影响执行
-        config = ensure_config()
-        try:
-            bound = model.bind_tools(self._tool_specs) if self._tool_specs else model
-            response: AIMessage = await phase_ainvoke(
-                bound, messages, phase="executor", config=config
-            )
-        except Exception as exc:  # noqa: BLE001 LLM 故障降级
-            log.warning("react_llm_error", error=str(exc)[:200])
-            fallback = "抱歉，服务暂时繁忙，请稍后再试或转人工服务。"
-            # 追加 AIMessage 保证条件边正常终止（末尾非 ToolMessage，不再循环）
-            return {"messages": [AIMessage(content=fallback)], "final_answer": fallback}
+def reset_react_agent() -> None:
+    """清空 react 子图缓存（测试用）。"""
+    global _react_agent
+    _react_agent = None
 
-        if not response.tool_calls:
-            # 最终回答
-            return {
-                "messages": [response],
-                "final_answer": response.content,
-            }
 
-        # 执行全部工具调用（顺序执行；轨迹记录入参/出参/耗时）
-        trace: list[dict[str, Any]] = list(state.get("tool_trace") or [])
-        tool_messages: list[ToolMessage] = []
-        for call in response.tool_calls:
-            result = await self._executor.execute(call["name"], call["args"])
-            payload: dict[str, Any] = {
-                "success": result.success,
-                "error_message": result.error_message,
-                **result.data,
-            }
-            tool_messages.append(
-                ToolMessage(content=str(payload), tool_call_id=call["id"], name=call["name"])
-            )
-            trace.append({"tool": call["name"], "input": call["args"], "output": payload})
-            log.info(
-                "react_tool_executed",
-                tool=call["name"],
-                success=result.success,
-            )
+# LLM 故障降级话术（T022：LLM 超时场景不 500）
+_REACT_FALLBACK_ANSWER = "抱歉，服务暂时繁忙，请稍后再试或转人工服务。"
 
-        return {
-            "messages": [response, *tool_messages],
-            "tool_trace": trace,
-        }
 
-    @staticmethod
-    def _system_prefix(memory_context: str = "") -> list[AnyMessage]:
-        """系统提示（Phase 1 通用助手；T015 拆分 Agent 后替换为路由分发）。
+async def react_node(state: AgentState) -> dict[str, Any]:
+    """通用助手节点：create_agent 子图跑完工具循环，产出面向用户的回答。
 
-        T035：非空 memory_context 时附加历史会话记忆段（新会话首轮由 A06 检索注入），
-        帮助 LLM 理解"上次/那张保单"类跨会话指代；为空时 prompt 与 T034 前完全一致。
-        """
-        from langchain_core.messages import SystemMessage
-
-        content = GENERAL_ASSISTANT_PROMPT
-        if memory_context:
-            content += (
-                "\n\n## 用户历史会话记忆（此前会话的长期记忆，"
+    - 输入消息 = 主图消息（跨会话记忆以追加 SystemMessage 注入，置于
+      子图静态 system prompt 之后，T035 语义不变）
+    - 只把新增消息返回主图（工具轨迹随 messages 并入，A06 派生 used_tools）
+    - 子图异常 → 降级话术（v1 ReactAgentNode 语义），不再循环
+    """
+    agent = get_react_agent()
+    input_messages = list(state.get("messages") or [])
+    memory_context = state.get("memory_context") or ""
+    if memory_context:
+        input_messages = [
+            SystemMessage(
+                content="## 用户历史会话记忆（此前会话的长期记忆，"
                 "用于理解用户的指代与省略问句，如「上次问的那张保单」）\n" + memory_context
             )
-        return [SystemMessage(content=content)]
+        ] + input_messages
 
+    try:
+        result = await agent.ainvoke({"messages": input_messages})
+    except Exception as exc:  # noqa: BLE001 LLM 故障降级
+        log.warning("react_llm_error", error=str(exc)[:200])
+        fallback = AIMessage(content=_REACT_FALLBACK_ANSWER)
+        return {"messages": [fallback], "final_answer": _REACT_FALLBACK_ANSWER}
 
-def should_continue(state: AgentState) -> str:
-    """条件边：末尾消息判断是否继续工具循环。
-
-    返回 "tools"（继续）或 "end"（产出最终回答）。
-    超过 MAX_TOOL_ROUNDS 强制结束（防失控）。
-    """
-    messages = state.get("messages") or []
-    if messages and isinstance(messages[-1], ToolMessage):
-        tool_rounds = len(state.get("tool_trace") or [])
-        if tool_rounds >= MAX_TOOL_ROUNDS:
-            log.warning("react_max_rounds_reached", rounds=tool_rounds)
-            return "end"
-        return "tools"
-    return "end"
+    new_messages = list(result["messages"][len(input_messages) :])
+    ai_with_content = [
+        m for m in new_messages if isinstance(m, AIMessage) and str(m.content).strip()
+    ]
+    answer = str(ai_with_content[-1].content).strip() if ai_with_content else ""
+    if not answer:
+        answer = _REACT_FALLBACK_ANSWER
+        new_messages = new_messages + [AIMessage(content=answer)]
+    log.info("react_node_done", new_messages=len(new_messages), answer_len=len(answer))
+    return {"messages": new_messages, "final_answer": answer}
 
 
 # ===== 回答整合节点（T021，F08：多步 / RAG 路径的结果整合） =====
@@ -138,12 +98,18 @@ _SYNTH_HISTORY_LIMIT = 10
 
 
 def _format_history(messages: list[AnyMessage]) -> str:
-    """消息历史 → 文本（截断至最近 N 条）。"""
+    """消息历史 → 文本（截断至最近 N 条；跳过工具回执与空内容）。"""
+    conversational = [
+        m
+        for m in messages
+        if not isinstance(m, ToolMessage) and isinstance(m, (HumanMessage, AIMessage))
+    ]
     lines = []
-    for m in messages[-_SYNTH_HISTORY_LIMIT:]:
+    for m in conversational[-_SYNTH_HISTORY_LIMIT:]:
         role = "用户" if isinstance(m, HumanMessage) else "助手"
         content = str(m.content)[:500]
-        lines.append(f"{role}：{content}")
+        if content.strip():
+            lines.append(f"{role}：{content}")
     return "\n".join(lines)
 
 
@@ -159,7 +125,7 @@ def _fallback_answer(shared_data: dict[str, Any]) -> str:
 
 
 async def synthesize_answer_node(state: AgentState) -> dict[str, Any]:
-    """整合节点：基于 shared_data（Agent 结论 / RAG 上下文）生成最终回答。
+    """整合节点：基于 shared_data（Worker 结论 / RAG 上下文）生成最终回答。
 
     LLM 失败时降级为各数据源 summary 的确定性拼接，节点不抛错。
     """

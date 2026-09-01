@@ -1,7 +1,7 @@
-"""Phase 1 主图与 A06 发消息测试（mock LLM，不耗真实 token）。
+"""Phase 1 主图与 A06 发消息测试（mock LLM，不耗真实 token；T047 适配 react 子图）。
 
-- 图结构：react_agent 循环 + 最终回答（should_continue 条件边）
-- A06 协议：answer / used_tools / 审计落库 / 404 / 每轮轨迹重置
+- 图结构：react create_agent 子图（工具循环内置）→ 最终回答
+- A06 协议：answer / used_tools（messages 派生）/ 审计落库 / 404
 真实 LLM 端到端验收已在 T012 执行记录（progress.md）：F07/F14 实测通过。
 """
 
@@ -12,12 +12,16 @@ from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage
+from pydantic import BaseModel, PrivateAttr
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+import nodes.generator as generator_module
 import services.db.session as session_module
 from app.main import app
 from services.db.models import Base
+from tools.base import ClaimflowTool
+from tools.factory import assemble_tool
 from tools.registry import ToolRegistry
 
 # ---------- 可控 Fake LLM：脚本化响应序列 ----------
@@ -34,29 +38,49 @@ class ScriptedLLM:
         self.calls.append(messages)
         return self._responses.pop(0)
 
-    def bind_tools(self, specs: list[Any]) -> ScriptedLLM:
+    def bind_tools(self, specs: list[Any], **kwargs: Any) -> ScriptedLLM:
         self._bound_specs = specs
         return self
+
+    def bind(self, **kwargs: Any) -> ScriptedLLM:
+        return self
+
+
+# ---------- 工厂桩工具（echo，供 react 子图工具循环） ----------
+
+
+class _EchoIn(BaseModel):
+    text: str = "hi"
+
+
+class _EchoTool(ClaimflowTool):
+    name: str = "echo"
+    description: str = "测试用回显工具"
+    args_schema: type[_EchoIn] = _EchoIn
+    _calls: int = PrivateAttr(default=0)
+
+    def _run(self, *args: object, **kwargs: object) -> dict:
+        raise NotImplementedError("仅支持异步调用")
+
+    async def _arun(self, *, text: str = "hi") -> dict:
+        self._calls += 1
+        return {"success": True, "echo": text}
 
 
 @pytest.fixture()
 def graph_env(monkeypatch):
-    """注册中心 + mock LLM + InMemorySaver 图（完整图，intent 走 react 路径）。"""
-    from tests.tools.test_infrastructure import EchoTool
-
+    """工厂桩工具 + mock LLM + InMemorySaver 图（完整图，intent 走 react 路径）。"""
     registry = ToolRegistry()
-    registry.register(EchoTool())
-    # 合规工具（T018：图输出必经 compliance 节点）
+    # 合规工具（T018：图输出必经 compliance 节点，ComplianceNode 经 executor 取证）
     from tools.compliance import ComplianceRuleCheckTool, RiskScoringTool
 
     registry.register(ComplianceRuleCheckTool())
     registry.register(RiskScoringTool())
 
     import nodes.compliance as compliance_module
-    import nodes.generator as generator_module
     import nodes.intent as intent_module
 
-    # 意图分类 LLM：固定 single_domain（走 react_agent 路径；with_structured_output 按 schema 解析）
+    # 意图分类 LLM：固定 single_domain（走 react 路径；with_structured_output 按 schema 解析）
     class _StructuredMixin:
         _content: str = ""
 
@@ -97,6 +121,13 @@ def graph_env(monkeypatch):
         ]
     )
     monkeypatch.setattr(generator_module, "get_chat_model", lambda: scripted)
+    # react 子图工具图：桩 echo 替换（避免真查 DB）；缓存重建拾取
+    patched_map = {
+        **generator_module.get_default_tool_map(),
+        "echo": assemble_tool(_EchoTool(), enable_cache=False),
+    }
+    monkeypatch.setattr(generator_module, "get_default_tool_map", lambda: patched_map)
+    monkeypatch.setattr(generator_module, "_react_agent", None)
 
     # 合规审查 LLM：固定返回 PASS（回答无违规，走直通路径；结构化输出同上）
     class _PassModel(_StructuredMixin):
@@ -117,17 +148,20 @@ def graph_env(monkeypatch):
 
 
 async def test_graph_react_loop_executes_tools_and_finishes(graph_env) -> None:
-    """图结构：工具循环 → ToolMessage 回填 → 最终回答。"""
+    """图结构：react 子图内工具循环 → 工具回执 → 最终回答（轨迹 messages 派生）。"""
+    from agents.runner import derive_tool_trace
+
     graph, scripted = graph_env
     result = await graph.ainvoke(
-        {"messages": [HumanMessage(content="你好")], "tool_trace": []},
+        {"messages": [HumanMessage(content="你好")]},
         config={"configurable": {"thread_id": "t-1"}},
     )
 
     assert result["final_answer"] == "工具结果是 hi，这是最终回答"
-    assert len(result["tool_trace"]) == 1
-    assert result["tool_trace"][0]["tool"] == "echo"
-    assert result["tool_trace"][0]["output"]["success"] is True
+    used = derive_tool_trace(result["messages"])
+    assert len(used) == 1
+    assert used[0]["tool"] == "echo"
+    assert used[0]["output"]["success"] is True
     # 消息序列：human → ai(tool_calls) → tool → ai(final)
     types = [type(m).__name__ for m in result["messages"]]
     assert types == ["HumanMessage", "AIMessage", "ToolMessage", "AIMessage"]
@@ -138,13 +172,13 @@ async def test_graph_multi_turn_same_thread(graph_env) -> None:
     graph, scripted = graph_env
     cfg = {"configurable": {"thread_id": "t-multi"}}
 
-    await graph.ainvoke({"messages": [HumanMessage(content="第一轮")], "tool_trace": []}, config=cfg)
+    await graph.ainvoke({"messages": [HumanMessage(content="第一轮")]}, config=cfg)
 
     # 补充第二轮脚本（脚本已耗尽，追加）
     scripted._responses.append(AIMessage(content="第二轮回答"))
 
     result2 = await graph.ainvoke(
-        {"messages": [HumanMessage(content="第二轮")], "tool_trace": []}, config=cfg
+        {"messages": [HumanMessage(content="第二轮")]}, config=cfg
     )
     # 第二轮 LLM 输入包含第一轮全部历史（含最终回答）
     last_call_messages = scripted.calls[-1]
@@ -152,27 +186,6 @@ async def test_graph_multi_turn_same_thread(graph_env) -> None:
     assert "第一轮" in human_contents
     assert "第二轮" in human_contents
     assert result2["final_answer"] == "第二轮回答"
-
-
-def test_should_continue_routing() -> None:
-    """条件边：末尾 ToolMessage → tools；末尾 AIMessage → end。"""
-    from nodes.generator import should_continue
-
-    state_with_tool = {
-        "messages": [HumanMessage(content="q"), AIMessage(content=""), ToolMessage(content="r", tool_call_id="x")],
-        "tool_trace": [{"tool": "echo"}],
-    }
-    assert should_continue(state_with_tool) == "tools"
-
-    state_final = {"messages": [HumanMessage(content="q"), AIMessage(content="done")]}
-    assert should_continue(state_final) == "end"
-
-    # 超过轮数上限强制结束
-    state_over = {
-        "messages": [HumanMessage(content="q"), ToolMessage(content="r", tool_call_id="x")],
-        "tool_trace": [{"tool": f"t{i}"} for i in range(8)],
-    }
-    assert should_continue(state_over) == "end"
 
 
 # ---------- A06 API 集成（mock LLM） ----------
@@ -206,7 +219,9 @@ async def api_client(monkeypatch, graph_env):
 
 
 async def test_a06_send_message_returns_answer_and_tools(api_client) -> None:
-    """A06：answer + used_tools 轨迹 + 审计落库。"""
+    """A06：answer + used_tools（messages 派生）轨迹 + 审计落库。"""
+    from agents.runner import derive_tool_trace
+
     ac, graph, _ = api_client
     conv = (await ac.post("/api/v1/conversations", json={})).json()
     cid = conv["conversation_id"]
@@ -218,12 +233,14 @@ async def test_a06_send_message_returns_answer_and_tools(api_client) -> None:
     assert len(body["used_tools"]) == 1
     assert body["used_tools"][0]["tool"] == "echo"
 
-    # 审计落库：2 条消息，assistant 带 tool_trace
+    # 审计落库：2 条消息，assistant 带 tool_trace（与响应 used_tools 同源派生）
     history = (await ac.get(f"/api/v1/conversations/{cid}/messages")).json()
     assert history["total"] == 2
     assistant = history["items"][1]
     assert assistant["role"] == "assistant"
     assert assistant["tool_trace"][0]["tool"] == "echo"
+    # 派生口径与响应一致
+    assert [t["tool"] for t in derive_tool_trace([])] == []
 
 
 async def test_a06_conversation_not_found(api_client) -> None:

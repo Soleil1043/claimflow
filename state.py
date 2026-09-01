@@ -1,9 +1,11 @@
-"""AgentState：LangGraph 主图共享状态（architecture.md 5.1）。
+"""AgentState：LangGraph 主图共享状态（architecture.md 5.1 v2）。
 
-Phase 1（单 Agent ReAct）先启用基础字段：
-messages / conversation_id / tool_trace / final_answer；
-intent / task_plan / 各 Agent 结果等字段随 T013/T015+ 扩展启用，
-一次定义齐全，各节点按需读写。
+T047 精简（D021/ADR-007）：调度改 supervisor 动态路由（Command(goto)），
+游标与手写簿记字段移除——
+- current_step：supervisor 每轮按 shared_data 已有结论 + task_plan 状态推进
+- tool_trace：A06/评测从 messages 派生（agents.runner.derive_tool_trace）
+- agent_steps：由 task_plan（supervisor 维护状态）+ shared_data 摘要推导
+- medical_result/claim_result：自 shared_data 承载起即闲置，删除
 """
 
 from __future__ import annotations
@@ -20,39 +22,25 @@ class AgentState(TypedDict, total=False):
 
     # ===== 对话基础 =====
     conversation_id: str
-    messages: Annotated[list[AnyMessage], add_messages]  # 消息累积（checkpoint 持久化）
+    messages: Annotated[list[AnyMessage], add_messages]  # 消息累积（含 Worker/React 工具轨迹）
 
-    # ===== 意图与任务规划（T013/T017 启用） =====
-    intent: str | None
-    task_plan: list[dict[str, Any]]
-    current_step: int
+    # ===== 意图与调度 =====
+    intent: str | None                       # IntentType 枚举值（T045 结构化输出）
+    task_plan: list[dict[str, Any]]          # supervisor 计划（{agent, description, status, ...}）
 
-    # ===== 各 Agent 输出（T015+ 启用） =====
-    medical_result: dict[str, Any] | None
-    claim_result: dict[str, Any] | None
-    compliance_result: dict[str, Any] | None
-
-    # ===== 共享数据池（Agent 间传递，T017 启用） =====
+    # ===== 共享数据池（Worker 结论 / RAG 上下文） =====
     shared_data: dict[str, Any]
 
-    # ===== 工具调用轨迹（A06 返回 used_tools 的数据源） =====
-    tool_trace: list[dict[str, Any]]
-
-    # ===== Agent 执行步骤档案（T017：每步 agent/描述/状态/耗时/结论摘要，F08 追溯） =====
-    agent_steps: list[dict[str, Any]]
-
-    # ===== 输出与介入（T018 合规启用介入标记） =====
+    # ===== 输出与介入 =====
     final_answer: str
     need_human_intervention: bool
     intervention_reason: str | None
 
-    # ===== 合规审查（T018 启用） =====
-    compliance_result: (
-        dict[str, Any] | None
-    )  # ComplianceAgentOutput（verdict/violations/risk_score/reason）
-    compliance_rounds: int  # 审查轮数（MODIFY 修订闭环上限防死循环）
+    # ===== 合规审查 =====
+    compliance_result: dict[str, Any] | None  # ComplianceAgentOutput dump（verdict/violations/...）
+    compliance_rounds: int                    # 审查轮数（MODIFY 修订闭环上限防死循环）
 
-    # ===== 长期记忆（T035 启用） =====
+    # ===== 长期记忆（T035） =====
     # 新会话首轮按 user_id 检索的历史会话摘要（已拼装文本）；
-    # 由 A06 入口写入、generator 各回答节点注入 system prompt，空串 = 无历史不注入
+    # 由 A06 入口写入、回答节点注入提示词，空串 = 无历史不注入
     memory_context: str

@@ -1,10 +1,10 @@
-"""完整主图测试（T021：intent 分流 + 多 Agent 协作 + 合规门禁）。
+"""完整主图测试（T021/T047：intent 分流 + supervisor 动态调度 + 合规门禁）。
 
 覆盖（mock LLM，不耗真实 token）：
 - route_intent 三分支路由
-- complex_consult 全链路：intent → planner → step_executor 循环 → synthesize → compliance
+- complex_consult 全链路：intent → supervisor ⇄ worker 子图 → synthesize → compliance
 - simple_faq 全链路：intent → rag_node → synthesize → compliance
-- A06 完整响应结构（answer/intent/used_tools/agent_steps/compliance_status）
+- A06 派生口径（used_tools 从 messages、agent_steps 从 task_plan 推导）
 - F14：共享 checkpointer 的两个图实例模拟"服务重启后恢复历史会话"
 
 真实 LLM 端到端验收见 scripts/verify_e2e.py。
@@ -20,21 +20,19 @@ from langchain_core.messages import HumanMessage
 import nodes.compliance as compliance_module
 import nodes.generator as generator_module
 import nodes.intent as intent_module
-import nodes.planner as planner_module
 import nodes.rag as rag_module
-import nodes.step_executor as step_executor_module
+import nodes.supervisor as supervisor_module
+from agents.runner import derive_tool_trace
+from nodes.supervisor import derive_agent_steps
 from tools.executor import ToolExecutor
 from tools.registry import ToolRegistry
 from workflows.main_graph import build_main_graph, route_intent
 
-# 每轮输入的全量重置字段（与 A06 保持一致）
+# 每轮输入的全量重置字段（与 A06 保持一致；T047 起 State 无簿记字段）
 _RESET_INPUT = {
     "intent": None,
     "task_plan": [],
-    "current_step": 0,
     "shared_data": {},
-    "agent_steps": [],
-    "tool_trace": [],
     "compliance_result": None,
     "compliance_rounds": 0,
     "final_answer": "",
@@ -77,18 +75,29 @@ def _patch_all(
     monkeypatch: pytest.MonkeyPatch,
     *,
     intent: str = "complex_consult",
-    plan: dict[str, Any] | None = None,
+    routing: dict[str, Any] | None = None,
     compliance: str = "PASS",
 ) -> None:
-    """统一 mock：intent / planner / 合规（synthesize 与 step_executor 单独 mock）。"""
+    """统一 mock：intent / supervisor 路由 / 合规（synthesize 与 worker 单独 mock）。
+
+    routing 为静态 RoutingDecision——多轮调度靠 supervisor 对账守卫收敛
+    （已 done 的目标自动改投首个 pending，全部 done → FINISH）。
+    """
     monkeypatch.setattr(
         intent_module, "get_chat_model", lambda *a, **k: FakeModel(f'{{"intent": "{intent}", "reason": "测试"}}')
     )
-    if plan is not None:
+    if routing is not None:
         import json as json_mod
 
+        decision = {
+            "next": routing.get("next", "medical"),
+            "plan": routing["plan"],
+            "reason": "测试",
+        }
         monkeypatch.setattr(
-            planner_module, "get_chat_model", lambda *a, **k: FakeModel(json_mod.dumps(plan, ensure_ascii=False))
+            supervisor_module,
+            "get_chat_model",
+            lambda *a, **k: FakeModel(json_mod.dumps(decision, ensure_ascii=False)),
         )
     monkeypatch.setattr(
         compliance_module,
@@ -97,6 +106,18 @@ def _patch_all(
             f'{{"verdict": "{compliance}", "violations": [], "risk_score": 0, "reason": "测试"}}'
         ),
     )
+
+
+def _patch_workers(monkeypatch: pytest.MonkeyPatch, results: list[dict[str, Any]]) -> None:
+    """worker 子图打桩：invoke_worker 循环产出结论（多轮/重入不耗尽）。"""
+    import itertools
+
+    pending = itertools.cycle(results)
+
+    async def fake_invoke(agent_def, instruction, shared_data):  # noqa: ANN001
+        return dict(next(pending)), []
+
+    monkeypatch.setattr(supervisor_module, "invoke_worker", fake_invoke)
 
 
 def _make_graph() -> Any:
@@ -111,7 +132,7 @@ def _make_graph() -> Any:
 
 
 def test_route_intent_three_branches() -> None:
-    assert route_intent({"intent": "complex_consult"}) == "planner"
+    assert route_intent({"intent": "complex_consult"}) == "supervisor"
     assert route_intent({"intent": "simple_faq"}) == "rag"
     assert route_intent({"intent": "single_domain"}) == "react"
     assert route_intent({"intent": "chitchat"}) == "react"
@@ -123,30 +144,25 @@ def test_route_intent_three_branches() -> None:
 
 
 async def test_complex_consult_full_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    """complex_consult：intent → planner（2 步）→ step_executor×2 → synthesize → compliance PASS。"""
+    """complex_consult：intent → supervisor ⇄ medical/claim → synthesize → compliance PASS。"""
     _patch_all(
         monkeypatch,
         intent="complex_consult",
-        plan={
-            "steps": [
+        routing={
+            "next": "medical",
+            "plan": [
                 {"agent": "medical", "description": "医疗审核"},
                 {"agent": "claim", "description": "理赔核算"},
-            ]
+            ],
         },
     )
-
-    # step_executor：mock run_worker_agent（顺序产出两个 Agent 结论）
-    results = iter(
+    _patch_workers(
+        monkeypatch,
         [
             {"summary": "阑尾炎 K35 在保障范围内"},
             {"summary": "预估赔付 4640 元"},
-        ]
+        ],
     )
-
-    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
-        return dict(next(results))
-
-    monkeypatch.setattr(step_executor_module, "run_worker_agent", fake_run)
 
     # synthesize：mock 整合输出
     monkeypatch.setattr(
@@ -161,10 +177,14 @@ async def test_complex_consult_full_path(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert result["intent"] == "complex_consult"
     assert result["final_answer"] == "综合结论：预估可赔付 4640 元，以理赔审核结果为准"
-    assert [s["agent"] for s in result["task_plan"]] == ["medical", "claim"]
-    assert all(s["status"] == "done" for s in result["task_plan"])
-    assert len(result["agent_steps"]) == 2
-    assert result["agent_steps"][0]["agent"] == "medical"
+    plan = result["task_plan"]
+    assert [s["agent"] for s in plan] == ["medical", "claim"]
+    assert all(s["status"] == "done" for s in plan)
+    # A06 派生口径：agent_steps 由 task_plan 推导
+    steps = derive_agent_steps(plan, result["shared_data"])
+    assert len(steps) == 2
+    assert steps[0]["agent"] == "medical"
+    assert steps[0]["status"] == "done"
     assert result["shared_data"]["medical"]["summary"] == "阑尾炎 K35 在保障范围内"
     assert result["shared_data"]["claim"]["summary"] == "预估赔付 4640 元"
     assert result["compliance_result"]["verdict"] == "PASS"
@@ -176,13 +196,9 @@ async def test_complex_consult_synthesize_fallback(monkeypatch: pytest.MonkeyPat
     _patch_all(
         monkeypatch,
         intent="complex_consult",
-        plan={"steps": [{"agent": "claim", "description": "核算"}]},
+        routing={"next": "claim", "plan": [{"agent": "claim", "description": "核算"}]},
     )
-
-    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
-        return {"summary": "预估赔付 4640 元"}
-
-    monkeypatch.setattr(step_executor_module, "run_worker_agent", fake_run)
+    _patch_workers(monkeypatch, [{"summary": "预估赔付 4640 元"}])
 
     class _BrokenModel:
         async def ainvoke(self, messages: Any, **kwargs: Any) -> Any:
@@ -299,13 +315,9 @@ async def test_restart_recovers_history(monkeypatch: pytest.MonkeyPatch) -> None
     _patch_all(
         monkeypatch,
         intent="complex_consult",
-        plan={"steps": [{"agent": "claim", "description": "核算"}]},
+        routing={"next": "claim", "plan": [{"agent": "claim", "description": "核算"}]},
     )
-
-    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
-        return {"summary": "预估赔付 4640 元"}
-
-    monkeypatch.setattr(step_executor_module, "run_worker_agent", fake_run)
+    _patch_workers(monkeypatch, [{"summary": "预估赔付 4640 元"}])
     monkeypatch.setattr(
         generator_module, "get_chat_model", lambda *a, **k: FakeModel("第一轮回答：预估 4640 元")
     )
@@ -333,5 +345,75 @@ async def test_restart_recovers_history(monkeypatch: pytest.MonkeyPatch) -> None
     assert "能赔多少" in human_contents
     assert "刚才说的金额是多少" in human_contents
     assert result["final_answer"] == "第二轮回答：引用了第一轮的 4640 元"
-    # 每轮字段已重置（agent_steps 为本轮，非跨轮累积）
-    assert len(result["agent_steps"]) == 1
+    # 每轮字段已重置（task_plan 为本轮，非跨轮累积）
+    assert len(derive_agent_steps(result["task_plan"], result["shared_data"])) == 1
+
+
+# ---------- react 路径（T047：create_agent 子图） ----------
+
+
+async def test_react_path_with_tool_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    """single_domain：react 子图内完成工具循环 → 轨迹随 messages 派生。"""
+    from langchain_core.messages import AIMessage
+
+    _patch_all(monkeypatch, intent="single_domain")
+
+    class ScriptedModel:
+        """两轮脚本：请求工具 → 终答（bind_tools 透传，记录调用）。"""
+
+        def __init__(self) -> None:
+            self.calls: list[list[Any]] = []
+
+        def bind_tools(self, tools: Any, **kwargs: Any) -> ScriptedModel:
+            return self
+
+        def bind(self, **kwargs: Any) -> ScriptedModel:
+            return self
+
+        async def ainvoke(self, messages: Any, **kwargs: Any) -> Any:
+            self.calls.append(list(messages))
+            if len(self.calls) == 1:
+                return AIMessage(
+                    content="",
+                    tool_calls=[{"name": "policy_query", "args": {"policy_no": "POL-2025-0001"}, "id": "c1"}],
+                )
+            return AIMessage(content="您的保单 POL-2025-0001 状态正常。")
+
+    scripted = ScriptedModel()
+    monkeypatch.setattr(generator_module, "get_chat_model", lambda *a, **k: scripted)
+    # react 工具循环内不真查 DB：桩掉工具（守卫装配后的 policy_query）。
+    # 注意 get_react_agent 经 generator 命名空间引用工厂（from-import 绑定），须 patch 此处
+
+    from tools.base import ClaimflowTool
+    from tools.claim.policy_query import PolicyQueryInput
+    from tools.factory import assemble_tool
+
+    class _FakePolicyQuery(ClaimflowTool):
+        name: str = "policy_query"
+        description: str = "测试桩"
+        args_schema: type[PolicyQueryInput] = PolicyQueryInput
+
+        def _run(self, *args: object, **kwargs: object) -> dict:
+            raise NotImplementedError("仅支持异步调用")
+
+        async def _arun(self, *, policy_no: str | None = None, id_card: str | None = None) -> dict:
+            return {"success": True, "policy_no": policy_no or "POL-2025-0001", "status": "active"}
+
+    fake_tool = assemble_tool(_FakePolicyQuery(), enable_cache=False)
+    patched = {**generator_module.get_default_tool_map(), "policy_query": fake_tool}
+    monkeypatch.setattr(generator_module, "get_default_tool_map", lambda: patched)
+    # react 子图缓存需重建以拾取桩工具
+    monkeypatch.setattr(generator_module, "_react_agent", None)
+
+    graph = _make_graph()
+    result = await graph.ainvoke(
+        {**_RESET_INPUT, "messages": [HumanMessage(content="查一下保单 POL-2025-0001")]},
+        config={"configurable": {"thread_id": "t-react"}},
+    )
+
+    assert result["intent"] == "single_domain"
+    assert result["final_answer"] == "您的保单 POL-2025-0001 状态正常。"
+    # 轨迹从 messages 派生（A06 口径）
+    used = derive_tool_trace(result["messages"])
+    assert [t["tool"] for t in used] == ["policy_query"]
+    assert used[0]["agent"] == "react"

@@ -243,10 +243,7 @@ async def send_message(
             # 每轮全量重置（checkpoint 只累积 messages，其余字段语义为"本轮"）
             "intent": None,
             "task_plan": [],
-            "current_step": 0,
             "shared_data": {},
-            "agent_steps": [],
-            "tool_trace": [],
             "compliance_result": None,
             "compliance_rounds": 0,
             "final_answer": "",
@@ -258,8 +255,12 @@ async def send_message(
 
     answer = result.get("final_answer") or "抱歉，我暂时无法处理该问题，请稍后再试。"
     intent = result.get("intent")
-    tool_trace = result.get("tool_trace") or []
-    agent_steps = result.get("agent_steps") or []
+    # T047：工具轨迹 / 执行步骤由 messages 与 task_plan 派生（State 不再承载簿记字段）
+    from agents.runner import derive_tool_trace
+    from nodes.supervisor import derive_agent_steps
+
+    tool_trace = derive_tool_trace(result.get("messages") or [])
+    agent_steps = derive_agent_steps(result.get("task_plan"), result.get("shared_data"))
     compliance = result.get("compliance_result") or {}
     compliance_status = compliance.get("verdict")
     need_human = bool(result.get("need_human_intervention"))

@@ -14,6 +14,23 @@ os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 
 @pytest.fixture(autouse=True)
+def _reset_graph_caches():
+    """隔离 react/worker 子图全局缓存（T047）。
+
+    create_agent 子图编译一次即缓存（generator._react_agent / runner._worker_cache），
+    各测试文件 patch 的 get_chat_model 不同——不重置会串用上一测试的假模型。
+    """
+    import agents.runner as runner_module
+    import nodes.generator as generator_module
+
+    generator_module._react_agent = None
+    runner_module._worker_cache.clear()
+    yield
+    generator_module._react_agent = None
+    runner_module._worker_cache.clear()
+
+
+@pytest.fixture(autouse=True)
 def _memory_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     """默认关闭长期记忆写路径（T034）。
 

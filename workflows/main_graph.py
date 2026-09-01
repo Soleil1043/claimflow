@@ -1,23 +1,24 @@
-"""主图组装（T021 完整版：intent 分流 + 多 Agent 协作 + 合规门禁；T037 接 interrupt）。
+"""主图组装（T047 v2：supervisor 动态路由 + create_agent 子图；D021/ADR-007）。
 
-结构（architecture.md 5.2）：
+结构（architecture.md 5.2 v2）：
 
-    __start__ → intent ─┬─ complex_consult → planner → step_executor ─┬─ next → step_executor（循环）
-                        │                                        └─ done → synthesize
-                        ├─ simple_faq → rag_node → synthesize
-                        └─ 其他（single_domain / chitchat / other）→ react_agent
-                                                                     ┌─ tools 轮（条件边）→ react_agent（循环）
-                                                                     └─ end → compliance
+    __start__ → intent ─┬─ complex_consult → supervisor
+                        │                      ├─ Command(goto=medical) → medical ┐（循环）
+                        │                      ├─ Command(goto=claim)   → claim   ┘
+                        │                      └─ Command(goto=FINISH)  → synthesize
+                        ├─ simple_faq → rag → synthesize
+                        └─ 其他（single_domain / chitchat / other）→ react → compliance
     synthesize → compliance
     compliance ─┬─ pass（PASS / MODIFY 达轮数上限）→ __end__
                 ├─ modify（MODIFY 未达上限）→ revise_answer → compliance（复审闭环）
-                └─ reject（REJECT）→ human_review（T037：interrupt 挂起，坐席
+                └─ reject（REJECT）→ human_review（interrupt 挂起，坐席
                   Command(resume=结论) 恢复后经合规复审返回用户）→ __end__
 
-F10：所有输出路径必经 compliance 节点（条件边保证无旁路出口）。
-Checkpoint：dev=InMemorySaver / prod=AsyncPostgresSaver（CheckpointManager 管理，
-F14 同一会话多轮上下文连贯；T037 interrupt 挂起状态同样随 checkpoint 持久化，
-服务重启后坐席仍可恢复）。
+- supervisor：结构化路由决策（RoutingDecision）+ Command 动态路由，支持执行中重规划
+- claim / medical：create_agent Worker 子图包装节点（agents.runner.invoke_worker）
+- react：create_agent 通用助手子图包装节点（工具循环内置）
+- F10：所有输出路径必经 compliance 节点（条件边保证无旁路出口）
+- Checkpoint：dev=InMemorySaver / prod=AsyncPostgresSaver；interrupt 挂起态同样持久化
 """
 
 from __future__ import annotations
@@ -27,23 +28,23 @@ from typing import Any
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 
+from agents import CLAIM_AGENT, MEDICAL_AGENT
 from nodes.compliance import ComplianceNode, compliance_route, revise_answer_node
-from nodes.generator import ReactAgentNode, should_continue, synthesize_answer_node
+from nodes.generator import react_node, synthesize_answer_node
 from nodes.human_review import HumanReviewNode
 from nodes.intent import intent_node
-from nodes.planner import planner_node
 from nodes.rag import rag_node
-from nodes.step_executor import StepExecutorNode, has_next_step
+from nodes.supervisor import make_worker_node, supervisor_node
 from state import AgentState
 from tools.executor import ToolExecutor
 from tools.registry import ToolRegistry
 
 
 def route_intent(state: AgentState) -> str:
-    """意图分流条件边：complex_consult → planner；simple_faq → rag；其余 → react。"""
+    """意图分流条件边：complex_consult → supervisor；simple_faq → rag；其余 → react。"""
     intent = state.get("intent") or ""
     if intent == "complex_consult":  # v1 名 multi_step（D023 更名）
-        return "planner"
+        return "supervisor"
     if intent == "simple_faq":
         return "rag"
     return "react"
@@ -53,23 +54,22 @@ def build_main_graph(
     executor: ToolExecutor,
     checkpointer: BaseCheckpointSaver,
 ) -> Any:
-    """编译完整主图（intent 分流 + 多 Agent + 合规门禁）。
+    """编译完整主图（intent 分流 + supervisor 调度 + 合规门禁）。
 
     Args:
-        executor: 工具执行器（注册中心从中取）
+        executor: 工具执行器（合规节点工具取证用；Worker/React 工具已自带守卫）
         checkpointer: Checkpoint saver（会话持久化键 = conversation_id 即 thread_id）
     """
-    react_agent = ReactAgentNode(executor=executor)
-    step_executor = StepExecutorNode(executor=executor)
     compliance = ComplianceNode(executor=executor)
     human_review = HumanReviewNode(executor=executor)
 
     builder = StateGraph(AgentState)
     builder.add_node("intent", intent_node)
-    builder.add_node("planner", planner_node)
-    builder.add_node("step_executor", step_executor)
+    builder.add_node("supervisor", supervisor_node)
+    builder.add_node("claim", make_worker_node(CLAIM_AGENT))
+    builder.add_node("medical", make_worker_node(MEDICAL_AGENT))
     builder.add_node("rag", rag_node)
-    builder.add_node("react_agent", react_agent)
+    builder.add_node("react", react_node)
     builder.add_node("synthesize", synthesize_answer_node)
     builder.add_node("compliance", compliance)
     builder.add_node("revise_answer", revise_answer_node)
@@ -80,23 +80,15 @@ def build_main_graph(
     builder.add_conditional_edges(
         "intent",
         route_intent,
-        {"planner": "planner", "rag": "rag", "react": "react_agent"},
+        {"supervisor": "supervisor", "rag": "rag", "react": "react"},
     )
-    # 多步路径：规划 → 逐步执行循环 → 整合（F08）
-    builder.add_edge("planner", "step_executor")
-    builder.add_conditional_edges(
-        "step_executor",
-        has_next_step,
-        {"next": "step_executor", "done": "synthesize"},
-    )
+    # supervisor 动态路由（Command goto claim / medical / synthesize），Worker 完成回调度
+    builder.add_edge("claim", "supervisor")
+    builder.add_edge("medical", "supervisor")
     # RAG 路径：检索 → 整合（F02 完整）
     builder.add_edge("rag", "synthesize")
-    # ReAct 路径：工具循环（F07）
-    builder.add_conditional_edges(
-        "react_agent",
-        should_continue,
-        {"tools": "react_agent", "end": "compliance"},
-    )
+    # react 路径：子图内置工具循环 → 合规
+    builder.add_edge("react", "compliance")
     # 整合后的回答必经合规（F10）
     builder.add_edge("synthesize", "compliance")
     # 合规三态流转
@@ -117,9 +109,6 @@ def create_default_graph(
 ) -> Any:
     """便捷工厂：默认注册中心 + 默认执行器 + 指定/内存 checkpointer。"""
     if registry is None:
-        import tools.claim  # noqa: F401 注册理赔工具
-        import tools.compliance  # noqa: F401 注册合规工具
-        import tools.medical  # noqa: F401 注册医疗工具
         from tools.registry import get_default_registry
 
         registry = get_default_registry()

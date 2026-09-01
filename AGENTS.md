@@ -118,11 +118,11 @@ claim-agent/
 │   └── compliance.py          # 合规风控 Agent
 │
 ├── nodes/                     # LangGraph 节点
-│   ├── intent.py              # 意图识别节点
-│   ├── planner.py             # 任务规划节点
-│   ├── step_executor.py       # 步骤执行节点
-│   ├── compliance.py          # 合规审查节点
-│   ├── generator.py           # 回答生成节点
+│   ├── intent.py              # 意图识别节点（with_structured_output 枚举）
+│   ├── supervisor.py          # 调度节点（T047：RoutingDecision + Command(goto) 动态路由）
+│   ├── compliance.py          # 合规审查节点（三态流转 + 修订）
+│   ├── generator.py           # react 子图包装 + 回答整合节点
+│   ├── human_review.py        # 人工介入节点（interrupt 挂起，T037）
 │   └── rag.py                 # RAG 检索节点
 │
 ├── state.py                   # AgentState 定义

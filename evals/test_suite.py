@@ -88,10 +88,7 @@ async def run_case(graph: Any, case: EvalCase, thread_prefix: str = "eval") -> C
                 "conversation_id": thread_id,
                 "intent": None,
                 "task_plan": [],
-                "current_step": 0,
                 "shared_data": {},
-                "agent_steps": [],
-                "tool_trace": [],
                 "compliance_result": None,
                 "compliance_rounds": 0,
                 "final_answer": "",
@@ -110,9 +107,11 @@ async def run_case(graph: Any, case: EvalCase, thread_prefix: str = "eval") -> C
         a06["answer"] = a06["final_answer"]
     if a06.get("compliance_result") and not a06.get("compliance_status"):
         a06["compliance_status"] = (a06["compliance_result"] or {}).get("verdict")
-    # 工具轨迹：A06 层由 API 处理器从 tool_trace 提取；评测直调图，这里同样转换
-    if not a06.get("used_tools") and a06.get("tool_trace"):
-        a06["used_tools"] = a06["tool_trace"]
+    # 工具轨迹（T047）：与 A06 一致，从 messages 派生
+    from agents.runner import derive_tool_trace
+
+    if not a06.get("used_tools"):
+        a06["used_tools"] = derive_tool_trace(a06.get("messages") or [])
 
     cr = result_from_a06(case, a06, time.perf_counter() - started, error)
     # simple_faq 走 rag_node 直检（不经过 claim_rule_rag 工具），轨迹无 tool 记录——

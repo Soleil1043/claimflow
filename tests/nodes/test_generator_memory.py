@@ -1,7 +1,8 @@
-"""generator 节点的长期记忆注入测试（T035）。
+"""generator 节点的长期记忆注入测试（T035；T047 适配 react 子图包装节点）。
 
-验证 ReactAgentNode（system prefix）与 synthesize_answer_node（模板 memory 段）
-两条回答出口路径在 state.memory_context 非空时注入历史记忆、为空时 prompt 不变。
+验证 react_node（记忆 SystemMessage 注入）与 synthesize_answer_node（模板 memory 段）
+两条回答出口路径在 state.memory_context 非空时注入历史记忆、为空时不注入。
+Worker 路径（指令附加记忆）见 tests/nodes/test_supervisor.py。
 """
 
 from __future__ import annotations
@@ -12,9 +13,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 import nodes.generator as generator_module
-from nodes.generator import ReactAgentNode, synthesize_answer_node
-from tools.executor import ToolExecutor
-from tools.registry import ToolRegistry
+from nodes.generator import react_node, synthesize_answer_node
 
 _MEMORY_TEXT = "- 用户咨询保单 POL-2025-0001 阑尾炎理赔，预估赔付 4640 元"
 
@@ -29,7 +28,10 @@ class SpyModel:
         self.calls.append(list(messages))
         return AIMessage(content="基于历史记忆的回答。")
 
-    def bind_tools(self, specs: list[Any]) -> SpyModel:
+    def bind_tools(self, specs: list[Any], **kwargs: Any) -> SpyModel:
+        return self
+
+    def bind(self, **kwargs: Any) -> SpyModel:
         return self
 
 
@@ -37,37 +39,59 @@ class SpyModel:
 def spy_model(monkeypatch: pytest.MonkeyPatch) -> SpyModel:
     spy = SpyModel()
     monkeypatch.setattr(generator_module, "get_chat_model", lambda *a, **k: spy)
-    return spy
+    monkeypatch.setattr(generator_module, "_react_agent", None)  # 子图缓存重建拾取 spy
+    yield spy
+    monkeypatch.setattr(generator_module, "_react_agent", None)
 
 
-def _react_node() -> ReactAgentNode:
-    return ReactAgentNode(executor=ToolExecutor(ToolRegistry()))
+def _memory_messages(call_messages: list[Any]) -> list[SystemMessage]:
+    """模型首调中的记忆 SystemMessage（T047：注入于子图静态 system prompt 之后）。"""
+    return [
+        m
+        for m in call_messages
+        if isinstance(m, SystemMessage) and "历史会话记忆" in str(m.content)
+    ]
 
 
-async def test_react_injects_memory_into_system_prompt(spy_model: SpyModel) -> None:
-    """react 路径：memory_context 非空 → SystemMessage 附加历史记忆段。"""
-    node = _react_node()
+async def test_react_injects_memory_system_message(spy_model: SpyModel) -> None:
+    """react 路径：memory_context 非空 → 追加历史记忆 SystemMessage，用户消息保留。"""
     state: dict[str, Any] = {
         "messages": [HumanMessage(content="我上次问的那张保单能赔多少")],
         "memory_context": _MEMORY_TEXT,
     }
-    await node(state)
-    first = spy_model.calls[0][0]
-    assert isinstance(first, SystemMessage)
-    assert "历史会话记忆" in first.content
-    assert "POL-2025-0001" in first.content
-    # 用户消息仍在（记忆只注入 system，不污染对话历史）
+    result = await react_node(state)
+    assert result["final_answer"] == "基于历史记忆的回答。"
+
+    memory_msgs = _memory_messages(spy_model.calls[0])
+    assert len(memory_msgs) == 1
+    assert "POL-2025-0001" in memory_msgs[0].content
     assert any(isinstance(m, HumanMessage) for m in spy_model.calls[0])
 
 
-async def test_react_empty_memory_unchanged_prompt(spy_model: SpyModel) -> None:
-    """react 路径：memory_context 为空 → system prompt 与无记忆时完全一致。"""
-    node = _react_node()
+async def test_react_empty_memory_no_injection(spy_model: SpyModel) -> None:
+    """react 路径：memory_context 为空 → 无记忆消息注入。"""
     state: dict[str, Any] = {"messages": [HumanMessage(content="你好")], "memory_context": ""}
-    await node(state)
-    first = spy_model.calls[0][0]
-    assert isinstance(first, SystemMessage)
-    assert "历史会话记忆" not in first.content
+    await react_node(state)
+    assert _memory_messages(spy_model.calls[0]) == []
+
+
+async def test_react_llm_failure_fallback_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """react 路径：LLM 故障 → 降级话术（T022），不抛错。"""
+
+    class _BrokenModel:
+        def bind_tools(self, specs: Any, **kwargs: Any) -> _BrokenModel:
+            return self
+
+        async def ainvoke(self, messages: Any, **kwargs: Any) -> Any:
+            raise RuntimeError("LLM 超时")
+
+    monkeypatch.setattr(generator_module, "get_chat_model", lambda *a, **k: _BrokenModel())
+    monkeypatch.setattr(generator_module, "_react_agent", None)
+
+    state: dict[str, Any] = {"messages": [HumanMessage(content="查保单")], "memory_context": ""}
+    result = await react_node(state)
+    assert result["final_answer"] == "抱歉，服务暂时繁忙，请稍后再试或转人工服务。"
+    monkeypatch.setattr(generator_module, "_react_agent", None)
 
 
 async def test_synthesize_injects_memory_into_prompt(spy_model: SpyModel) -> None:
@@ -94,39 +118,3 @@ async def test_synthesize_without_memory_keeps_semantics(spy_model: SpyModel) ->
     prompt = str(spy_model.calls[0][0].content)
     assert "：\n无" in prompt
     assert "POL-2025-0001" not in prompt
-
-
-async def test_step_executor_appends_memory_to_instruction(monkeypatch: pytest.MonkeyPatch) -> None:
-    """complex_consult 路径：memory_context 非空 → Worker 指令附加记忆段；为空不附加。"""
-    import nodes.step_executor as step_executor_module
-    from nodes.step_executor import StepExecutorNode
-
-    received: list[str] = []
-
-    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
-        received.append(instruction)
-        return {"summary": "结论"}
-
-    monkeypatch.setattr(step_executor_module, "run_worker_agent", fake_run)
-
-    node = StepExecutorNode(executor=ToolExecutor(ToolRegistry()))
-    base_state: dict[str, Any] = {
-        "task_plan": [{"agent": "claim", "description": "核算赔付"}],
-        "current_step": 0,
-        "shared_data": {},
-        "agent_steps": [],
-        "tool_trace": [],
-    }
-    await node({**base_state, "memory_context": _MEMORY_TEXT})
-    await node(
-        {
-            **base_state,
-            "memory_context": "",
-            "current_step": 0,
-            "task_plan": [{"agent": "claim", "description": "核算赔付"}],
-        }
-    )
-
-    assert "POL-2025-0001" in received[0]
-    assert received[0].startswith("核算赔付")
-    assert received[1] == "核算赔付"  # 空记忆时指令原样

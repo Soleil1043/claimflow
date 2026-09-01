@@ -29,10 +29,7 @@ from workflows.main_graph import build_main_graph
 _RESET_INPUT = {
     "intent": None,
     "task_plan": [],
-    "current_step": 0,
     "shared_data": {},
-    "agent_steps": [],
-    "tool_trace": [],
     "compliance_result": None,
     "compliance_rounds": 0,
     "final_answer": "",
@@ -44,7 +41,8 @@ _RESET_INPUT = {
 class FakeModel:
     """可控 LLM：固定响应（AIMessage，含空 tool_calls 供 react 条件边判断）。
 
-    with_structured_output 按 schema 解析预设 JSON（T045 结构化输出链路）。
+    with_structured_output 按 schema 解析预设 JSON（T045 结构化输出链路）；
+    bind_tools 透传（T047：react 为 create_agent 子图，模型节点运行时绑定）。
     """
 
     def __init__(self, content: str) -> None:
@@ -52,6 +50,12 @@ class FakeModel:
 
     async def ainvoke(self, messages: Any, **kwargs: Any) -> AIMessage:
         return AIMessage(content=self._content)
+
+    def bind_tools(self, tools: Any, **kwargs: Any) -> FakeModel:
+        return self
+
+    def bind(self, **kwargs: Any) -> FakeModel:
+        return self
 
     def with_structured_output(self, schema: Any, method: str | None = None) -> Any:
         assert method == "function_calling"
@@ -78,7 +82,7 @@ class ScriptedLLM:
     async def ainvoke(self, messages: Any, **kwargs: Any) -> AIMessage:
         return AIMessage(content=self._responses.pop(0))
 
-    def bind_tools(self, specs: list[Any]) -> ScriptedLLM:
+    def bind_tools(self, specs: list[Any], **kwargs: Any) -> ScriptedLLM:
         return self
 
 

@@ -1,15 +1,15 @@
-"""T021 验收脚本：完整主图端到端联调（真实 LLM）。
+"""T021/T047 验收脚本：完整主图端到端联调（真实 LLM）。
 
-验收标准（tasks.md T021）：
+验收标准（tasks.md T021，T047 更新为 supervisor 架构）：
 - A06 返回完整结构（answer/intent/used_tools/agent_steps/compliance_status/need_human_intervention）
-- 多步任务全链路跑通（intent → planner → step_executor×N → synthesize → compliance）
+- 多步任务全链路跑通（intent → supervisor ⇄ worker 子图 → synthesize → compliance）
 - 服务重启后历史会话可继续（F14：共享 checkpointer 重建图实例模拟重启；
   prod 部署下为 PostgreSQL 持久化，语义相同）
 
 覆盖场景：
 1. complex_consult："我做了阑尾炎手术能赔多少"（医疗审核→理赔核算 两步）
 2. simple_faq："阑尾炎手术有等待期吗"（RAG 检索路径）
-3. chitchat："你好"（ReAct 直答路径）
+3. chitchat："你好"（通用助手直答路径）
 4. F14 多轮上下文：同会话追问，第二轮引用第一轮结论
 
 前置：.env 配置真实 LLM API Key；知识库已入库（uv run python -m services.rag.ingest）。
@@ -21,23 +21,17 @@ import asyncio
 
 from langchain_core.messages import HumanMessage
 
-import tools.claim  # noqa: F401 注册理赔工具
-import tools.compliance  # noqa: F401 注册合规工具
-import tools.medical  # noqa: F401 注册医疗工具
 from scripts.seed import seed_medical_records, seed_policies
 from services.db.session import dispose_engine, init_db
 from tools.executor import ToolExecutor
 from tools.registry import get_default_registry
 from workflows.main_graph import build_main_graph
 
-# 每轮输入的全量重置字段（与 A06 保持一致）
+# 每轮输入的全量重置字段（与 A06 保持一致，T047 起 State 无簿记字段）
 RESET_INPUT = {
     "intent": None,
     "task_plan": [],
-    "current_step": 0,
     "shared_data": {},
-    "agent_steps": [],
-    "tool_trace": [],
     "compliance_result": None,
     "compliance_rounds": 0,
     "final_answer": "",
@@ -47,14 +41,17 @@ RESET_INPUT = {
 
 
 def _print_result(tag: str, result: dict) -> None:
+    from agents.runner import derive_tool_trace
+    from nodes.supervisor import derive_agent_steps
+
     print(f"\n===== [{tag}] =====")
     print(f"intent: {result.get('intent')}")
     print(f"compliance: {(result.get('compliance_result') or {}).get('verdict')}")
-    steps = result.get("agent_steps") or []
+    steps = derive_agent_steps(result.get("task_plan"), result.get("shared_data"))
     print(f"agent_steps: {len(steps)} 步")
     for s in steps:
         print(f"  [{s['step_index']}] {s['agent']:8s} {s['status']:6s} {s['duration_ms']}ms | {s['summary'][:60]}")
-    tools_used = result.get("tool_trace") or []
+    tools_used = derive_tool_trace(result.get("messages") or [])
     print(f"used_tools: {[t['tool'] for t in tools_used]}")
     print(f"answer: {result.get('final_answer', '')[:400]}")
 
@@ -78,12 +75,15 @@ async def main() -> None:
     )
     _print_result(f"complex_consult: {q1}", result1)
 
+    from agents.runner import derive_tool_trace
+    from nodes.supervisor import derive_agent_steps
+
     assert result1.get("intent") == "complex_consult", f"意图错误：{result1.get('intent')}"
-    steps = result1.get("agent_steps") or []
+    steps = derive_agent_steps(result1.get("task_plan"), result1.get("shared_data"))
     assert len(steps) >= 2, f"步骤数不足：{len(steps)}"
     assert [s["agent"] for s in steps][:2] == ["medical", "claim"], "步骤顺序错误"
     assert all(s["status"] == "done" for s in steps), "存在失败步骤"
-    assert result1.get("tool_trace"), "无工具调用轨迹"
+    assert derive_tool_trace(result1.get("messages") or []), "无工具调用轨迹"
     verdict = (result1.get("compliance_result") or {}).get("verdict")
     assert verdict == "PASS", f"合规状态异常：{verdict}"
     assert result1.get("final_answer"), "回答为空"

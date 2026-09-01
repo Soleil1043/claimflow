@@ -22,8 +22,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 import nodes.compliance as compliance_module
 import nodes.generator as generator_module
 import nodes.intent as intent_module
-import nodes.planner as planner_module
-import nodes.step_executor as step_executor_module
+import nodes.supervisor as supervisor_module
 import services.db.session as session_module
 from app.main import app
 from services.db.models import Base
@@ -38,7 +37,10 @@ class ScriptedLLM:
     async def ainvoke(self, messages: list[Any], config: Any = None) -> AIMessage:
         return self._responses.pop(0)
 
-    def bind_tools(self, specs: list[Any]) -> ScriptedLLM:
+    def bind_tools(self, specs: list[Any], **kwargs: Any) -> ScriptedLLM:
+        return self
+
+    def bind(self, **kwargs: Any) -> ScriptedLLM:
         return self
 
 
@@ -139,26 +141,33 @@ async def test_scenario_complex_consult_full_structure(api_env, monkeypatch) -> 
         lambda *a, **k: FakeModel('{"intent": "complex_consult", "reason": "多步任务"}'),
     )
     monkeypatch.setattr(
-        planner_module,
+        supervisor_module,
         "get_chat_model",
         lambda *a, **k: FakeModel(
-            '{"steps": [{"agent": "medical", "description": "医疗审核"}, {"agent": "claim", "description": "理赔核算"}]}'
+            '{"next": "medical", "plan": [{"agent": "medical", "description": "医疗审核"}, {"agent": "claim", "description": "理赔核算"}], "reason": "测试"}'
         ),
     )
 
-    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
-        if tool_trace is not None:
-            tool_trace.append(
-                {
-                    "agent": agent_def.name,
-                    "tool": "record_query",
-                    "input": {},
-                    "output": {"success": True},
-                }
-            )
-        return {"summary": f"{agent_def.display_name}结论"}
+    async def fake_invoke(agent_def, instruction, shared_data):  # noqa: ANN001
+        # 合成带工具轨迹的子图消息（A06 used_tools 由 messages 派生，T047）
+        import json as json_mod
 
-    monkeypatch.setattr(step_executor_module, "run_worker_agent", fake_run)
+        from langchain_core.messages import ToolMessage
+
+        call_id = f"c-{agent_def.name}"
+        ai = AIMessage(
+            content="",
+            name=agent_def.name,
+            tool_calls=[{"name": "record_query", "args": {}, "id": call_id}],
+        )
+        tool_msg = ToolMessage(
+            content=json_mod.dumps({"success": True}, ensure_ascii=False),
+            tool_call_id=call_id,
+            name="record_query",
+        )
+        return {"summary": f"{agent_def.display_name}结论"}, [ai, tool_msg]
+
+    monkeypatch.setattr(supervisor_module, "invoke_worker", fake_invoke)
     monkeypatch.setattr(
         generator_module,
         "get_chat_model",
@@ -348,17 +357,19 @@ async def test_scenario_multi_turn_state_isolation(api_env, monkeypatch) -> None
         lambda *a, **k: FakeModel('{"intent": "complex_consult", "reason": "多步"}'),
     )
     monkeypatch.setattr(
-        planner_module,
+        supervisor_module,
         "get_chat_model",
-        lambda *a, **k: FakeModel('{"steps": [{"agent": "claim", "description": "核算"}]}'),
+        lambda *a, **k: FakeModel(
+            '{"next": "claim", "plan": [{"agent": "claim", "description": "核算"}], "reason": "测试"}'
+        ),
     )
 
     calls = iter([{"summary": "第一轮结论"}, {"summary": "第二轮结论"}])
 
-    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
-        return dict(next(calls))
+    async def fake_invoke(agent_def, instruction, shared_data):  # noqa: ANN001
+        return dict(next(calls)), []
 
-    monkeypatch.setattr(step_executor_module, "run_worker_agent", fake_run)
+    monkeypatch.setattr(supervisor_module, "invoke_worker", fake_invoke)
     answers = iter(["第一轮回答", "第二轮回答"])
     monkeypatch.setattr(
         generator_module, "get_chat_model", lambda *a, **k: FakeModel(next(answers))
@@ -429,7 +440,7 @@ class CaptureLLM:
         self.calls.append(list(messages))
         return AIMessage(content="根据您的历史会话记录回答。")
 
-    def bind_tools(self, specs: list[Any]) -> CaptureLLM:
+    def bind_tools(self, specs: list[Any], **kwargs: Any) -> CaptureLLM:
         return self
 
 
@@ -486,16 +497,18 @@ async def test_scenario_memory_injected_on_first_turn(api_env, monkeypatch) -> N
 
     assert body["compliance_status"] == "PASS"  # 主流程不受注入影响
     assert len(search_calls) == 1  # 首轮检索一次
-    first_msg = capture.calls[0][0]
+    # T047：记忆 SystemMessage 注入于子图静态 system prompt 之后
     from langchain_core.messages import SystemMessage
 
-    assert isinstance(first_msg, SystemMessage)
-    assert "POL-2025-0001" in first_msg.content  # 历史记忆进入 system prompt
-    assert "历史会话记忆" in first_msg.content
+    memory_msgs = [
+        m for m in capture.calls[0] if isinstance(m, SystemMessage) and "历史会话记忆" in str(m.content)
+    ]
+    assert len(memory_msgs) == 1
+    assert "POL-2025-0001" in memory_msgs[0].content  # 历史记忆进入上下文
 
 
 async def test_scenario_memory_empty_history_zero_impact(api_env, monkeypatch) -> None:
-    """无历史用户：检索空直跳，system prompt 与无记忆时完全一致（零影响）。"""
+    """无历史用户：检索空直跳，无记忆消息注入（零影响）。"""
     _patch_memory_on(monkeypatch, lambda MH: [])
     capture = _patch_react_llm(monkeypatch)
 
@@ -503,8 +516,13 @@ async def test_scenario_memory_empty_history_zero_impact(api_env, monkeypatch) -
     body = await _send(api_env, cid, "保单能赔多少")
 
     assert body["answer"]
-    first_msg = capture.calls[0][0]
-    assert "历史会话记忆" not in first_msg.content
+    from langchain_core.messages import SystemMessage
+
+    assert not [
+        m
+        for m in capture.calls[0]
+        if isinstance(m, SystemMessage) and "历史会话记忆" in str(m.content)
+    ]
 
 
 async def test_scenario_memory_only_first_turn(api_env, monkeypatch) -> None:

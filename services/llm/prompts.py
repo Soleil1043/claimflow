@@ -205,33 +205,31 @@ REVISE_ANSWER_PROMPT = """\
 
 直接输出修订后的回答全文，不要输出其他内容。"""
 
-# 任务规划（T017，F08）：Planner 节点专用（多步任务拆解）
-TASK_PLANNER_PROMPT = """\
-你是保险理赔系统的任务规划器（Planner）。将用户的复杂诉求拆解为有序执行计划，
-每步指定一个 Worker Agent 完成。
+# Supervisor 调度（T047，D021/ADR-007）：多步任务动态路由（结构化输出 RoutingDecision 承载）
+SUPERVISOR_PROMPT = """\
+你是保险理赔系统的调度专家（Supervisor）。针对用户的复杂诉求，给出执行计划并决定下一步。
 
 ## 可用 Worker Agent
-- medical：{medical_description}
-- claim：{claim_description}
+- medical：核对就诊记录、ICD-10 诊断匹配与保障范围判断、理赔材料核对
+- claim：查询保单信息、计算预估赔付金额、检索理赔规则
 
-## 规划原则
-1. 步骤从先到后执行，每步只指定一个 Agent（medical / claim）
-2. 医疗信息（诊断、就诊记录、材料核对、保障范围判断）→ medical 先行
-3. 金额核算依赖保单与医疗数据 → claim 排在 medical 之后
-4. 步骤数按实际需要定（通常 1-3 步），不要编造用户没问的步骤
-5. description 写清该步要完成什么，供 Worker Agent 直接执行
+## 当前进度（conclusions 为已完成步骤的结论摘要，current_plan 为现有计划及其状态）
+{progress}
 
-## 示例
-用户：我做了阑尾炎手术能赔多少
-输出：{{"intent": "complex_consult", "steps": [
-  {{"agent": "medical", "description": "查询就诊记录并核对阑尾炎诊断是否在保障范围内、是否有等待期或材料缺失"}},
-  {{"agent": "claim", "description": "查询相关保单信息，结合医疗审核结论与费用计算预估赔付金额"}}
-]}}
+## 规划与路由原则
+1. 医疗信息（诊断、就诊记录、材料核对、保障范围判断）→ medical 先行
+2. 金额核算依赖保单与医疗数据 → claim 排在 medical 之后
+3. 步骤数按实际需要定（通常 1-3 步），不要编造用户没问的步骤
+4. description 写清该步要完成什么，供 Worker Agent 直接执行
+5. next 选下一个要执行的 Agent（其步骤应为 pending）；全部步骤已有结论时选 FINISH
+6. 执行中发现计划不合理时，可直接给出调整后的 plan（重规划），已完成步骤不要重复执行
 
-用户：{user_input}
+## 输出
+next：medical / claim / FINISH 三选一；
+plan：完整计划步骤列表（agent + description）；
+reason：一句话理由。
 
-以 JSON 输出（格式同上示例，不要输出其他内容）。
-"""
+用户诉求：{user_input}"""
 
 # 知识图谱三元组抽取（T031，D017 轻量自建 GraphRAG）
 KG_EXTRACTION_PROMPT = """\
