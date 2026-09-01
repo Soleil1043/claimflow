@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
+
+# 测试完全离线：HuggingFace 模型一律用本地缓存，禁止联网校验/下载。
+# 一旦有测试路径意外触达 RAG/Embedding 且缓存元数据校验走网络，会在无外网
+# 环境下无限阻塞（T046 期间实测：意图 mock 缺口 → 意外进入 RAG → HF 挂起）。
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 
 @pytest.fixture(autouse=True)

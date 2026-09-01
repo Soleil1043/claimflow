@@ -146,7 +146,7 @@ async def test_scenario_complex_consult_full_structure(api_env, monkeypatch) -> 
         ),
     )
 
-    async def fake_run(agent_def, instruction, shared_data, executor, tool_trace=None):  # noqa: ANN001
+    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
         if tool_trace is not None:
             tool_trace.append(
                 {
@@ -355,7 +355,7 @@ async def test_scenario_multi_turn_state_isolation(api_env, monkeypatch) -> None
 
     calls = iter([{"summary": "第一轮结论"}, {"summary": "第二轮结论"}])
 
-    async def fake_run(agent_def, instruction, shared_data, executor, tool_trace=None):  # noqa: ANN001
+    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
         return dict(next(calls))
 
     monkeypatch.setattr(step_executor_module, "run_worker_agent", fake_run)

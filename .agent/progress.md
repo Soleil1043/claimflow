@@ -1384,4 +1384,38 @@ BaseTool.model_fields 含 args_schema、IndexConfig TypedDict 含 dims/embed/fie
 
 **Git**：`feat: T045 决策点结构化输出原生化（with_structured_output 枚举判决）+ 意图更名 complex_consult`
 
+### [T046] Worker Agent 子图化（create_agent 官方标准）— 2026-09-02
+
+**操作**：
+- **机制实证先行**：create_agent(v1.3.18) 的 response_format 走 ToolStrategy——终局由模型调用
+  以 schema 类名命名的隐藏工具（如 ClaimAgentOutput）产出 `structured_response`；
+  ToolNode 同步路径调 _run、异步调 _arun（生产 ainvoke 即可）；ToolMessage content 为工具
+  返回 dict 的 JSON 串。以上均以假模型冒烟验证后才动手
+- **agents/base.py**：AgentDefinition 收敛为纯静态配置，resolve_tools(OpenAI specs) 删除，
+  改 resolve_tool_objects(工具图→守卫工具对象列表)
+- **agents/runner.py 重写**：手写 ReAct 循环（bind_tools + 轮次 while + 手写 JSON 解析）删除；
+  get_worker_subgraph 装配 create_agent（system_prompt/tools/response_format 三要素直接映射
+  AgentDefinition）+ 进程级子图缓存；动态指令与 shared_data 经输入 HumanMessage 注入；
+  recursion_limit=2×8+4 承载 MAX_TOOL_ROUNDS；_WorkerTokenHandler(BaseCallbackHandler) 归集
+  子图内 LLM token（T029 轮次预算口径不变）；结构化失败降级 summary（v1 语义）
+- **tool_trace 派生**：AIMessage.tool_calls(id→name/args) ↔ ToolMessage(tool_call_id→output
+  JSON 解析，失败降 raw) 配对生成；按 agent_def.tool_names 白名单过滤（结构化隐藏工具自动排除）；
+  条目形状 {agent, tool, input, output} 与 A06 used_tools 口径一致
+- **nodes/step_executor.py**：调用点去掉 executor 参数（Worker 工具已自带守卫）
+- **测试**：新增 tests/agents/test_runner.py（6 用例：结构化/轨迹派生/非 JSON 降 raw/无结构化
+  降 summary/子图异常上抛/shared_data 注入），用假模型预置子图缓存绕开真实 LLM；
+  10 处 fake_run 签名同步（去掉 executor 位）；test_definitions 改 resolve_tool_objects
+- **意外收获——根治测试挂起**：全量跑卡死 5 分钟+，faulthandler 转储定位为 HuggingFace 联网
+  元数据校验阻塞（T045 漏升级 test_compliance._build_graph 的意图 mock → 关键词兜底落 simple_faq
+  → 意外进 RAG → HF 网络挂起）。修复：该 mock 补 with_structured_output；tests/conftest.py 增设
+  HF_HUB_OFFLINE=1 + TRANSFORMERS_OFFLINE=1 离线护栏（此类问题根治，且全量 63s→16s）
+
+**验证方式**：
+- `uv run python -m pytest -q` → **399 passed**（393 + 新增 6）；ruff 全绿
+- 多步场景：full_graph / a06 场景 / generator_memory（fake_run 注入）全过；react/interrupt 路径回归
+
+**状态**：✅ 通过验证（Phase 5 进行中：T047-T048 待执行）
+
+**Git**：`feat: T046 Worker 子图化（langchain create_agent + response_format 结构化 + 轨迹 messages 派生）`
+
 <!-- 遇到的问题记录在此，方便回溯 -->

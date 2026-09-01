@@ -309,11 +309,27 @@ def _build_graph(monkeypatch: pytest.MonkeyPatch):
     import nodes.intent as intent_module
 
     class _IntentModel:
+        _content = '{"intent": "single_domain", "reason": "查数据"}'
+
         async def ainvoke(self, messages: Any, **kwargs: Any) -> Any:
             class _Resp:
-                content = '{"intent": "single_domain", "reason": "查数据"}'
+                content = self._content
 
             return _Resp()
+
+        def with_structured_output(self, schema: Any, method: str | None = None) -> Any:
+            assert method == "function_calling"
+            import json as _json
+
+            class _Structured:
+                def __init__(self, content: str, schema: Any) -> None:
+                    self._content = content
+                    self._schema = schema
+
+                async def ainvoke(self, messages: Any, **kwargs: Any) -> Any:
+                    return self._schema.model_validate(_json.loads(self._content))
+
+            return _Structured(self._content, schema)
 
     monkeypatch.setattr(intent_module, "get_chat_model", lambda *a, **k: _IntentModel())
 

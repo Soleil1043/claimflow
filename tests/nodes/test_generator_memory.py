@@ -103,7 +103,7 @@ async def test_step_executor_appends_memory_to_instruction(monkeypatch: pytest.M
 
     received: list[str] = []
 
-    async def fake_run(agent_def, instruction, shared_data, executor, tool_trace=None):  # noqa: ANN001
+    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
         received.append(instruction)
         return {"summary": "结论"}
 

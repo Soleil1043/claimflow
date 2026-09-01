@@ -180,7 +180,7 @@ async def test_step_executor_runs_one_step(monkeypatch: pytest.MonkeyPatch) -> N
     """执行第一步：结果写入 shared_data、agent_steps 记录、游标推进、状态回写。"""
     medical_result = {"summary": "阑尾炎 K35 在保障范围内", "missing_materials": []}
 
-    async def fake_run(agent_def, instruction, shared_data, executor, tool_trace=None):  # noqa: ANN001
+    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
         return dict(medical_result)
 
     monkeypatch.setattr(executor_module, "run_worker_agent", fake_run)
@@ -204,7 +204,7 @@ async def test_step_executor_passes_shared_data(monkeypatch: pytest.MonkeyPatch)
     """第二步执行时能拿到第一步的 shared_data（步骤间数据传递）。"""
     seen: dict[str, Any] = {}
 
-    async def fake_run(agent_def, instruction, shared_data, executor, tool_trace=None):  # noqa: ANN001
+    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
         seen["shared"] = shared_data
         return {"summary": f"{agent_def.name} 完成"}
 
@@ -223,7 +223,7 @@ async def test_step_executor_passes_shared_data(monkeypatch: pytest.MonkeyPatch)
 async def test_step_executor_collects_tool_trace(monkeypatch: pytest.MonkeyPatch) -> None:
     """run_worker_agent 内的工具调用就地追加进 tool_trace（F08 追溯）。"""
 
-    async def fake_run(agent_def, instruction, shared_data, executor, tool_trace=None):  # noqa: ANN001
+    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
         if tool_trace is not None:
             tool_trace.append(
                 {"agent": agent_def.name, "tool": "record_query", "input": {}, "output": {}}
@@ -253,7 +253,7 @@ async def test_step_executor_unknown_agent_failed(monkeypatch: pytest.MonkeyPatc
 async def test_step_executor_exception_failed(monkeypatch: pytest.MonkeyPatch) -> None:
     """run_worker_agent 抛异常（LLM 故障等）：该步 failed，整体不阻断。"""
 
-    async def fake_run(agent_def, instruction, shared_data, executor, tool_trace=None):  # noqa: ANN001
+    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
         raise RuntimeError("LLM 超时")
 
     monkeypatch.setattr(executor_module, "run_worker_agent", fake_run)

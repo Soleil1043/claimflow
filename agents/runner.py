@@ -1,12 +1,16 @@
-"""Worker Agent 执行器（T017，F08）。
+"""Worker Agent 执行器（T046，F08）。
 
-以 AgentDefinition 为蓝本执行一次完整 Worker 任务：
-system prompt + 任务描述（含 shared_data 上下文）→ ReAct 工具循环 →
-最终输出解析为该 Agent 的结构化 schema。
+以 AgentDefinition 为蓝本，用官方 `langchain.agents.create_agent` 装配 Worker 子图
+（替代 v1 手写 ReAct 循环，D021/D022）：
 
-与 Phase 1 ReactAgentNode 的差异：
-- prompt/工具集/输出 schema 来自 AgentDefinition（多 Agent 专业化）
-- 输出是给 Orchestrator 整合的结构化 JSON（非面向用户的最终话术）
+- system_prompt（静态）/ tools（从默认工具图解析的守卫工具）/ response_format（结构化终局输出
+  → result["structured_response"]，ToolStrategy：模型终局调用以 schema 命名的隐藏工具）
+- 动态任务指令 + shared_data 上下文经输入 messages 注入（调用侧构造）
+- tool_trace 由子图返回的 messages 派生（AIMessage.tool_calls ↔ ToolMessage 配对；
+  排除结构化输出工具），A06 used_tools 口径不变
+- 降级语义（v1 对齐）：子图异常向上抛（step_executor 捕获记 failed）；
+  模型未产出结构化结论 → 最后一条 AIMessage 原文降级为 {"summary": ...}
+- 防失控：recursion_limit 承载 v1 MAX_TOOL_ROUNDS（每轮 = 模型 + 工具两节点）
 """
 
 from __future__ import annotations
@@ -14,41 +18,72 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain.agents import create_agent
+from langchain_core.callbacks import BaseCallbackHandler
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from agents.base import AgentDefinition
 from app.core.logging import get_logger
-from schemas.tools import ToolOutput
 from services.llm.client import get_chat_model
-from services.observability.token_tracker import phase_ainvoke
-from tools.executor import ToolExecutor
+from services.observability.token_tracker import (
+    record_usage_to_tracker,
+    track_phase,
+)
+from tools.factory import get_default_tool_map
 
 log = get_logger(__name__)
 
-# 单个 Worker 步骤内的工具循环上限（与 Phase 1 一致）
+
+class _WorkerTokenHandler(BaseCallbackHandler):
+    """归集 Worker 子图内 LLM 调用的 token 用量（T029 轮次预算口径不变）。
+
+    create_agent 内部自行调用模型，无法再经 phase_ainvoke 包装；
+    官方扩展点为 callback：on_llm_end 读 usage_metadata 记入轮次 tracker。
+    """
+
+    def on_llm_end(self, response: Any, **kwargs: Any) -> None:
+        try:
+            message = response.generations[0][0].message
+            usage = getattr(message, "usage_metadata", None) or {}
+            model = (response.llm_output or {}).get("model_name") or "unknown"
+            if usage:
+                record_usage_to_tracker(
+                    model,
+                    int(usage.get("input_tokens", 0)),
+                    int(usage.get("output_tokens", 0)),
+                )
+        except (AttributeError, IndexError, TypeError, ValueError):
+            pass  # 非标准响应（测试假件等）：记账跳过，不影响执行
+
+# 单个 Worker 步骤内的工具循环上限（v1 MAX_TOOL_ROUNDS=8；每轮消耗模型+工具两个节点）
 MAX_TOOL_ROUNDS = 8
+_RECURSION_LIMIT = MAX_TOOL_ROUNDS * 2 + 4
+
+# Worker 子图缓存（编译一次，进程内复用；测试可预置/重置）
+_worker_cache: dict[str, Any] = {}
 
 
-def _parse_agent_json(raw: str) -> dict[str, Any] | None:
-    """解析 Worker 最终输出的 JSON（容忍 markdown 包裹/前后缀）。"""
-    text = raw.strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text.startswith("json"):
-            text = text[4:]
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end <= start:
-        return None
-    try:
-        parsed = json.loads(text[start : end + 1])
-    except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
+def get_worker_subgraph(agent_def: AgentDefinition) -> Any:
+    """装配（带缓存）一个 Worker 的 create_agent 子图。"""
+    if agent_def.name not in _worker_cache:
+        tools = agent_def.resolve_tool_objects(get_default_tool_map())
+        _worker_cache[agent_def.name] = create_agent(
+            model=get_chat_model(),
+            tools=tools,
+            system_prompt=agent_def.system_prompt,
+            response_format=agent_def.output_schema,
+            name=agent_def.name,
+        )
+        log.info("worker_subgraph_built", agent=agent_def.name, tools=[t.name for t in tools])
+    return _worker_cache[agent_def.name]
 
 
-def _build_task_message(
-    agent_def: AgentDefinition, instruction: str, shared_data: dict[str, Any]
-) -> HumanMessage:
+def reset_worker_cache() -> None:
+    """清空 Worker 子图缓存（测试用：切换模型配置后重建）。"""
+    _worker_cache.clear()
+
+
+def _build_task_message(instruction: str, shared_data: dict[str, Any]) -> HumanMessage:
     """构造任务指令：用户诉求 + 前序步骤产出（共享数据池）。"""
     parts = [f"任务：{instruction}"]
     if shared_data:
@@ -61,11 +96,38 @@ def _build_task_message(
     return HumanMessage(content="\n".join(parts))
 
 
+def _derive_tool_trace(
+    agent_name: str, messages: list[Any], known_tools: set[str]
+) -> list[dict[str, Any]]:
+    """从子图 messages 派生工具轨迹（A06 used_tools 口径）。
+
+    AIMessage.tool_calls（id→name/args）与 ToolMessage（tool_call_id→output）配对；
+    排除 response_format 的结构化输出工具（不在 known_tools 中）。
+    """
+    calls: dict[str, dict[str, Any]] = {}
+    for m in messages:
+        for tc in getattr(m, "tool_calls", None) or []:
+            calls[tc["id"]] = tc
+
+    trace: list[dict[str, Any]] = []
+    for m in messages:
+        if not isinstance(m, ToolMessage) or m.name not in known_tools:
+            continue
+        tc = calls.get(m.tool_call_id, {})
+        try:
+            output = json.loads(m.content) if isinstance(m.content, str) else m.content
+        except (json.JSONDecodeError, TypeError):
+            output = {"raw": str(m.content)[:500]}
+        trace.append(
+            {"agent": agent_name, "tool": m.name, "input": tc.get("args", {}), "output": output}
+        )
+    return trace
+
+
 async def run_worker_agent(
     agent_def: AgentDefinition,
     instruction: str,
     shared_data: dict[str, Any],
-    executor: ToolExecutor,
     tool_trace: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """执行一个 Worker Agent 任务，返回结构化结论 dict。
@@ -74,60 +136,36 @@ async def run_worker_agent(
         tool_trace: 可选轨迹列表（就地追加）：本步骤内每次工具调用记录
             {agent, tool, input, output}，供 A06 used_tools / F08 执行追溯。
 
-    任何解析失败都不抛错：降级为 {"summary": 原始文本} 由上层整合。
+    任何解析失败都不抛错：降级为 {"summary": 原始文本} 由上层整合；
+    子图执行异常向上抛（step_executor 捕获记 failed）。
     """
-    model = get_chat_model()
-    specs = agent_def.resolve_tools(executor.registry)
-    bound = model.bind_tools(specs) if specs else model
+    worker = get_worker_subgraph(agent_def)
 
-    messages: list[AnyMessage] = [
-        SystemMessage(content=agent_def.system_prompt),
-        _build_task_message(agent_def, instruction, shared_data),
-    ]
+    with track_phase("executor"):
+        result = await worker.ainvoke(
+            {"messages": [_build_task_message(instruction, shared_data)]},
+            config={
+                "recursion_limit": _RECURSION_LIMIT,
+                "callbacks": [_WorkerTokenHandler()],
+            },
+        )
 
-    tool_rounds = 0
-    while True:
-        response: AIMessage = await phase_ainvoke(bound, messages, phase="executor")
-        messages.append(response)
+    # 轨迹派生（含 token 记账的 phase 归集随 track_phase 完成）
+    if tool_trace is not None:
+        known = set(agent_def.tool_names)
+        tool_trace.extend(_derive_tool_trace(agent_def.name, result["messages"], known))
 
-        if not response.tool_calls or tool_rounds >= MAX_TOOL_ROUNDS:
-            break
+    structured = result.get("structured_response")
+    if structured is not None:
+        log.info(
+            "worker_agent_done",
+            agent=agent_def.name,
+            structured=True,
+        )
+        return structured.model_dump()
 
-        # 执行本轮全部工具调用并回填
-        for call in response.tool_calls:
-            result: ToolOutput = await executor.execute(call["name"], call["args"])
-            payload = {
-                "success": result.success,
-                "error_message": result.error_message,
-                **result.data,
-            }
-            messages.append(
-                ToolMessage(content=json.dumps(payload, ensure_ascii=False, default=str),
-                            tool_call_id=call["id"], name=call["name"])
-            )
-            if tool_trace is not None:
-                tool_trace.append(
-                    {"agent": agent_def.name, "tool": call["name"], "input": call["args"], "output": payload}
-                )
-        tool_rounds += 1
-
-    # 最终输出解析为 Agent 结构化 schema
-    raw_output = response.content or ""
-    parsed = _parse_agent_json(raw_output)
-    if parsed is not None:
-        try:
-            validated = agent_def.output_schema.model_validate(parsed)
-            result_dict = validated.model_dump()
-        except Exception:  # noqa: BLE001 schema 不匹配时降级
-            result_dict = parsed
-    else:
-        log.warning("worker_output_unparsed", agent=agent_def.name, raw=raw_output[:100])
-        result_dict = {"summary": raw_output[:500]}
-
-    log.info(
-        "worker_agent_done",
-        agent=agent_def.name,
-        tool_rounds=tool_rounds,
-        parsed=parsed is not None,
-    )
-    return result_dict
+    # 降级：模型未调用结构化输出工具 → 最后一条有内容的 AIMessage 原文（v1 语义）
+    ai_messages = [m for m in result["messages"] if isinstance(m, AIMessage) and m.content]
+    raw = str(ai_messages[-1].content)[:500] if ai_messages else ""
+    log.warning("worker_output_unstructured", agent=agent_def.name, raw=raw[:100])
+    return {"summary": raw}

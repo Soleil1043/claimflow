@@ -1,9 +1,9 @@
-"""Agent 定义与 Prompt 体系测试（T015 验收）。
+"""Agent 定义与 Prompt 体系测试（T015 验收；T046 更新工具解析方式）。
 
 - 4 个 Agent 定义完整（name / prompt / 工具集 / 输出 schema）
 - prompt 含关键职责约束（compliance 一票否决、claim 禁凭空估算等）
 - 输出 schema 对合法/非法 JSON 的校验行为
-- resolve_tools 从注册中心解析并过滤未注册工具
+- resolve_tool_objects 从工具图解析并过滤未装配工具
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from schemas.agent_outputs import (
     MedicalAgentOutput,
     OrchestratorPlan,
 )
-from tools.registry import ToolRegistry
+from tools.claim.policy_query import PolicyQueryTool
 
 # ---------- Agent 定义完整性 ----------
 
@@ -167,27 +167,21 @@ def test_orchestrator_plan_schema() -> None:
     assert [s.agent for s in plan.steps] == ["medical", "claim"]
 
 
-# ---------- resolve_tools（注册中心联动） ----------
+# ---------- resolve_tool_objects（T046：工具图联动） ----------
 
 
-def test_resolve_tools_filters_unregistered() -> None:
-    """工具未注册（跨任务依赖）时跳过，不阻断 Agent。"""
-    registry = ToolRegistry()
-    # 只注册 policy_query（其余 claim 工具未注册）
-    from tools.claim.policy_query import PolicyQueryTool
+def test_resolve_tool_objects_filters_unassembled() -> None:
+    """工具未装配（跨任务依赖）时跳过，不阻断 Agent。"""
+    tool_map = {"policy_query": PolicyQueryTool()}
 
-    registry.register(PolicyQueryTool())
-
-    specs = CLAIM_AGENT.resolve_tools(registry)
-    names = [s["function"]["name"] for s in specs]
-    assert names == ["policy_query"]  # 未注册的自动过滤
+    tools = CLAIM_AGENT.resolve_tool_objects(tool_map)
+    assert [t.name for t in tools] == ["policy_query"]  # 未装配的自动过滤
 
 
-def test_resolve_tools_with_full_registry() -> None:
-    """完整注册中心（import tools.claim）：claim Agent 解析出全部已注册工具。"""
-    import tools.claim  # noqa: F401
-    from tools.registry import get_default_registry
+def test_resolve_tool_objects_from_default_map() -> None:
+    """默认工具图（工厂装配）：claim Agent 解析出全部已装配工具（守卫工具）。"""
+    from tools.factory import get_default_tool_map
 
-    specs = CLAIM_AGENT.resolve_tools(get_default_registry())
-    names = {s["function"]["name"] for s in specs}
+    tools = CLAIM_AGENT.resolve_tool_objects(get_default_tool_map())
+    names = {t.name for t in tools}
     assert {"policy_query", "claim_calculator", "claim_rule_rag"} <= names

@@ -143,7 +143,7 @@ async def test_complex_consult_full_path(monkeypatch: pytest.MonkeyPatch) -> Non
         ]
     )
 
-    async def fake_run(agent_def, instruction, shared_data, executor, tool_trace=None):  # noqa: ANN001
+    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
         return dict(next(results))
 
     monkeypatch.setattr(step_executor_module, "run_worker_agent", fake_run)
@@ -179,7 +179,7 @@ async def test_complex_consult_synthesize_fallback(monkeypatch: pytest.MonkeyPat
         plan={"steps": [{"agent": "claim", "description": "核算"}]},
     )
 
-    async def fake_run(agent_def, instruction, shared_data, executor, tool_trace=None):  # noqa: ANN001
+    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
         return {"summary": "预估赔付 4640 元"}
 
     monkeypatch.setattr(step_executor_module, "run_worker_agent", fake_run)
@@ -302,7 +302,7 @@ async def test_restart_recovers_history(monkeypatch: pytest.MonkeyPatch) -> None
         plan={"steps": [{"agent": "claim", "description": "核算"}]},
     )
 
-    async def fake_run(agent_def, instruction, shared_data, executor, tool_trace=None):  # noqa: ANN001
+    async def fake_run(agent_def, instruction, shared_data, tool_trace=None):  # noqa: ANN001
         return {"summary": "预估赔付 4640 元"}
 
     monkeypatch.setattr(step_executor_module, "run_worker_agent", fake_run)
