@@ -165,23 +165,26 @@ def new_conversation() -> tuple[list, dict]:
 
 
 def _header_html(backend_ok: bool | None) -> str:
-    """浮层 chrome 头部：品牌 + 后端状态点（材质半透明，内容从其下滚过）。"""
+    """浮层 chrome 头部：品牌块 + 状态 pill（材质半透明，内容从其下滚过，T060）。"""
     if backend_ok is None:
-        dot, label = "warn", "检测中…"
+        pill, dot, label = "muted", "warn", "检测中…"
     elif backend_ok:
-        dot, label = "ok", "后端已连接"
+        pill, dot, label = "ok", "ok", "后端已连接"
     else:
-        dot, label = "err", "后端不可达"
+        pill, dot, label = "err", "err", "后端不可达"
     return f"""
 <div class="cf-header">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-    <div>
-      <div class="cf-title">保险理赔智能助手</div>
-      <div class="cf-subtitle">多智能体理赔对话系统 · Orchestrator-Worker</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="cf-logo">CF</div>
+      <div>
+        <div class="cf-title">保险理赔智能助手</div>
+        <div class="cf-subtitle">多智能体理赔对话系统 · Orchestrator-Worker</div>
+      </div>
     </div>
-    <div class="cf-subtitle" style="white-space:nowrap;">
+    <span class="cf-pill {pill}" style="white-space:nowrap;">
       <span class="cf-status-dot {dot}"></span>{label}
-    </div>
+    </span>
   </div>
 </div>"""
 
@@ -193,7 +196,7 @@ async def _check_backend() -> dict:
 
 
 def build_ui() -> gr.Blocks:
-    """组装界面（T055：Apple 设计语言重构——浮层头部/气泡/材质输入区）。
+    """组装界面（T055 Apple 化 + T060 视觉深化：品牌块/状态 pill/交错入场）。
 
     注：Gradio 6 起 theme/css 从 Blocks 构造器移至 launch()（构造器传参仅告警不生效）。
     """
@@ -207,7 +210,7 @@ def build_ui() -> gr.Blocks:
             show_label=False,
             elem_classes=["chatbot"],
         )
-        with gr.Group(elem_classes=["cf-composer"]):
+        with gr.Group(elem_classes=["cf-composer", "cf-rise"]):
             with gr.Row():
                 msg = gr.Textbox(
                     placeholder="输入您的问题，如：保单 POL-2025-0001 住院花了15800元能赔多少？",
@@ -224,7 +227,7 @@ def build_ui() -> gr.Blocks:
                 )
                 upload_btn = gr.Button("📎 识别材料", scale=1)
         with gr.Row():
-            with gr.Column(scale=5, elem_classes=["cf-chips"]):
+            with gr.Column(scale=5, elem_classes=["cf-chips", "cf-rise-2"]):
                 gr.Examples(
                     examples=[
                         ["保单 POL-2025-0001 住院花了15800元能赔多少？"],
@@ -235,7 +238,7 @@ def build_ui() -> gr.Blocks:
                     inputs=msg,
                     label="示例问题",
                 )
-            with gr.Column(scale=1, min_width=120):
+            with gr.Column(scale=1, min_width=120, elem_classes=["cf-rise-3"]):
                 reset = gr.Button("🔄 新会话")
 
         async def respond(message: str, history: list, state: dict) -> tuple[str, list, dict]:
