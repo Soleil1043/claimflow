@@ -1698,7 +1698,14 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "policies.json POL-2025-0001 计算要点"
+   "note": "policies.json POL-2025-0001 计算要点",
+   "expected_tool_order": [
+    "policy_query",
+    "claim_calculator"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-005",
@@ -1780,7 +1787,14 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "policies.json POL-2025-0001 计算要点"
+   "note": "policies.json POL-2025-0001 计算要点",
+   "expected_tool_order": [
+    "policy_query",
+    "claim_calculator"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-008",
@@ -1799,7 +1813,14 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "policies.json POL-2025-0001 计算要点"
+   "note": "policies.json POL-2025-0001 计算要点",
+   "expected_tool_order": [
+    "policy_query",
+    "claim_calculator"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-009",
@@ -1817,6 +1838,13 @@
    "note": "kb03 计算示例 4640 元",
    "expected_numbers": [
     "4640"
+   ],
+   "expected_tool_order": [
+    "policy_query",
+    "claim_calculator"
+   ],
+   "expected_route": [
+    "claim"
    ]
   },
   {
@@ -1836,7 +1864,14 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "policies.json POL-2026-0005 计算要点"
+   "note": "policies.json POL-2026-0005 计算要点",
+   "expected_tool_order": [
+    "policy_query",
+    "claim_calculator"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-011",
@@ -1855,7 +1890,14 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "policies.json POL-2025-0001 计算要点"
+   "note": "policies.json POL-2025-0001 计算要点",
+   "expected_tool_order": [
+    "policy_query",
+    "claim_calculator"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-012",
@@ -1874,7 +1916,14 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "policies.json POL-2025-0001 计算要点"
+   "note": "policies.json POL-2025-0001 计算要点",
+   "expected_tool_order": [
+    "policy_query",
+    "claim_calculator"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-013",
@@ -2048,7 +2097,10 @@
    "id": "MS-023",
    "category": "multi_step",
    "user_input": "帮我核对一下肾结石是否在保障范围内，并计算大概赔付金额",
-   "expected_tools": [],
+   "expected_tools": [
+    "diagnosis_matcher",
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2058,7 +2110,14 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "范围核对+计算"
+   "note": "范围核对+计算",
+   "expected_tool_order": [
+    "diagnosis_matcher",
+    "claim_rule_rag"
+   ],
+   "expected_route": [
+    "medical"
+   ]
   },
   {
    "id": "MS-024",
@@ -2156,7 +2215,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-030",
@@ -2174,7 +2236,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-031",
@@ -2192,7 +2257,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-032",
@@ -2210,7 +2278,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-033",
@@ -2228,7 +2299,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-034",
@@ -2246,7 +2320,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-035",
@@ -2264,7 +2341,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-036",
@@ -2282,7 +2362,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-037",
@@ -2299,7 +2382,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-038",
@@ -2316,7 +2402,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-039",
@@ -2333,7 +2422,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-040",
@@ -2350,7 +2442,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-041",
@@ -2367,7 +2462,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-042",
@@ -2384,7 +2482,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-043",
@@ -2401,7 +2502,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-044",
@@ -2418,7 +2522,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程材料"
+   "note": "流程材料",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-045",
@@ -2436,7 +2543,13 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "综合咨询"
+   "note": "综合咨询",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-046",
@@ -2454,7 +2567,13 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "综合咨询"
+   "note": "综合咨询",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-047",
@@ -2472,7 +2591,13 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "综合咨询"
+   "note": "综合咨询",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-048",
@@ -2490,7 +2615,13 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "综合咨询"
+   "note": "综合咨询",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-049",
@@ -2508,7 +2639,13 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "综合咨询"
+   "note": "综合咨询",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-050",
@@ -2526,7 +2663,13 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "综合咨询"
+   "note": "综合咨询",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-051",
@@ -2544,7 +2687,13 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "综合咨询"
+   "note": "综合咨询",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-052",
@@ -2562,7 +2711,13 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "综合咨询"
+   "note": "综合咨询",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-053",
@@ -2580,7 +2735,13 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "三重诉求"
+   "note": "三重诉求",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-054",
@@ -2598,7 +2759,13 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "重疾给付流程"
+   "note": "重疾给付流程",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-055",
@@ -2615,7 +2782,13 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "三重诉求"
+   "note": "三重诉求",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-056",
@@ -2633,13 +2806,21 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "保单对比"
+   "note": "保单对比",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-057",
    "category": "multi_step",
    "user_input": "我既有医疗险又有重疾险，阑尾炎手术两边都能报吗",
-   "expected_tools": [],
+   "expected_tools": [
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2649,13 +2830,21 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "多保单咨询"
+   "note": "多保单咨询",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-058",
    "category": "multi_step",
    "user_input": "慢性胃炎好几年了最近加重住院，POL-2025-0001 能赔吗",
-   "expected_tools": [],
+   "expected_tools": [
+    "record_query",
+    "diagnosis_matcher",
+    "policy_query",
+    "claim_calculator"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2664,13 +2853,26 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "既往症线索"
+   "note": "既往症线索",
+   "expected_tool_order": [
+    "policy_query",
+    "record_query",
+    "diagnosis_matcher",
+    "claim_calculator"
+   ],
+   "expected_route": [
+    "claim",
+    "medical"
+   ]
   },
   {
    "id": "MS-059",
    "category": "multi_step",
    "user_input": "刚投保半个月就查出肾结石，POL-2026-0005 能赔吗",
-   "expected_tools": [],
+   "expected_tools": [
+    "policy_query",
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2679,7 +2881,14 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "等待期临界"
+   "note": "等待期临界",
+   "expected_tool_order": [
+    "policy_query",
+    "claim_rule_rag"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-060",
@@ -2715,7 +2924,9 @@
    "id": "MS-061",
    "category": "multi_step",
    "user_input": "阑尾炎手术商业保险报完，单位补充医疗还能再报吗",
-   "expected_tools": [],
+   "expected_tools": [
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2724,7 +2935,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "多渠道报销"
+   "note": "多渠道报销",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-062",
@@ -2757,13 +2971,21 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "年度免赔额累计"
+   "note": "年度免赔额累计",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-064",
    "category": "multi_step",
    "user_input": "住院期间用了进口抗生素，费用能计入 POL-2025-0001 的报销基数吗",
-   "expected_tools": [],
+   "expected_tools": [
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2773,7 +2995,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "进口药规则"
+   "note": "进口药规则",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-065",
@@ -2790,7 +3015,13 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "kb11 未备案降比例"
+   "note": "kb11 未备案降比例",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-066",
@@ -2808,13 +3039,18 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "年龄边界"
+   "note": "年龄边界",
+   "expected_tool_order": [
+    "policy_query"
+   ]
   },
   {
    "id": "MS-067",
    "category": "multi_step",
    "user_input": "先门诊检查后住院，检查费和住院费能一起报吗",
-   "expected_tools": [],
+   "expected_tools": [
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2824,13 +3060,18 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "kb01 前后门急诊"
+   "note": "kb01 前后门急诊",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-068",
    "category": "multi_step",
    "user_input": "出院后复查的费用算在这次理赔里吗",
-   "expected_tools": [],
+   "expected_tools": [
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2840,13 +3081,18 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "kb01 出院后门急诊"
+   "note": "kb01 出院后门急诊",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-069",
    "category": "multi_step",
    "user_input": "事故认定书写的对方全责，我的意外险和对方车险怎么赔",
-   "expected_tools": [],
+   "expected_tools": [
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2856,13 +3102,19 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "代位求偿流程"
+   "note": "代位求偿流程",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ],
+   "expected_route": []
   },
   {
    "id": "MS-070",
    "category": "multi_step",
    "user_input": "我想撤销已经提交的理赔申请可以吗",
-   "expected_tools": [],
+   "expected_tools": [
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2872,13 +3124,18 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "流程边界"
+   "note": "流程边界",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-071",
    "category": "multi_step",
    "user_input": "理赔款打到别人账户可以吗",
-   "expected_tools": [],
+   "expected_tools": [
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2888,13 +3145,18 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "账户规则"
+   "note": "账户规则",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-072",
    "category": "multi_step",
    "user_input": "补交材料有截止时间吗",
-   "expected_tools": [],
+   "expected_tools": [
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2904,13 +3166,18 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "补材料时效"
+   "note": "补材料时效",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-073",
    "category": "multi_step",
    "user_input": "claim 到 paid 状态一般要几天",
-   "expected_tools": [],
+   "expected_tools": [
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2920,7 +3187,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "支付时效"
+   "note": "支付时效",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-074",
@@ -2938,13 +3208,21 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "预估计算"
+   "note": "预估计算",
+   "expected_tool_order": [
+    "policy_query"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-075",
    "category": "multi_step",
    "user_input": "出院小结还没拿到，先用诊断证明能立案吗",
-   "expected_tools": [],
+   "expected_tools": [
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2954,7 +3232,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "材料不全立案"
+   "note": "材料不全立案",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-076",
@@ -2971,13 +3252,18 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "年度免赔重置"
+   "note": "年度免赔重置",
+   "expected_tool_order": [
+    "policy_query"
+   ]
   },
   {
    "id": "MS-077",
    "category": "multi_step",
    "user_input": "网上说阑尾炎手术最多赔 2 万是真的吗",
-   "expected_tools": [],
+   "expected_tools": [
+    "claim_rule_rag"
+   ],
    "expected_intent": "complex_consult",
    "must_include": [],
    "any_of": [
@@ -2987,7 +3273,10 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "谣言澄清"
+   "note": "谣言澄清",
+   "expected_tool_order": [
+    "claim_rule_rag"
+   ]
   },
   {
    "id": "MS-078",
@@ -3005,7 +3294,14 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "计算明细请求"
+   "note": "计算明细请求",
+   "expected_tool_order": [
+    "policy_query",
+    "claim_calculator"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-079",
@@ -3023,7 +3319,14 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "床位超标扣除"
+   "note": "床位超标扣除",
+   "expected_tool_order": [
+    "policy_query",
+    "claim_calculator"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "MS-080",
@@ -3041,7 +3344,14 @@
    ],
    "must_not_include": [],
    "expect_human_intervention": false,
-   "note": "kb03 标准锚点变体"
+   "note": "kb03 标准锚点变体",
+   "expected_tool_order": [
+    "policy_query",
+    "claim_calculator"
+   ],
+   "expected_route": [
+    "claim"
+   ]
   },
   {
    "id": "EDGE-001",

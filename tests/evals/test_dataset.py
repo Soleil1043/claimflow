@@ -87,19 +87,15 @@ def test_human_handoff_cases(dataset: EvalDataset) -> None:
 
 
 def test_expected_tools_are_registered_names(dataset: EvalDataset) -> None:
-    """期望工具名必须是系统真实注册的工具（防止评测器永远失分）。"""
-    registered = {
-        "policy_query",
-        "claim_calculator",
-        "claim_rule_rag",
-        "claim_status_query",
-        "medical_record_query",
-        "diagnosis_matcher",
-        "ocr_extract",
-        "compliance_rule_check",
-        "sensitive_filter",
-        "risk_scoring",
-    }
+    """期望工具名必须是系统真实注册的工具（防止评测器永远失分）。
+
+    以 tools.factory.get_default_tool_map() 为准（T069 修正：原硬编码名单里的
+    medical_record_query/claim_status_query 为历史笔误，真实注册名是 record_query，
+    claim_status_query 未注册——工厂名单是唯一事实源）。
+    """
+    from tools.factory import get_default_tool_map
+
+    registered = set(get_default_tool_map())
     for case in dataset.cases:
         for tool in case.expected_tools:
             assert tool in registered, f"{case.id} 期望了未注册的工具 {tool}"
@@ -134,3 +130,22 @@ def test_multiturn_dataset_registered() -> None:
 
     assert "multiturn" in DATASETS and DATASETS["multiturn"].exists()
     assert "adversarial" in DATASETS and DATASETS["adversarial"].exists()
+
+
+def test_trajectory_annotation_coverage(dataset: EvalDataset) -> None:
+    """轨迹标注覆盖（T069，GAP-003）：multi_step order ≥60、route ≥30、合计 ≥80。
+
+    未标满 80 的部分有原则：纯 RAG 咨询 task_plan 为空（route 无从考核）、
+    工具二义（claim_rule_rag 两 Agent 均持有）、个别无工具用例。
+    """
+    ms = [c for c in dataset.cases if c.category == EvalCategory.MULTI_STEP]
+    order = sum(1 for c in ms if c.expected_tool_order)
+    route = sum(1 for c in ms if c.expected_route)
+    assert order >= 60, f"order 标注不足：{order}"
+    assert route >= 30, f"route 标注不足：{route}"
+    assert order + route >= 80
+    # 有 order 的用例必须同时有 expected_tools（order 是其排序投影）
+    for c in ms:
+        if c.expected_tool_order:
+            assert c.expected_tools, f"{c.id} 有 order 无 expected_tools"
+            assert set(c.expected_tool_order) == set(c.expected_tools)
