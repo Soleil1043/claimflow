@@ -1,4 +1,4 @@
-# claim-agent — AI 编程工具工作规范
+# claimflow — AI 编程工具工作规范
 
 > 本文件是 AI 编程工具的全局指令。Claude Code 读 `CLAUDE.md`，TRAE 读 `AGENTS.md`，Cursor 读 `.cursorrules`。
 > 切换工具时将本文件内容复制到对应文件即可。
@@ -91,7 +91,7 @@
 ## 5. 项目结构
 
 ```
-claim-agent/
+claimflow/
 ├── .agent/                    ← AI 工具状态（只追加，不删除）
 │   ├── spec.md                ← 需求规格（Phase 1 产出）
 │   ├── plan.md                ← 技术方案（Phase 2 产出）
@@ -102,7 +102,9 @@ claim-agent/
 ├── app/
 │   ├── api/                   # FastAPI 路由
 │   │   ├── v1/
-│   │   │   ├── conversations.py
+│   │   │   ├── conversations.py   # 会话 / 消息 / 材料上传
+│   │   │   ├── interventions.py   # HITL 人工介入工单（T036）
+│   │   │   ├── evals.py           # 评测 API（T051）
 │   │   │   └── health.py
 │   │   └── dependencies.py    # 依赖注入
 │   ├── core/                  # 核心配置、日志、异常
@@ -112,10 +114,12 @@ claim-agent/
 │   └── main.py                # FastAPI 入口
 │
 ├── agents/                    # Agent 定义
+│   ├── base.py                # AgentDefinition 基类（Worker 子图输入）
 │   ├── orchestrator.py        # 调度 Agent
 │   ├── claim.py               # 理赔核算 Agent
 │   ├── medical.py             # 医疗审核 Agent
-│   └── compliance.py          # 合规风控 Agent
+│   ├── compliance.py          # 合规风控 Agent
+│   └── runner.py              # Worker 子图构建/执行 + 工具轨迹派生（T046/T047）
 │
 ├── nodes/                     # LangGraph 节点
 │   ├── intent.py              # 意图识别节点（with_structured_output 枚举）
@@ -153,13 +157,14 @@ claim-agent/
 │   ├── rag/                   # RAG 服务
 │   │   ├── embedder.py
 │   │   ├── retriever.py
+│   │   ├── reranker.py        # bge-reranker 精排（T043，可开关）
 │   │   └── ingest.py
 │   ├── memory/                # 记忆服务
-│   │   ├── short_term.py
-│   │   ├── working.py
-│   │   └── long_term.py
+│   │   ├── short_term.py      # Checkpoint 会话记忆
+│   │   └── long_term.py       # 长期记忆（官方 Store，T048）
 │   ├── observability/         # 监控指标
 │   │   └── metrics.py
+│   ├── materials.py           # 材料提取（图片/PDF/Word，T049）
 │   └── db/                    # 数据库
 │       ├── models.py
 │       └── session.py
@@ -182,8 +187,17 @@ claim-agent/
 │   ├── agents/
 │   └── workflows/
 │
+├── ui/                        # Gradio 界面（HTTP 调 FastAPI，可分离部署）
+│   ├── app.py                 # 聊天演示（T014）
+│   └── eval_app.py            # 评测台：一键评测/进度/趋势/报告（T051-T053）
+│
+├── workbench/                 # HITL 人工介入工作台（Next.js，T038）
+├── scripts/                   # 种子数据 / verify 验证脚本 / 知识图谱构建
+├── data/                      # 运行数据：mock 种子 / kb_docs 知识库 / graph / qdrant 本地存储
+│
 ├── grafana/                   # Grafana dashboard JSON
 ├── prometheus/                # Prometheus 配置
+├── otelcol/                   # OTel Collector 配置（T039）
 │
 ├── alembic/                   # 数据库迁移
 │   ├── versions/
