@@ -682,3 +682,39 @@ README 增设计系统章节；后续新 UI 一律消费既有令牌，不再散
 - 代理沿用 workbench 模式：浏览器相对路径 /api/* + next.config.ts rewrites（CHATUI_API_TARGET 可覆盖），FastAPI 不引入 CORS
 - `ui/app.py` Gradio 演示界面保留不删除（内部对照与兜底）
 - 任务：T063
+
+---
+
+## D033：评测体系强化批次（Phase 7，2026-09-03）
+
+**背景**：
+62+1 任务全部完成后对评测体系做了一次全面审计（docs/eval-audit-for-ai.md 工程版 /
+eval-audit-for-human.md 人话版）。骨架（A/B 框架、eval_runs 落库、判分纯函数测试）达标，
+但存在 2 个 P0 缺陷（human_precision 指标退化恒 0/1、expected_intent 死标注）、
+4 个 P1 判分深度缺口、4 个 P2 防线缺口。核心结论：**北极星目标"人工转接率 62%→37%"
+在评测体系中不可测不可证**（0 条转人工用例 + 指标公式坏）。
+
+**决策**（任务拆解 T064-T074，顺序 P0→P1→P2→全量回归）：
+
+1. **用例集归属**：
+   - `human_handoff`（转人工 18 条）**并入主数据集**（200→218，v1.1.0）——北极星指标必须在
+     全量报告直接可见，这是"可证明"的前提；历史趋势断裂由 dataset_version 字段承载
+   - `adversarial`（对抗 20 条）、`multiturn`（多轮 30 条）**独立数据集**——红线题与多轮题
+     语义自成体系，混入主基线会把"完成率"指标口径搅浑（对抗题期望的是拒绝而非答对）
+2. **判分增强口径**：
+   - 数值断言 `expected_numbers`：从 must_include/any_of 迁移纯数字关键词为精确断言
+     （千分位/全角/尾 .0 容差），并入 passed——金额算错必挂是理赔系统的底线
+   - LLM-judge 独立列**不并入 passed**（同 D026 轨迹口径：先观察一个周期再决定收敛）；
+     仅判 must_include 为空的用例；judge 校准流程=人工抽检 50 条与 judge 对齐率 ≥85%
+     方可采信（校准本身需真实运行+人工，机制先行）
+3. **意图准确率**：CaseResult.intent_match 以 None 表示"未标注不考核"，分母只计 80 条
+   已标注用例（与轨迹维度 scored 口径对齐）
+4. **CI 门禁**：LLM_API_KEY secret 缺失时 job skip 而非 fail（公开仓库/无 key 贡献者不被
+   误伤）；门禁阈值=完成率降幅 >5pp 退出码 1；HF embedding 模型（BGE-M3 ~2GB）配
+   actions/cache 避免每 CI 全量下载
+5. **统计增强**：tokens_per_case 复用 ab_test 的 Prometheus Counter 差分口径下沉到
+   test_suite；wilson_ci（完成率 95% 区间）进报告与趋势点——88% vs 87% 这类差异是否在
+   噪声内从此可判
+
+**影响**：T064-T074 落地；主数据集版本 1.0.0→1.1.0；全量基线将在 T074 重跑替换
+（旧 baseline.json 改名存档，不删）。

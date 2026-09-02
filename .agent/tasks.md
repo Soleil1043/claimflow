@@ -147,9 +147,9 @@ T001 → T002 → T003 → T004 → T005
 
 ## 进度统计
 
-- 总任务数：63（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049-T053 + Phase 6 五个 + Phase 6.5 四个 + 增量 T063）
-- 已完成：63（2026-08-27 完成 T001-T043；2026-09-01 完成 T049、T044、T045；2026-09-02 完成 T046-T048、T050-T053、T054-T058、T059-T062；2026-09-03 完成 T063——**全部完成**）
-- 进行中：0
+- 总任务数：74（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049-T053 + Phase 6 五个 + Phase 6.5 四个 + 增量 T063 + Phase 7 十一个）
+- 已完成：63（2026-08-27 完成 T001-T043；2026-09-01 完成 T049、T044、T045；2026-09-02 完成 T046-T048、T050-T053、T054-T058、T059-T062；2026-09-03 完成 T063）
+- 进行中：T064-T074（Phase 7 评测体系强化，D033，2026-09-03 启动）
 - 待开始：0
 
 > Phase 5 回归实测（T048，deepseek-v4-flash 全量 200 条，evals/reports/t048_phase5_regression.json）：
@@ -170,3 +170,23 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：Next.js 对话界面（D032，2026-09-03 追加）
 
 - [x] T063: 对话界面 Next.js 重写（chatui/） | 依赖: T058 | 涉及文件: chatui/**、README.md、AGENTS.md、.agent/decisions.md（D032） | 验收: `npm run build` 通过；功能对齐 Gradio 演示界面（会话惰性创建 / 发消息 / 材料上传识别 / 后端健康状态 / 示例问题 / 新会话）；A06 富数据结构化展示（意图与合规三态 pill、agent_steps 处理过程、工具轨迹折叠明细、转人工提示卡）；真实后端对话冒烟 + headless 截图目检；README 界面章节更新
+
+---
+
+### Phase 7：评测体系强化（D033，依据 docs/eval-audit-for-ai.md 审计）— 2026-09-03 启动
+
+> 目标三段：P0 北极星闭环（转人工指标可测可证）→ P1 判分深度（数值断言/judge/轨迹全量/多轮）
+> → P2 防线闭环（对抗集/CI 门禁/统计增强）→ T074 全量回归换基线。
+> 缺陷对照：BUG-001/002（P0）、GAP-001/003/004（P1）、GAP-005/006/007/008（P2）、次要问题（并入 T069/T073）。
+
+- [ ] T064: 修复转人工指标（BUG-001） | 依赖: 无 | 涉及文件: evals/metrics.py、tests/evals/test_scoring.py | 验收: precision=实际转人工中「确实该转」占比、recall=期望转人工中被转的占比（CaseResult 增 expect_human 透传）；空集 0.0，不再恒 0/1 退化；单测全对/全错/空集/混合 4 用例
+- [ ] T065: 转人工期望用例 18 条（human_handoff 类目，BUG-001 分母） | 依赖: T064 | 涉及文件: evals/schemas.py、evals/datasets/eval_dataset.json、tests/evals/test_dataset.py | 验收: HUMAN_HANDOFF 入 EvalCategory 并进主数据集（200→218，版本升 1.1.0）；覆盖合规 REJECT（骗保/高风险表述）/材料严重缺失/保障外情绪激动/法律纠纷/用户主动要求五类；每条 expect_human_intervention=true + must_not_include 违规承诺话术；`--category human_handoff` 真实跑通，precision/recall 非退化且可解释
+- [ ] T066: 意图准确率进报告（BUG-002） | 依赖: 无 | 涉及文件: evals/metrics.py、evals/test_suite.py、tests/evals/test_scoring.py | 验收: CaseResult.intent_match（None=未标注不考核）+ actual_intent 回填（run_case 从 state intent 取）；EvalReport 增 intent_accuracy/intent_scored；80 条标注计入分母；单测
+- [ ] T067: 数值精确断言（GAP-001a） | 依赖: 无 | 涉及文件: evals/schemas.py、evals/metrics.py、scripts/annotate_numbers.py（一次性迁移）、evals/datasets/eval_dataset.json、tests/evals/ | 验收: EvalCase 增 expected_numbers；判分归一化（千分位/全角/小数位 .0 容差）后精确包含、并入 passed；must_include/any_of 中纯数字关键词迁移为精确断言（金额算错必 FAIL）；容差单测
+- [ ] T068: LLM-as-judge 二层判分（GAP-001b） | 依赖: 无 | 涉及文件: evals/judge.py（新）、evals/test_suite.py（--judge 开关）、evals/metrics.py、tests/evals/test_judge.py（新） | 验收: rubric 三维（事实一致性/完整性/合规性）0-2 分、总分 ≥4 判过；仅判 must_include 为空的用例；judge 结果独立列不并入 passed（同 D026 先观察）；LLM mock 单测；校准流程（人工抽检 50 条对齐率 ≥85% 方可采信）写入 decisions
+- [ ] T069: 轨迹标注扩展 + graph_assoc 类目修正（GAP-003 + 次要问题） | 依赖: 无 | 涉及文件: evals/datasets/eval_dataset.json、evals/datasets/eval_graph_assoc.json、scripts/annotate_trajectory.py（一次性辅助）、tests/evals/ | 验收: multi_step 80 条 order/route 全量标注（args/forbidden 维持抽样）；order/route scored ≥80；graph_assoc 数据集 category 修正（标签漂移 23 条 simple_faq→graph_assoc）；数据集校验单测过
+- [ ] T070: 多轮对话用例集 30 条（GAP-004） | 依赖: 无 | 涉及文件: evals/schemas.py（turns 字段）、evals/test_suite.py（逐轮同 thread）、evals/datasets/eval_multiturn.json（新）、tests/evals/ | 验收: turns 默认空=单轮（向后兼容）；run_case 逐轮 ainvoke 同 thread、末轮判分；场景覆盖上文指代/追问材料/中途改口/上下文冲突；单测 fake graph 验证多轮口径；3 条真实冒烟
+- [ ] T071: 安全对抗用例集 20 条（GAP-005） | 依赖: 无 | 涉及文件: evals/datasets/eval_adversarial.json（新）、evals/schemas.py（ADVERSARIAL 类目）、tests/evals/ | 验收: prompt 注入/越权查询/PII 诱导/违规承诺诱导/错别字方言五类各 4 条；独立数据集不污染主基线（D033）；must_not_include（违规输出）+ forbidden_tools（越权调用）判分；数据集校验过
+- [ ] T072: CI 评测回归门禁（GAP-007） | 依赖: T064 | 涉及文件: .github/workflows/ci.yml、scripts/check_eval_gate.py（新）、tests/ | 验收: PR 触发 smoke `--limit 20` 门禁；LLM_API_KEY secret 缺失时 skip 不 fail；门禁脚本：完成率降幅 >5pp 退出码 1（Wilson CI 口径提示）；HF 模型 cache；脚本单测 + 本地手工验证
+- [ ] T073: 报告统计增强（GAP-006/008 + 次要问题） | 依赖: 无 | 涉及文件: evals/metrics.py（wilson_ci/p95/tokens）、evals/test_suite.py（token 差分下沉）、schemas/api.py、app/api/v1/evals.py、ui/eval_app.py、tests/ | 验收: EvalReport 增 p95_duration_s/tokens_per_case（复用 ab_test Prometheus 差分）/wilson_ci；趋势点带 CI 且 UI hover 展示；UI 轨迹与工具准确率 scored=0 显式 N/A（消除"无数据=满分"误读）；单测
+- [ ] T074: 全量回归重跑基线 + 文档口径同步 | 依赖: T064-T073 | 涉及文件: evals/reports/baseline.json、docs/architecture.md、README.md、.agent/progress.md | 验收: 218 条全量真实评测（新指标列全部产出非退化值：human_recall/precision、intent_accuracy、数值断言、轨迹块非 null）；baseline.json 替换存档（旧基线改名保留）；architecture.md §9 指标口径同步
