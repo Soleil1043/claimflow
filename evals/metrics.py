@@ -364,6 +364,22 @@ def result_from_a06(
 # ===== A/B 组间对比（T040） =====
 
 
+def wilson_ci(passed: int, total: int, z: float = 1.96) -> list[float]:
+    """Wilson 95% 置信区间（T072/T073，GAP-008）：小样本率的可信区间。
+
+    比 Wald 正态近似稳健（n=200、p=88% 时半宽约 ±4.5pp）——
+    88.0% vs 87.0% 这类差异是否在噪声内由区间直接可判。
+    total<=0 时返回 [0, 1]。
+    """
+    if total <= 0:
+        return [0.0, 1.0]
+    p = passed / total
+    denom = 1 + z**2 / total
+    center = (p + z**2 / (2 * total)) / denom
+    half = (z * (p * (1 - p) / total + z**2 / (4 * total**2)) ** 0.5) / denom
+    return [round(max(0.0, center - half), 4), round(min(1.0, center + half), 4)]
+
+
 def two_proportion_z_test(
     passed_a: int, total_a: int, passed_b: int, total_b: int
 ) -> dict[str, Any]:
