@@ -178,7 +178,7 @@ cd workbench && npm install && npm run dev
 - 派生令牌（`--cf-shadow-*` / `--cf-ease-out` 等）不影响双栈同源契约（`TOKENS` 核心值不动）
 
 界面截图见 `docs/diagrams/`（t055 聊天 / t056 评测台 / t057 工作台列表与详情 /
-t060 聊天深化版 / t061 评测台深化版）。
+t060 聊天深化版 / t061 评测台深化版 / t062 宽屏居中 + 真 420 移动端适配版）。
 
 ### 8. 追踪栈（可选：OTel Collector + Jaeger）
 
