@@ -1580,3 +1580,57 @@ ReAct 绕圈、乱序、参数幻觉等退化模式的观察面。
 **状态**：✅ 通过验证（评测台与 CLI 报告同目录共存；后续可按需加 SSE 推送/运行历史持久化）
 
 **Git**：`feat: T051 评测 UI（一键启动+进度轮询+报告查看；子进程隔离执行，D027）`
+
+### [T052] 评测运行历史持久化 + git_sha（D028）— 2026-09-02
+
+**背景**：T051 运行注册表在内存，服务重启即失；失败运行与运行↔代码版本绑定完全丢失。
+用户确认执行"2 运行历史持久化 + 3 趋势对比图"，两任务连做。
+
+**操作**：
+- **eval_runs 表**（services/db/models.py + alembic 迁移 c4d08e57b6a2）：run_id 唯一索引 /
+  来源(ui|cli) / 参数(dataset/variant/category/run_limit) / 状态(status 索引) / return_code /
+  **git_sha** / 计数(total/passed/failed) / 完成率与工具准确率冗余数值列（SQLite 无 JSON 查询，
+  趋势查询直接用）/ report_name / error / summary 快照 / 日志尾(末 50 行) / 起止时间
+- **单写者两阶段**（D028）：UI 运行由 EvalRunManager 写（start=running → finish=终态+summary
+  快照）；CLI 运行由 test_suite 收尾自记（main 重构为 _run_suite + finally 自记，进程级失败也
+  留痕）；子进程注入 EVAL_MANAGED_BY=api 跳过自记防双写；历史读写全部 fail-open（DB 故障
+  只 warn，评测不受影响）；get_git_sha() 进程内缓存（git rev-parse --short，不可用回退 unknown）
+- **API**：/runs 改为 DB 历史为主 + 内存合并（running 实时覆盖、终态以 DB 为准带率值——
+  实测发现内存终态覆盖 DB 行致 rate 丢失的缺陷并修复）；/runs/{id} 同规则互补兜底；
+  schemas 增 source/git_sha/率列；报告 JSON 增 git_sha；UI 报告摘要展示 commit
+- **本地 dev 库**：eval_runs 已由 API 启动 init_db 建出，alembic stamp head 同步版本记录
+
+**验证方式**：
+- `uv run pytest -q` → **420 passed**（test_evals 增 4：历史落库+重启可查 / fail-open /
+  git_sha 缓存 / CLI 自记两态；tests/db 表清单断言更新为 8 张）
+- 迁移在临时 SQLite 全程验证：upgrade head → downgrade base → 再 upgrade，8 表 + 版本戳正确
+  （排障发现 database_url 是 property、DATABASE_URL 环境变量不生效，改进验证方式为程序化
+  临时改写 property）
+- 真实 e2e：API 发起 2 条评测 → completed → DB 行 source=ui / git_sha=f8b7d48 / 率值齐备
+
+**状态**：✅ 通过验证
+
+**Git**：`feat: T052 评测运行历史持久化 + git_sha（eval_runs 表，单写者两阶段 + fail-open，D028）`
+
+### [T053] 评测趋势对比图（/trends 双源合并 + plotly 折线，D029）— 2026-09-02
+
+**背景**：T052 前的 20+ 份存量报告没有历史行；趋势图若只读 eval_runs 表会丢掉全部历史。
+
+**操作**：
+- **/api/v1/evals/trends**：DB 历史行（completed 且带率）+ reports 目录文件双源合并，
+  按 report_name 去重（DB 行覆盖），时间升序；每点含 time/率×2/passed/total/variant/
+  **git_sha**/source(db|report)/label（run_id 或文件名）
+- **UI 趋势区**（ui/eval_app.py）：plotly 双指标折线（任务完成率/工具准确率，y 轴百分比），
+  hover 显示 run 标签/变体/来源/commit/通过数；数据集+变体下拉过滤（meta 驱动可选项）；
+  页面加载自动出图、手动刷新按钮、**运行结束后随轮询自动把新点画上**（poll 输出扩展）
+- **依赖**：plotly==7.0.0（uv add，gr.Plot 原生支持交互 hover——趋势图可读性核心需求）
+
+**验证方式**：
+- `uv run pytest -q` → **420 passed**（增 2：双源合并/去重/升序 + 图形构建与过滤）
+- 真实 e2e：/trends 14 点 = 13 个历史存量报告（baseline.json 2026-08-25 起）+ 1 个 DB 行；
+  UI refresh_trends 对真实后端返回 2 trace Figure，曲线上可见 T048 回归的 87.0% 等历史节点；
+  过滤组合无数据时正确返回空
+
+**状态**：✅ 通过验证（SSE 推送按优先级评估挂起不做）
+
+**Git**：`feat: T053 评测趋势对比图（/trends 双源合并 + plotly 双指标折线，D029）`
