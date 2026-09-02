@@ -2,7 +2,7 @@
 
 覆盖（F13）：
 - 对话链路：BackendClient + chat 回调 → 后端 API → 工具链 → 合规回答（T014 原有）
-- 上传链路：upload_image 回调 → A07 → OCR（vision 或 mock_fallback）→ 结果展示（T023 补齐）
+- 上传链路：upload_material 回调 → A07 → OCR（vision 或 mock_fallback）→ 结果展示（T023 补齐）
 
 前置：后端已启动（uv run uvicorn app.main:app --port 8000）；.env 配置真实 API Key。
 """
@@ -70,9 +70,9 @@ async def main() -> None:
     print(reply2[:150])
     assert "10,000" in reply2 or "10000" in reply2 or "1万" in reply2.replace(" ", ""), "第二轮未正确引用上下文"
 
-    # ===== 第三轮：上传链路（upload_image 回调 → A07 → OCR） =====
+    # ===== 第三轮：上传链路（upload_material 回调 → A07 → OCR） =====
     cert_path = _make_certificate_png(Path("data"))
-    history2, session_state2 = await ui_app.upload_image(str(cert_path), history, session_state)
+    history2, session_state2 = await ui_app.upload_material(str(cert_path), history, session_state)
     print("=== 上传识别展示（最后一条助手消息）===")
     upload_reply = history2[-1]["content"]
     print(upload_reply)

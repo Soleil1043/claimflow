@@ -515,6 +515,8 @@ APP_CSS = f"""
   padding: 10px 12px;
   box-shadow: var(--cf-shadow-2);
 }}
+/* 行内控件垂直居中：unequal-height 行顶对齐会让矮按钮下方露出透明底 */
+.cf-composer .row {{ align-items: center; }}
 
 /* 示例问题 chips（Gradio 6 渲染为 .gallery-item 按钮，需提高特异性覆盖默认透明样式） */
 .gradio-container .cf-chips .gallery-item,

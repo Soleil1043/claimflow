@@ -220,12 +220,11 @@ def build_ui() -> gr.Blocks:
                 )
                 submit = gr.Button("发送", variant="primary", scale=1)
             with gr.Row():
-                upload = gr.File(
-                    label="上传诊断证明/发票（图片 / PDF / Word，自动识别材料字段）",
+                upload_btn = gr.UploadButton(
+                    "📎 上传并识别材料（图片 / PDF / Word，自动提取字段）",
                     file_types=[".png", ".jpg", ".jpeg", ".webp", ".bmp", ".pdf", ".docx"],
                     scale=5,
                 )
-                upload_btn = gr.Button("📎 识别材料", scale=1)
         with gr.Row():
             with gr.Column(scale=5, elem_classes=["cf-chips", "cf-rise-2"]):
                 gr.Examples(
@@ -252,7 +251,7 @@ def build_ui() -> gr.Blocks:
         demo.load(_check_backend, outputs=[header])
         submit.click(respond, [msg, chatbot, session_state], [msg, chatbot, session_state])
         msg.submit(respond, [msg, chatbot, session_state], [msg, chatbot, session_state])
-        upload_btn.click(upload_material, [upload, chatbot, session_state], [chatbot, session_state])
+        upload_btn.click(upload_material, [upload_btn, chatbot, session_state], [chatbot, session_state])
         reset.click(new_conversation, outputs=[chatbot, session_state])
     return demo
 
