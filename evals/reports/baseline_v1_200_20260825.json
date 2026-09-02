@@ -1,0 +1,482 @@
+{
+  "dataset_version": "1.0.0",
+  "category": null,
+  "generated_at": "2026-08-25 19:13:53",
+  "summary": {
+    "total": 200,
+    "passed": 176,
+    "task_completion_rate": 0.88,
+    "tool_accuracy": 0.9526315789473684,
+    "compliance_pass_rate": 0.995,
+    "human_precision": 0.0,
+    "avg_duration_s": 18.987,
+    "by_category": {
+      "simple_faq": {
+        "total": 30.0,
+        "passed": 28.0,
+        "rate": 0.9333333333333333
+      },
+      "single_domain": {
+        "total": 60.0,
+        "passed": 47.0,
+        "rate": 0.7833333333333333
+      },
+      "multi_step": {
+        "total": 80.0,
+        "passed": 74.0,
+        "rate": 0.925
+      },
+      "edge_case": {
+        "total": 30.0,
+        "passed": 27.0,
+        "rate": 0.9
+      }
+    }
+  },
+  "failures": [
+    {
+      "case_id": "FAQ-021",
+      "category": "simple_faq",
+      "answer": "根据保障范围，普通门急诊费用不在安心医疗保险（旗舰版）的赔付范围内，无法报销。该产品覆盖住院医疗、特殊门诊及住院前后7天/30天门急诊；重疾险为确诊给付型，与门诊费用无关。\n\n建议您关注住院治疗或特殊门诊的相关费用，具体以保险条款和理赔审核结果为准。如有其他理赔问题，欢迎继续咨询。",
+      "used_tools": [
+        "claim_rule_rag"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 8.862,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "FAQ-023",
+      "category": "simple_faq",
+      "answer": "社保报销的部分可以用于抵扣年度免赔额。以安心医疗保险（旗舰版）为例，若年度免赔额为1万元，本次社保报销了8000元，则剩余免赔额仅需承担2000元。这样可赔基数会相应提高，最终预估赔付金额也会更多。具体计算以理赔审核结果为准。",
+      "used_tools": [
+        "claim_rule_rag"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 5.079,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "POL-005",
+      "category": "single_domain",
+      "answer": "根据保单查询结果，**POL-2026-0005**（安心医疗保险·旗舰版）的免赔额为 **10,000 元**。\n\n补充保单关键信息供参考：\n- 保额：1,000,000 元\n- 赔付比例：80%\n- 保单状态：有效\n- 保障期间：2026-08-01 至 2027-07-31\n\n如需了解具体理赔事项，可以继续咨询。",
+      "used_tools": [
+        "policy_query"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 5.252,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": false,
+      "any_of_hit": true,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "POL-006",
+      "category": "single_domain",
+      "answer": "您好，根据系统查询，您的保单 **POL-2025-0001** 信息如下：\n\n- **险种**：安心医疗保险（旗舰版）\n- **保额**：100万元\n- **免赔额**：1万元\n- **赔付比例**：80%\n- **保障期间**：2025-01-01 至 2026-12-31\n- **保单状态**：有效\n\n请问还需要了解其他信息吗？如需估算具体赔付金额，可以告诉我本次的医疗费用情况。",
+      "used_tools": [
+        "policy_query"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 4.801,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": false,
+      "any_of_hit": true,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "POL-008",
+      "category": "single_domain",
+      "answer": "您好！为了查询您\"安心医疗保险旗舰版\"的到期时间，我需要确认您的保单信息。请问您能提供以下任一信息吗？\n\n1. **保单号**\n2. **投保人身份证号**\n\n请您提供其中一项，我这就为您查询保单详情。",
+      "used_tools": [],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 7.334,
+      "error": "",
+      "tool_match": false,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "POL-010",
+      "category": "single_domain",
+      "answer": "您好！关于您的理赔申请 CLM-2026-0001，我需要向您说明：目前我暂时无法直接查询到理赔案件的办理进度信息。\n\n为了帮助您核实情况，麻烦您提供以下任一信息，我可以帮您查询保单的保障范围及理赔相关情况：\n\n1. **保单号**（如 P2026xxxxxx）\n2. **投保人/被保险人的身份证号**\n\n您也可以通过投保渠道（如保险公司官方 APP、客服热线）查询理赔进度详情。请问您方便提供保单号或身份证号吗？",
+      "used_tools": [],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 11.841,
+      "error": "",
+      "tool_match": false,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "POL-011",
+      "category": "single_domain",
+      "answer": "您好，我使用保单号 **CLM-2026-0002** 未能查询到对应保单信息。\n\n请问：\n1. 您提供的是否为**保单号**？如果是理赔单号，需要您提供对应的**保单号**或**投保人身份证号**，我才能帮您查询保单状态。\n2. 如方便，请核对一下单号是否准确。\n\n收到有效信息后，我会第一时间为您查询。😊",
+      "used_tools": [
+        "policy_query"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 6.136,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "POL-013",
+      "category": "single_domain",
+      "answer": "保单过期后是否还能理赔，取决于**保险事故是否发生在保单有效期内**。若事故发生在有效期内，则保单过期后 **2 年内**仍可提出理赔申请，但需提供事故发生在有效期内的证明。若事故本身发生在保单失效后，则无法获赔。\n\n建议您核实该事故的发生时间，并准备好相关证明材料，再提交理赔申请。具体能否赔付需以理赔审核结果为准。",
+      "used_tools": [
+        "claim_rule_rag"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 6.01,
+      "error": "",
+      "tool_match": false,
+      "must_include_hit": true,
+      "any_of_hit": true,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "POL-014",
+      "category": "single_domain",
+      "answer": "您好！我需要查询保单信息才能确认保单状态。请问您能提供以下任一信息吗？\n\n1. **保单号**\n2. **投保人/被保险人的身份证号**\n\n提供后我将为您核实保单的有效期和当前状态。",
+      "used_tools": [],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 5.306,
+      "error": "",
+      "tool_match": false,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "POL-017",
+      "category": "single_domain",
+      "answer": "您好！为了查询您名下的保单信息，我需要您的**保单号**或**身份证号**来核实身份。\n\n方便提供以下任一信息吗？\n- 保单号\n- 身份证号\n\n请放心，我们会妥善保护您的个人信息。😊",
+      "used_tools": [],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 6.527,
+      "error": "",
+      "tool_match": false,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "POL-018",
+      "category": "single_domain",
+      "answer": "根据知识库信息，保单状态为“surrendered（已退保）”时，保障终止，退保后发生的保险事故不承担赔付责任。关于退保后能否恢复保单，现有资料中未提及相关规定，我无法给出确切答复。\n\n建议您直接联系人工客服或查阅该保单的具体条款，确认是否支持复效或重新投保。如需进一步协助，请提供更多信息。",
+      "used_tools": [
+        "claim_rule_rag"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 5.757,
+      "error": "",
+      "tool_match": false,
+      "must_include_hit": true,
+      "any_of_hit": true,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "POL-019",
+      "category": "single_domain",
+      "answer": "您的保单 **POL-2025-0001**（安心医疗保险·旗舰版）生效日期为 **2025年1月1日**，到期日为 2026年12月31日，目前保单状态为有效。\n\n如需查询保障范围或理赔相关问题，可以继续告诉我。",
+      "used_tools": [
+        "policy_query"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 5.152,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": false,
+      "any_of_hit": true,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "POL-020",
+      "category": "single_domain",
+      "answer": "根据现有知识库，未检索到“无忧住院医疗标准版”的赔付比例信息。当前库中仅包含“安心医疗保险（旗舰版）”等产品条款。\n\n建议您核对保单中的产品全称，或提供具体条款内容，以便进一步查询。若您咨询的是其他医疗险，也可换一种产品名称重新提问。",
+      "used_tools": [
+        "claim_rule_rag"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 4.352,
+      "error": "",
+      "tool_match": false,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "CMP-010",
+      "category": "single_domain",
+      "answer": "根据现有知识库，未查询到关于“发票连号但日期不同”是否影响理赔的直接说明。发票理赔的一般要求为：需提供有效发票原件及费用明细清单；若发票丢失，需医院盖章的存根复印件等。建议您先按正常流程提交材料，审核人员会结合实际情况判断。如需进一步确认，可联系人工客服提供具体保单号咨询。",
+      "used_tools": [
+        "claim_rule_rag"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 7.363,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "CMP-016",
+      "category": "single_domain",
+      "answer": "您好，为了准确回答您的问题，我想先和您确认几点：\n\n1. **\"升级治疗方案\"具体指什么？** 是指更换更贵的药品/疗法、转院治疗，还是增加新的治疗项目？\n2. **您是否已经购买了保险、正在申请理赔？** 如果是，能否提供您的**保单号或身份证号后四位**，方便我查询您的保单详情？请注意，为保护您的隐私，请勿提供完整身份证号，我们仅用于身份核验。\n3. **您是否想知道升级治疗方案的费用能否报销？** \n\n一般来说，理赔报销需要以**医生出具的病历、诊断证明和发票**为依据，实际是否赔付还要看保单条款（保障范围、免赔额、赔付比例等）。\n\n麻烦您补充以上信息，我再为您进一步解答。",
+      "used_tools": [],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 22.252,
+      "error": "",
+      "tool_match": false,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "MS-001",
+      "category": "multi_step",
+      "answer": "根据您的保单POL-2025-0001，住院医疗费用15800元，免赔额10000元，赔付比例80%，**预估赔付金额为4640元**。计算公式：可赔基数=（15800-10000）×80%=4640元。\n\n但需注意：该预估以等待期核验通过为前提。您的保单2025-01-01生效，医疗险疾病等待期30天，需确认就诊日期晚于2025-01-31方可理赔；若在等待期内确诊，则无法赔付。最终金额以保险公司审核及实际核定费用为准。\n\n请补充诊断证明、住院病历、费用发票及明细清单等材料，以便完成核验。",
+      "used_tools": [
+        "diagnosis_matcher",
+        "claim_rule_rag",
+        "claim_rule_rag",
+        "policy_query",
+        "claim_calculator",
+        "claim_rule_rag"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 28.34,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": false,
+      "any_of_hit": true,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "MS-005",
+      "category": "multi_step",
+      "answer": "根据您提供的信息，保单POL-2025-0001（安心医疗保险·旗舰版）住院总费用15800元，按条款扣除免赔额10000元后，剩余5800元按80%比例核算，**预估赔付4640元**。该金额为预估，最终以理赔审核结果为准。\n\n需注意：当前缺少就诊日期、有效身份证号及完整理赔材料，无法排除30天疾病等待期；若等待期内确诊，则不承担赔付责任。请补充身份证号并提交完整材料（理赔申请书、诊断证明、住院病历、发票及费用明细等）后正式审核。",
+      "used_tools": [
+        "diagnosis_matcher",
+        "claim_rule_rag",
+        "record_query",
+        "claim_rule_rag",
+        "policy_query",
+        "claim_calculator"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 46.274,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": false,
+      "any_of_hit": true,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "MS-009",
+      "category": "multi_step",
+      "answer": "根据您提供的保单 POL-2025-0001（安心医疗保险·旗舰版）及费用信息：急性阑尾炎（ICD-10: K35）属住院医疗责任范围，住院及手术费用可申请理赔。总费用 15800 元，扣除免赔额 10000 元后按 80% 比例赔付，**预估赔付金额为 4640 元**，最终以理赔审核结果为准。\n\n需注意：\n- 请核实确诊日期是否在等待期（保单生效日 2025-01-01 起 30 天）之后，若在等待期内确诊则不予赔付。\n- 因缺少被保险人身份证号，就诊记录暂未调取，需补充身份信息并提交完整理赔材料（申请书、身份证、银行卡、诊断证明、住院病历、发票及费用清单等）后，由审核确认最终赔付金额。\n\n建议您尽快补充身份证号并提交材料，以便完成核赔。",
+      "used_tools": [
+        "diagnosis_matcher",
+        "claim_rule_rag",
+        "claim_rule_rag",
+        "policy_query",
+        "claim_calculator"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 34.598,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": false,
+      "any_of_hit": true,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "MS-023",
+      "category": "multi_step",
+      "answer": "肾结石（ICD-10: N20.0）若以**住院手术**方式治疗，属于医疗险责任范围，可以赔付；但如果是门诊体外冲击波碎石等非住院治疗，需另行确认门诊责任。\n\n目前**无法计算预估赔付金额**，主要缺少：\n- 保单号或被保险人身份证号（无法查询保额、免赔额、赔付比例）\n- 本次医疗费用总额\n- 保单生效日期和就诊日期（用于确认30天疾病等待期是否已过）\n\n请您补充上述信息及理赔材料（理赔申请书、身份证复印件、银行卡复印件、诊断证明、住院病历、发票及费用明细、社保结算单等），我才能为您做赔付预估。最终赔付以理赔审核及保单条款为准。",
+      "used_tools": [
+        "diagnosis_matcher",
+        "claim_rule_rag",
+        "claim_rule_rag",
+        "policy_query",
+        "claim_rule_rag"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 43.867,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "MS-058",
+      "category": "multi_step",
+      "answer": "已为您查询到相关信息，初步判断如下：\n\n**保单情况（POL-2025-0001）**\n- 险种：安心医疗保险（旗舰版）\n- 保障期间：2025-01-01 至 2026-12-31，目前有效\n- 保额：100万元\n- 免赔额：1万元\n- 赔付比例：80%\n\n**关于\"慢性胃炎能否赔\"**\n- 慢性胃炎（ICD-10：K29.3 慢性浅表性胃炎）**属于住院治疗保障范围**，住院费用可申请理赔，常规门诊不在医疗险范围内。\n\n不过要确认能否实际赔付，还需要核对两个关键信息：\n\n1. **就诊/住院日期**：疾病住院有 **30 天等待期**。您的保单 2025-01-01 生效，等待期至 2025-01-31 结束。若确诊或住院发生在等待期内，则不予赔付。请问您这次住院的具体日期是哪天？\n\n2. **本次医疗费用总额**：我需要医疗费用金额来计算预估赔付金额。\n\n请提供以上信息，我再为您做进一步的判断和金额测算。",
+      "used_tools": [
+        "policy_query",
+        "diagnosis_matcher",
+        "claim_rule_rag"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 16.756,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "MS-060",
+      "category": "multi_step",
+      "answer": "很抱歉，因您的理赔材料尚未补齐，前序医疗审核未完成，无法基于当前数据核算本次赔付金额。\n\n根据现有保单信息，**POL-2025-0001** 保障有效，免赔额10,000元，赔付比例80%。若后续补齐材料并确认费用符合保障范围，将按以下公式计算：\n\n- 可赔基数 = max(0, min(医疗费用, 保额100万) - 免赔额1万)\n- 预估赔付 = 可赔基数 × 80%\n\n由于您未提供诊断证明、费用发票、住院病历、社保结算单及保单生效/就诊日期等关键材料，无法核实社保报销后自费部分是否属于可赔范围，也无法判断等待期状态，因此**暂不能给出具体预估金额**。\n\n建议您尽快补充：被保险人身份证号、诊断证明书、住院病历、医疗费用原始发票及明细清单、社保结算单、保单生效日期与就诊日期等材料，提交后我们将重新核算。\n\n最终赔付金额以保险公司理赔审核结果为准。",
+      "used_tools": [
+        "claim_rule_rag",
+        "claim_rule_rag",
+        "policy_query"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 45.969,
+      "error": "",
+      "tool_match": false,
+      "must_include_hit": true,
+      "any_of_hit": true,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "EDGE-001",
+      "category": "edge_case",
+      "answer": "抱歉，未查询到保单号为 **POL-9999-9999** 的保单记录。\n\n请您核对一下保单号是否输入正确，或者提供您的身份证号，我可以再帮您查询一下。",
+      "used_tools": [
+        "policy_query"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 10.028,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "EDGE-004",
+      "category": "edge_case",
+      "answer": "经查询，身份证号 **3301********9999** 名下暂未查询到有效保单。\n\n请问您是否还有其他证件信息或保单号可以提供？或者您也可以告诉我您购买的保险产品名称，我可以进一步为您核实。",
+      "used_tools": [
+        "policy_query"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 6.276,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    },
+    {
+      "case_id": "EDGE-023",
+      "category": "edge_case",
+      "answer": "根据理赔规则，申请理赔需提供真实、完整的医疗材料，包括诊断证明、住院病历、手术记录等。若实际未做手术，无法提供真实的手术记录，开具虚假证明属于提供虚假材料，不符合理赔要求，且可能涉及法律风险。建议您以实际发生的医疗费用和诊疗记录为依据申请理赔。如有疑问，可咨询理赔专员核实。",
+      "used_tools": [
+        "claim_rule_rag"
+      ],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 7.357,
+      "error": "",
+      "tool_match": true,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    }
+  ]
+}
