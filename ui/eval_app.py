@@ -46,6 +46,11 @@ class EvalClient:
         resp.raise_for_status()
         return resp.json()["reports"]
 
+    async def trends(self) -> dict:
+        resp = await self._http.get("/api/v1/evals/trends")
+        resp.raise_for_status()
+        return resp.json()
+
     async def report(self, name: str) -> dict:
         resp = await self._http.get(f"/api/v1/evals/reports/{name}")
         resp.raise_for_status()
@@ -147,16 +152,70 @@ def _rate(traj: dict, key: str) -> str:
     return f"{traj.get(key, {}).get('rate', 1.0):.1%}"
 
 
-async def load_meta() -> tuple[object, object, object]:
-    """页面加载：填充数据集/分类/变体下拉。"""
+def _build_trend_figure(points: list[dict], dataset: str, variant: str):
+    """趋势点 → plotly 双指标折线（过滤条件为“全部”时不限）；无数据返回 None。"""
+    rows = [
+        p
+        for p in points
+        if (dataset in (None, "", "全部") or p["dataset"] == dataset)
+        and (variant in (None, "", "全部") or p["variant"] == variant)
+    ]
+    if not rows:
+        return None
+    import plotly.graph_objects as go
+
+    x = [p["time"] for p in rows]
+    hover = [
+        f"{p['label']}<br>{p['variant']} · {p['source']}<br>"
+        f"commit {p['git_sha']}<br>{p['passed']}/{p['total']} 通过"
+        for p in rows
+    ]
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=[p["task_completion_rate"] * 100 for p in rows],
+            name="任务完成率",
+            mode="lines+markers",
+            hovertext=hover,
+            hoverinfo="text",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=[p["tool_accuracy"] * 100 for p in rows],
+            name="工具调用准确率",
+            mode="lines+markers",
+            hovertext=hover,
+            hoverinfo="text",
+        )
+    )
+    fig.update_layout(
+        title="评测指标趋势（hover 查看运行/commit 明细）",
+        xaxis_title="评测时间",
+        yaxis_title="比率 (%)",
+        yaxis_range=[0, 105],
+        hovermode="x unified",
+        legend={"orientation": "h"},
+        margin={"l": 50, "r": 20, "t": 50, "b": 40},
+    )
+    return fig
+
+
+async def load_meta() -> tuple:
+    """页面加载：填充运行参数与趋势过滤的下拉可选项。"""
     try:
         m = await client.meta()
     except httpx.HTTPError:
-        return gr.update(), gr.update(), gr.update()
+        return gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+    variant_names = [v["name"] for v in m["variants"]]
     return (
         gr.update(choices=m["datasets"]),
         gr.update(choices=["全部", *m["categories"]]),
-        gr.update(choices=[v["name"] for v in m["variants"]]),
+        gr.update(choices=variant_names),
+        gr.update(choices=["全部", *m["datasets"]]),
+        gr.update(choices=["全部", *variant_names]),
     )
 
 
@@ -188,9 +247,9 @@ async def start_eval(
     )
 
 
-async def poll(state: dict) -> tuple:
-    """定时轮询：更新状态与日志；结束后刷新报告列表并自动加载最新报告。"""
-    idle = (gr.update(), gr.update(), gr.update(), gr.update(), gr.update())
+async def poll(state: dict, trend_dataset: str, trend_variant: str) -> tuple:
+    """定时轮询：更新状态与日志；结束后刷新报告/趋势并自动加载最新报告。"""
+    idle = (gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update())
     run_id = state.get("run_id") if isinstance(state, dict) else None
     if not run_id or state.get("done"):
         return idle
@@ -237,6 +296,15 @@ async def refresh_reports() -> object:
     return gr.update(choices=[r["name"] for r in reports])
 
 
+async def refresh_trends(dataset: str, variant: str):
+    """拉取 /trends 并按过滤条件重绘趋势图；后端不可达时清空。"""
+    try:
+        data = await client.trends()
+    except httpx.HTTPError:
+        return None
+    return _build_trend_figure(data["points"], dataset, variant)
+
+
 async def show_report(name: str | None) -> tuple[str, list[list]]:
     """报告详情：摘要 Markdown + 失败用例表。"""
     if not name:
@@ -266,6 +334,13 @@ def build_ui() -> gr.Blocks:
         status_md = gr.Markdown("待启动。")
         log_box = gr.Textbox(label="运行日志（逐用例 PASS/FAIL）", lines=12, interactive=False)
 
+        gr.Markdown("## 📈 趋势")
+        with gr.Row():
+            trend_dataset_dd = gr.Dropdown(label="数据集过滤", value="全部", choices=["全部"])
+            trend_variant_dd = gr.Dropdown(label="变体过滤", value="全部", choices=["全部"])
+            trend_refresh_btn = gr.Button("🔄 刷新趋势", scale=0)
+        trend_plot = gr.Plot(label="任务完成率 / 工具调用准确率 随时间变化")
+
         gr.Markdown("## 🗂️ 历史报告")
         with gr.Row():
             reports_dd = gr.Dropdown(label="报告文件", choices=[], scale=5)
@@ -278,18 +353,25 @@ def build_ui() -> gr.Blocks:
             interactive=False,
         )
 
-        demo.load(load_meta, outputs=[dataset_dd, category_dd, variant_dd])
+        demo.load(
+            load_meta,
+            outputs=[dataset_dd, category_dd, variant_dd, trend_dataset_dd, trend_variant_dd],
+        )
         demo.load(refresh_reports, outputs=[reports_dd])
+        demo.load(refresh_trends, inputs=[trend_dataset_dd, trend_variant_dd], outputs=[trend_plot])
 
         start_btn.click(
             start_eval, [dataset_dd, category_dd, limit_num, variant_dd, state], [status_md, state]
         )
         timer = gr.Timer(POLL_SECONDS)
         timer.tick(
-            poll, inputs=[state], outputs=[status_md, log_box, reports_dd, summary_md, fails_df]
+            poll,
+            inputs=[state, trend_dataset_dd, trend_variant_dd],
+            outputs=[status_md, log_box, reports_dd, summary_md, fails_df, trend_plot],
         )
         reports_dd.input(show_report, [reports_dd], [summary_md, fails_df])
         refresh_btn.click(refresh_reports, outputs=[reports_dd])
+        trend_refresh_btn.click(refresh_trends, [trend_dataset_dd, trend_variant_dd], [trend_plot])
     return demo
 
 

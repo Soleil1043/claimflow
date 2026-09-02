@@ -303,3 +303,25 @@ class EvalMetaResponse(BaseModel):
     datasets: list[str]
     categories: list[str]
     variants: list[EvalVariantInfo]
+
+
+class EvalTrendPoint(BaseModel):
+    """趋势图数据点（T053）：一次完成态评测的指标快照。"""
+
+    time: str = Field(description="时间（%Y-%m-%d %H:%M:%S，升序 x 轴）")
+    dataset: str = ""
+    variant: str = ""
+    task_completion_rate: float = 0.0
+    tool_accuracy: float = 0.0
+    passed: int = 0
+    total: int = 0
+    git_sha: str = "unknown"
+    # db（eval_runs 历史行）/ report（reports 目录文件，历史存量）
+    source: str = "report"
+    label: str = Field(default="", description="点标签（run_id 或报告文件名，hover 展示）")
+
+
+class EvalTrendsResponse(BaseModel):
+    """GET /api/v1/evals/trends 响应（时间升序，UI 侧按数据集/变体过滤）。"""
+
+    points: list[EvalTrendPoint]

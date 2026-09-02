@@ -26,6 +26,8 @@ from schemas.api import (
     EvalRunStartRequest,
     EvalRunStartResponse,
     EvalRunStatusResponse,
+    EvalTrendPoint,
+    EvalTrendsResponse,
     EvalVariantInfo,
 )
 from services.eval_runner import EvalRun, EvalRunParams, RunAlreadyActiveError, get_eval_runner
@@ -83,6 +85,7 @@ def _status_from_row(row: Any) -> EvalRunStatusResponse:
             limit=row.run_limit,
             variant=row.variant,
         ),
+        current=row.total,  # 终态行无 current 列：跑完即全部处理
         total=row.total,
         passed=row.passed,
         failed=row.failed,
@@ -126,7 +129,9 @@ async def list_runs() -> EvalRunListResponse:
     for row in await list_history(50):
         merged[row.run_id] = _brief_from_row(row)
     for run in get_eval_runner().list_runs():
-        merged[run.run_id] = _brief(run)  # 内存视图覆盖同名 DB 行（running 进度实时）
+        # running 内存覆盖（实时进度）；终态以 DB 行为准（带率值），DB 缺行时才用内存兜底
+        if run.status == "running" or run.run_id not in merged:
+            merged[run.run_id] = _brief(run)
     items = sorted(merged.values(), key=lambda b: b.created_at, reverse=True)
     return EvalRunListResponse(runs=items[:50])
 
@@ -134,6 +139,10 @@ async def list_runs() -> EvalRunListResponse:
 @router.get("/runs/{run_id}", response_model=EvalRunStatusResponse)
 async def get_run(run_id: str) -> EvalRunStatusResponse:
     run = get_eval_runner().get_run(run_id)
+    row = await get_history_run(run_id)
+    # 终态优先取 DB 行（带率值/summary）；running 取内存（实时进度）；两者互补兜底
+    if row is not None and (run is None or run.status != "running"):
+        return _status_from_row(row)
     if run is not None:
         return EvalRunStatusResponse(
             run_id=run.run_id,
@@ -221,6 +230,65 @@ async def meta() -> EvalMetaResponse:
             EvalVariantInfo(name=v.name, description=v.description) for v in VARIANTS.values()
         ],
     )
+
+
+@router.get("/trends", response_model=EvalTrendsResponse)
+async def trends() -> EvalTrendsResponse:
+    """趋势数据（T053，D029）：DB 历史行 + reports 文件双源合并，按 report_name 去重。
+
+    完成态且带率值的运行才有意义；文件源覆盖 T052 之前的存量报告（baseline 等）。
+    """
+    from services.eval_history import list_runs as list_history
+
+    points: list[EvalTrendPoint] = []
+    covered_reports: set[str] = set()
+
+    for row in await list_history(500):
+        if row.status != "completed" or row.task_completion_rate is None:
+            continue
+        if row.report_name:
+            covered_reports.add(row.report_name)
+        points.append(
+            EvalTrendPoint(
+                time=_fmt_dt(row.finished_at or row.created_at) or "",
+                dataset=row.dataset,
+                variant=row.variant,
+                task_completion_rate=float(row.task_completion_rate),
+                tool_accuracy=float(row.tool_accuracy) if row.tool_accuracy is not None else 0.0,
+                passed=row.passed,
+                total=row.total,
+                git_sha=row.git_sha,
+                source="db",
+                label=row.run_id,
+            )
+        )
+
+    for path in sorted(get_eval_runner().reports_dir.glob("*.json")):
+        if path.name in covered_reports:
+            continue
+        data = _read_report(path.name)
+        if data is None:
+            continue
+        s = data.get("summary") or {}
+        if not isinstance(s, dict) or "task_completion_rate" not in s:
+            continue
+        points.append(
+            EvalTrendPoint(
+                time=str(data.get("generated_at", "")),
+                dataset=str(data.get("dataset", "")),
+                variant=str(data.get("variant", "")),
+                task_completion_rate=float(s.get("task_completion_rate", 0.0)),
+                tool_accuracy=float(s.get("tool_accuracy", 0.0)),
+                passed=int(s.get("passed", 0)),
+                total=int(s.get("total", 0)),
+                git_sha=str(data.get("git_sha", "unknown") or "unknown"),
+                source="report",
+                label=path.name,
+            )
+        )
+
+    points.sort(key=lambda p: p.time)
+    return EvalTrendsResponse(points=points)
 
 
 def _read_report(name: str) -> dict[str, Any] | None:

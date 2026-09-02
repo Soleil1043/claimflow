@@ -262,3 +262,78 @@ async def test_cli_run_self_record(_mem_db: Any) -> None:
     assert all(r.source == "cli" for r in rows)
     assert rows[0].error == "boom"
     assert rows[1].task_completion_rate is not None
+
+
+# ===== T053：趋势数据 =====
+
+
+async def test_trends_merges_db_and_reports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """DB 历史行与存量报告文件合并；DB 覆盖的报告不重复出点；时间升序。"""
+    manager = _script_manager(tmp_path, _OK_SCRIPT)
+    _patch_runner(monkeypatch, manager)
+    # 存量报告（无 DB 行）：时间早于本次运行
+    (tmp_path / "report_20260101_000000.json").write_text(
+        '{"dataset": "main", "variant": "pure_rag", "generated_at": "2026-01-01 00:00:00",'
+        ' "git_sha": "abc1234", "summary": {"total": 10, "passed": 8,'
+        ' "task_completion_rate": 0.8, "tool_accuracy": 0.9}, "failures": []}',
+        encoding="utf-8",
+    )
+    async with _client() as client:
+        run_id = (
+            await client.post("/api/v1/evals/runs", json={"dataset": "main", "limit": 2})
+        ).json()["run"]["run_id"]
+        await _wait_terminal(client, run_id)
+
+        resp = await client.get("/api/v1/evals/trends")
+        assert resp.status_code == 200
+        points = resp.json()["points"]
+        # 2 个点：存量文件 + 本次运行（ui_<run_id>.json 由 DB 行覆盖，不重复）
+        assert len(points) == 2
+        assert [p["source"] for p in points] == ["report", "db"]
+        assert points[0]["time"] <= points[1]["time"]
+        assert points[0]["task_completion_rate"] == 0.8 and points[0]["git_sha"] == "abc1234"
+        db_point = points[1]
+        assert db_point["label"] == run_id and db_point["task_completion_rate"] == 0.5
+
+
+def test_build_trend_figure_filters_and_traces() -> None:
+    """图形构建：双指标 trace；数据集/变体过滤命中为空时返回 None。"""
+    import plotly.graph_objects as go
+
+    from ui.eval_app import _build_trend_figure
+
+    points = [
+        {
+            "time": "2026-01-01 00:00:00",
+            "dataset": "main",
+            "variant": "baseline",
+            "task_completion_rate": 0.8,
+            "tool_accuracy": 0.9,
+            "passed": 8,
+            "total": 10,
+            "git_sha": "abc1234",
+            "source": "report",
+            "label": "a.json",
+        },
+        {
+            "time": "2026-02-01 00:00:00",
+            "dataset": "graph_assoc",
+            "variant": "baseline",
+            "task_completion_rate": 0.7,
+            "tool_accuracy": 0.85,
+            "passed": 7,
+            "total": 10,
+            "git_sha": "abc1234",
+            "source": "db",
+            "label": "run-1",
+        },
+    ]
+    fig = _build_trend_figure(points, "全部", "全部")
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) == 2  # 完成率 + 工具准确率
+    assert fig.data[0].y == (80.0, 70.0)  # 两数据集各一点
+
+    assert _build_trend_figure(points, "main", "全部") is not None
+    assert _build_trend_figure(points, "main", "glm-5.3-flash") is None  # 过滤后无数据
