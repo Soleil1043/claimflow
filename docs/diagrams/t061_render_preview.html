@@ -1,0 +1,510 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>t061 preview</title><style>
+
+/* ===== Claimflow 设计系统（D030 / D031 视觉深化） ===== */
+:root {
+  --cf-blue: #007AFF;
+  --cf-blue-dark: #0A66C2;
+  --cf-blue-soft: #EAF3FF;
+  --cf-blue-glow: rgba(0, 122, 255, 0.14);
+  --cf-green: #34C759;
+  --cf-orange: #FF9500;
+  --cf-red: #FF3B30;
+  --cf-bg: #F5F5F7;
+  --cf-surface: #FFFFFF;
+  --cf-surface-2: #FBFBFD;
+  --cf-text: #1D1D1F;
+  --cf-text-2: #86868B;
+  --cf-hairline: rgba(0, 0, 0, 0.08);
+  --cf-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --cf-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --cf-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 1px rgba(0, 0, 0, 0.02);
+  --cf-shadow-2: 0 2px 4px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --cf-shadow-3: 0 4px 12px rgba(0, 0, 0, 0.06), 0 16px 40px rgba(16, 24, 40, 0.10);
+  --cf-radius-card: 16px;
+  --cf-radius-bubble: 18px;
+  --cf-radius-control: 10px;
+}
+
+/* 排版：层级 = 字重 + 字号 + 行距；大标题负 tracking，正文 0；数字 tabular 对齐 */
+.gradio-container {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  letter-spacing: 0;
+  color: var(--cf-text);
+  max-width: 1080px !important;
+  background:
+    radial-gradient(1100px 480px at 50% -120px, rgba(0, 122, 255, 0.055), transparent 70%),
+    var(--cf-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.gradio-container h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.gradio-container h2, .gradio-container h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.gradio-container .prose { color: var(--cf-text); }
+
+/* ===== 区块标题体系（kicker 大写小字 + 蓝色短划线 + 标题）===== */
+.cf-section { margin: 20px 0 10px; }
+.cf-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cf-text-2);
+}
+.cf-kicker::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--cf-blue);
+  margin-right: 8px;
+  vertical-align: 3px;
+}
+.cf-h2 {
+  margin-top: 4px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  color: var(--cf-text);
+}
+.cf-h3 {
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--cf-text);
+}
+
+/* ===== 品牌块（与 workbench 导航 logo 同语言）===== */
+.cf-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #007AFF, #5CA8FF);
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  user-select: none;
+}
+
+/* ===== 入场动效（交错延迟；poll 高频更新区禁用，防 2s 重放）===== */
+@keyframes cf-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes cf-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.cf-rise { animation: cf-rise 420ms var(--cf-ease-out) both; }
+.cf-rise-2 { animation: cf-rise 420ms var(--cf-ease-out) 60ms both; }
+.cf-rise-3 { animation: cf-rise 420ms var(--cf-ease-out) 120ms both; }
+.cf-fade { animation: cf-fade 500ms var(--cf-ease-out) both; }
+
+/* ===== 按压即时反馈（pointer-down 高亮，100ms）===== */
+.gradio-container button {
+  transition: transform 100ms var(--cf-ease), background-color 150ms var(--cf-ease),
+    box-shadow 150ms var(--cf-ease), border-color 150ms var(--cf-ease);
+}
+.gradio-container button:active {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+}
+.gradio-container .gr-button-primary { box-shadow: 0 1px 2px rgba(0, 122, 255, 0.25); }
+.gradio-container .gr-button-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.32);
+}
+.gradio-container .gr-button-primary:active { transform: scale(0.97) translateY(0); }
+.gradio-container button:focus-visible,
+.gradio-container a:focus-visible,
+.gradio-container input:focus-visible,
+.gradio-container textarea:focus-visible {
+  outline: 2px solid var(--cf-blue);
+  outline-offset: 2px;
+}
+
+/* ===== 输入焦点光环与 placeholder 对比度 ===== */
+.gradio-container input:not([type="checkbox"]):not([type="radio"]):focus,
+.gradio-container textarea:focus {
+  border-color: var(--cf-blue) !important;
+  box-shadow: 0 0 0 3px var(--cf-blue-glow) !important;
+}
+.gradio-container input::placeholder,
+.gradio-container textarea::placeholder {
+  color: var(--cf-text-2);
+  opacity: 1;
+}
+
+/* ===== 细节：选区 / 滚动条 / footer ===== */
+.gradio-container ::selection { background: rgba(0, 122, 255, 0.18); }
+.gradio-container * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+.gradio-container ::-webkit-scrollbar { width: 8px; height: 8px; }
+.gradio-container ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 999px;
+}
+.gradio-container ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.30); }
+.gradio-container ::-webkit-scrollbar-track { background: transparent; }
+.gradio-container .footer,
+.gradio-container footer { display: none !important; }
+
+/* ===== 浮层 chrome：半透明材质，内容从其下滚过 ===== */
+.cf-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: -16px -16px 12px;
+  padding: 14px 20px;
+  background: rgba(245, 245, 247, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--cf-hairline);
+}
+.cf-header .cf-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--cf-text);
+}
+.cf-header .cf-subtitle {
+  margin-top: 2px;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+  color: var(--cf-text-2);
+}
+.cf-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+.cf-status-dot.ok { background: var(--cf-green); }
+.cf-status-dot.warn { background: var(--cf-orange); animation: cf-pulse 1.2s ease-in-out infinite; }
+.cf-status-dot.err { background: var(--cf-red); }
+@keyframes cf-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ===== 卡片与分组（微渐变表面 + 分层阴影）===== */
+.cf-card {
+  background: linear-gradient(180deg, var(--cf-surface) 0%, var(--cf-surface-2) 100%);
+  border: 1px solid var(--cf-hairline);
+  border-radius: var(--cf-radius-card);
+  box-shadow: var(--cf-shadow-2);
+  padding: 16px 18px;
+}
+
+/* 状态 pill：四态语义色 */
+.cf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.cf-pill.ok { background: rgba(52, 199, 89, 0.14); color: #1F7A38; }
+.cf-pill.warn { background: rgba(255, 149, 0, 0.16); color: #8A5A00; }
+.cf-pill.err { background: rgba(255, 59, 48, 0.12); color: #B3261E; }
+.cf-pill.info { background: rgba(0, 122, 255, 0.12); color: var(--cf-blue-dark); }
+.cf-pill.muted { background: rgba(0, 0, 0, 0.06); color: var(--cf-text-2); }
+
+/* ===== KPI 大数字卡（评测台摘要；hover 升起）===== */
+.cf-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 8px 0 4px;
+}
+.cf-kpi {
+  background: linear-gradient(180deg, var(--cf-surface) 0%, var(--cf-surface-2) 100%);
+  border: 1px solid var(--cf-hairline);
+  border-radius: var(--cf-radius-card);
+  padding: 14px 16px 12px;
+  box-shadow: var(--cf-shadow-1);
+  transition: transform 200ms var(--cf-ease), box-shadow 200ms var(--cf-ease);
+}
+.cf-kpi:hover { transform: translateY(-2px); box-shadow: var(--cf-shadow-3); }
+.cf-kpi .k-label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--cf-text-2);
+}
+.cf-kpi .k-value {
+  margin-top: 4px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--cf-text);
+}
+.cf-kpi .k-foot { margin-top: 2px; font-size: 12px; color: var(--cf-text-2); }
+
+/* ===== 进度条（替代 ASCII 条）===== */
+.cf-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.07);
+  overflow: hidden;
+}
+.cf-progress > div {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--cf-blue), #5CA8FF);
+  transition: width 300ms var(--cf-ease);
+}
+
+/* ===== mini 进度条（分类明细表；通过率语义配色）===== */
+.cf-bar {
+  display: inline-block;
+  width: 110px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.07);
+  overflow: hidden;
+  vertical-align: middle;
+  margin-left: 8px;
+}
+.cf-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--cf-blue), #5CA8FF);
+}
+.cf-bar.ok > i { background: linear-gradient(90deg, #34C759, #7DDC8F); }
+.cf-bar.warn > i { background: linear-gradient(90deg, #FF9500, #FFB84D); }
+.cf-bar.err > i { background: linear-gradient(90deg, #FF3B30, #FF7A73); }
+
+/* ===== 表格：行 hover + 表头精修 ===== */
+.gradio-container table tbody tr { transition: background 150ms var(--cf-ease); }
+.gradio-container table tbody tr:hover { background: rgba(0, 122, 255, 0.04); }
+.gradio-container .gr-dataframe thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cf-text-2);
+  letter-spacing: 0.02em;
+}
+
+/* ===== Tabs：胶囊分段（评测台 趋势/历史报告 分区）===== */
+.gradio-container .tabs .tab-nav {
+  border-bottom: 1px solid var(--cf-hairline);
+  gap: 4px;
+  padding-bottom: 8px;
+}
+.gradio-container .tabs .tab-nav button {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+  padding: 6px 16px !important;
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  color: var(--cf-text-2) !important;
+  transition: all 150ms var(--cf-ease) !important;
+}
+.gradio-container .tabs .tab-nav button:hover { color: var(--cf-text) !important; }
+.gradio-container .tabs .tab-nav button.selected {
+  background: var(--cf-surface) !important;
+  border-color: var(--cf-hairline) !important;
+  color: var(--cf-text) !important;
+  box-shadow: var(--cf-shadow-1) !important;
+}
+
+/* 运行日志：等宽暗色终端 */
+.cf-log textarea, .cf-log pre {
+  font-family: ui-monospace, 'SF Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace !important;
+  font-size: 12px !important;
+  line-height: 1.6 !important;
+  background: #1D1D1F !important;
+  color: #E8E8ED !important;
+  border: 1px solid rgba(0, 0, 0, 0.25) !important;
+  border-radius: var(--cf-radius-control) !important;
+  box-shadow: var(--cf-shadow-2) !important;
+}
+
+/* ===== 聊天气泡（用户右/助手左，18px 连续圆角；容器去卡片化——气泡直接浮于底色）===== */
+.chatbot {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.chatbot .message-row { margin: 10px 0; }
+.chatbot .message {
+  border-radius: var(--cf-radius-bubble) !important;
+  border: 1px solid var(--cf-hairline) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  line-height: 1.65;
+}
+.chatbot .message.user, .chatbot .message.user .message-content {
+  background: linear-gradient(135deg, #007AFF, #3D95FF) !important;
+  color: #FFFFFF !important;
+  border-color: transparent !important;
+}
+.chatbot .message.bot, .chatbot .message.bot .message-content {
+  background: var(--cf-surface) !important;
+  color: var(--cf-text) !important;
+}
+.chatbot .message.bot .message-content a { color: var(--cf-blue-dark); }
+
+/* 输入区浮起：材质底 + 圆角 */
+.cf-composer {
+  background: rgba(255, 255, 255, 0.8);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid var(--cf-hairline);
+  border-radius: var(--cf-radius-card);
+  padding: 10px 12px;
+  box-shadow: var(--cf-shadow-2);
+}
+/* 行内控件垂直居中：unequal-height 行顶对齐会让矮按钮下方露出透明底 */
+.cf-composer .row { align-items: center; }
+
+/* 示例问题 chips（Gradio 6 渲染为 .gallery-item 按钮，需提高特异性覆盖默认透明样式） */
+.gradio-container .cf-chips .gallery-item,
+.gradio-container .cf-chips button {
+  border-radius: 999px !important;
+  border: 1px solid var(--cf-hairline) !important;
+  background: var(--cf-surface) !important;
+  color: var(--cf-text) !important;
+  font-size: 13px !important;
+  padding: 6px 14px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  transition: all 150ms var(--cf-ease) !important;
+}
+.gradio-container .cf-chips .gallery-item:hover,
+.gradio-container .cf-chips button:hover {
+  border-color: rgba(0, 122, 255, 0.5) !important;
+  color: var(--cf-blue-dark) !important;
+  background: #EAF3FF !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.12) !important;
+}
+
+/* ===== 无障碍降级 ===== */
+@media (prefers-reduced-motion: reduce) {
+  .gradio-container button { transition: none; }
+  .gradio-container button:active { transform: none; }
+  .gradio-container .gr-button-primary:hover { transform: none; }
+  .cf-progress > div { transition: none; }
+  .cf-rise, .cf-rise-2, .cf-rise-3, .cf-fade { animation: none; }
+  .cf-kpi { transition: none; }
+  .cf-kpi:hover { transform: none; }
+  .cf-status-dot.warn { animation: none; }
+  .gradio-container table tbody tr { transition: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .cf-header { background: var(--cf-bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .cf-composer { background: var(--cf-surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+body { margin: 0; }
+.page { max-width: 1080px; margin: 0 auto; padding: 0 16px 48px; }
+.mock-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--cf-hairline); padding-bottom: 8px; margin: 20px 0 12px; }
+.mock-tab { padding: 6px 16px; border-radius: 999px; font-size: 13.5px; font-weight: 600; color: var(--cf-text-2); }
+.mock-tab.selected { background: var(--cf-surface); border: 1px solid var(--cf-hairline); color: var(--cf-text); box-shadow: var(--cf-shadow-1); }
+.gap { margin-top: 12px; }
+</style></head><body><div class="gradio-container"><div class="page">
+
+<div class="cf-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="cf-logo">CF</div>
+      <div>
+        <div class="cf-title">Agent 评测台</div>
+        <div class="cf-subtitle">一键评测 · 实时进度 · 趋势对比 · 报告回看</div>
+      </div>
+    </div>
+    <span class="cf-pill ok" style="white-space:nowrap;">
+      <span class="cf-status-dot ok"></span>后端已连接
+    </span>
+  </div>
+</div>
+<div class="cf-section"><div class="cf-kicker">RUN</div><div class="cf-h2">启动评测</div></div>
+<div class="cf-card" style="color:var(--cf-text-2);font-size:13px;">（参数行：数据集 main · 分类 全部 · 变体 baseline · 条数 10 · ▶️ 开始评测）</div>
+<div class="gap">
+<div class="cf-card">
+  <div class="cf-kicker" style="margin-bottom:10px;">✅ 评测完成</div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <span class="cf-pill ok">已完成</span>
+    <code style="font-size:12px;">t062_preview_0001</code>
+    <span style="font-size:13px;color:var(--cf-text-2);">main × 10 条 · 变体 baseline</span>
+  </div>
+  <div class="cf-progress" style="margin:10px 0 6px;">
+    <div style="width:100%;"></div>
+  </div>
+  <div style="font-size:13px;color:var(--cf-text-2);font-variant-numeric:tabular-nums;">
+    200/200（100%）· 通过 176 / 失败 0
+  </div>
+</div></div>
+<div class="cf-card gap" style="background:#1D1D1F;color:#E8E8ED;font-family:ui-monospace,'SF Mono',Consolas,monospace;font-size:12px;line-height:1.6;border:1px solid rgba(0,0,0,0.25);">PASS main/faq/policy_001 · 4.2s<br>PASS main/single_domain/policy_002 · 6.8s<br>FAIL main/multi_step/calc_007 · 12.8s<br>…（暗色终端样例）</div>
+<div class="mock-tabs"><div class="mock-tab">📈 趋势</div><div class="mock-tab selected">🗂️ 历史报告</div></div>
+<div class="cf-card" style="color:var(--cf-text-2);font-size:13px;">（报告下拉：baseline.json + 🔄 刷新）</div>
+<div class="gap"><div style="font-size:16px;font-weight:600;letter-spacing:-0.01em;">📋 报告摘要</div>
+<div style="margin-top:4px;font-size:12.5px;color:var(--cf-text-2);">数据集 <code></code> · 变体 <code></code> · 分类 <code>全部</code> · 生成于 2026-08-25 19:13:53 · commit <code>unknown</code></div>
+<div class="cf-kpi-grid">
+
+<div class="cf-kpi">
+  <div class="k-label">任务完成率</div>
+  <div class="k-value">88.0%</div>
+  <div class="k-foot">176/200 通过</div>
+</div>
+
+<div class="cf-kpi">
+  <div class="k-label">工具调用准确率</div>
+  <div class="k-value">95.3%</div>
+  <div class="k-foot"></div>
+</div>
+
+<div class="cf-kpi">
+  <div class="k-label">合规通过率</div>
+  <div class="k-value">99.5%</div>
+  <div class="k-foot"></div>
+</div>
+
+<div class="cf-kpi">
+  <div class="k-label">平均耗时</div>
+  <div class="k-value">18.987s</div>
+  <div class="k-foot"></div>
+</div>
+</div>
+<div style="margin-top:14px;font-size:13px;font-weight:600;">分类明细</div>
+<table style='width:100%;margin-top:6px;font-size:13px;border-collapse:collapse;'><thead><tr style='color:var(--cf-text-2);font-size:12px;text-align:left;'><th style='padding:4px 10px;font-weight:500;'>分类</th><th style='padding:4px 10px;font-weight:500;'>通过率</th></tr></thead><tbody><tr style='border-top:1px solid var(--cf-hairline);'><td style='padding:6px 10px;'>simple_faq</td><td style='padding:6px 10px;font-variant-numeric:tabular-nums;'>93.3%（28/30）<span class="cf-bar ok"><i style="width:93%;"></i></span></td></tr><tr style='border-top:1px solid var(--cf-hairline);'><td style='padding:6px 10px;'>single_domain</td><td style='padding:6px 10px;font-variant-numeric:tabular-nums;'>78.3%（47/60）<span class="cf-bar warn"><i style="width:78%;"></i></span></td></tr><tr style='border-top:1px solid var(--cf-hairline);'><td style='padding:6px 10px;'>multi_step</td><td style='padding:6px 10px;font-variant-numeric:tabular-nums;'>92.5%（74/80）<span class="cf-bar ok"><i style="width:92%;"></i></span></td></tr><tr style='border-top:1px solid var(--cf-hairline);'><td style='padding:6px 10px;'>edge_case</td><td style='padding:6px 10px;font-variant-numeric:tabular-nums;'>90.0%（27/30）<span class="cf-bar ok"><i style="width:90%;"></i></span></td></tr></tbody></table></div>
+<div class="cf-section"><div class="cf-kicker">FAILURES</div><div class="cf-h3">失败用例明细</div></div>
+<table style='width:100%;border-collapse:collapse;font-size:12.5px;'><thead><tr style='color:var(--cf-text-2);font-size:12px;'><th style='padding:6px 10px;text-align:left;font-weight:500;'>用例</th><th style='padding:6px 10px;text-align:left;font-weight:500;'>分类</th><th style='padding:6px 10px;text-align:left;font-weight:500;'>回答(截断)</th><th style='padding:6px 10px;text-align:left;font-weight:500;'>实际工具</th><th style='padding:6px 10px;text-align:left;font-weight:500;'>错误</th><th style='padding:6px 10px;text-align:left;font-weight:500;'>耗时(s)</th></tr></thead><tbody><tr><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>FAQ-021</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>simple_faq</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>根据保障范围，普通门急诊费用不在安心医疗保险（旗舰版）的赔付范围内，无法报销。该产品覆盖住院医疗、特殊门诊及住院前后7天</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>claim_rule_rag</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'></td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>8.862</td></tr><tr><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>FAQ-023</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>simple_faq</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>社保报销的部分可以用于抵扣年度免赔额。以安心医疗保险（旗舰版）为例，若年度免赔额为1万元，本次社保报销了8000元，则剩</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>claim_rule_rag</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'></td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>5.079</td></tr><tr><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>POL-005</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>single_domain</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>根据保单查询结果，**POL-2026-0005**（安心医疗保险·旗舰版）的免赔额为 **10,000 元**。
+
+补</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>policy_query</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'></td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>5.252</td></tr><tr><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>POL-006</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>single_domain</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>您好，根据系统查询，您的保单 **POL-2025-0001** 信息如下：
+
+- **险种**：安心医疗保险（旗舰版）</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>policy_query</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'></td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>4.801</td></tr><tr><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>POL-008</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>single_domain</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>您好！为了查询您"安心医疗保险旗舰版"的到期时间，我需要确认您的保单信息。请问您能提供以下任一信息吗？
+
+1. **保单</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'></td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'></td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>7.334</td></tr><tr><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>POL-010</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>single_domain</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>您好！关于您的理赔申请 CLM-2026-0001，我需要向您说明：目前我暂时无法直接查询到理赔案件的办理进度信息。
+
+</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'></td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'></td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>11.841</td></tr><tr><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>POL-011</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>single_domain</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>您好，我使用保单号 **CLM-2026-0002** 未能查询到对应保单信息。
+
+请问：
+1. 您提供的是否为**保单</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>policy_query</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'></td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>6.136</td></tr><tr><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>POL-013</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>single_domain</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>保单过期后是否还能理赔，取决于**保险事故是否发生在保单有效期内**。若事故发生在有效期内，则保单过期后 **2 年内*</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>claim_rule_rag</td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'></td><td style='padding:6px 10px;border-top:1px solid var(--cf-hairline);font-size:12.5px;'>6.01</td></tr></tbody></table>
+</div></div></body></html>
