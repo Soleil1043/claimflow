@@ -71,25 +71,36 @@ client = EvalClient(API_BASE)
 
 
 def _header_html(backend_ok: bool | None) -> str:
-    """浮层 chrome 头部：品牌 + 后端状态点。"""
+    """浮层 chrome 头部：品牌块 + 状态 pill（T061 视觉深化）。"""
     if backend_ok is None:
-        dot, label = "warn", "检测中…"
+        pill, dot, label = "muted", "warn", "检测中…"
     elif backend_ok:
-        dot, label = "ok", "后端已连接"
+        pill, dot, label = "ok", "ok", "后端已连接"
     else:
-        dot, label = "err", "后端不可达"
+        pill, dot, label = "err", "err", "后端不可达"
     return f"""
 <div class="cf-header">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-    <div>
-      <div class="cf-title">Agent 评测台</div>
-      <div class="cf-subtitle">一键评测 · 实时进度 · 趋势对比 · 报告回看</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="cf-logo">CF</div>
+      <div>
+        <div class="cf-title">Agent 评测台</div>
+        <div class="cf-subtitle">一键评测 · 实时进度 · 趋势对比 · 报告回看</div>
+      </div>
     </div>
-    <div class="cf-subtitle" style="white-space:nowrap;">
+    <span class="cf-pill {pill}" style="white-space:nowrap;">
       <span class="cf-status-dot {dot}"></span>{label}
-    </div>
+    </span>
   </div>
 </div>"""
+
+
+def _section_html(kicker: str, title: str, title_cls: str = "cf-h2") -> str:
+    """区块标题体系：kicker 大写小字 + 蓝色短划线 + 标题（D031）。"""
+    return (
+        f'<div class="cf-section"><div class="cf-kicker">{kicker}</div>'
+        f'<div class="{title_cls}">{title}</div></div>'
+    )
 
 
 async def _check_backend() -> dict:
@@ -98,8 +109,11 @@ async def _check_backend() -> dict:
     return gr.update(value=_header_html(ok))
 
 
-def _status_html(run: dict) -> str:
-    """运行状态 → HTML（状态 pill + 渐变进度条 + 通过/失败计数，T056 替代 ASCII 条）。"""
+def _status_html(run: dict, head: str = "") -> str:
+    """运行状态 → 卡片化 HTML（状态 pill + 渐变进度条 + 计数，T056/T061）。
+
+    注：本区由 gr.Timer 每 2s 高频更新，禁用入场动画（否则随 poll 重放闪烁）。
+    """
     current, total = run["current"], run["total"]
     ratio = current / total if total else 0
     pct = f"{ratio:.0%}" if total else "—"
@@ -114,8 +128,10 @@ def _status_html(run: dict) -> str:
         + (f"/{p['category']}" if p.get("category") else "")
         + (f" × {p['limit']} 条" if p.get("limit") else " × 全量")
     )
+    head_html = f'<div class="cf-kicker" style="margin-bottom:10px;">{head}</div>' if head else ""
     return f"""
-<div>
+<div class="cf-card">
+  {head_html}
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
     <span class="cf-pill {pill_cls}">{label}</span>
     <code style="font-size:12px;">{run["run_id"]}</code>
@@ -128,6 +144,12 @@ def _status_html(run: dict) -> str:
     {current}/{total}（{pct}）· 通过 {run["passed"]} / 失败 {run["failed"]}
   </div>
 </div>"""
+
+
+def _bar(rate: float) -> str:
+    """mini 进度条：通过率语义配色（≥80% 绿 / ≥60% 橙 / 其余红，D031）。"""
+    tone = "ok" if rate >= 0.8 else ("warn" if rate >= 0.6 else "err")
+    return f'<span class="cf-bar {tone}"><i style="width:{rate:.0%};"></i></span>'
 
 
 def _kpi(label: str, value: str, foot: str = "") -> str:
@@ -179,7 +201,7 @@ def _render_report(data: dict) -> tuple[str, list[list]]:
             "<tr style='border-top:1px solid var(--cf-hairline);'>"
             f"<td style='padding:6px 10px;'>{cat}</td>"
             f"<td style='padding:6px 10px;font-variant-numeric:tabular-nums;'>"
-            f"{stat['rate']:.1%}（{int(stat['passed'])}/{int(stat['total'])}）</td></tr>"
+            f"{stat['rate']:.1%}（{int(stat['passed'])}/{int(stat['total'])}）{_bar(stat['rate'])}</td></tr>"
             for cat, stat in by_cat.items()
         )
         parts += [
@@ -389,7 +411,7 @@ async def poll(state: dict, trend_dataset: str, trend_variant: str) -> tuple:
         else f"❌ 评测失败（exit={run.get('return_code')}）"
     )
     return (
-        head + "\n\n" + _status_html(run),
+        _status_html(run, head=head),
         log_text,
         gr.update(choices=names, value=newest),
         summary,
@@ -430,7 +452,7 @@ async def show_report(name: str | None) -> tuple[str, list[list]]:
 
 
 def build_ui() -> gr.Blocks:
-    """组装界面（T056：Apple 设计语言重构——浮层头部/KPI 卡/HTML 进度条）。
+    """组装界面（T056 Apple 化 + T061 视觉深化：Tabs 分区/区块标题/状态卡）。
 
     注：Gradio 6 起 theme/css 从 Blocks 构造器移至 launch()。
     """
@@ -438,7 +460,8 @@ def build_ui() -> gr.Blocks:
         header = gr.HTML(_header_html(None))
         state = gr.State({})
 
-        with gr.Group(elem_classes=["cf-card"]):
+        gr.HTML(_section_html("RUN", "启动评测"))
+        with gr.Group(elem_classes=["cf-card", "cf-rise"]):
             with gr.Row():
                 dataset_dd = gr.Dropdown(label="数据集", value="main", choices=["main", "graph_assoc"])
                 category_dd = gr.Dropdown(label="分类", value="全部", choices=["全部"])
@@ -446,7 +469,10 @@ def build_ui() -> gr.Blocks:
                 limit_num = gr.Number(label="条数上限（空 = 全量）", value=10, precision=0, minimum=1)
                 start_btn = gr.Button("▶️ 开始评测", variant="primary", scale=0)
 
-        status_md = gr.HTML('<div style="color:var(--cf-text-2);font-size:13px;">待启动。</div>')
+        status_md = gr.HTML(
+            '<div class="cf-card"><span style="font-size:13px;color:var(--cf-text-2);">'
+            "待启动。选择参数后点击「开始评测」。</span></div>"
+        )
         log_box = gr.Textbox(
             label="运行日志（逐用例 PASS/FAIL）",
             lines=12,
@@ -454,24 +480,27 @@ def build_ui() -> gr.Blocks:
             elem_classes=["cf-log"],
         )
 
-        gr.Markdown("## 📈 趋势")
-        with gr.Row():
-            trend_dataset_dd = gr.Dropdown(label="数据集过滤", value="全部", choices=["全部"])
-            trend_variant_dd = gr.Dropdown(label="变体过滤", value="全部", choices=["全部"])
-            trend_refresh_btn = gr.Button("🔄 刷新趋势", scale=0)
-        trend_plot = gr.Plot(label="任务完成率 / 工具调用准确率 随时间变化")
-
-        gr.Markdown("## 🗂️ 历史报告")
-        with gr.Row():
-            reports_dd = gr.Dropdown(label="报告文件", choices=[], scale=5)
-            refresh_btn = gr.Button("🔄 刷新", scale=0)
-        summary_md = gr.HTML('<div style="color:var(--cf-text-2);font-size:13px;">选择报告查看详情。</div>')
-        gr.Markdown("### 失败用例明细")
-        fails_df = gr.Dataframe(
-            headers=["用例", "分类", "回答(截断)", "实际工具", "错误", "耗时(s)"],
-            datatype=["str", "str", "str", "str", "str", "number"],
-            interactive=False,
-        )
+        with gr.Tabs():
+            with gr.Tab("📈 趋势"):
+                with gr.Row():
+                    trend_dataset_dd = gr.Dropdown(label="数据集过滤", value="全部", choices=["全部"])
+                    trend_variant_dd = gr.Dropdown(label="变体过滤", value="全部", choices=["全部"])
+                    trend_refresh_btn = gr.Button("🔄 刷新趋势", scale=0)
+                trend_plot = gr.Plot(label="任务完成率 / 工具调用准确率 随时间变化")
+            with gr.Tab("🗂️ 历史报告"):
+                with gr.Row():
+                    reports_dd = gr.Dropdown(label="报告文件", choices=[], scale=5)
+                    refresh_btn = gr.Button("🔄 刷新", scale=0)
+                summary_md = gr.HTML(
+                    '<div class="cf-card"><span style="font-size:13px;color:var(--cf-text-2);">'
+                    "选择报告查看详情。</span></div>"
+                )
+                gr.HTML(_section_html("FAILURES", "失败用例明细", "cf-h3"))
+                fails_df = gr.Dataframe(
+                    headers=["用例", "分类", "回答(截断)", "实际工具", "错误", "耗时(s)"],
+                    datatype=["str", "str", "str", "str", "str", "number"],
+                    interactive=False,
+                )
 
         demo.load(_check_backend, outputs=[header])
         demo.load(
