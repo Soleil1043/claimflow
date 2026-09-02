@@ -1659,3 +1659,18 @@ refresh_trends 回调、未覆盖 poll，教训：改回调输出必须连带验
 python 子进程存活，已彻底终止。）
 
 **Git**：`fix: 评测台轮询输出数不一致致日志/结果不刷新 + 运行中按钮态（T053 回归修复）`
+
+### [T054] 设计令牌与共享主题 — 2026-09-02
+
+**内容**：Phase 6 启动（D030 双栈令牌同源）。新建 ui/theme.py——TOKENS（Apple 系统调色板
+#007AFF/#34C759/#FF9500/#FF3B30 + #F5F5F7 底 + #1D1D1F 文、系统字体栈、连续圆角、
+cubic-bezier(0.32,0.72,0,1) 缓动）+ build_theme()（gr.themes.Base 定制：自造 cf_blue/cf_gray
+色阶、字体、块级材质）+ APP_CSS（浮层 chrome/按压 scale(0.97)/四态 pill/KPI 卡/渐变进度条/
+聊天气泡/reduced-motion+reduced-transparency 降级）；workbench/app/globals.css 以 Tailwind v4
+@theme 定义同名同值令牌 + .cf-chrome/.cf-card/.cf-pill/.cf-btn/.cf-input/.cf-collapse 工具类。
+
+**验证**：tests/ui/test_theme.py 4 用例全绿（令牌值/主题构建/CSS 关键选择器/无障碍媒体查询）；
+ruff 通过。适配修正：Gradio 6 主题无 button_shadow 属性，改 button_primary_shadow +
+button_transform_active="scale(0.97)"。
+
+**Git**：`feat: T054 设计令牌与共享主题（ui/theme.py + workbench @theme 双栈同源，D030）`

@@ -1,23 +1,173 @@
 @import "tailwindcss";
 
+/* ===== Claimflow 设计系统（Phase 6 / D030）——与 ui/theme.py 同名同值，双栈同源 ===== */
+
+@theme {
+  /* Apple 系统调色板 */
+  --color-cf-blue: #007AFF;
+  --color-cf-blue-dark: #0A66C2;
+  --color-cf-green: #34C759;
+  --color-cf-orange: #FF9500;
+  --color-cf-red: #FF3B30;
+  --color-cf-violet: #AF52DE;
+  /* 中性色阶 */
+  --color-cf-bg: #F5F5F7;
+  --color-cf-surface: #FFFFFF;
+  --color-cf-text: #1D1D1F;
+  --color-cf-text-2: #86868B;
+  /* 圆角（连续圆角近似） */
+  --radius-cf-card: 16px;
+  --radius-cf-bubble: 18px;
+  --radius-cf-control: 10px;
+  /* 动效 */
+  --ease-cf-standard: cubic-bezier(0.32, 0.72, 0, 1);
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+
 :root {
-  --background: #f5f6f8;
-  --foreground: #17181c;
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
+  --cf-hairline: rgba(0, 0, 0, 0.08);
+  --cf-ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family:
-    -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial,
-    sans-serif;
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+  /* 文字渲染：亚像素抗锯齿，贴近 Apple 平台观感 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+h1, h2, h3 {
+  letter-spacing: -0.01em;
+}
+
+/* ===== 按压即时反馈（pointer-down 高亮，100ms）===== */
+button, a[class*="btn"], .cf-pressable {
+  transition:
+    transform 100ms var(--cf-ease),
+    background-color 150ms var(--cf-ease),
+    box-shadow 150ms var(--cf-ease),
+    border-color 150ms var(--cf-ease),
+    color 150ms var(--cf-ease);
+}
+button:active, .cf-pressable:active {
+  transform: scale(0.97);
+}
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid #007aff;
+  outline-offset: 2px;
+}
+
+/* ===== 浮层 chrome：半透明毛玻璃导航 ===== */
+.cf-chrome {
+  background: rgba(245, 245, 247, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--cf-hairline);
+}
+
+/* ===== 卡片 ===== */
+.cf-card {
+  background: #ffffff;
+  border: 1px solid var(--cf-hairline);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
+}
+
+/* ===== 状态 pill：四态语义色 ===== */
+.cf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.cf-pill.ok { background: rgba(52, 199, 89, 0.14); color: #1f7a38; }
+.cf-pill.warn { background: rgba(255, 149, 0, 0.16); color: #8a5a00; }
+.cf-pill.err { background: rgba(255, 59, 48, 0.12); color: #b3261e; }
+.cf-pill.info { background: rgba(0, 122, 255, 0.12); color: #0a66c2; }
+.cf-pill.muted { background: rgba(0, 0, 0, 0.06); color: #86868b; }
+
+/* ===== 按钮 ===== */
+.cf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.cf-btn:disabled { cursor: not-allowed; opacity: 0.45; }
+.cf-btn.primary { background: #007aff; color: #fff; }
+.cf-btn.primary:hover:not(:disabled) { background: #0a66c2; }
+.cf-btn.secondary {
+  background: #fff;
+  color: #1d1d1f;
+  border-color: var(--cf-hairline);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.cf-btn.secondary:hover:not(:disabled) { background: #e8e8ed; }
+.cf-btn.danger { background: rgba(255, 59, 48, 0.1); color: #b3261e; }
+.cf-btn.danger:hover:not(:disabled) { background: rgba(255, 59, 48, 0.18); }
+
+/* ===== 表单控件 ===== */
+.cf-input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--cf-hairline);
+  background: #fff;
+  padding: 8px 12px;
+  font-size: 14px;
+  transition: border-color 150ms var(--cf-ease), box-shadow 150ms var(--cf-ease);
+}
+.cf-input:focus {
+  outline: none;
+  border-color: #007aff;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
+/* ===== 展开/收起过渡（审计区）：grid-rows 技巧 ===== */
+.cf-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 250ms var(--cf-ease);
+}
+.cf-collapse.open { grid-template-rows: 1fr; }
+.cf-collapse > .cf-collapse-inner { overflow: hidden; }
 
 /* JSON 详情块的等宽排版 */
 .mono-block {
-  font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* ===== 无障碍降级 ===== */
+@media (prefers-reduced-motion: reduce) {
+  button, .cf-pressable { transition: none; }
+  button:active, .cf-pressable:active { transform: none; }
+  .cf-collapse { transition: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .cf-chrome {
+    background: #f5f5f7;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }

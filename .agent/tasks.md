@@ -100,7 +100,7 @@
 
 > 硬约束：纯表现层——不改 API 契约 / 业务逻辑 / Gradio 回调元数；设计语言见 plan.md 第 7 节。
 
-- [ ] T054: 设计令牌与共享主题 | 依赖: 无 | 涉及文件: ui/theme.py（新）、tests/ui/test_theme.py（新）、workbench/app/globals.css | 验收: ui/theme.py 导出 build_theme()/APP_CSS（Apple 调色板/系统字体栈/材质/按压/reduced-motion 齐备）；workbench globals.css 定义同名同值设计变量 + .card/.btn/.pill 工具类；主题模块单测通过
+- [x] T054: 设计令牌与共享主题 | 依赖: 无 | 涉及文件: ui/theme.py（新）、tests/ui/test_theme.py（新）、workbench/app/globals.css | 验收: ui/theme.py 导出 build_theme()/APP_CSS（Apple 调色板/系统字体栈/材质/按压/reduced-motion 齐备）；workbench globals.css 定义同名同值设计变量 + .card/.btn/.pill 工具类；主题模块单测通过 ✅ 2026-09-02（4 passed；Gradio 6 主题 API 适配：button_shadow 移除，改 button_primary_shadow/button_transform_active）
 - [ ] T055: 用户聊天界面重构 | 依赖: T054 | 涉及文件: ui/app.py | 验收: 应用共享主题与 CSS（半透明吸顶头部/气泡重排/示例 chips/工具轨迹折叠卡片/输入区材质）；启动 HTTP 200；浏览器截图目检层级与材质正确；既有聊天回调逻辑零改动
 - [ ] T056: 评测台界面重构 | 依赖: T054 | 涉及文件: ui/eval_app.py | 验收: 应用共享主题；报告摘要 KPI 大数字卡；HTML 渐变进度条 + 状态 pill 替代纯文本；日志暗色等宽块；poll 8 输出元数不变、tests/ui/test_eval_app.py 4 用例全绿；截图目检
 - [ ] T057: 坐席工作台重构 | 依赖: T054 | 涉及文件: workbench/app/{layout,page,globals.css}、workbench/app/tickets/[id]/page.tsx、workbench/components/*.tsx | 验收: 全站 sticky 毛玻璃导航；列表/详情/时间线/审计/表单/徽章全部消费设计令牌；:active 按压反馈与 focus ring；reduced-motion/reduced-transparency 媒体查询生效；`npm run build` 通过；截图目检
