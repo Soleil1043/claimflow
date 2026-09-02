@@ -1,10 +1,10 @@
 {
- "version": "1.0.0",
- "description": "T033 复杂关联评测集：疾病↔险种↔规则跨实体多跳问题，期望值全部可溯源到 data/kb_docs/。用于纯 RAG vs 混合召回（GraphRAG）对比。",
+ "version": "1.1.0",
+ "description": "T033 复杂关联评测集：疾病↔险种↔规则跨实体多跳问题，期望值全部可溯源到 data/kb_docs/。用于纯 RAG vs 混合召回（GraphRAG）对比。；v1.1.0 类目标签修正：全部 24 条统一为 graph_assoc（T069 修复 T033 标签漂移，审计次要问题）",
  "cases": [
   {
    "id": "GA-001",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "急性阑尾炎手术能赔吗？哪些险种保障，等待期多久",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -19,7 +19,7 @@
   },
   {
    "id": "GA-002",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "阑尾炎住院治疗，免赔额和报销比例是怎样的",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -38,7 +38,7 @@
   },
   {
    "id": "GA-003",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "安心医疗旗舰版的核心理赔规则有哪些？等待期、免赔额、报销比例",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -53,7 +53,7 @@
   },
   {
    "id": "GA-004",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "安心医疗旗舰版哪些情况不保？投保前就有的病能赔吗",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -68,7 +68,7 @@
   },
   {
    "id": "GA-005",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "恶性肿瘤申请重疾理赔为什么要病理检查报告",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -82,7 +82,7 @@
   },
   {
    "id": "GA-006",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "得了恶性肿瘤，医疗险和重疾险都能赔吗",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -97,7 +97,7 @@
   },
   {
    "id": "GA-007",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "良性肿瘤重疾险能赔吗？医疗险呢",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -112,7 +112,7 @@
   },
   {
    "id": "GA-008",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "肾结石住院做手术，能赔吗？要过等待期吗",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -129,7 +129,7 @@
   },
   {
    "id": "GA-009",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "意外受伤去医院，医疗费用有等待期限制吗",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -144,7 +144,7 @@
   },
   {
    "id": "GA-010",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "康宁重疾险的等待期是多少天？意外导致的重疾也要等吗",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -159,7 +159,7 @@
   },
   {
    "id": "GA-011",
-   "category": "multi_step",
+   "category": "graph_assoc",
    "user_input": "我阑尾炎住院总费用15800元，社保报销了6000元，按安心医疗旗舰版能赔多少",
    "must_include": [],
    "any_of": [
@@ -173,7 +173,7 @@
   },
   {
    "id": "GA-012",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "去年买的安心医疗今年续保，还要重新算30天等待期吗",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -187,7 +187,7 @@
   },
   {
    "id": "GA-013",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "白内障手术属于什么理赔责任，怎么申请",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -201,7 +201,7 @@
   },
   {
    "id": "GA-014",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "骨折手术用的内固定钢板材料费，能计入报销吗",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -215,7 +215,7 @@
   },
   {
    "id": "GA-015",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "有高血压，平时门诊拿药的费用医疗险能赔吗",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -234,7 +234,7 @@
   },
   {
    "id": "GA-016",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "急性心肌梗死，重疾险和医疗险可以同时申请吗",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -248,7 +248,7 @@
   },
   {
    "id": "GA-017",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "慢性肾脏病需要长期透析，透析费用属于什么责任范围",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -262,7 +262,7 @@
   },
   {
    "id": "GA-018",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "支气管哮喘急性发作住院，医疗险能赔吗",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -279,7 +279,7 @@
   },
   {
    "id": "GA-019",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "意外险有等待期吗？买完第二天出事故能赔吗",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -293,7 +293,7 @@
   },
   {
    "id": "GA-020",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "看病没走社保直接申请理赔，报销比例是多少",
    "expected_intent": "simple_faq",
    "must_include": [],
@@ -311,7 +311,7 @@
   },
   {
    "id": "GA-021",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "胃溃疡住院治疗能赔吗？平时门诊复查呢",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -328,7 +328,7 @@
   },
   {
    "id": "GA-022",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "体检查出胆结石，做手术住院能赔吗",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -344,7 +344,7 @@
   },
   {
    "id": "GA-023",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "安心医疗旗舰版保证续保多少年？期间会拒保吗",
    "expected_intent": "simple_faq",
    "must_include": [
@@ -359,7 +359,7 @@
   },
   {
    "id": "GA-024",
-   "category": "simple_faq",
+   "category": "graph_assoc",
    "user_input": "康宁重疾险理赔有免赔额吗？和医疗险一样要先扣1万吗",
    "expected_intent": "simple_faq",
    "must_include": [

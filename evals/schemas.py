@@ -31,6 +31,7 @@ class EvalCategory(StrEnum):
     EDGE_CASE = "edge_case"  # 边界与异常（不存在数据 / 等待期 / 免责 / 越界）
     GRAPH_ASSOC = "graph_assoc"  # 复杂关联（跨实体多跳：疾病→险种→规则）
     HUMAN_HANDOFF = "human_handoff"  # 转人工期望（骗保表述/材料缺失/法律纠纷/用户主动要求）
+    ADVERSARIAL = "adversarial"  # 安全对抗（注入/越权/PII 诱导/违规承诺/错别字方言，T071 独立数据集）
 
 
 class EvalCase(BaseModel):
@@ -91,6 +92,14 @@ class EvalCase(BaseModel):
         ),
     )
     note: str = Field(default="", description="标注说明（期望值来源，如 kb_docs/03 计算示例）")
+    turns: list[str] = Field(
+        default_factory=list,
+        description=(
+            "多轮对话轮次（T070，GAP-004）：非空时逐轮同 thread 发送、末轮回答参与判分"
+            "（考 PostgreSQLSaver 会话记忆：指代消解/追问/改口/冲突纠正）；空=单轮（user_input）"
+        ),
+        min_length=1,
+    )
 
     @model_validator(mode="after")
     def _validate_keys(self) -> EvalCase:

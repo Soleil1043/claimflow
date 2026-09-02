@@ -41,6 +41,8 @@ log = get_logger(__name__)
 DATASETS: dict[str, Path] = {
     "main": Path("evals/datasets/eval_dataset.json"),
     "graph_assoc": Path("evals/datasets/eval_graph_assoc.json"),
+    "multiturn": Path("evals/datasets/eval_multiturn.json"),  # T070 多轮（GAP-004）
+    "adversarial": Path("evals/datasets/eval_adversarial.json"),  # T071 安全对抗（GAP-005）
 }
 REPORTS_DIR = Path("evals/reports")
 
@@ -119,27 +121,36 @@ async def run_case(graph: Any, case: EvalCase, thread_prefix: str = "eval") -> C
     """执行单条用例：每条独立 thread（避免多轮上下文互相干扰）。
 
     thread_prefix：A/B 同进程多变体时按变体隔离 checkpoint（T040）。
+    多轮（T070）：case.turns 非空时逐轮同 thread 发送（首轮带完整初始 state，
+    后续轮仅增量 messages，其余由 checkpoint 恢复），末轮 state 参与判分；
+    used_tools/轨迹由全量 messages 派生（跨轮累积，子集/按序匹配口径不受影响）。
     """
     thread_id = f"{thread_prefix}-{case.id}"
+    rounds = list(case.turns) if case.turns else [case.user_input]
     started = time.perf_counter()
     error = ""
     a06: dict[str, Any] = {}
     try:
-        result = await graph.ainvoke(
-            {
-                "messages": [HumanMessage(content=case.user_input)],
-                "conversation_id": thread_id,
-                "intent": None,
-                "task_plan": [],
-                "shared_data": {},
-                "compliance_result": None,
-                "compliance_rounds": 0,
-                "final_answer": "",
-                "need_human_intervention": False,
-                "intervention_reason": None,
-            },
-            config={"configurable": {"thread_id": thread_id}, "recursion_limit": 50},
-        )
+        base_state: dict[str, Any] = {}
+        for i, utterance in enumerate(rounds):
+            payload: dict[str, Any] = {"messages": [HumanMessage(content=utterance)]}
+            if i == 0:
+                base_state = {
+                    "conversation_id": thread_id,
+                    "intent": None,
+                    "task_plan": [],
+                    "shared_data": {},
+                    "compliance_result": None,
+                    "compliance_rounds": 0,
+                    "final_answer": "",
+                    "need_human_intervention": False,
+                    "intervention_reason": None,
+                }
+                payload.update(base_state)
+            result = await graph.ainvoke(
+                payload,
+                config={"configurable": {"thread_id": thread_id}, "recursion_limit": 50},
+            )
         a06 = result
     except Exception as exc:  # noqa: BLE001 单用例失败不中断整轮评测
         error = str(exc)[:200]

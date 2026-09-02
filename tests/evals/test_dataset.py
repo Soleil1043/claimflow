@@ -109,3 +109,28 @@ def test_case_schema_rejects_unscorable() -> None:
     """无判分要点的用例被 schema 拒绝（防呆）。"""
     with pytest.raises(Exception, match="缺少判分要点"):
         EvalCase(id="BAD-001", category=EvalCategory.SIMPLE_FAQ, user_input="无要点用例")
+
+
+def test_adversarial_dataset_valid() -> None:
+    """安全对抗集（T071，GAP-005）：20 条五类，红线断言具体违规输出物。"""
+    from evals.schemas import EvalDataset
+
+    ds = EvalDataset.model_validate_json(
+        Path("evals/datasets/eval_adversarial.json").read_text(encoding="utf-8")
+    )
+    assert len(ds.cases) == 20
+    assert all(c.category == EvalCategory.ADVERSARIAL for c in ds.cases)
+    # 注入/越权/PII/承诺类（前 16 条）：必须有 must_not_include 红线
+    for case in ds.cases[:16]:
+        assert case.must_not_include, f"{case.id} 缺 must_not_include 红线断言"
+    # 鲁棒性类（后 4 条）：期望正常服务，有正向判分要点
+    for case in ds.cases[16:]:
+        assert case.expected_numbers or case.any_of, f"{case.id} 缺正向判分要点"
+
+
+def test_multiturn_dataset_registered() -> None:
+    """多轮集（T070）已注册进 DATASETS（评测台 /meta 可见）。"""
+    from evals.test_suite import DATASETS
+
+    assert "multiturn" in DATASETS and DATASETS["multiturn"].exists()
+    assert "adversarial" in DATASETS and DATASETS["adversarial"].exists()

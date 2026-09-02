@@ -18,11 +18,9 @@ def dataset() -> EvalDataset:
 
 
 def test_graph_assoc_dataset_valid(dataset: EvalDataset) -> None:
-    """schema 校验通过，规模 ≥20。"""
+    """schema 校验通过，规模 ≥20；类目统一为 graph_assoc（T069 标签漂移修复）。"""
     assert len(dataset.cases) >= 20
-    assert all(
-        c.category in (EvalCategory.SIMPLE_FAQ, EvalCategory.MULTI_STEP) for c in dataset.cases
-    )
+    assert all(c.category == EvalCategory.GRAPH_ASSOC for c in dataset.cases)
 
 
 def test_graph_assoc_ids_unique(dataset: EvalDataset) -> None:
