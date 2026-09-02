@@ -77,6 +77,12 @@ def test_app_css_contains_visual_polish() -> None:
     # 宽屏水平居中：宽度约束在内层 .main（外层容器全宽保背景，T062 修复）
     assert ".gradio-container > .main" in css
     assert "margin-left: auto !important" in css
+    # 移动端适配：≤640px 头部收敛 + 行内组件纵向堆叠
+    # 注意：Gradio 6 对 @media 块内规则只保留「.gradio-container-X .contain <sel>」加前缀副本，
+    # 选择器不得以 .gradio-container 开头（双重前缀永不命中，T062 修复）
+    assert "max-width: 640px" in css
+    assert ".row > * { min-width: 100% !important; }" in css
+    assert "button { transition: none; }" in css
 
 
 def test_app_css_contains_accessibility_fallbacks() -> None:

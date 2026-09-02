@@ -546,17 +546,31 @@ APP_CSS = f"""
   box-shadow: 0 2px 8px rgba(0, 122, 255, 0.12) !important;
 }}
 
+/* ===== 移动端适配（≤640px：头部收敛 + 行内组件纵向堆叠，T062 响应式）===== */
+/* Gradio 6 陷阱：@media 块内的规则只保留「加作用域前缀」的副本
+   （.gradio-container-X .contain <选择器>），此处选择器禁止以 .gradio-container
+   开头——否则双重前缀永不命中；顶层规则无此限制（原样 + 加前缀双份都保留）。 */
+@media (max-width: 640px) {{
+  .cf-header {{ padding: 12px 14px; flex-wrap: wrap; row-gap: 6px; }}
+  .cf-header .cf-title {{ font-size: 17px; }}
+  .cf-header .cf-subtitle {{ display: none; }}
+  /* 窄屏行内组件纵向堆叠：Row 强制换行，子项独占整行 */
+  .row {{ flex-wrap: wrap; }}
+  .row > * {{ min-width: 100% !important; }}
+}}
+
 /* ===== 无障碍降级 ===== */
 @media (prefers-reduced-motion: reduce) {{
-  .gradio-container button {{ transition: none; }}
-  .gradio-container button:active {{ transform: none; }}
-  .gradio-container .gr-button-primary:hover {{ transform: none; }}
+  /* 同上陷阱：媒体块内去掉 .gradio-container 前缀（加前缀后为 .contain button 等） */
+  button {{ transition: none; }}
+  button:active {{ transform: none; }}
+  .gr-button-primary:hover {{ transform: none; }}
   .cf-progress > div {{ transition: none; }}
   .cf-rise, .cf-rise-2, .cf-rise-3, .cf-fade {{ animation: none; }}
   .cf-kpi {{ transition: none; }}
   .cf-kpi:hover {{ transform: none; }}
   .cf-status-dot.warn {{ animation: none; }}
-  .gradio-container table tbody tr {{ transition: none; }}
+  table tbody tr {{ transition: none; }}
 }}
 @media (prefers-reduced-transparency: reduce) {{
   .cf-header {{ background: var(--cf-bg); -webkit-backdrop-filter: none; backdrop-filter: none; }}
