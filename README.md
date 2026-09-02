@@ -19,7 +19,7 @@
 | 材料识别（图片/PDF/Word） | 上传诊断证明等材料提取字段（姓名 / 诊断 / 金额 / 日期）：文本型 PDF/Word 走主链路模型、扫描件渲染走 vision VLM、API 异常自动降级 Mock 兜底（T049/D024） |
 | 状态持久化 | LangGraph Checkpoint（prod=PostgreSQLSaver），多轮上下文连贯、服务重启可恢复 |
 | 可观测性 | Prometheus 三类指标（工具 / LLM / 业务）+ Grafana 自动加载仪表盘 + 分环节 Token 预算 |
-| 评测体系 | 200 条标注测试集（期望值全量溯源），一键产出任务完成率 / 工具准确率基线报告 |
+| 评测体系 | 218 条主测试集 + 多轮/对抗/关联专项集（期望值全量溯源），五层判分（关键词/数值精确断言/轨迹/LLM-judge/转人工）+ CI 回归门禁 + Wilson CI 报告 |
 | 工具结果缓存 | 幂等查询工具 Redis 缓存（dev 内存降级），命中指标可观测 |
 | 长期记忆 | 会话摘要 + 关键实体向量化入 Qdrant（user_id 隔离），新会话首轮注入——「我上次问的那张保单」跨会话正确引用 |
 | HITL 人工介入 | REJECT 走 LangGraph interrupt 挂起；坐席工作台回写结论 → Command(resume) 恢复会话，结论经合规复审后返回用户 |
@@ -260,7 +260,8 @@ uv run ruff check .           # lint
 
 ## 评测体系
 
-200 条标注测试集（FAQ 30 / 单领域 60 / 多步复杂 80 / 边界异常 30），期望值全量溯源
+**218 条**主测试集（FAQ 30 / 单领域 60 / 多步复杂 80 / 边界异常 30 / 转人工期望 18）+
+三个专项数据集（复杂关联 24 / 多轮对话 30 / 安全对抗 20），期望值全量溯源
 Mock 数据与知识库文档（如计算类锚点 4,640 元来自理赔规则手册的官方计算示例）。
 
 ```bash
@@ -271,7 +272,21 @@ uv run python -m evals.test_suite
 uv run python -m evals.test_suite --category simple_faq   # 按分类
 uv run python -m evals.test_suite --limit 10               # 前 N 条
 uv run python -m evals.test_suite --out my_report.json     # 指定输出
+
+# 专项数据集（Phase 7 强化，D033）
+uv run python -m evals.test_suite --dataset multiturn     # 多轮会话记忆（T070）
+uv run python -m evals.test_suite --dataset adversarial   # 安全对抗红线（T071）
+uv run python -m evals.test_suite --judge --limit 20      # LLM-as-judge 二层判分（T068）
+
+# CI 回归门禁（PR smoke 20 条，完成率降幅 >5pp 退出码 1）
+uv run python scripts/check_eval_gate.py ci_report.json
 ```
+
+判分五层（Phase 7 审计整改后）：关键词（must_include / any_of / must_not_include 红线）→
+**数值精确断言**（expected_numbers：数字归一化 + 边界匹配，金额算错必挂，T067）→
+工具/轨迹（子集匹配 + 五维轨迹独立报告，T069）→ **LLM-judge**（rubric 三维独立口径，
+T068）→ 转人工一致性（human_match 并入 passed）。报告附 Wilson 95% CI / p95 耗时 /
+token 每例，无数据维度显 N/A 不误读（T073）。
 
 ### 评测台 UI（T051）
 
@@ -281,17 +296,9 @@ uv run python -m evals.test_suite --out my_report.json     # 指定输出
 下拉可回看。评测由后端子进程执行（同一时间只允许一个运行），报告与 CLI 共存于
 `evals/reports/`。
 
-**基线报告**（`evals/reports/baseline.json`，deepseek-v4-flash 全量 200 条）：
-
-| 指标 | 数值 |
-|------|------|
-| 任务完成率 | **89.5%**（179/200） |
-| 工具调用准确率 | 95.3% |
-| 合规通过率 | 99.5%（红线违规 0） |
-| 分类水位 | FAQ 93.3% / 单领域 78.3% / 多步 92.5% / 边界 90.0% |
-
-判分规则：`must_include`（必含关键词）/ `any_of`（同义容错）/ `must_not_include`
-（合规红线，命中即败）/ 期望工具子集匹配 / 转人工一致性；失败明细可从报告 failures 字段逐条溯源。
+**基线报告**（`evals/reports/baseline.json`，deepseek-v4-flash 全量 218 条，v1.1.0）：
+见报告文件与 `docs/architecture.md` §9 指标口径（Phase 7 强化批次 T064-T074 重跑产出，
+含转人工 recall/precision、意图准确率、轨迹五维、Wilson CI 等新指标列）。
 
 **GraphRAG 对比**（24 条复杂关联用例，`--dataset graph_assoc`）：纯 RAG 与混合召回完成率持平
 （95.8%），混合召回增益在检索信号维度——图谱覆盖 87.5%、每例 +6.9 条跨文档结构化事实
@@ -317,7 +324,7 @@ workflows/    主图组装                  services/   LLM / RAG / DB / 缓存 
 schemas/      Pydantic 模型             tests/      367 个测试用例
 scripts/      seed 与验收脚本           data/       Mock 数据与知识库文档
 ui/           Gradio 演示/评测界面      chatui/     Next.js 对话界面（T063）
-workbench/    坐席工作台（Next.js）     evals/      评测集与运行器（200 条）
+workbench/    坐席工作台（Next.js）     evals/      评测集与运行器（218+84 条）
 grafana/      仪表盘 JSON               prometheus/  抓取配置
 ```
 
