@@ -221,8 +221,8 @@ async def load_meta() -> tuple:
 
 async def start_eval(
     dataset: str, category: str, limit: float | None, variant: str, state: dict
-) -> tuple[str, dict]:
-    """启动按钮：POST /runs，成功后进入轮询。"""
+) -> tuple:
+    """启动按钮：POST /runs，成功后进入轮询（按钮切换为运行中禁用态）。"""
     payload = {
         "dataset": dataset,
         "category": None if category in (None, "", "全部") else category,
@@ -236,20 +236,34 @@ async def start_eval(
             detail = exc.response.json().get("detail", "")
         except Exception:
             detail = exc.response.text[:120]
-        return f"⚠️ 启动失败：{exc.response.status_code} {detail}", state
+        return f"⚠️ 启动失败：{exc.response.status_code} {detail}", state, gr.update()
     except httpx.HTTPError as exc:
-        return f"⚠️ 无法连接后端（{API_BASE}）：{exc!r}", state
+        return f"⚠️ 无法连接后端（{API_BASE}）：{exc!r}", state, gr.update()
     state["run_id"] = result["run"]["run_id"]
     state.pop("done", None)
     return (
         f"🚀 已启动 `{state['run_id']}`（{payload['dataset']} × {payload['limit'] or '全量'}）…",
         state,
+        gr.update(value="⏳ 评测运行中…", interactive=False),
     )
 
 
 async def poll(state: dict, trend_dataset: str, trend_variant: str) -> tuple:
-    """定时轮询：更新状态与日志；结束后刷新报告/趋势并自动加载最新报告。"""
-    idle = (gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update())
+    """定时轮询：更新状态与日志；结束后刷新报告/趋势并自动加载最新报告。
+
+    返回值与 tick 声明的输出组件一一对应（8 个：状态/日志/报告下拉/摘要/失败表/
+    趋势图/state/启动按钮）——数量不符会使 Gradio 每次 tick 报错、界面冻结。
+    """
+    idle = (
+        gr.update(),
+        gr.update(),
+        gr.update(),
+        gr.update(),
+        gr.update(),
+        gr.update(),
+        state,
+        gr.update(),
+    )
     run_id = state.get("run_id") if isinstance(state, dict) else None
     if not run_id or state.get("done"):
         return idle
@@ -259,10 +273,23 @@ async def poll(state: dict, trend_dataset: str, trend_variant: str) -> tuple:
         return idle
 
     log_text = "\n".join(run.get("log_tail", [])[-LOG_LINES_SHOWN:])
+    btn_running = gr.update(
+        value=f"⏳ 评测运行中… {run['current']}/{run['total'] or '?'}", interactive=False
+    )
     if run["status"] == "running":
-        return _status_md(run), log_text, gr.update(), gr.update(), gr.update()
+        return (
+            _status_md(run),
+            log_text,
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            state,
+            btn_running,
+        )
 
-    # 运行结束：置完成标记，刷新报告列表并选中最新的本次报告
+    # 运行结束：置完成标记（state 随返回持久化，阻止后续 tick 重复加载），
+    # 刷新报告列表并选中最新的本次报告，趋势图带新点重绘
     state["done"] = True
     try:
         reports = await client.reports()
@@ -273,6 +300,10 @@ async def poll(state: dict, trend_dataset: str, trend_variant: str) -> tuple:
         )
     except httpx.HTTPError:
         names, newest, summary, fails = [], None, f"报告加载失败（运行状态：{run['status']}）", []
+    try:
+        fig = _build_trend_figure((await client.trends())["points"], trend_dataset, trend_variant)
+    except httpx.HTTPError:
+        fig = gr.update()
     head = (
         "✅ 评测完成"
         if run["status"] == "completed"
@@ -284,6 +315,9 @@ async def poll(state: dict, trend_dataset: str, trend_variant: str) -> tuple:
         gr.update(choices=names, value=newest),
         summary,
         fails,
+        fig,
+        state,
+        gr.update(value="▶️ 开始评测", interactive=True),
     )
 
 
@@ -361,13 +395,24 @@ def build_ui() -> gr.Blocks:
         demo.load(refresh_trends, inputs=[trend_dataset_dd, trend_variant_dd], outputs=[trend_plot])
 
         start_btn.click(
-            start_eval, [dataset_dd, category_dd, limit_num, variant_dd, state], [status_md, state]
+            start_eval,
+            [dataset_dd, category_dd, limit_num, variant_dd, state],
+            [status_md, state, start_btn],
         )
         timer = gr.Timer(POLL_SECONDS)
         timer.tick(
             poll,
             inputs=[state, trend_dataset_dd, trend_variant_dd],
-            outputs=[status_md, log_box, reports_dd, summary_md, fails_df, trend_plot],
+            outputs=[
+                status_md,
+                log_box,
+                reports_dd,
+                summary_md,
+                fails_df,
+                trend_plot,
+                state,
+                start_btn,
+            ],
         )
         reports_dd.input(show_report, [reports_dd], [summary_md, fails_df])
         refresh_btn.click(refresh_reports, outputs=[reports_dd])
