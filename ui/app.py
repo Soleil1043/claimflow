@@ -15,6 +15,8 @@ import os
 import gradio as gr
 import httpx
 
+from ui.theme import APP_CSS, build_theme
+
 # 后端地址：默认本机，可用环境变量覆盖（容器部署时指向 app 服务）
 API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
@@ -57,6 +59,14 @@ class BackendClient:
             )
         resp.raise_for_status()
         return resp.json()
+
+    async def health(self) -> bool:
+        """后端健康探测（头部状态点）。"""
+        try:
+            resp = await self._http.get("/health", timeout=5)
+            return resp.status_code == 200
+        except httpx.HTTPError:
+            return False
 
 
 _client = BackendClient(API_BASE)
@@ -154,43 +164,79 @@ def new_conversation() -> tuple[list, dict]:
     return [], {}
 
 
+def _header_html(backend_ok: bool | None) -> str:
+    """浮层 chrome 头部：品牌 + 后端状态点（材质半透明，内容从其下滚过）。"""
+    if backend_ok is None:
+        dot, label = "warn", "检测中…"
+    elif backend_ok:
+        dot, label = "ok", "后端已连接"
+    else:
+        dot, label = "err", "后端不可达"
+    return f"""
+<div class="cf-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div>
+      <div class="cf-title">保险理赔智能助手</div>
+      <div class="cf-subtitle">多智能体理赔对话系统 · Orchestrator-Worker</div>
+    </div>
+    <div class="cf-subtitle" style="white-space:nowrap;">
+      <span class="cf-status-dot {dot}"></span>{label}
+    </div>
+  </div>
+</div>"""
+
+
+async def _check_backend() -> dict:
+    """页面加载：探测后端健康，更新头部状态点。"""
+    ok = await _client.health()
+    return gr.update(value=_header_html(ok))
+
+
 def build_ui() -> gr.Blocks:
-    """组装界面。"""
+    """组装界面（T055：Apple 设计语言重构——浮层头部/气泡/材质输入区）。
+
+    注：Gradio 6 起 theme/css 从 Blocks 构造器移至 launch()（构造器传参仅告警不生效）。
+    """
     with gr.Blocks(title="保险理赔智能助手") as demo:
-        gr.Markdown("# 🛡️ 保险理赔智能助手\n多智能体理赔对话系统演示（Phase 1：单 Agent ReAct）")
+        header = gr.HTML(_header_html(None))
         session_state = gr.State({})
 
         chatbot = gr.Chatbot(
             value=[{"role": "assistant", "content": _WELCOME}],
             height=480,
+            show_label=False,
+            elem_classes=["chatbot"],
         )
+        with gr.Group(elem_classes=["cf-composer"]):
+            with gr.Row():
+                msg = gr.Textbox(
+                    placeholder="输入您的问题，如：保单 POL-2025-0001 住院花了15800元能赔多少？",
+                    scale=5,
+                    show_label=False,
+                    autofocus=True,
+                )
+                submit = gr.Button("发送", variant="primary", scale=1)
+            with gr.Row():
+                upload = gr.File(
+                    label="上传诊断证明/发票（图片 / PDF / Word，自动识别材料字段）",
+                    file_types=[".png", ".jpg", ".jpeg", ".webp", ".bmp", ".pdf", ".docx"],
+                    scale=5,
+                )
+                upload_btn = gr.Button("📎 识别材料", scale=1)
         with gr.Row():
-            msg = gr.Textbox(
-                placeholder="输入您的问题，如：保单 POL-2025-0001 住院花了15800元能赔多少？",
-                scale=5,
-                show_label=False,
-                autofocus=True,
-            )
-            submit = gr.Button("发送", variant="primary", scale=1)
-        with gr.Row():
-            upload = gr.File(
-                label="上传诊断证明/发票图片（OCR 识别材料字段）",
-                file_types=[".png", ".jpg", ".jpeg", ".webp", ".bmp", ".pdf", ".docx"],
-                scale=5,
-            )
-            upload_btn = gr.Button("📎 识别材料", scale=1)
-        with gr.Row():
-            gr.Examples(
-                examples=[
-                    ["保单 POL-2025-0001 住院花了15800元能赔多少？"],
-                    ["查一下保单 POL-2025-0002 的保障范围"],
-                    ["阑尾炎手术有等待期吗"],
-                    ["理赔需要准备什么材料"],
-                ],
-                inputs=msg,
-                label="示例问题",
-            )
-            reset = gr.Button("🔄 新会话")
+            with gr.Column(scale=5, elem_classes=["cf-chips"]):
+                gr.Examples(
+                    examples=[
+                        ["保单 POL-2025-0001 住院花了15800元能赔多少？"],
+                        ["查一下保单 POL-2025-0002 的保障范围"],
+                        ["阑尾炎手术有等待期吗"],
+                        ["理赔需要准备什么材料"],
+                    ],
+                    inputs=msg,
+                    label="示例问题",
+                )
+            with gr.Column(scale=1, min_width=120):
+                reset = gr.Button("🔄 新会话")
 
         async def respond(message: str, history: list, state: dict) -> tuple[str, list, dict]:
             if not message.strip():
@@ -200,6 +246,7 @@ def build_ui() -> gr.Blocks:
             history = history + [{"role": "assistant", "content": reply}]
             return "", history, state
 
+        demo.load(_check_backend, outputs=[header])
         submit.click(respond, [msg, chatbot, session_state], [msg, chatbot, session_state])
         msg.submit(respond, [msg, chatbot, session_state], [msg, chatbot, session_state])
         upload_btn.click(upload_material, [upload, chatbot, session_state], [chatbot, session_state])
@@ -210,4 +257,9 @@ def build_ui() -> gr.Blocks:
 demo = build_ui()
 
 if __name__ == "__main__":
-    demo.launch(server_name="127.0.0.1", server_port=int(os.getenv("GRADIO_PORT", "7860")))
+    demo.launch(
+        server_name="127.0.0.1",
+        server_port=int(os.getenv("GRADIO_PORT", "7860")),
+        theme=build_theme(),
+        css=APP_CSS,
+    )

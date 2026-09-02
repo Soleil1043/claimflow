@@ -1674,3 +1674,23 @@ ruff 通过。适配修正：Gradio 6 主题无 button_shadow 属性，改 butto
 button_transform_active="scale(0.97)"。
 
 **Git**：`feat: T054 设计令牌与共享主题（ui/theme.py + workbench @theme 双栈同源，D030）`
+
+### [T055] 用户聊天界面重构 — 2026-09-02
+
+**内容**：ui/app.py 应用共享设计系统（T055，D030）。gr.Blocks 重构：静态 gr.Markdown 标题 →
+gr.HTML 浮层 chrome 头部（.cf-header 半透明毛玻璃 + 品牌标题/副题 + 后端健康状态点，
+demo.load 调 /health 探测三态：检测中/已连接/不可达）；chatbot 加 elem_classes 挂气泡样式
+（18px 连续圆角 + hairline ring，用户蓝底/助手白底）；输入区 gr.Group(.cf-composer) 材质化
+（半透明 + blur + 浮起阴影）；示例问题改 chips（.cf-chips pill 按钮，hover 蓝边高亮）；
+隐藏 Chatbot 默认 label。回调逻辑/工具轨迹渲染零改动。
+
+**踩坑**：① Gradio 6 起 theme/css 从 Blocks 构造器移至 launch()（构造器传参仅 UserWarning
+不生效）→ 改在 launch 注入；② Gradio 6 示例渲染为 button.gallery-item，默认透明背景样式
+优先级压制 → 选择器提权 .gradio-container .cf-chips .gallery-item + !important。
+
+**验证**：ruff 通过；tests/ui 8 passed；HTTP 200；系统 Chrome headless 截图目检
+（docs/diagrams/t055_chat_ui.png）——头部状态点绿色"后端已连接"、chips pill、材质输入区、
+气泡欢迎语均正确渲染（agent-browser 的 Chromium 下载被网络阻断，改用系统 Chrome --headless=new
+--screenshot 替代，含 --virtual-time-budget 等 JS 渲染完成）。
+
+**Git**：`feat: T055 用户聊天界面 Apple 化重构（浮层头部/气泡/材质输入区/chips，D030）`

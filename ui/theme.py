@@ -328,16 +328,23 @@ APP_CSS = f"""
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }}
 
-/* 示例问题 chips */
-.cf-chips button {{
+/* 示例问题 chips（Gradio 6 渲染为 .gallery-item 按钮，需提高特异性覆盖默认透明样式） */
+.gradio-container .cf-chips .gallery-item,
+.gradio-container .cf-chips button {{
   border-radius: 999px !important;
   border: 1px solid var(--cf-hairline) !important;
   background: var(--cf-surface) !important;
   color: var(--cf-text) !important;
   font-size: 13px !important;
+  padding: 6px 14px !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
 }}
-.cf-chips button:hover {{ border-color: var(--cf-blue) !important; color: var(--cf-blue-dark) !important; }}
+.gradio-container .cf-chips .gallery-item:hover,
+.gradio-container .cf-chips button:hover {{
+  border-color: var(--cf-blue) !important;
+  color: var(--cf-blue-dark) !important;
+  background: #EAF3FF !important;
+}}
 
 /* ===== 无障碍降级 ===== */
 @media (prefers-reduced-motion: reduce) {{
