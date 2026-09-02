@@ -256,6 +256,11 @@ async def _run_suite(args: argparse.Namespace) -> Any:
 
     graph = await build_eval_graph()
 
+    # LLM token 差分口径（T073，GAP-006）：ab_test 的 Prometheus Counter 快照下沉到常规评测
+    from evals.ab_test import snapshot_llm_tokens
+
+    tokens_before = snapshot_llm_tokens()
+
     # LLM-judge（T068，--judge 开关）：惰性导入，未启用零开销
     judge_fn = None
     if args.judge:
@@ -275,7 +280,9 @@ async def _run_suite(args: argparse.Namespace) -> Any:
         mark = "PASS" if cr.passed else "FAIL"
         print(f"[{i:>3}/{len(cases)}] {mark} {case.id} {case.user_input[:30]}")
 
-    report = aggregate(results)
+    tokens_after = snapshot_llm_tokens()
+    tokens_delta = sum(tokens_after.values()) - sum(tokens_before.values())
+    report = aggregate(results, tokens_total=tokens_delta)
     from services.memory.short_term import get_checkpoint_manager
 
     await get_checkpoint_manager().close()
@@ -317,7 +324,13 @@ async def _run_suite(args: argparse.Namespace) -> Any:
             f"LLM-judge(D033 独立口径): 判过率 {report.judge_pass_rate:.1%}"
             f"（{report.judge_scored} 条，未并入完成率）"
         )
-    print(f"平均耗时: {report.avg_duration_s}s")
+    print(f"平均耗时: {report.avg_duration_s}s（p95 {report.p95_duration_s}s）")
+    if report.wilson_ci:
+        print(
+            f"完成率 Wilson 95% CI: [{report.wilson_ci[0]:.1%}, {report.wilson_ci[1]:.1%}]"
+        )
+    if report.tokens_per_case is not None:
+        print(f"LLM token: {report.tokens_per_case} /用例（本轮合计 {tokens_delta}）")
     print(
         f"检索命中: 向量 {report.avg_vector_hits} 条/例, 图谱事实 {report.avg_graph_hits} 条/例, 图谱覆盖 {report.graph_coverage:.1%}"
     )

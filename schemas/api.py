@@ -319,6 +319,10 @@ class EvalTrendPoint(BaseModel):
     # db（eval_runs 历史行）/ report（reports 目录文件，历史存量）
     source: str = "report"
     label: str = Field(default="", description="点标签（run_id 或报告文件名，hover 展示）")
+    task_completion_ci: list[float] | None = Field(
+        default=None,
+        description="完成率 Wilson 95% CI（T073；旧报告无此列为 None）",
+    )
 
 
 class EvalTrendsResponse(BaseModel):

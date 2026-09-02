@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from evals.metrics import CaseResult, aggregate, result_from_a06, score_case
+from evals.metrics import CaseResult, aggregate, result_from_a06, score_case, wilson_ci
 from evals.schemas import EvalCase, EvalCategory
 
 
@@ -263,6 +263,37 @@ def test_expected_numbers_scoring() -> None:
     assert not bad.numbers_hit and not bad.passed
     unannotated = score_case(_case(), _result(answer="随便什么"))
     assert unannotated.numbers_hit is True
+
+
+# ===== 报告统计增强（T073，GAP-006/008） =====
+
+
+def test_aggregate_p95_duration() -> None:
+    """p95 耗时（最近秩法）：20 例时长 1..20 → p95=19（均值 10.5 掩盖长尾）。"""
+    results = [_result(passed=True, duration_s=float(i)) for i in range(1, 21)]
+    report = aggregate(results)
+    assert report.p95_duration_s == 19.0
+    assert report.avg_duration_s == 10.5
+
+
+def test_aggregate_tokens_per_case_injection() -> None:
+    """tokens_total 注入：20000 token / 20 例 = 1000/例；未提供为 None。"""
+    results = [_result(passed=True) for _ in range(20)]
+    report = aggregate(results, tokens_total=20000)
+    assert report.tokens_per_case == 1000.0
+    report_none = aggregate(results)
+    assert report_none.tokens_per_case is None
+
+
+def test_aggregate_wilson_ci_attached() -> None:
+    """报告附完成率 Wilson CI（GAP-008：88% n=200 区间约 [82.x, 92.x]）。"""
+    results = [_result(passed=True) for _ in range(176)] + [
+        _result(passed=False) for _ in range(24)
+    ]
+    report = aggregate(results)
+    assert report.wilson_ci == wilson_ci(176, 200)
+    lo, hi = report.wilson_ci
+    assert 0.82 <= lo <= 0.85 and 0.90 <= hi <= 0.93
 
 
 # ===== result_from_a06 适配层 =====

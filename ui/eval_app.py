@@ -178,12 +178,42 @@ def _render_report(data: dict) -> tuple[str, list[list]]:
         _kpi(
             "任务完成率",
             f"{s.get('task_completion_rate', 0):.1%}",
-            f"{s.get('passed', 0)}/{s.get('total', 0)} 通过",
+            (
+                f"CI [{s['wilson_ci'][0]:.1%}, {s['wilson_ci'][1]:.1%}]"
+                if isinstance(s.get("wilson_ci"), list)
+                and len(s["wilson_ci"]) == 2
+                else f"{s.get('passed', 0)}/{s.get('total', 0)} 通过"
+            ),
         ),
-        _kpi("工具调用准确率", f"{s.get('tool_accuracy', 0):.1%}"),
-        _kpi("合规通过率", f"{s.get('compliance_pass_rate', 0):.1%}"),
-        _kpi("平均耗时", f"{s.get('avg_duration_s', 0)}s"),
     ]
+    # 工具准确率：空分母（tool_scored_total=0）显示 N/A 而非误导性的 100%（T073）
+    if s.get("tool_scored_total"):
+        parts.append(_kpi("工具调用准确率", f"{s.get('tool_accuracy', 0):.1%}"))
+    else:
+        parts.append(_kpi("工具调用准确率", "N/A", "本轮无工具考核用例"))
+    parts.append(_kpi("合规通过率", f"{s.get('compliance_pass_rate', 0):.1%}"))
+    # 北极星指标（T064/T065）：有转人工标注/行为才展示
+    if s.get("human_scored") or s.get("human_intervened"):
+        parts.append(
+            _kpi(
+                "转人工召回",
+                f"{s.get('human_recall', 0):.1%}",
+                f"{int(s.get('human_scored', 0))} 条期望 / "
+                f"{int(s.get('human_intervened', 0))} 条实际",
+            )
+        )
+    if s.get("intent_scored"):
+        parts.append(
+            _kpi(
+                "意图准确率",
+                f"{s.get('intent_accuracy', 0):.1%}",
+                f"{int(s.get('intent_scored', 0))} 条标注",
+            )
+        )
+    dur_foot = f"p95 {s.get('p95_duration_s', 0)}s"
+    if s.get("tokens_per_case") is not None:
+        dur_foot += f" · {s.get('tokens_per_case')} tok/例"
+    parts.append(_kpi("平均耗时", f"{s.get('avg_duration_s', 0)}s", dur_foot))
     if "avg_vector_hits" in s:
         parts.append(
             _kpi(
@@ -250,7 +280,11 @@ def _render_report(data: dict) -> tuple[str, list[list]]:
 
 
 def _rate(traj: dict, key: str) -> str:
-    return f"{traj.get(key, {}).get('rate', 1.0):.1%}"
+    """维度率展示：scored=0 显示 N/A（未标注不考核，消除"无数据=满分"误读，T073）。"""
+    d = traj.get(key, {})
+    if not d.get("scored"):
+        return "N/A"
+    return f"{d.get('rate', 1.0):.1%}"
 
 
 def _build_trend_figure(points: list[dict], dataset: str, variant: str):
@@ -269,6 +303,11 @@ def _build_trend_figure(points: list[dict], dataset: str, variant: str):
     hover = [
         f"{p['label']}<br>{p['variant']} · {p['source']}<br>"
         f"commit {p['git_sha']}<br>{p['passed']}/{p['total']} 通过"
+        + (
+            f"<br>CI [{p['task_completion_ci'][0]:.1%}, {p['task_completion_ci'][1]:.1%}]"
+            if p.get("task_completion_ci")
+            else ""
+        )
         for p in rows
     ]
     fig = go.Figure()

@@ -284,6 +284,7 @@ async def trends() -> EvalTrendsResponse:
                 git_sha=str(data.get("git_sha", "unknown") or "unknown"),
                 source="report",
                 label=path.name,
+                task_completion_ci=s.get("wilson_ci"),
             )
         )
 

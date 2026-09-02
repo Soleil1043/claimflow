@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any
 
@@ -76,6 +77,18 @@ class EvalReport(BaseModel):
     tool_scored_passed: int = Field(default=0, description="工具考核通过数")
     tool_scored_total: int = Field(default=0, description="工具考核用例数")
     compliance_pass_rate: float = Field(description="合规通过率：PASS verdict 占比")
+    avg_duration_s: float = Field(description="平均单用例耗时（秒）")
+    p95_duration_s: float = Field(
+        default=0.0, description="95 分位耗时（秒，最近秩法）——均值会掩盖长尾（T073，GAP-006）"
+    )
+    tokens_per_case: float | None = Field(
+        default=None,
+        description="单用例平均 LLM token 消耗（Prometheus 差分注入；None=运行器未提供，T073）",
+    )
+    wilson_ci: list[float] = Field(
+        default_factory=list,
+        description="任务完成率 Wilson 95% 置信区间 [lo, hi]（GAP-008：n=200 时半宽约 ±4.5pp）",
+    )
     human_precision: float = Field(
         description="转人工精确率：实际转人工的用例中「确实该转」（用例标注期望）的占比"
     )
@@ -193,8 +206,14 @@ def score_case(case: EvalCase, result: CaseResult) -> CaseResult:
     return result
 
 
-def aggregate(results: list[CaseResult]) -> EvalReport:
-    """聚合为评测报告。"""
+def aggregate(
+    results: list[CaseResult], *, tokens_total: int | None = None
+) -> EvalReport:
+    """聚合为评测报告。
+
+    tokens_total：本轮运行 LLM token 总消耗（运行器 Prometheus 差分口径注入，T073）；
+    None 表示未提供（报告 tokens_per_case=None 不误导）。
+    """
     total = len(results)
     passed = sum(1 for r in results if r.passed)
 
@@ -242,6 +261,11 @@ def aggregate(results: list[CaseResult]) -> EvalReport:
     )
 
     avg_duration = (sum(r.duration_s for r in results) / total) if total else 0.0
+    # p95 耗时（最近秩法）：均值会骗人——一人火锅一人冰"平均体温"都正常（T073）
+    durations = sorted(r.duration_s for r in results)
+    p95_idx = max(0, math.ceil(0.95 * len(durations)) - 1) if durations else 0
+    p95_duration = durations[p95_idx] if durations else 0.0
+    tokens_per_case = (tokens_total / total) if (tokens_total is not None and total) else None
     avg_vector_hits = (sum(r.vector_hits for r in results) / total) if total else 0.0
     avg_graph_hits = (sum(r.graph_hits for r in results) / total) if total else 0.0
     graph_coverage = (sum(1 for r in results if r.graph_hits > 0) / total) if total else 0.0
@@ -291,11 +315,14 @@ def aggregate(results: list[CaseResult]) -> EvalReport:
         human_recall=human_recall,
         human_scored=len(expected_true),
         human_intervened=len(intervened),
+        avg_duration_s=round(avg_duration, 3),
+        p95_duration_s=round(p95_duration, 3),
+        tokens_per_case=round(tokens_per_case, 1) if tokens_per_case is not None else None,
+        wilson_ci=wilson_ci(passed, total),
         intent_accuracy=intent_accuracy,
         intent_scored=len(intent_scored),
         judge_pass_rate=judge_pass_rate,
         judge_scored=len(judged),
-        avg_duration_s=round(avg_duration, 3),
         avg_vector_hits=round(avg_vector_hits, 2),
         avg_graph_hits=round(avg_graph_hits, 2),
         graph_coverage=round(graph_coverage, 4),
