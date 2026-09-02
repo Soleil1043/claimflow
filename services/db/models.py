@@ -190,3 +190,43 @@ class HumanTicket(Base):
 
     def __repr__(self) -> str:
         return f"<HumanTicket {self.id} conversation={self.conversation_id} status={self.status}>"
+
+
+class EvalRunRecord(Base):
+    """评测运行历史（T052，D028）：重启后可回溯，趋势图（T053）主要数据源。
+
+    单写者原则：UI 托管运行由 EvalRunManager 两阶段写（start=running / finish=终态）；
+    CLI 运行由 evals.test_suite 进程收尾自记（EVAL_MANAGED_BY=api 时跳过防双写）。
+    """
+
+    __tablename__ = "eval_runs"
+
+    id: Mapped[int] = mapped_column(_autoincrement_id(), primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    # ui（EvalRunManager 托管）/ cli（命令行直接运行）
+    source: Mapped[str] = mapped_column(String(16), default="ui")
+    dataset: Mapped[str] = mapped_column(String(32), default="")
+    variant: Mapped[str] = mapped_column(String(64), default="")
+    category: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    run_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # running / completed / failed
+    status: Mapped[str] = mapped_column(String(16), default="running", index=True)
+    return_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    git_sha: Mapped[str] = mapped_column(String(40), default="unknown")
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    passed: Mapped[int] = mapped_column(Integer, default=0)
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    # 趋势查询冗余列（来源 summary；SQLite 无 JSON 查询能力，避免整包解析）
+    task_completion_rate: Mapped[float | None] = mapped_column(Numeric(6, 4), nullable=True)
+    tool_accuracy: Mapped[float | None] = mapped_column(Numeric(6, 4), nullable=True)
+    report_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 报告 summary 快照（不含 failures 明细）
+    summary: Mapped[dict[str, Any] | None] = mapped_column(_jsonb_or_json(), nullable=True)
+    # 运行日志末尾（\n 连接，截断保留）
+    log_tail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<EvalRunRecord {self.run_id} status={self.status}>"

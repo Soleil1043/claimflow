@@ -20,8 +20,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import datetime as dt
 import json
+import os
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +33,7 @@ from langchain_core.messages import HumanMessage
 from app.core.logging import configure_logging, get_logger
 from evals.metrics import CaseResult, aggregate, result_from_a06, score_case
 from evals.schemas import EvalCase, EvalCategory, EvalDataset
+from services.eval_history import get_git_sha
 
 log = get_logger(__name__)
 
@@ -163,6 +167,20 @@ async def main() -> None:
 
     configure_logging()
 
+    report: Any = None
+    run_error = ""
+    try:
+        report = await _run_suite(args)
+    except Exception as exc:  # noqa: BLE001 评测进程级失败也要留痕（T052）
+        run_error = str(exc)[:200]
+        log.error("eval_run_failed", error=run_error)
+        raise
+    finally:
+        await _save_cli_history(args, report, run_error)
+
+
+async def _run_suite(args: argparse.Namespace) -> Any:
+    """执行一轮评测：变体生效 → 逐例运行 → 聚合落盘，返回聚合报告（失败向上抛）。"""
     cases, version = load_cases(args.dataset, args.category, args.limit)
     print(
         f"加载 {len(cases)} 条用例（dataset={args.dataset} v{version}, "
@@ -209,6 +227,7 @@ async def main() -> None:
         "dataset": args.dataset,
         "category": args.category,
         "variant": args.variant,
+        "git_sha": get_git_sha(),
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "summary": report.model_dump(exclude={"failures"}),
         "failures": [f.model_dump() for f in report.failures],
@@ -237,6 +256,38 @@ async def main() -> None:
             f"| 冗余调用均值 {traj['redundancy']['avg_redundant_calls']}"
         )
     print(f"报告已写入: {out_path}")
+    return report
+
+
+async def _save_cli_history(args: argparse.Namespace, report: Any, run_error: str) -> None:
+    """CLI 直接运行的自记历史（T052，D028）；UI 托管运行由 EvalRunManager 写（防双写）。
+
+    在 finally 中调用：report 为 None 即进程级失败，也要留痕；历史写入 fail-open。
+    """
+    if os.environ.get("EVAL_MANAGED_BY") == "api":
+        return
+    from services.eval_history import save_run
+
+    await save_run(
+        {
+            "run_id": f"cli-{time.strftime('%Y%m%d_%H%M%S')}-{uuid.uuid4().hex[:6]}",
+            "source": "cli",
+            "dataset": args.dataset,
+            "variant": args.variant,
+            "category": args.category,
+            "run_limit": args.limit,
+            "status": "completed" if report is not None else "failed",
+            "git_sha": get_git_sha(),
+            "total": report.total if report else 0,
+            "passed": report.passed if report else 0,
+            "failed": (report.total - report.passed) if report else 0,
+            "task_completion_rate": report.task_completion_rate if report else None,
+            "tool_accuracy": report.tool_accuracy if report else None,
+            "error": run_error or None,
+            "summary": report.model_dump(exclude={"failures"}) if report else None,
+            "finished_at": dt.datetime.now(),
+        }
+    )
 
 
 if __name__ == "__main__":

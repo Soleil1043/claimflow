@@ -1,19 +1,26 @@
-"""T051 评测 API 测试：运行生命周期（假命令注入，不跑真实 LLM）+ 报告查询接口。
+"""T051/T052 评测 API 测试：运行生命周期（假命令注入，不跑真实 LLM）+ 报告与历史查询。
 
 假命令以 `python -c <script> <run_id> <reports_dir>` 模拟评测子进程：打印进度行 /
-退出码 / 报告落盘均可编排；路由单例经 monkeypatch 替换为临时目录上的独立管理器。
+退出码 / 报告落盘均可编排；路由单例经 monkeypatch 替换为临时目录上的独立管理器；
+DB 统一替换为内存 SQLite（eval_runs 历史落库验证）。
 """
 
 from __future__ import annotations
 
 import asyncio
 import sys
+import types
 from pathlib import Path
+from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+import services.db.session as session_module
 from app.main import app
+from services.db.models import Base
+from services.eval_history import get_git_sha
 from services.eval_runner import EvalRunManager, EvalRunParams
 
 # 成功脚本：两行进度（1 PASS / 1 FAIL）+ 报告落盘 ui_<run_id>.json
@@ -43,6 +50,19 @@ def _script_manager(tmp_path: Path, script: str) -> EvalRunManager:
         return [sys.executable, "-c", script, run_id, str(reports_dir)]
 
     return EvalRunManager(reports_dir=tmp_path, command_builder=builder)
+
+
+@pytest.fixture(autouse=True)
+async def _mem_db(monkeypatch: pytest.MonkeyPatch) -> async_sessionmaker:
+    """内存 SQLite 承接 eval_runs 历史写（隔离真实 DB，本文件全部测试生效）。"""
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    monkeypatch.setattr(session_module, "_engine", engine)
+    monkeypatch.setattr(session_module, "_session_factory", factory)
+    yield factory
+    await engine.dispose()
 
 
 def _patch_runner(monkeypatch: pytest.MonkeyPatch, manager: EvalRunManager) -> None:
@@ -160,3 +180,85 @@ async def test_meta_options(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
         assert "main" in meta["datasets"]
         assert "simple_faq" in meta["categories"]
         assert any(v["name"] == "baseline" for v in meta["variants"])
+
+
+# ===== T052：运行历史持久化 =====
+
+
+async def test_history_persisted_and_visible_after_restart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """运行终态落库（git_sha/率/报告回链），换新管理器（模拟重启）后 /runs 仍可查。"""
+    from services.eval_history import list_runs as list_history
+
+    manager = _script_manager(tmp_path, _OK_SCRIPT)
+    _patch_runner(monkeypatch, manager)
+    async with _client() as client:
+        run_id = (
+            await client.post("/api/v1/evals/runs", json={"dataset": "main", "limit": 2})
+        ).json()["run"]["run_id"]
+        status = await _wait_terminal(client, run_id)
+        assert status["status"] == "completed"
+        assert status["git_sha"] not in ("", "unknown")
+
+        # 落库断言：终态行带 summary 快照与率冗余列
+        rows = await list_history(10)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.run_id == run_id and row.source == "ui"
+        assert row.status == "completed" and row.return_code == 0
+        assert row.report_name == f"ui_{run_id}.json"
+        assert float(row.task_completion_rate) == 0.5  # type: ignore[arg-type]
+        assert row.summary is not None and row.summary["total"] == 2
+        assert "PASS A-001" in (row.log_tail or "")
+
+        # 模拟服务重启：换全新管理器（内存为空），历史仍可经 /runs 与 /runs/{id} 查询
+        _patch_runner(monkeypatch, EvalRunManager(reports_dir=tmp_path))
+        runs = (await client.get("/api/v1/evals/runs")).json()["runs"]
+        assert any(r["run_id"] == run_id and r["status"] == "completed" for r in runs)
+        detail = (await client.get(f"/api/v1/evals/runs/{run_id}")).json()
+        assert detail["status"] == "completed" and detail["total"] == 2
+        assert detail["task_completion_rate"] == 0.5
+
+
+async def test_history_fail_open(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """DB 不可用时历史写入静默失败（fail-open），评测本身照常完成。"""
+    manager = _script_manager(tmp_path, _OK_SCRIPT)
+    _patch_runner(monkeypatch, manager)
+
+    def _broken_factory() -> None:
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(session_module, "get_session_factory", _broken_factory)
+    async with _client() as client:
+        run_id = (
+            await client.post("/api/v1/evals/runs", json={"dataset": "main", "limit": 2})
+        ).json()["run"]["run_id"]
+        status = await _wait_terminal(client, run_id)
+        assert status["status"] == "completed"  # 评测不受历史故障影响
+        assert status["report_name"] == f"ui_{run_id}.json"
+
+
+async def test_git_sha_helper() -> None:
+    """git_sha 非空、进程内缓存稳定（git 仓库内应为真实短 SHA）。"""
+    sha = get_git_sha()
+    assert sha and len(sha) <= 40
+    assert get_git_sha() == sha
+
+
+async def test_cli_run_self_record(_mem_db: Any) -> None:
+    """CLI 运行收尾自记历史（T052）：完成/失败两态都落库。"""
+    from evals.metrics import CaseResult, aggregate
+    from evals.schemas import EvalCategory
+    from evals.test_suite import _save_cli_history
+    from services.eval_history import list_runs as list_history
+
+    report = aggregate([CaseResult(case_id="A", category=EvalCategory.MULTI_STEP, passed=True)])
+    args = types.SimpleNamespace(dataset="main", category=None, limit=5, variant="baseline")
+    await _save_cli_history(args, report, "")
+    await _save_cli_history(args, None, "boom")
+    rows = await list_history(10)
+    assert [r.status for r in rows] == ["failed", "completed"]  # 新→旧
+    assert all(r.source == "cli" for r in rows)
+    assert rows[0].error == "boom"
+    assert rows[1].task_completion_rate is not None

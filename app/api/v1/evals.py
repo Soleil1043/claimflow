@@ -43,7 +43,68 @@ def _brief(run: EvalRun) -> EvalRunBrief:
         created_at=run.created_at,
         finished_at=run.finished_at,
         params=EvalRunStartRequest(**run.params.__dict__),
+        source="ui",
+        git_sha=run.git_sha,
     )
+
+
+def _brief_from_row(row: Any) -> EvalRunBrief:
+    """eval_runs 历史行 → 运行摘要（T052：服务重启后历史可查）。"""
+    return EvalRunBrief(
+        run_id=row.run_id,
+        status=row.status,
+        created_at=_fmt_dt(row.created_at),
+        finished_at=_fmt_dt(row.finished_at),
+        params=EvalRunStartRequest(
+            dataset=row.dataset,
+            category=row.category,
+            limit=row.run_limit,
+            variant=row.variant,
+        ),
+        source=row.source,
+        git_sha=row.git_sha,
+        task_completion_rate=float(row.task_completion_rate)
+        if row.task_completion_rate is not None
+        else None,
+        tool_accuracy=float(row.tool_accuracy) if row.tool_accuracy is not None else None,
+    )
+
+
+def _status_from_row(row: Any) -> EvalRunStatusResponse:
+    """eval_runs 历史行 → 运行状态响应（进度取落库快照，日志尾按行拆分）。"""
+    return EvalRunStatusResponse(
+        run_id=row.run_id,
+        status=row.status,
+        created_at=_fmt_dt(row.created_at),
+        finished_at=_fmt_dt(row.finished_at),
+        params=EvalRunStartRequest(
+            dataset=row.dataset,
+            category=row.category,
+            limit=row.run_limit,
+            variant=row.variant,
+        ),
+        total=row.total,
+        passed=row.passed,
+        failed=row.failed,
+        return_code=row.return_code,
+        git_sha=row.git_sha,
+        source=row.source,
+        task_completion_rate=float(row.task_completion_rate)
+        if row.task_completion_rate is not None
+        else None,
+        tool_accuracy=float(row.tool_accuracy) if row.tool_accuracy is not None else None,
+        report_name=row.report_name,
+        log_tail=(row.log_tail or "").splitlines(),
+    )
+
+
+def _fmt_dt(value: Any) -> str | None:
+    """DB 时间 → 显示字符串（SQLite/PG 均可能返回 datetime 或 str）。"""
+    if value is None:
+        return None
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d %H:%M:%S")
+    return str(value)
 
 
 @router.post("/runs", response_model=EvalRunStartResponse)
@@ -58,28 +119,49 @@ async def start_run(body: EvalRunStartRequest) -> EvalRunStartResponse:
 
 @router.get("/runs", response_model=EvalRunListResponse)
 async def list_runs() -> EvalRunListResponse:
-    return EvalRunListResponse(runs=[_brief(r) for r in get_eval_runner().list_runs()])
+    """运行历史：DB 落库行为主（T052，重启后可查），内存运行优先（实时进度）。"""
+    from services.eval_history import list_runs as list_history
+
+    merged: dict[str, EvalRunBrief] = {}
+    for row in await list_history(50):
+        merged[row.run_id] = _brief_from_row(row)
+    for run in get_eval_runner().list_runs():
+        merged[run.run_id] = _brief(run)  # 内存视图覆盖同名 DB 行（running 进度实时）
+    items = sorted(merged.values(), key=lambda b: b.created_at, reverse=True)
+    return EvalRunListResponse(runs=items[:50])
 
 
 @router.get("/runs/{run_id}", response_model=EvalRunStatusResponse)
 async def get_run(run_id: str) -> EvalRunStatusResponse:
     run = get_eval_runner().get_run(run_id)
-    if run is None:
+    if run is not None:
+        return EvalRunStatusResponse(
+            run_id=run.run_id,
+            status=run.status,
+            created_at=run.created_at,
+            finished_at=run.finished_at,
+            params=EvalRunStartRequest(**run.params.__dict__),
+            current=run.current,
+            total=run.total,
+            passed=run.passed,
+            failed=run.failed,
+            return_code=run.return_code,
+            git_sha=run.git_sha,
+            source="ui",
+            report_name=run.report_name,
+            log_tail=list(run.log_tail),
+        )
+    row = await get_history_run(run_id)
+    if row is None:
         raise HTTPException(status_code=404, detail=f"运行不存在：{run_id}")
-    return EvalRunStatusResponse(
-        run_id=run.run_id,
-        status=run.status,
-        created_at=run.created_at,
-        finished_at=run.finished_at,
-        params=EvalRunStartRequest(**run.params.__dict__),
-        current=run.current,
-        total=run.total,
-        passed=run.passed,
-        failed=run.failed,
-        return_code=run.return_code,
-        report_name=run.report_name,
-        log_tail=list(run.log_tail),
-    )
+    return _status_from_row(row)
+
+
+async def get_history_run(run_id: str) -> Any:
+    """历史行查询（独立函数便于测试 patch）。"""
+    from services.eval_history import get_run as get_history
+
+    return await get_history(run_id)
 
 
 @router.get("/reports", response_model=EvalReportListResponse)

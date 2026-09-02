@@ -582,3 +582,33 @@ variant_summaries 自动携带新指标（aggregate 聚合层透传），MD 表�
 **影响**：
 T051 落地（services/eval_runner.py + app/api/v1/evals.py + ui/eval_app.py + 单测）；
 评测报告落盘 evals/reports/ui_<run_id>.json，与 CLI 报告同目录共存。
+
+## D028: 评测运行历史持久化——单写者两阶段 + fail-open + git_sha — 2026-09-02
+
+**背景**：T051 运行注册表在内存，服务重启即失；失败运行（无报告产出）与运行↔代码版本绑定
+完全丢失。评测的核心工作流是回归对比，"这个数字是哪个代码版本跑出来的"必须可回答。
+
+**决策**：
+- **单写者**：UI 托管运行由 EvalRunManager 两阶段写库（start=running / finish=终态）；
+  CLI 运行由 evals.test_suite 进程收尾自记；子进程环境注入 `EVAL_MANAGED_BY=api` 时跳过
+  自记——同一行永远只有一个写者，杜绝双写
+- **fail-open**：历史写入/查询失败只 warn，绝不影响评测本身（评测产物是报告，历史是附属）
+- **git_sha 进历史也进报告**：报告 JSON 与 eval_runs 表均记录 `git rev-parse --short HEAD`
+  （缓存，git 不可用回退 unknown），每个数字可复现
+- **存储**：复用既有 SQLAlchemy async（dev=SQLite / prod=PostgreSQL）加 eval_runs 表；
+  完成率/工具准确率冗余成数值列（SQLite 无 JSON 查询能力，趋势查询直接排序过滤）
+
+**影响**：T052 落地；趋势图（T053）以本表为主要数据源。
+
+## D029: 趋势图数据源双合并 + plotly 选型 — 2026-09-02
+
+**背景**：T052 前的存量报告（baseline.json、t0xx 系列等 20+ 份）没有历史行；趋势图若只读
+eval_runs 表会丢掉全部历史。
+
+**决策**：
+- /trends 双来源合并：DB 历史行 + reports 目录文件扫描，按 report_name 去重（DB 行优先），
+  时间升序输出；每点带 source 标签（db/report）便于甄别
+- 绘图选 **plotly**（新增依赖）：gr.Plot 原生支持、hover 交互（点级 run 标签/变体/commit）
+  是趋势图的核心可读性需求，matplotlib 静态图无法承载；点量级 <10² 性能无忧
+
+**影响**：T053 落地；pyproject 增 plotly 直接依赖。

@@ -222,13 +222,17 @@ class EvalRunStartRequest(BaseModel):
 
 
 class EvalRunBrief(BaseModel):
-    """运行记录摘要。"""
+    """运行记录摘要（内存运行与 DB 历史行共用）。"""
 
     run_id: str
     status: str
     created_at: str
     finished_at: str | None = None
     params: EvalRunStartRequest
+    source: str = "ui"  # ui / cli（T052）
+    git_sha: str = "unknown"
+    task_completion_rate: float | None = None
+    tool_accuracy: float | None = None
 
 
 class EvalRunStartResponse(BaseModel):
@@ -256,6 +260,10 @@ class EvalRunStatusResponse(BaseModel):
     passed: int = 0
     failed: int = 0
     return_code: int | None = None
+    git_sha: str = "unknown"
+    source: str = "ui"
+    task_completion_rate: float | None = None
+    tool_accuracy: float | None = None
     report_name: str | None = None
     log_tail: list[str] = Field(default_factory=list, description="运行日志末尾（最多 200 行）")
 

@@ -8,6 +8,8 @@ D027：评测会重建主图并 close 全局 checkpointer/嵌入单例，API 进
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
+import json
 import os
 import re
 import sys
@@ -17,9 +19,10 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from app.core.logging import get_logger
+from services.eval_history import get_git_sha, save_run
 
 log = get_logger(__name__)
 
@@ -59,6 +62,7 @@ class EvalRun:
     passed: int = 0
     failed: int = 0
     return_code: int | None = None
+    git_sha: str = "unknown"
     report_name: str | None = None
     log_tail: deque[str] = field(default_factory=lambda: deque(maxlen=200))
 
@@ -115,12 +119,19 @@ class EvalRunManager:
 
         run_id = f"{time.strftime('%Y%m%d_%H%M%S')}-{uuid.uuid4().hex[:6]}"
         run = EvalRun(run_id=run_id, params=params)
+        run.git_sha = get_git_sha()
         self._runs[run_id] = run
         self._active_id = run_id
 
         argv = self._command_builder(params, run_id, self.reports_dir)
-        # 子进程 stdout 固定 utf-8：Windows 管道默认本地编码（gbk），中文进度行会乱码
-        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+        # 子进程 stdout 固定 utf-8：Windows 管道默认本地编码（gbk），中文进度行会乱码；
+        # EVAL_MANAGED_BY=api 让 test_suite 跳过自记历史（本管理器是唯一写者，D028）
+        env = {
+            **os.environ,
+            "PYTHONIOENCODING": "utf-8",
+            "PYTHONUTF8": "1",
+            "EVAL_MANAGED_BY": "api",
+        }
         try:
             self._proc = await asyncio.create_subprocess_exec(
                 *argv,
@@ -130,13 +141,14 @@ class EvalRunManager:
                 stderr=asyncio.subprocess.STDOUT,
             )
         except OSError as exc:
-            self._finish(run, return_code=-1)
             run.log_tail.append(f"进程启动失败：{exc!r}")
+            await self._finish(run, return_code=-1)
             return run
 
         task = asyncio.create_task(self._drive(run))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+        await save_run(self._history_entry(run))  # T052：running 行先行落库
         log.info("eval_run_started", run_id=run_id, dataset=params.dataset, variant=params.variant)
         return run
 
@@ -151,7 +163,7 @@ class EvalRunManager:
         """消费子进程 stdout：逐行进日志环形缓冲，匹配进度行更新计数。"""
         proc = self._proc
         if proc is None or proc.stdout is None:  # pragma: no cover - start_run 已保证
-            self._finish(run, return_code=-1)
+            await self._finish(run, return_code=-1)
             return
         async for raw in proc.stdout:
             line = raw.decode("utf-8", errors="replace").rstrip()
@@ -167,13 +179,13 @@ class EvalRunManager:
                     run.failed += 1
         code = await proc.wait()
         report = self.reports_dir / f"ui_{run.run_id}.json"
-        self._finish(
+        await self._finish(
             run,
             return_code=code,
             report_name=report.name if code == 0 and report.exists() else None,
         )
 
-    def _finish(self, run: EvalRun, return_code: int, report_name: str | None = None) -> None:
+    async def _finish(self, run: EvalRun, return_code: int, report_name: str | None = None) -> None:
         run.status = "completed" if return_code == 0 else "failed"
         run.return_code = return_code
         run.finished_at = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -181,6 +193,37 @@ class EvalRunManager:
         if self._active_id == run.run_id:
             self._active_id = None
         log.info("eval_run_finished", run_id=run.run_id, status=run.status, code=return_code)
+        await save_run(self._history_entry(run))  # T052：终态落库
+
+    def _history_entry(self, run: EvalRun) -> dict[str, Any]:
+        """运行记录 → eval_runs 行（summary 快照取自报告文件，缺失为 None）。"""
+        summary: dict[str, Any] | None = None
+        if run.report_name:
+            try:
+                data = json.loads((self.reports_dir / run.report_name).read_text(encoding="utf-8"))
+                summary = data.get("summary") if isinstance(data.get("summary"), dict) else None
+            except (OSError, json.JSONDecodeError):
+                summary = None
+        return {
+            "run_id": run.run_id,
+            "source": "ui",
+            "dataset": run.params.dataset,
+            "variant": run.params.variant,
+            "category": run.params.category,
+            "run_limit": run.params.limit,
+            "status": run.status,
+            "return_code": run.return_code,
+            "git_sha": run.git_sha,
+            "total": run.total,
+            "passed": run.passed,
+            "failed": run.failed,
+            "task_completion_rate": (summary or {}).get("task_completion_rate"),
+            "tool_accuracy": (summary or {}).get("tool_accuracy"),
+            "report_name": run.report_name,
+            "summary": summary,
+            "log_tail": "\n".join(list(run.log_tail)[-50:]),
+            "finished_at": dt.datetime.now() if run.status != "running" else None,
+        }
 
 
 _manager: EvalRunManager | None = None

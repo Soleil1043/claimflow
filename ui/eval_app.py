@@ -88,7 +88,8 @@ def _render_report(data: dict) -> tuple[str, list[list]]:
     lines = [
         "### 📋 报告摘要",
         f"- 数据集 `{data.get('dataset', '')}` · 变体 `{data.get('variant', '')}`"
-        f" · 分类 `{data.get('category') or '全部'}` · 生成于 {data.get('generated_at', '')}",
+        f" · 分类 `{data.get('category') or '全部'}` · 生成于 {data.get('generated_at', '')}"
+        f" · commit `{data.get('git_sha') or 'unknown'}`",
         "",
         "| 指标 | 数值 |",
         "|------|------|",
