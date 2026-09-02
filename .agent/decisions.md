@@ -657,3 +657,28 @@ README 增设计系统章节；后续新 UI 一律消费既有令牌，不再散
 **新增变量仅作派生令牌**（--cf-shadow-1/2/3、--cf-ease-out、--cf-blue-soft 等），TOKENS 核心值不动 → workbench @theme 同名同值契约不受影响。
 
 **影响**：T059-T062；tests/ui/test_theme.py 新增 polish 断言锁死关键选择器。
+
+---
+
+## D032: 对话界面用 Next.js 重写（chatui/），评测台保留 Gradio — 2026-09-03
+
+**背景**：
+用户反馈两个 Gradio 界面（演示/评测台）的观感与交互不如 Next.js 坐席工作台，询问是否 Gradio 框架所致。分析结论：Gradio 只能通过外部 CSS 覆盖其生成的 DOM（ui/theme.py 579 行本质是"撬皮肤"，改不了 DOM 骨架与交互形态，T062 宽屏居中/移动端前缀两轮修复即为与框架搏斗的证据）；坐席工作台是手写前端，DOM/布局/交互全量可控。用户选定方案 2：对话界面重写，评测台保留。
+
+**选项**：
+| 选项 | 优点 | 缺点 |
+|------|------|------|
+| A: 继续打磨 Gradio theme.py | 零新依赖、改动小 | 天花板已见：DOM 骨架不可控，覆盖式 CSS 在框架升级时易碎 |
+| B: 对话界面 Next.js 重写，共享 workbench 设计系统 | 全量 DOM/交互控制；A06 富数据（intent/agent_steps/compliance/used_tools）可结构化展示而非拍平成 markdown 脚注；复用既有设计令牌与 rewrites 代理模式 | 新增一个前端应用与一份 @theme 令牌拷贝（三栈同源） |
+| C: 演示+评测台全部迁移 Next.js | 技术栈完全统一 | 评测台轮询/趋势/历史报告需全部自研，工作量大；其为内部工具收益低 |
+
+**最终选择**：B（独立应用 `chatui/`，Next.js 15 + React 19 + Tailwind 4，端口 3000）
+
+**理由**：
+对话界面是面向演示的第一门面，值得产品级 UI；评测台是内部工具，Gradio 够用。选择独立应用而非 workbench 加路由：演示界面与内部坐席工具的部署形态/受众不同，保持可分离部署（与 ui/app.py「ui 与 app 可分离部署」承诺一致）。
+
+**影响**：
+- 新增 `chatui/` 应用；`chatui/app/globals.css` 的 @theme 块与 workbench 同名同值（双栈同源契约扩展为三栈，源头仍是 ui/theme.py TOKENS）
+- 代理沿用 workbench 模式：浏览器相对路径 /api/* + next.config.ts rewrites（CHATUI_API_TARGET 可覆盖），FastAPI 不引入 CORS
+- `ui/app.py` Gradio 演示界面保留不删除（内部对照与兜底）
+- 任务：T063
