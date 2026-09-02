@@ -20,7 +20,9 @@ class EvalCategory(StrEnum):
 
     基础四分类（架构 9.2 比例：FAQ 30 / 单领域 60 / 多步 80 / 边界 30）；
     T033 新增 graph_assoc：复杂关联类（疾病↔险种↔规则跨实体），
-    存放独立数据集 evals/datasets/eval_graph_assoc.json，用于纯 RAG vs 混合召回对比。
+    存放独立数据集 evals/datasets/eval_graph_assoc.json，用于纯 RAG vs 混合召回对比；
+    T065 新增 human_handoff：转人工期望类（北极星"转人工率"分母，审计 BUG-001），
+    并入主数据集（200→218，v1.1.0）——北极星指标须在全量报告直接可见（D033）。
     """
 
     SIMPLE_FAQ = "simple_faq"  # 简单 FAQ（RAG 知识库问答）
@@ -28,6 +30,7 @@ class EvalCategory(StrEnum):
     MULTI_STEP = "multi_step"  # 多步复杂任务（规划 → 多 Agent 执行 → 合成）
     EDGE_CASE = "edge_case"  # 边界与异常（不存在数据 / 等待期 / 免责 / 越界）
     GRAPH_ASSOC = "graph_assoc"  # 复杂关联（跨实体多跳：疾病→险种→规则）
+    HUMAN_HANDOFF = "human_handoff"  # 转人工期望（骗保表述/材料缺失/法律纠纷/用户主动要求）
 
 
 class EvalCase(BaseModel):

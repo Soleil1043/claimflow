@@ -52,6 +52,10 @@ class CaseResult(BaseModel):
     human_match: bool = True
     # 转人工指标（T064，BUG-001）：透传用例期望值，聚合 precision/recall 才有正确分母分子
     expect_human: bool = False
+    # 意图准确率（T066，BUG-002）：actual_intent 回填实际识别结果；
+    # intent_match=None 表示该用例未标注期望意图（不考核，聚合分母不计）
+    actual_intent: str | None = None
+    intent_match: bool | None = None
     passed: bool = False
 
 
@@ -78,6 +82,13 @@ class EvalReport(BaseModel):
     human_intervened: int = Field(
         default=0, description="实际转人工用例数（precision 分母）"
     )
+    intent_accuracy: float | None = Field(
+        default=None,
+        description="意图准确率：期望意图用例中识别一致的占比（None=本轮无标注，未考核）",
+    )
+    intent_scored: int = Field(
+        default=0, description="意图考核用例数（分母；expected_intent 标注数）"
+    )
     avg_duration_s: float = Field(description="平均单用例耗时（秒）")
     avg_vector_hits: float = Field(default=0.0, description="平均向量检索命中条数/用例")
     avg_graph_hits: float = Field(default=0.0, description="平均图谱事实命中条数/用例")
@@ -102,6 +113,7 @@ def score_case(case: EvalCase, result: CaseResult) -> CaseResult:
     - any_of：任一命中（无 any_of 要求时视为通过）
     - must_not_include：全部未出现
     - human_match：期望转人工 ↔ 实际 need_human_intervention 一致
+    - intent_match：期望意图 ↔ 实际识别意图一致（未标注 → None 不考核，T066）
     """
     answer = _norm(result.answer)
 
@@ -120,6 +132,10 @@ def score_case(case: EvalCase, result: CaseResult) -> CaseResult:
 
     result.expect_human = case.expect_human_intervention
     result.human_match = case.expect_human_intervention == result.need_human_intervention
+
+    # 意图比对（T066，BUG-002）：未标注期望意图的用例 intent_match 保持 None（不考核）
+    if case.expected_intent:
+        result.intent_match = result.actual_intent == case.expected_intent
 
     result.passed = (
         result.tool_match
@@ -167,6 +183,15 @@ def aggregate(results: list[CaseResult]) -> EvalReport:
         sum(1 for r in expected_true if r.need_human_intervention) / len(expected_true)
         if expected_true
         else 0.0
+    )
+
+    # 意图准确率（T066，BUG-002）：分母只计标注了 expected_intent 的用例；
+    # 空分母输出 None（未考核）而非 1.0，避免"无数据=满分"误读（D033）
+    intent_scored = [r for r in results if r.intent_match is not None]
+    intent_accuracy = (
+        sum(1 for r in intent_scored if r.intent_match) / len(intent_scored)
+        if intent_scored
+        else None
     )
 
     avg_duration = (sum(r.duration_s for r in results) / total) if total else 0.0
@@ -219,6 +244,8 @@ def aggregate(results: list[CaseResult]) -> EvalReport:
         human_recall=human_recall,
         human_scored=len(expected_true),
         human_intervened=len(intervened),
+        intent_accuracy=intent_accuracy,
+        intent_scored=len(intent_scored),
         avg_duration_s=round(avg_duration, 3),
         avg_vector_hits=round(avg_vector_hits, 2),
         avg_graph_hits=round(avg_graph_hits, 2),
@@ -268,6 +295,8 @@ def result_from_a06(
         need_human_intervention=bool(a06.get("need_human_intervention")),
         duration_s=round(duration_s, 3),
         error=error,
+        # 意图（T066）：state.intent 为 intent 节点识别结果（StrEnum 值转 str）
+        actual_intent=str(a06["intent"]) if a06.get("intent") else None,
         vector_hits=vector_hits,
         graph_hits=graph_hits,
         # 轨迹摘要（D026）：input 保留用于入参断言，output 不入库控报告体积

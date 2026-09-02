@@ -238,6 +238,15 @@ async def _run_suite(args: argparse.Namespace) -> Any:
     print(f"任务完成率: {report.task_completion_rate:.1%} ({report.passed}/{report.total})")
     print(f"工具调用准确率: {report.tool_accuracy:.1%}")
     print(f"合规通过率: {report.compliance_pass_rate:.1%}")
+    if report.intent_scored:
+        print(
+            f"意图准确率: {report.intent_accuracy:.1%}（{report.intent_scored} 条标注用例）"
+        )
+    if report.human_scored or report.human_intervened:
+        print(
+            f"转人工: recall {report.human_recall:.1%}（{report.human_scored} 条期望）/ "
+            f"precision {report.human_precision:.1%}（{report.human_intervened} 条实际转）"
+        )
     print(f"平均耗时: {report.avg_duration_s}s")
     print(
         f"检索命中: 向量 {report.avg_vector_hits} 条/例, 图谱事实 {report.avg_graph_hits} 条/例, 图谱覆盖 {report.graph_coverage:.1%}"

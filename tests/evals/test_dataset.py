@@ -19,13 +19,14 @@ def dataset() -> EvalDataset:
 def test_dataset_exists_and_valid(dataset: EvalDataset) -> None:
     """数据集文件存在且通过 schema 校验。"""
     assert dataset.version
-    assert len(dataset.cases) == 200
+    assert len(dataset.cases) == 218
 
 
 def test_category_ratio(dataset: EvalDataset) -> None:
-    """主数据集配比符合架构 9.2：FAQ 30 / 单领域 60 / 多步 80 / 边界 30。
+    """主数据集配比符合架构 9.2：FAQ 30 / 单领域 60 / 多步 80 / 边界 30 / 转人工 18。
 
-    graph_assoc（T033 关联类）在独立数据集 eval_graph_assoc.json，不占主数据集配比。
+    graph_assoc（T033 关联类）在独立数据集 eval_graph_assoc.json，不占主数据集配比；
+    human_handoff（T065，v1.1.0）并入主数据集——北极星指标须在全量报告直接可见（D033）。
     """
     counts = {c.value: 0 for c in EvalCategory}
     for case in dataset.cases:
@@ -35,6 +36,7 @@ def test_category_ratio(dataset: EvalDataset) -> None:
         "single_domain": 60,
         "multi_step": 80,
         "edge_case": 30,
+        "human_handoff": 18,
     }
 
 
@@ -47,6 +49,7 @@ def test_case_ids_unique_and_prefixed(dataset: EvalDataset) -> None:
         EvalCategory.SINGLE_DOMAIN: ("POL", "MED", "CMP"),
         EvalCategory.MULTI_STEP: "MS",
         EvalCategory.EDGE_CASE: "EDGE",
+        EvalCategory.HUMAN_HANDOFF: "HITL",
     }
     for case in dataset.cases:
         prefixes = prefix_map[case.category]
@@ -76,6 +79,15 @@ def test_compliance_redline_cases(dataset: EvalDataset) -> None:
     """合规红线用例存在：must_not_include 约束违规话术。"""
     redlines = [c for c in dataset.cases if c.must_not_include]
     assert len(redlines) >= 4, "must_not_include 红线用例不足 4 条"
+
+
+def test_human_handoff_cases(dataset: EvalDataset) -> None:
+    """转人工期望用例（T065，BUG-001 分母）：全部期望转人工且带违规承诺红线。"""
+    handoff = [c for c in dataset.cases if c.category == EvalCategory.HUMAN_HANDOFF]
+    assert len(handoff) >= 15, "转人工期望用例不足 15 条（北极星分母）"
+    for case in handoff:
+        assert case.expect_human_intervention is True, f"{case.id} 未期望转人工"
+        assert case.must_not_include, f"{case.id} 缺 must_not_include 违规承诺红线"
 
 
 def test_expected_tools_are_registered_names(dataset: EvalDataset) -> None:

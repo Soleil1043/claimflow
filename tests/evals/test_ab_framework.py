@@ -187,6 +187,7 @@ def _make_run(name: str, passed: int, total: int, tool_p: int, tool_t: int) -> d
         tool_scored_total=tool_t,
         compliance_pass_rate=1.0,
         human_precision=0.0,
+        human_recall=0.0,
         avg_duration_s=10.0 if name == "baseline" else 12.5,
     )
     spec = VARIANTS[name]

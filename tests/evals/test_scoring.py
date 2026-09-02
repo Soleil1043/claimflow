@@ -178,6 +178,53 @@ def test_score_case_transfers_expect_human() -> None:
     assert r2.expect_human is False
 
 
+# ===== 意图准确率（T066，BUG-002） =====
+
+
+def test_intent_match_scored() -> None:
+    """标注了期望意图 → intent_match 有值（匹配/不匹配），计入分母。"""
+    case = _case(must_include=["ok"], expected_intent="complex_consult")
+    r = score_case(case, _result(answer="ok", actual_intent="complex_consult"))
+    assert r.intent_match is True
+    r2 = score_case(case, _result(answer="ok", actual_intent="single_domain"))
+    assert r2.intent_match is False
+
+
+def test_intent_unannotated_not_scored() -> None:
+    """未标注期望意图 → intent_match 保持 None，聚合分母不计（不误增分母）。"""
+    r = score_case(_case(), _result(answer="ok", actual_intent="simple_faq"))
+    assert r.intent_match is None
+
+
+def test_intent_accuracy_aggregation() -> None:
+    """2/3 标注用例识别一致 → 准确率 2/3；未标注用例不进分母。"""
+    results = [
+        _result(intent_match=True),
+        _result(intent_match=True),
+        _result(intent_match=False),
+        _result(intent_match=None),  # 未标注
+    ]
+    report = aggregate(results)
+    assert report.intent_accuracy == 2 / 3
+    assert report.intent_scored == 3
+
+
+def test_intent_accuracy_empty_returns_none() -> None:
+    """无标注用例 → intent_accuracy=None（未考核），而非 1.0 误导。"""
+    report = aggregate([_result(), _result()])
+    assert report.intent_accuracy is None
+    assert report.intent_scored == 0
+
+
+def test_result_from_a06_captures_intent() -> None:
+    """适配层从 A06/state 捕获实际意图（识别结果缺失保持 None）。"""
+    a06 = {"answer": "ok", "intent": "complex_consult"}
+    r = result_from_a06(_case(must_include=["ok"]), a06, duration_s=0.1)
+    assert r.actual_intent == "complex_consult"
+    r2 = result_from_a06(_case(must_include=["ok"]), {"answer": "ok"}, duration_s=0.1)
+    assert r2.actual_intent is None
+
+
 # ===== result_from_a06 适配层 =====
 
 
