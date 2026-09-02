@@ -1712,3 +1712,25 @@ headless 下 demo.load 队列覆盖层属虚拟时间冻结的截图伪影，非
 预览（t056_render_preview.png：KPI 卡/70% 进度条/轨迹 pill 目检通过）。
 
 **Git**：`feat: T056 评测台 Apple 化重构（KPI 卡/HTML 进度条/浮层头部/暗色日志，D030）`
+
+### [T057] 坐席工作台重构 — 2026-09-02
+
+**内容**：workbench 全站消费 D030 设计令牌（Tailwind v4 @theme + cf-* 工具类）。
+- layout.tsx：sticky 毛玻璃浮层导航（CF 品牌块 + 标题/副题 + 后端代理标识），内容从其下滚过
+- page.tsx（列表）：border-b 标签页 → Apple 分段控件（灰底圆角容器 + 选中白底浮起）；
+  表格承载 cf-card（hairline 分隔 + hover 反馈）；详情按钮 cf-btn.secondary + cf-pressable；
+  空态补 wayfinding 说明文案
+- tickets/[id]/page.tsx（详情）：头部 cf-card（紧排标题 + pill + tabular-nums 时间）；
+  合规快照红调卡片（REJECT 印章 + 26px 风险分大数字 tabular-nums + 违规条目白卡）；
+  坐席处理/会话轨迹分区卡片化
+- StatusBadge → cf-pill（pending=warn/resolved=ok/transferred_out=muted）
+- MessageTimeline：18px 连续圆角气泡 + 尾侧小角（用户左白/助手右蓝调）+ intent/裁决 pill
+- AuditViewer：条件渲染 → cf-collapse grid-rows 250ms 标准缓动展开动画（reduced-motion 降级）；
+  JsonBlock 暗色块圆角化
+- ResolveForm：cf-input/cf-btn primary+secondary，全按压反馈与 focus ring
+
+**验证**：`npm run build` 通过（TS + Tailwind v4 令牌编译）；生产服务器起 3000 截图目检——
+列表（t057_workbench_list.png：分段控件/pill/卡片表）与详情（t057_workbench_detail.png：
+风险分大数字/REJECT 印章/气泡轨迹/四态 pill）均正确渲染（真实后端 8000 数据驱动）。
+
+**Git**：`feat: T057 坐席工作台 Apple 化重构（毛玻璃导航/分段控件/KPI 风险分/气泡/折叠动画，D030）`

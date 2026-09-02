@@ -5,7 +5,7 @@ import type { AgentStepItem, ToolTraceItem } from "@/lib/api";
 
 function JsonBlock({ data }: { data: unknown }) {
   return (
-    <div className="mono-block rounded bg-slate-800 p-2.5 text-slate-100">
+    <div className="mono-block rounded-[10px] bg-[#1D1D1F] p-2.5 text-[#E8E8ED]">
       {JSON.stringify(data, null, 2)}
     </div>
   );
@@ -14,14 +14,15 @@ function JsonBlock({ data }: { data: unknown }) {
 function TraceSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <div className="text-xs font-semibold text-slate-500">{title}</div>
+      <div className="text-[11px] font-semibold tracking-wide text-cf-text-2">{title}</div>
       {children}
     </div>
   );
 }
 
 /**
- * assistant 消息的审计展开区：工具调用入参/出参与 Agent 步骤档案。
+ * assistant 消息的审计展开区（T057 / D030）：
+ * 展开/收起用 cf-collapse（grid-rows 过渡，250ms 标准缓动，reduced-motion 自动降级）。
  */
 export default function AuditViewer({
   toolTrace,
@@ -35,74 +36,77 @@ export default function AuditViewer({
   if (!hasContent) return null;
 
   return (
-    <div className="mt-2 border-t border-slate-200 pt-2">
+    <div className="mt-2 border-t border-black/[0.06] pt-2">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="text-xs font-medium text-sky-700 hover:text-sky-900"
+        aria-expanded={open}
+        className="cf-pressable text-[12px] font-medium text-cf-blue transition-colors hover:text-cf-blue-dark"
       >
         {open ? "▾ 收起执行审计" : "▸ 展开执行审计（工具调用 / Agent 步骤）"}
       </button>
-      {open && (
-        <div className="mt-2 space-y-4">
-          {agentSteps && agentSteps.length > 0 && (
-            <TraceSection title={`Agent 步骤（${agentSteps.length}）`}>
-              <div className="space-y-1.5">
-                {agentSteps.map((step) => (
-                  <div
-                    key={step.step_index}
-                    className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="rounded bg-indigo-100 px-1.5 py-0.5 font-mono text-indigo-800">
-                        {step.agent}
-                      </span>
-                      <span
-                        className={
-                          step.status === "done" ? "text-emerald-700" : "text-red-600 font-medium"
-                        }
-                      >
-                        {step.status === "done" ? "✓ 完成" : `✗ ${step.status}`}
-                      </span>
-                      <span className="text-slate-400">{step.duration_ms} ms</span>
-                    </div>
-                    <div className="mt-1 text-slate-600">
-                      {step.description}
-                      {step.summary ? ` — ${step.summary}` : ""}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </TraceSection>
-          )}
-          {toolTrace && toolTrace.length > 0 && (
-            <TraceSection title={`工具调用（${toolTrace.length}）`}>
-              <div className="space-y-2">
-                {toolTrace.map((trace, i) => (
-                  <div
-                    key={i}
-                    className="rounded-md border border-slate-200 bg-white px-3 py-2"
-                  >
-                    <div className="mb-1.5 font-mono text-xs font-semibold text-slate-700">
-                      🔧 {trace.tool}
-                    </div>
-                    <div className="grid gap-2 md:grid-cols-2">
-                      <div>
-                        <div className="mb-1 text-[11px] text-slate-400">入参</div>
-                        <JsonBlock data={trace.input} />
+      <div className={`cf-collapse ${open ? "open" : ""}`}>
+        <div className="cf-collapse-inner">
+          <div className="mt-2 space-y-4">
+            {agentSteps && agentSteps.length > 0 && (
+              <TraceSection title={`AGENT 步骤（${agentSteps.length}）`}>
+                <div className="space-y-1.5">
+                  {agentSteps.map((step) => (
+                    <div
+                      key={step.step_index}
+                      className="rounded-[10px] border border-black/[0.06] bg-white px-3 py-2 text-[12px] shadow-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="cf-pill info font-mono">{step.agent}</span>
+                        <span
+                          className={
+                            step.status === "done"
+                              ? "font-medium text-cf-green"
+                              : "font-medium text-cf-red"
+                          }
+                        >
+                          {step.status === "done" ? "✓ 完成" : `✗ ${step.status}`}
+                        </span>
+                        <span className="tabular-nums text-cf-text-2">{step.duration_ms} ms</span>
                       </div>
-                      <div>
-                        <div className="mb-1 text-[11px] text-slate-400">出参</div>
-                        <JsonBlock data={trace.output} />
+                      <div className="mt-1 text-cf-text-2">
+                        {step.description}
+                        {step.summary ? ` — ${step.summary}` : ""}
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </TraceSection>
-          )}
+                  ))}
+                </div>
+              </TraceSection>
+            )}
+            {toolTrace && toolTrace.length > 0 && (
+              <TraceSection title={`工具调用（${toolTrace.length}）`}>
+                <div className="space-y-2">
+                  {toolTrace.map((trace, i) => (
+                    <div
+                      key={i}
+                      className="rounded-[10px] border border-black/[0.06] bg-white px-3 py-2 shadow-sm"
+                    >
+                      <div className="mb-1.5 font-mono text-[12px] font-semibold text-cf-text">
+                        🔧 {trace.tool}
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <div>
+                          <div className="mb-1 text-[11px] text-cf-text-2">入参</div>
+                          <JsonBlock data={trace.input} />
+                        </div>
+                        <div>
+                          <div className="mb-1 text-[11px] text-cf-text-2">出参</div>
+                          <JsonBlock data={trace.output} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </TraceSection>
+            )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

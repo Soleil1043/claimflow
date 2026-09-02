@@ -5,9 +5,10 @@ import { useState } from "react";
 import { escalateTicket, resolveTicket } from "@/lib/api";
 
 /**
- * 坐席处理动作（仅 pending 工单显示）：
+ * 坐席处理动作（仅 pending 工单显示，T057 / D030 视觉重构）：
  * - 解决并回写结论：触发后端 interrupt 恢复（T037），结论经合规复审后返回用户
  * - 升级转出：线下渠道处理，不恢复会话
+ * 控件统一消费 cf-input / cf-btn（按压即时反馈 + focus ring）。
  */
 export default function ResolveForm({ ticketId }: { ticketId: number }) {
   const router = useRouter();
@@ -52,9 +53,9 @@ export default function ResolveForm({ ticketId }: { ticketId: number }) {
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 md:grid-cols-[1fr_200px]">
+      <div className="grid gap-3 md:grid-cols-[1fr_220px]">
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-slate-500">
+          <span className="mb-1 block text-[12px] font-medium text-cf-text-2">
             处理结论（经合规复审后返回用户）
           </span>
           <textarea
@@ -63,35 +64,33 @@ export default function ResolveForm({ ticketId }: { ticketId: number }) {
             rows={3}
             maxLength={4000}
             placeholder="例：经人工核实，该情况不符合理赔条件，已向您电话解释说明。"
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            className="cf-input"
           />
         </label>
         <div className="space-y-3">
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-500">坐席标识</span>
+            <span className="mb-1 block text-[12px] font-medium text-cf-text-2">坐席标识</span>
             <input
               value={agent}
               onChange={(e) => setAgent(e.target.value)}
               maxLength={64}
               placeholder="agent-01"
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              className="cf-input"
             />
           </label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={!canSubmit}
-              onClick={onResolve}
-              className="flex-1 rounded-md bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              {busy === "resolve" ? "处理中…" : "解决并回写结论"}
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={!canSubmit}
+            onClick={onResolve}
+            className="cf-btn primary w-full"
+          >
+            {busy === "resolve" ? "处理中…" : "解决并回写结论"}
+          </button>
           <button
             type="button"
             disabled={busy !== null}
             onClick={onEscalate}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="cf-btn secondary w-full"
           >
             {busy === "escalate" ? "转出中…" : "升级转出（线下处理）"}
           </button>
@@ -99,16 +98,17 @@ export default function ResolveForm({ ticketId }: { ticketId: number }) {
       </div>
 
       {error && (
-        <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200">
-          操作失败：{error}
+        <div className="rounded-[10px] bg-cf-red/[0.08] px-3 py-2 text-[13px] text-[#B3261E] ring-1 ring-cf-red/15">
+          操作失败:{error}
         </div>
       )}
       {result && (
-        <div className="space-y-1.5 rounded-md bg-emerald-50 px-3 py-2.5 text-sm ring-1 ring-emerald-200">
-          <div className="font-medium text-emerald-800">
-            ✓ 工单已解决{result.resumed ? "（会话已恢复，以下为返回用户的回答）" : "（图无挂起，结论已落审计）"}
+        <div className="space-y-1.5 rounded-[10px] bg-cf-green/[0.08] px-3 py-2.5 text-[13px] ring-1 ring-cf-green/20">
+          <div className="font-medium text-[#1F7A38]">
+            ✓ 工单已解决
+            {result.resumed ? "（会话已恢复，以下为返回用户的回答）" : "（图无挂起，结论已落审计）"}
           </div>
-          <div className="whitespace-pre-wrap text-slate-700">{result.answer}</div>
+          <div className="whitespace-pre-wrap text-cf-text">{result.answer}</div>
         </div>
       )}
     </div>
