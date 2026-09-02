@@ -1543,3 +1543,40 @@ ReAct 绕圈、乱序、参数幻觉等退化模式的观察面。
 **状态**：✅ 通过验证（轨迹为独立报告口径，是否并入 passed 待标注稳定后另立决策）
 
 **Git**：`feat: T050 轨迹质量评测（LCS 顺序/禁调/路由/次数冗余/入参断言，D026 独立口径不并入 passed）`
+
+### [T051] 评测 UI 界面（一键启动 + 进度轮询 + 报告查看，D027）— 2026-09-02
+
+**背景**：用户要求给评测做 UI：手动点击按钮开始评测并能看到结果。评测为分钟级长任务，
+需要后台执行 + 实时进度 + 结果回看三件套。
+
+**操作**：
+- **执行形态（D027）**：评测走子进程（`python -m evals.test_suite ...`）而非 API 进程内
+  执行——evals 会重建主图并 close 全局 checkpointer/嵌入单例，进程内跑会污染服务常驻状态；
+  子进程复用 CLI 全部语义（预热/守卫/落盘），子进程 stdout 固定 utf-8（Windows 管道默认
+  gbk 会乱码）；运行注册表存内存，磁盘报告 JSON 即持久历史；服务下线时 shutdown() 终止
+  活跃评测进程（防孤儿跑满 40 分钟），挂入 main.py lifespan
+- **后端**（services/eval_runner.py 新 + app/api/v1/evals.py 新）：
+  - POST /api/v1/evals/runs（单活跃守卫，并发 409）｜GET /runs、/runs/{id}（状态+进度计数+
+    日志尾 200 行，逐用例 PASS/FAIL 正则解析）｜GET /reports（仅 test_suite 口径报告，新→旧）｜
+    GET /reports/{name}（文件名白名单正则防路径穿越）｜GET /meta（数据集/分类/变体下拉，
+    惰性导入）
+  - command_builder 注入点供测试用假命令替换；schemas/api.py 增 8 个评测 schema
+- **前端**（ui/eval_app.py 新，独立 Gradio 6 页，端口 7861，与聊天 demo 解耦可分离部署）：
+  参数区（数据集/分类/变体/条数上限）+「开始评测」按钮 → gr.Timer 每 2s 轮询 →
+  状态进度条（█░ 文本条 + 通过/失败计数）+ 逐用例日志框 → 运行结束自动刷新报告列表并
+  加载本次报告 → 报告详情（汇总指标/分类明细/轨迹质量 D026/失败用例 DataFrame），历史
+  报告下拉随时回看
+- **README**：启动命令增评测台一行 + 评测体系节增评测台 UI 用法
+
+**验证方式**：
+- `uv run pytest -q` → **414 passed**（tests/api/test_evals.py 新增 6：生命周期+报告回链/
+  并发 409+shutdown 终止/失败退出码/404/路径穿越与非法名/meta——全部假命令注入不跑 LLM）；
+  ruff 全绿
+- **端到端实测**（8001 起后端；8000 被用户既有实例占用，未动）：API 发起 3 条真实评测 →
+  8 轮轮询 40s 到 completed（3/3 PASS）→ ui_*.json 落盘并回链 run 记录 → /reports 列表
+  最新优先；评测台 7861 HTTP 200 正常伺服；UI 全部回调函数（poll 完成分支含报告自动加载/
+  完成后空轮询/show_report/load_meta/refresh_reports）对真实后端驱动验证通过
+
+**状态**：✅ 通过验证（评测台与 CLI 报告同目录共存；后续可按需加 SSE 推送/运行历史持久化）
+
+**Git**：`feat: T051 评测 UI（一键启动+进度轮询+报告查看；子进程隔离执行，D027）`

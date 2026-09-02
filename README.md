@@ -92,6 +92,7 @@ uv run python -m services.rag.ingest # 知识库向量化入库（首次运行�
 ```bash
 uv run uvicorn app.main:app --port 8000   # 后端 API
 uv run python ui/app.py                   # 演示界面（http://127.0.0.1:7860）
+uv run python ui/eval_app.py              # 评测台界面（http://127.0.0.1:7861）
 ```
 
 ### 4. Docker 一键启动（prod profile：PostgreSQL + Qdrant + Redis）
@@ -203,6 +204,14 @@ uv run python -m evals.test_suite --category simple_faq   # 按分类
 uv run python -m evals.test_suite --limit 10               # 前 N 条
 uv run python -m evals.test_suite --out my_report.json     # 指定输出
 ```
+
+### 评测台 UI（T051）
+
+后端启动后运行 `uv run python ui/eval_app.py`，浏览器打开 <http://127.0.0.1:7861>：
+选数据集/分类/变体/条数上限 → 点击「开始评测」→ 实时查看逐用例 PASS/FAIL 进度与日志；
+运行结束自动加载报告（汇总指标 / 分类明细 / 轨迹质量 D026 / 失败用例明细），历史报告
+下拉可回看。评测由后端子进程执行（同一时间只允许一个运行），报告与 CLI 共存于
+`evals/reports/`。
 
 **基线报告**（`evals/reports/baseline.json`，deepseek-v4-flash 全量 200 条）：
 

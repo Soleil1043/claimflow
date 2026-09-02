@@ -558,3 +558,27 @@ Agent 路由 / 入参正确性）不可见。多步任务的 ReAct 绕圈、乱�
 T050 落地（schemas/trajectory/metrics/test_suite/数据集抽样标注/单测）；A/B 对比 JSON 的
 variant_summaries 自动携带新指标（aggregate 聚合层透传），MD 表格暂不加列；
 是否并入 passed 待轨迹标注稳定一至两个版本后另立决策。
+
+## D027: 评测 UI——子进程隔离执行 + 独立 Gradio 页 + 轮询 — 2026-09-02
+
+**背景**：
+用户要求给评测做 UI：手动点击按钮开始评测并查看结果。评测是分钟级长任务（10 条冒烟 ~2min，
+200 条全量 ~40min），需要后台执行 + 进度反馈 + 结果查看三件套。
+
+**选项（执行形态）**：
+1. API 进程内直接跑 eval 循环——evals.test_suite 会重建主图并 close 全局 checkpointer/
+   嵌入单例，与 API 服务的常驻单例互相污染；LLM 长调用挤占服务事件循环
+2. **子进程复用 CLI**——`python -m evals.test_suite ...` 独立进程执行，预热/守卫/落盘语义
+   全部复用，API 侧只做生命周期管理与 stdout 进度解析（选定）
+3. Celery/消息队列——当前单机演示规模杀鸡用牛刀
+
+**选项（UI 形态）**：独立 Gradio 页（ui/eval_app.py，端口 7861）而非聊天 demo 加 Tab——
+与 T014 演示解耦、可分离部署，与既有"ui 走 HTTP 调 FastAPI"架构一致；进度用 gr.Timer 轮询
+（2s）而非 SSE，Gradio 6 内建 timer 足够，不引入额外通道。
+
+**决策**：执行=子进程隔离（D027），UI=独立 Gradio 页 + 轮询；单活跃运行守卫（并发启动 409，
+评测独占嵌入模型与 API 配额）；运行注册表存内存（磁盘报告 JSON 本身即持久历史，不重复建表）。
+
+**影响**：
+T051 落地（services/eval_runner.py + app/api/v1/evals.py + ui/eval_app.py + 单测）；
+评测报告落盘 evals/reports/ui_<run_id>.json，与 CLI 报告同目录共存。

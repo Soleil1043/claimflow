@@ -207,3 +207,91 @@ class TicketEscalateRequest(BaseModel):
 
     note: str | None = Field(default=None, max_length=4000)
     resolved_by: str = Field(min_length=1, max_length=64)
+
+
+# ---------- T051 评测 ----------
+
+
+class EvalRunStartRequest(BaseModel):
+    """POST /api/v1/evals/runs 请求体（与 evals.test_suite CLI 参数对应）。"""
+
+    dataset: str = Field(default="main", description="数据集名（main / graph_assoc）")
+    category: str | None = Field(default=None, description="分类过滤（None=全部）")
+    limit: int | None = Field(default=None, ge=1, description="用例数上限（None=全量）")
+    variant: str = Field(default="baseline", description="实验变体（evals/variants.py 注册表）")
+
+
+class EvalRunBrief(BaseModel):
+    """运行记录摘要。"""
+
+    run_id: str
+    status: str
+    created_at: str
+    finished_at: str | None = None
+    params: EvalRunStartRequest
+
+
+class EvalRunStartResponse(BaseModel):
+    """POST /api/v1/evals/runs 响应。"""
+
+    run: EvalRunBrief
+
+
+class EvalRunListResponse(BaseModel):
+    """GET /api/v1/evals/runs 响应。"""
+
+    runs: list[EvalRunBrief]
+
+
+class EvalRunStatusResponse(BaseModel):
+    """GET /api/v1/evals/runs/{run_id} 响应：状态 + 进度 + 日志尾。"""
+
+    run_id: str
+    status: str
+    created_at: str
+    finished_at: str | None = None
+    params: EvalRunStartRequest
+    current: int = 0
+    total: int = 0
+    passed: int = 0
+    failed: int = 0
+    return_code: int | None = None
+    report_name: str | None = None
+    log_tail: list[str] = Field(default_factory=list, description="运行日志末尾（最多 200 行）")
+
+
+class EvalReportBrief(BaseModel):
+    """报告文件摘要（evals/reports/*.json，test_suite 报告口径）。"""
+
+    name: str
+    generated_at: str = ""
+    dataset: str = ""
+    variant: str = ""
+    category: str | None = None
+    total: int = 0
+    passed: int = 0
+    task_completion_rate: float = 0.0
+    tool_accuracy: float = 0.0
+    compliance_pass_rate: float = 0.0
+    avg_duration_s: float = 0.0
+
+
+class EvalReportListResponse(BaseModel):
+    """GET /api/v1/evals/reports 响应（新→旧）。"""
+
+    reports: list[EvalReportBrief]
+
+
+class EvalVariantInfo(BaseModel):
+    """可用实验变体。"""
+
+    name: str
+    description: str = ""
+
+
+class EvalMetaResponse(BaseModel):
+    """GET /api/v1/evals/meta 响应：表单下拉可选项。"""
+
+    datasets: list[str]
+    categories: list[str]
+    variants: list[EvalVariantInfo]
