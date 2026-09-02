@@ -337,3 +337,15 @@ def test_build_trend_figure_filters_and_traces() -> None:
 
     assert _build_trend_figure(points, "main", "全部") is not None
     assert _build_trend_figure(points, "main", "glm-5.3-flash") is None  # 过滤后无数据
+
+
+def test_default_command_judge_flag(tmp_path: Path) -> None:
+    """T075：judge=True 时子进程命令带 --judge；默认不带。"""
+    from services.eval_runner import EvalRunParams, _default_command
+
+    base = _default_command(EvalRunParams(dataset="main"), "r1", tmp_path)
+    assert "--judge" not in base
+    with_judge = _default_command(
+        EvalRunParams(dataset="main", judge=True, limit=5), "r2", tmp_path
+    )
+    assert "--judge" in with_judge and "--limit" in with_judge

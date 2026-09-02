@@ -134,7 +134,7 @@ async def test_start_eval_button_state(monkeypatch: pytest.MonkeyPatch) -> None:
             return {"run": {"run_id": "r-new"}}
 
     monkeypatch.setattr(eval_app, "client", _StartStub())
-    status, state, btn = await eval_app.start_eval("main", "全部", 2, "baseline", {})
+    status, state, btn = await eval_app.start_eval("main", "全部", 2, "baseline", True, {})
     assert state["run_id"] == "r-new"
     assert "已启动" in status
     assert btn["interactive"] is False and "运行中" in btn["value"]

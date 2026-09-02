@@ -46,6 +46,7 @@ class EvalRunParams:
     category: str | None = None
     limit: int | None = None
     variant: str = "baseline"
+    judge: bool = False  # T068：--judge 开关透传（默认关）
 
 
 @dataclass
@@ -84,6 +85,8 @@ def _default_command(params: EvalRunParams, run_id: str, reports_dir: Path) -> l
         argv += ["--category", params.category]
     if params.limit:
         argv += ["--limit", str(params.limit)]
+    if params.judge:
+        argv += ["--judge"]
     return argv
 
 

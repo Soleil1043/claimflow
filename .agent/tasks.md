@@ -147,8 +147,8 @@ T001 → T002 → T003 → T004 → T005
 
 ## 进度统计
 
-- 总任务数：74（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049-T053 + Phase 6 五个 + Phase 6.5 四个 + 增量 T063 + Phase 7 十一个）
-- 已完成：74（2026-08-27 T001-T043；2026-09-01 T049/T044/T045；2026-09-02 T046-T048/T050-T053/T054-T058/T059-T062；2026-09-03 T063 + Phase 7 T064-T074 **全部完成**）
+- 总任务数：75（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049-T053 + Phase 6 五个 + Phase 6.5 四个 + 增量 T063 + Phase 7 十二个）
+- 已完成：75（2026-08-27 T001-T043；2026-09-01 T049/T044/T045；2026-09-02 T046-T048/T050-T053/T054-T058/T059-T062；2026-09-03 T063 + Phase 7 T064-T075 **全部完成**）
 - 进行中：0
 - 待开始：0
 
@@ -189,4 +189,6 @@ T001 → T002 → T003 → T004 → T005
 - [x] T071: 安全对抗用例集 20 条（GAP-005） | 依赖: 无 | 涉及文件: evals/datasets/eval_adversarial.json（新）、evals/schemas.py（ADVERSARIAL 类目）、scripts/gen_adversarial_cases.py、tests/evals/ | 验收: prompt 注入/越权查询/PII 诱导/违规承诺诱导/错别字方言五类各 4 条；独立数据集不污染主基线（D033）；must_not_include 断言具体违规输出物（完整证件号/承诺原话，否定语境不误杀）；E 类鲁棒性题期望正常服务（4640 照算）；数据集校验过 ✅ 2026-09-03
 - [x] T072: CI 评测回归门禁（GAP-007） | 依赖: T064 | 涉及文件: .github/workflows/ci.yml、scripts/check_eval_gate.py（新）、evals/metrics.py（wilson_ci）、tests/evals/test_eval_gate.py（新） | 验收: PR 触发 smoke `--limit 20` 门禁；LLM_API_KEY secret 缺失时 skip 不 fail（env 探测步）；门禁脚本：完成率降幅 >5pp 退出码 1（Wilson CI 口径提示）；HF 模型 cache（actions/cache）；CI 内 ingest 重建向量索引（data/qdrant 不入库）；脚本单测 4 用例 + 本地对 baseline.json 手工验证 ✅ 2026-09-03（92 passed；真实 CI 运行待 push 后确认）
 - [x] T073: 报告统计增强（GAP-006/008 + 次要问题） | 依赖: 无 | 涉及文件: evals/metrics.py（wilson_ci/p95/tokens）、evals/test_suite.py（token 差分下沉）、schemas/api.py（task_completion_ci）、app/api/v1/evals.py、ui/eval_app.py、tests/evals/ | 验收: EvalReport 增 p95_duration_s（最近秩法）/tokens_per_case（aggregate(tokens_total=) 注入）/wilson_ci；趋势点带 CI 且 UI hover 展示；UI 轨迹维度与工具准确率 scored=0 显式 N/A（消除"无数据=满分"误读）；UI 增转人工召回/意图准确率 KPI 卡（有标注才显示）✅ 2026-09-03（160 passed 含 UI/API 回归）
+- [x] T075: 评测台 Phase 7 能力对齐 | 依赖: T074 | 涉及文件: schemas/api.py、services/eval_runner.py、ui/eval_app.py、tests/api/test_evals.py、tests/ui/test_eval_app.py、docs/diagrams/t075_*.png | 验收: judge 开关打通 UI 全链路（EvalRunStartRequest.judge → EvalRunParams → 子进程 --judge）；报告渲染补 judge 判过率 KPI 卡；真实渲染双截图目检（界面 Checkbox + baseline.json 静态预览：转人工召回/意图/judge 三张新卡 + p95/tok foot 全对）；API 端到端（judge:true → 报告 judge_scored=1）✅ 2026-09-03（469 passed；进程清理端口释放）
+
 - [x] T074: 全量回归重跑基线 + 文档口径同步 | 依赖: T064-T073 | 涉及文件: evals/reports/baseline.json、docs/architecture.md、README.md、.agent/progress.md | 验收: 218 条全量真实评测（--judge，新指标列全部产出非退化值）；baseline.json 替换存档（旧基线 → baseline_v1_200_20260825.json）；architecture.md §9 指标口径同步 ✅ 2026-09-03（完成率 79.8% CI[74.0,84.6]；老 200 条口径 87.0% 与 t048 持平；human_recall 0/18 北极星基线量化；intent 62.5% 低于 90% 线为遗留；轨迹 order 96.9%/route 97.1%/limit 33.3% 抓到 3 条绕圈；judge 98.6% 待校准；p95 27.8s/818.7 tok/例）

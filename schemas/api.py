@@ -215,10 +215,11 @@ class TicketEscalateRequest(BaseModel):
 class EvalRunStartRequest(BaseModel):
     """POST /api/v1/evals/runs 请求体（与 evals.test_suite CLI 参数对应）。"""
 
-    dataset: str = Field(default="main", description="数据集名（main / graph_assoc）")
+    dataset: str = Field(default="main", description="数据集名（main / graph_assoc / multiturn / adversarial）")
     category: str | None = Field(default=None, description="分类过滤（None=全部）")
     limit: int | None = Field(default=None, ge=1, description="用例数上限（None=全量）")
     variant: str = Field(default="baseline", description="实验变体（evals/variants.py 注册表）")
+    judge: bool = Field(default=False, description="LLM-as-judge 二层判分（T068 独立口径，默认关）")
 
 
 class EvalRunBrief(BaseModel):

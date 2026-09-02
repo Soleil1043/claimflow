@@ -210,6 +210,14 @@ def _render_report(data: dict) -> tuple[str, list[list]]:
                 f"{int(s.get('intent_scored', 0))} 条标注",
             )
         )
+    if s.get("judge_scored"):
+        parts.append(
+            _kpi(
+                "LLM-judge 判过率",
+                f"{s.get('judge_pass_rate', 0):.1%}",
+                f"{int(s.get('judge_scored', 0))} 条 · 独立口径未计入完成率",
+            )
+        )
     dur_foot = f"p95 {s.get('p95_duration_s', 0)}s"
     if s.get("tokens_per_case") is not None:
         dur_foot += f" · {s.get('tokens_per_case')} tok/例"
@@ -360,7 +368,7 @@ async def load_meta() -> tuple:
 
 
 async def start_eval(
-    dataset: str, category: str, limit: float | None, variant: str, state: dict
+    dataset: str, category: str, limit: float | None, variant: str, judge: bool, state: dict
 ) -> tuple:
     """启动按钮：POST /runs，成功后进入轮询（按钮切换为运行中禁用态）。"""
     payload = {
@@ -368,6 +376,7 @@ async def start_eval(
         "category": None if category in (None, "", "全部") else category,
         "limit": int(limit) if limit else None,
         "variant": variant,
+        "judge": bool(judge),
     }
     try:
         result = await client.start_run(payload)
@@ -506,6 +515,11 @@ def build_ui() -> gr.Blocks:
                 category_dd = gr.Dropdown(label="分类", value="全部", choices=["全部"])
                 variant_dd = gr.Dropdown(label="变体", value="baseline", choices=["baseline"])
                 limit_num = gr.Number(label="条数上限（空 = 全量）", value=10, precision=0, minimum=1)
+                judge_cb = gr.Checkbox(
+                    label="LLM-judge 二层判分（独立口径）",
+                    value=False,
+                    scale=0,
+                )
                 start_btn = gr.Button("▶️ 开始评测", variant="primary", scale=0)
 
         status_md = gr.HTML(
@@ -551,7 +565,7 @@ def build_ui() -> gr.Blocks:
 
         start_btn.click(
             start_eval,
-            [dataset_dd, category_dd, limit_num, variant_dd, state],
+            [dataset_dd, category_dd, limit_num, variant_dd, judge_cb, state],
             [status_md, state, start_btn],
         )
         timer = gr.Timer(POLL_SECONDS)
