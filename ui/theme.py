@@ -159,17 +159,24 @@ APP_CSS = f"""
   --cf-radius-control: {TOKENS["radius_control"]};
 }}
 
-/* 排版：层级 = 字重 + 字号 + 行距；大标题负 tracking，正文 0；数字 tabular 对齐 */
+/* 排版：层级 = 字重 + 字号 + 行距；大标题负 tracking，正文 0；数字 tabular 对齐。
+   注：容器保持全宽（背景 wash 满窗），宽度约束与水平居中作用在内层 .main 上——
+   gradio-app 是纵向 flex，若直接给 .gradio-container 设 max-width 会靠左对齐（T062 修复）。 */
 .gradio-container {{
   font-family: {TOKENS["font_stack"]};
   letter-spacing: 0;
   color: var(--cf-text);
-  max-width: 1080px !important;
   background:
     radial-gradient(1100px 480px at 50% -120px, rgba(0, 122, 255, 0.055), transparent 70%),
     var(--cf-bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}}
+.gradio-container > .main {{
+  width: 100%;
+  max-width: 1080px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }}
 .gradio-container h1 {{
   font-weight: 700;

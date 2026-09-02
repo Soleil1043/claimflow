@@ -74,6 +74,9 @@ def test_app_css_contains_visual_polish() -> None:
     assert ".gr-button-primary:hover" in css
     assert ".cf-bar" in css
     assert ".tabs .tab-nav button.selected" in css
+    # 宽屏水平居中：宽度约束在内层 .main（外层容器全宽保背景，T062 修复）
+    assert ".gradio-container > .main" in css
+    assert "margin-left: auto !important" in css
 
 
 def test_app_css_contains_accessibility_fallbacks() -> None:
