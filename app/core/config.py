@@ -113,6 +113,9 @@ class Settings(BaseSettings):
     # ===== Embedding（BGE-M3，本地 sentence-transformers） =====
     embedding_model: str = "BAAI/bge-m3"
     embedding_device: str = "cpu"
+    # HF_HUB_OFFLINE 导出开关（HF_OFFLINE=1）：模型已入本地缓存时跳过 HuggingFace 在线
+    # 版本检查——网络不可达时该检查会超时重试 5 轮，拖垮 API/evals 启动（README 已知坑）
+    hf_offline: bool = False
 
     # ===== 日志 =====
     log_level: str = "INFO"
@@ -152,3 +155,12 @@ class Settings(BaseSettings):
 
 # 模块级单例：应用内统一 `from app.core.config import settings` 获取
 settings = Settings()
+
+if settings.hf_offline:
+    # huggingface_hub 在 import 时即读取 HF_HUB_OFFLINE（constants 模块级求值），
+    # 必须在任何模型加载前导出；config 是全项目最早被 import 的模块，
+    # 由此覆盖 API（uvicorn）/ evals（test_suite 子进程）/ 脚本全部入口。
+    # setdefault：显式 shell 环境变量优先。
+    import os
+
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
