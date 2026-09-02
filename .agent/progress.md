@@ -1745,3 +1745,8 @@ headless 下 demo.load 队列覆盖层属虚拟时间冻结的截图伪影，非
 workbench `npm run build` 通过（T057 已验）。
 
 **Git**：`docs: T058 Phase 6 收尾（README 设计系统章节 + 进度统计 58/58）`
+
+- 2026-09-02 T059 设计系统视觉深化（共享层）：ui/theme.py APP_CSS 深化——分层阴影 --cf-shadow-1/2/3、卡片微渐变表面、页面顶部蓝色 radial wash、cf-rise/cf-fade 入场动效（ease-out-quint + 交错延迟，poll 区禁用防重放）、区块标题体系 cf-kicker/cf-h2/cf-h3、品牌块 cf-logo、::selection/自定义滚动条/隐藏 footer/placeholder 对比度/表格行 hover/输入焦点光环/primary hover 升起/mini 进度条 cf-bar/Tab 胶囊、warn 状态点脉冲；TOKENS 核心值不动（双栈契约不受影响）。tests/ui/test_theme.py 新增 test_app_css_contains_visual_polish + 降级断言扩展。验证：uv run pytest tests/ui 9 passed；ruff 通过。Git：8a94d1f。
+- 2026-09-02 T060 演示界面视觉深化：ui/app.py 头部改品牌块（cf-logo 渐变方块 CF）+ 状态 pill 化（muted/warn 脉冲点/ok/err 四态）；composer 加 cf-rise、chips 列 cf-rise-2、新会话列 cf-rise-3 交错入场；气泡渐变/聊天区去卡片化由共享 CSS 承载。回调元数与业务逻辑零改动（Blocks 构建冒烟通过，blocks=16）。Git：3bd04ba。
+- 2026-09-02 T061 评测台视觉深化：ui/eval_app.py 新增 _section_html 区块标题体系（RUN/FAILURES kicker）；_status_html 卡片化并支持 head 标记（运行完成态嵌入卡内，poll 仍 8 输出）；分类明细表加 _bar mini 进度条（≥80% 绿/≥60% 橙/其余红）；趋势/历史报告改 gr.Tabs 分区（组件对象引用不变，poll/show_report 接线原样）；占位态统一 cf-card。Blocks 构建冒烟通过（blocks=31）。Git：be4cabb。
+- 2026-09-02 T062 视觉深化验证与文档：全量验证 `uv run ruff check .` 通过、`uv run pytest -q` **429 passed**（428 + 主题 polish 用例）；两界面真实启动 + 系统 Chrome headless 截图目检（t060_chat_ui.png / t061_eval_ui.png）——发现并修复 composer 行顶对齐灰条（cf-composer .row align-items:center）与 gr.File 拖放区比例失衡（改 gr.UploadButton 单控件，回调接线不变）；顺修 verify_ui.py 回调名 upload_image→upload_material（T049 改名遗漏，此前脚本必挂）。README 增 Phase 6.5 深化明细；tasks.md 进度 62/62。

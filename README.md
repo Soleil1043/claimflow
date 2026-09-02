@@ -162,7 +162,23 @@ cd workbench && npm install && npm run dev
 - **反馈**：四态语义 pill（ok/warn/err/info）；评测台 KPI 大数字卡 + 渐变进度条；
   聊天/评测台头部实时后端健康状态点（demo.load 探测 `/health`）
 
-界面截图见 `docs/diagrams/`（t055 聊天 / t056 评测台 / t057 工作台列表与详情）。
+**Phase 6.5 视觉深化（D031，impeccable 方法论）**：仅深化两 Gradio 界面（坐席工作台不动）——
+
+- **深度层次**：分层阴影 `--cf-shadow-1/2/3` 替代单层；卡片微渐变表面（`#FFFFFF→#FBFBFD`）；
+  页面顶部极淡蓝色 radial wash（拒绝纯灰死板背景）
+- **动效生命感**：入场 `cf-rise/cf-fade`（ease-out-quint，交错延迟 60/120ms）；KPI 卡 hover 升起；
+  warn 状态点脉冲；poll 高频更新区禁用入场动画防重放；全部走 `prefers-reduced-motion` 降级
+- **排版节奏**：区块标题体系（`cf-kicker` 大写小字 + 蓝色短划线 + `cf-h2/cf-h3`）
+- **细节打磨**：`::selection` 蓝色选区、自定义细滚动条、隐藏 Gradio footer、placeholder 对比度、
+  表格行 hover、输入焦点光环（3px 蓝晕）、primary 按钮 hover 升起、Tab 胶囊化、
+  分类明细表 mini 进度条（通过率语义配色 ≥80% 绿 / ≥60% 橙 / 其余红）
+- **演示界面**：头部品牌 logo 块 + 状态 pill 化；聊天区去卡片化（气泡直接浮于底色）；
+  上传改 `gr.UploadButton` 单控件；composer 行居中
+- **评测台**：趋势 / 历史报告 `gr.Tabs` 分区；状态区卡片化；区块标题体系统一
+- 派生令牌（`--cf-shadow-*` / `--cf-ease-out` 等）不影响双栈同源契约（`TOKENS` 核心值不动）
+
+界面截图见 `docs/diagrams/`（t055 聊天 / t056 评测台 / t057 工作台列表与详情 /
+t060 聊天深化版 / t061 评测台深化版）。
 
 ### 8. 追踪栈（可选：OTel Collector + Jaeger）
 

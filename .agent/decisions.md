@@ -638,3 +638,22 @@ eval_runs 表会丢掉全部历史。
 **影响**：
 T054-T058 落地（ui/theme.py + 两 Gradio 应用重构 + workbench 全站重构 + 主题单测）；
 README 增设计系统章节；后续新 UI 一律消费既有令牌，不再散装样式。
+
+---
+
+## D031：Gradio 双界面视觉深化（impeccable 方法论，2026-09-02）
+
+**背景**：Phase 6（D030）落地后用户反馈仅 Next.js 坐席工作台达到预期；两个 Gradio 界面受默认 DOM/样式限制视觉偏平（单层阴影、无动效层次、区块无节奏）。
+
+**决策**：按 impeccable 技能方法论对 ui/theme.py 共享层与两应用做深化。约束不变：纯表现层、Gradio 回调元数锁定（poll 8 输出）、双栈令牌同源契约不破坏。
+
+- 深度层次：分层阴影（--cf-shadow-1/2/3）替代单层；卡片表面微渐变（#FFFFFF→#FBFBFD）；页面顶部极淡蓝色 radial wash——拒绝「纯灰死板背景」（tinted neutral 原则）
+- 动效：入场 cf-rise（420ms，ease-out-quint cubic-bezier(0.22,1,0.36,1)，交错延迟 60/120ms）；KPI 卡 hover 升起 -2px；warn 状态点脉冲；全部走 prefers-reduced-motion 降级；poll 高频更新区（状态卡）禁用入场动画防 2s 重放
+- 排版：区块标题体系（cf-kicker 11px 大写 0.1em + 蓝色短划线 + cf-h2 19px/-0.015em），数字一律 tabular-nums
+- 细节：::selection 蓝色选区、自定义细滚动条、隐藏 Gradio footer、placeholder 对比度 #86868B、表格行 hover、输入焦点光环（3px 蓝晕）、primary 按钮 hover 升起
+- 评测台结构：趋势/历史报告改 gr.Tabs 分区（组件对象引用不变）；分类明细表加 mini 进度条（≥80% 绿 / ≥60% 橙 / 其余红语义配色）
+- 演示界面：头部品牌 logo 块（渐变蓝方块 CF）+ 状态 pill 化，与 workbench 导航品牌语言对齐
+
+**新增变量仅作派生令牌**（--cf-shadow-1/2/3、--cf-ease-out、--cf-blue-soft 等），TOKENS 核心值不动 → workbench @theme 同名同值契约不受影响。
+
+**影响**：T059-T062；tests/ui/test_theme.py 新增 polish 断言锁死关键选择器。

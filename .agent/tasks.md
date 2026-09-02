@@ -147,11 +147,20 @@ T001 → T002 → T003 → T004 → T005
 
 ## 进度统计
 
-- 总任务数：58（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049-T053 + Phase 6 五个）
-- 已完成：58（2026-08-27 完成 T001-T043；2026-09-01 完成 T049、T044、T045；2026-09-02 完成 T046-T048、T050-T053、T054-T058——**全部完成**）
+- 总任务数：62（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049-T053 + Phase 6 五个 + Phase 6.5 四个）
+- 已完成：62（2026-08-27 完成 T001-T043；2026-09-01 完成 T049、T044、T045；2026-09-02 完成 T046-T048、T050-T053、T054-T058、T059-T062——**全部完成**）
 - 进行中：0
 - 待开始：0
 
 > Phase 5 回归实测（T048，deepseek-v4-flash 全量 200 条，evals/reports/t048_phase5_regression.json）：
 > 完成率 87.0%（基线 88%，回退 1pp 达标线压线）｜工具准确率 94.7%（基线 95.26%，差 0.3pp 未达
 > ≥95% 子项，遗留）｜合规通过率 95.5%｜multi_step 92.5% 与基线持平（修复前 48.8%）。
+
+---
+
+### Phase 6.5：Gradio 双界面视觉深化（D031，impeccable 方法论）
+
+- [x] T059: 设计系统视觉深化（共享层） | 依赖: T058 | 涉及文件: ui/theme.py、tests/ui/test_theme.py | 验收: 分层阴影/入场动效/区块标题体系/选区/滚动条/footer 隐藏/焦点光环/按钮 hover 升起落 CSS；pytest 主题用例（含新增 polish 断言）全绿
+- [x] T060: 演示界面视觉深化 | 依赖: T059 | 涉及文件: ui/app.py | 验收: 头部品牌 logo 块 + 状态 pill 化、气泡/composer/chips 精修、交错入场；回调元数与业务逻辑不变
+- [x] T061: 评测台视觉深化 | 依赖: T059 | 涉及文件: ui/eval_app.py | 验收: 趋势/历史报告 Tabs 分区、状态卡化、KPI hover 升起、分类明细 mini 进度条、区块标题体系；poll 8 输出元数不变
+- [x] T062: 视觉深化验证与文档 | 依赖: T060、T061 | 涉及文件: README.md、docs/diagrams/、.agent/progress.md | 验收: ruff + pytest 全绿；两界面 headless 截图目检通过；README 界面章节更新

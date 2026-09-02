@@ -250,3 +250,25 @@ claim-agent/
 - 既有 tests/ui/test_eval_app.py 4 用例保持绿（元数锁定）
 - 三界面真实启动 + 浏览器截图目检（7860/7861/3000）
 - workbench `npm run build` 通过；全量 ruff + pytest 绿
+
+---
+
+## 8. Phase 6.5：Gradio 双界面视觉深化（2026-09-02，D031）
+
+用户反馈：Phase 6 后仅坐席工作台（Next.js，全 CSS 自由度）达到预期；演示界面与评测台需按 impeccable 方法论进一步深化。
+
+### 8.1 目标与约束
+
+- 目标：两 Gradio 界面达到工作台水准的「深度感 / 生命感 / 细节感」
+- 约束：纯表现层；Gradio 回调元数不变（poll 8 输出锁定）；TOKENS 核心值不动（双栈同源契约不破坏，新增 CSS 变量仅为派生令牌）
+
+### 8.2 深化点（impeccable 方法论）
+
+- 共享层（T059）：分层阴影（--cf-shadow-1/2/3）替代单层；卡片微渐变表面；页面顶部极淡蓝色 radial wash；cf-rise/cf-fade 入场动效（ease-out-quint，交错延迟）；区块标题体系（cf-kicker 大写小字 + cf-h2）；::selection 蓝色选区、自定义滚动条、隐藏 Gradio footer、placeholder 对比度、表格行 hover、输入焦点光环、primary 按钮 hover 升起
+- 演示界面（T060）：头部品牌 logo 块（渐变方块）+ 状态 pill 化；气泡/输入区/chips 精修（hover 升起）；交错入场
+- 评测台（T061）：趋势/历史报告改 gr.Tabs 分区；状态区卡化；KPI hover 升起；分类明细表加 mini 进度条（按通过率语义配色）；区块标题体系统一
+- 验证（T062）：ruff + pytest 全绿；headless Chrome 截图目检；README 界面章节更新
+
+### 8.3 任务链
+
+T059（共享层）→ T060（演示界面）/ T061（评测台）→ T062（验证与文档）
