@@ -59,6 +59,9 @@ class CaseResult(BaseModel):
     # intent_match=None 表示该用例未标注期望意图（不考核，聚合分母不计）
     actual_intent: str | None = None
     intent_match: bool | None = None
+    # LLM-judge 结果（T068，独立口径不并入 passed）：
+    # {faithfulness, completeness, compliance, total, pass, rationale} 或 None（未 judge/失败）
+    judge: dict[str, Any] | None = None
     passed: bool = False
 
 
@@ -92,6 +95,12 @@ class EvalReport(BaseModel):
     intent_scored: int = Field(
         default=0, description="意图考核用例数（分母；expected_intent 标注数）"
     )
+    # LLM-judge 独立口径（T068，D033 同 D026：不并入 passed，先观察后收敛）
+    judge_pass_rate: float | None = Field(
+        default=None,
+        description="judge 判过率：must_include 为空用例中 rubric 总分 ≥4 占比（None=未启用/无产出）",
+    )
+    judge_scored: int = Field(default=0, description="judge 成功产出判分的用例数")
     avg_duration_s: float = Field(description="平均单用例耗时（秒）")
     avg_vector_hits: float = Field(default=0.0, description="平均向量检索命中条数/用例")
     avg_graph_hits: float = Field(default=0.0, description="平均图谱事实命中条数/用例")
@@ -226,6 +235,12 @@ def aggregate(results: list[CaseResult]) -> EvalReport:
         else None
     )
 
+    # LLM-judge 聚合（T068，独立口径）：分母只计成功产出 judge 记录的用例
+    judged = [r for r in results if r.judge]
+    judge_pass_rate = (
+        sum(1 for r in judged if r.judge.get("pass")) / len(judged) if judged else None
+    )
+
     avg_duration = (sum(r.duration_s for r in results) / total) if total else 0.0
     avg_vector_hits = (sum(r.vector_hits for r in results) / total) if total else 0.0
     avg_graph_hits = (sum(r.graph_hits for r in results) / total) if total else 0.0
@@ -278,6 +293,8 @@ def aggregate(results: list[CaseResult]) -> EvalReport:
         human_intervened=len(intervened),
         intent_accuracy=intent_accuracy,
         intent_scored=len(intent_scored),
+        judge_pass_rate=judge_pass_rate,
+        judge_scored=len(judged),
         avg_duration_s=round(avg_duration, 3),
         avg_vector_hits=round(avg_vector_hits, 2),
         avg_graph_hits=round(avg_graph_hits, 2),

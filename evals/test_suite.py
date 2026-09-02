@@ -63,6 +63,7 @@ async def build_eval_graph() -> Any:
     checkpointer 走全局 CheckpointManager（幂等 start，进程内多变体共享——
     调用方须以不同 thread 前缀隔离变体间的会话状态）。
     """
+    _isolate_qdrant_storage()
     import tools.claim  # noqa: F401 注册理赔工具
     import tools.compliance  # noqa: F401 注册合规工具
     import tools.medical  # noqa: F401 注册医疗工具
@@ -74,6 +75,44 @@ async def build_eval_graph() -> Any:
     registry = get_default_registry()
     checkpointer = await get_checkpoint_manager().start()
     return build_main_graph(executor=ToolExecutor(registry), checkpointer=checkpointer)
+
+
+# Qdrant 存储副本目录（模块级引用，进程退出清理用；None=未创建）
+_EVAL_QDRANT_COPY: Path | None = None
+
+
+def _isolate_qdrant_storage() -> None:
+    """dev profile 下把 Qdrant local 存储切到进程级副本（评测基础设施，T068 发现）。
+
+    背景：Qdrant local mode 是目录文件锁，同一目录仅允许一个 client 实例。本地常驻的
+    API 服务（uvicorn 8000）与评测进程并发访问 ./data/qdrant 时，评测侧拿锁失败——
+    rag_node 静默降级导致向量检索 0 命中（answer 靠图谱与 LLM 兜底，报告失真）。
+    副本按 pid 命名，评测只读检索不回写，进程退出由 atexit 清理。
+    """
+    global _EVAL_QDRANT_COPY
+    import atexit
+    import shutil
+    import tempfile
+
+    from app.core.config import settings
+
+    if settings.is_prod:
+        return
+    src = Path(settings.qdrant_local_path)
+    if not src.exists():
+        return
+    dst = Path(tempfile.gettempdir()) / f"claimflow_eval_qdrant_{os.getpid()}"
+    if dst.exists():
+        shutil.rmtree(dst)
+    shutil.copytree(src, dst)
+    settings.qdrant_local_path = str(dst)
+    _EVAL_QDRANT_COPY = dst
+
+    def _cleanup() -> None:
+        shutil.rmtree(dst, ignore_errors=True)
+
+    atexit.register(_cleanup)
+    log.info("eval_qdrant_isolated", src=str(src), dst=str(dst))
 
 
 async def run_case(graph: Any, case: EvalCase, thread_prefix: str = "eval") -> CaseResult:
@@ -163,6 +202,11 @@ async def main() -> None:
         default="baseline",
         help="实验变体（evals/variants.py 注册表：baseline/hybrid/pure_rag/deepseek-v4-pro…）",
     )
+    parser.add_argument(
+        "--judge",
+        action="store_true",
+        help="启用 LLM-as-judge 二层判分（T068：仅 must_include 为空用例，独立口径不并入 passed）",
+    )
     args = parser.parse_args()
 
     configure_logging()
@@ -201,10 +245,20 @@ async def _run_suite(args: argparse.Namespace) -> Any:
 
     graph = await build_eval_graph()
 
+    # LLM-judge（T068，--judge 开关）：惰性导入，未启用零开销
+    judge_fn = None
+    if args.judge:
+        from evals.judge import judge_case, needs_judge
+
+        judge_fn = judge_case
+        print("judge=on（must_include 为空用例启用 LLM 二层判分，独立口径）")
+
     results: list[CaseResult] = []
     passed_count = 0
     for i, case in enumerate(cases, 1):
         cr = await run_case(graph, case)
+        if judge_fn is not None and cr.answer and needs_judge(case):
+            cr.judge = await judge_fn(case, cr.answer)
         results.append(cr)
         passed_count += cr.passed
         mark = "PASS" if cr.passed else "FAIL"
@@ -246,6 +300,11 @@ async def _run_suite(args: argparse.Namespace) -> Any:
         print(
             f"转人工: recall {report.human_recall:.1%}（{report.human_scored} 条期望）/ "
             f"precision {report.human_precision:.1%}（{report.human_intervened} 条实际转）"
+        )
+    if report.judge_scored:
+        print(
+            f"LLM-judge(D033 独立口径): 判过率 {report.judge_pass_rate:.1%}"
+            f"（{report.judge_scored} 条，未并入完成率）"
         )
     print(f"平均耗时: {report.avg_duration_s}s")
     print(
