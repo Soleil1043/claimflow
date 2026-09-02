@@ -15,6 +15,8 @@ import os
 import gradio as gr
 import httpx
 
+from ui.theme import APP_CSS, build_theme
+
 API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 POLL_SECONDS = 2.0
 LOG_LINES_SHOWN = 30
@@ -56,82 +58,159 @@ class EvalClient:
         resp.raise_for_status()
         return resp.json()
 
+    async def health(self) -> bool:
+        """后端健康探测（头部状态点）。"""
+        try:
+            resp = await self._http.get("/health", timeout=5)
+            return resp.status_code == 200
+        except httpx.HTTPError:
+            return False
+
 
 client = EvalClient(API_BASE)
 
 
-def _status_md(run: dict) -> str:
-    """运行状态 → 进度文本（文本进度条 + 通过/失败计数）。"""
+def _header_html(backend_ok: bool | None) -> str:
+    """浮层 chrome 头部：品牌 + 后端状态点。"""
+    if backend_ok is None:
+        dot, label = "warn", "检测中…"
+    elif backend_ok:
+        dot, label = "ok", "后端已连接"
+    else:
+        dot, label = "err", "后端不可达"
+    return f"""
+<div class="cf-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div>
+      <div class="cf-title">Agent 评测台</div>
+      <div class="cf-subtitle">一键评测 · 实时进度 · 趋势对比 · 报告回看</div>
+    </div>
+    <div class="cf-subtitle" style="white-space:nowrap;">
+      <span class="cf-status-dot {dot}"></span>{label}
+    </div>
+  </div>
+</div>"""
+
+
+async def _check_backend() -> dict:
+    """页面加载：探测后端健康，更新头部状态点。"""
+    ok = await client.health()
+    return gr.update(value=_header_html(ok))
+
+
+def _status_html(run: dict) -> str:
+    """运行状态 → HTML（状态 pill + 渐变进度条 + 通过/失败计数，T056 替代 ASCII 条）。"""
     current, total = run["current"], run["total"]
-    pct = f"{current / total:.0%}" if total else "—"
-    bar = (
-        "█" * int(current / total * 20) + "░" * (20 - int(current / total * 20))
-        if total
-        else "░" * 20
-    )
-    icon = {"running": "🟢", "completed": "✅", "failed": "❌"}.get(run["status"], "⚪")
-    label = {"running": "运行中", "completed": "已完成", "failed": "失败"}.get(
-        run["status"], run["status"]
-    )
+    ratio = current / total if total else 0
+    pct = f"{ratio:.0%}" if total else "—"
+    pill_cls, label = {
+        "running": ("info", "运行中"),
+        "completed": ("ok", "已完成"),
+        "failed": ("err", "失败"),
+    }.get(run["status"], ("muted", run["status"]))
     p = run.get("params", {})
     scope = (
         p.get("dataset", "")
         + (f"/{p['category']}" if p.get("category") else "")
         + (f" × {p['limit']} 条" if p.get("limit") else " × 全量")
     )
-    return (
-        f"{icon} **{label}** `{run['run_id']}` · {scope} · 变体 `{p.get('variant', '')}`\n\n"
-        f"`{bar}` {current}/{total}（{pct}）· 通过 {run['passed']} / 失败 {run['failed']}"
-    )
+    return f"""
+<div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <span class="cf-pill {pill_cls}">{label}</span>
+    <code style="font-size:12px;">{run["run_id"]}</code>
+    <span style="font-size:13px;color:var(--cf-text-2);">{scope} · 变体 {p.get("variant", "")}</span>
+  </div>
+  <div class="cf-progress" style="margin:10px 0 6px;">
+    <div style="width:{ratio:.0%};"></div>
+  </div>
+  <div style="font-size:13px;color:var(--cf-text-2);font-variant-numeric:tabular-nums;">
+    {current}/{total}（{pct}）· 通过 {run["passed"]} / 失败 {run["failed"]}
+  </div>
+</div>"""
+
+
+def _kpi(label: str, value: str, foot: str = "") -> str:
+    """KPI 大数字卡（层级 = 字重+字号+tracking，tabular-nums 对齐）。"""
+    return f"""
+<div class="cf-kpi">
+  <div class="k-label">{label}</div>
+  <div class="k-value">{value}</div>
+  <div class="k-foot">{foot}</div>
+</div>"""
 
 
 def _render_report(data: dict) -> tuple[str, list[list]]:
-    """报告 JSON →（摘要 Markdown，失败用例表格数据）。"""
+    """报告 JSON →（摘要 HTML：KPI 卡 + 分类表 + 轨迹 pill，失败用例表格数据）。"""
     s = data.get("summary", {})
     traj = s.get("trajectory", {})
 
-    lines = [
-        "### 📋 报告摘要",
-        f"- 数据集 `{data.get('dataset', '')}` · 变体 `{data.get('variant', '')}`"
-        f" · 分类 `{data.get('category') or '全部'}` · 生成于 {data.get('generated_at', '')}"
-        f" · commit `{data.get('git_sha') or 'unknown'}`",
-        "",
-        "| 指标 | 数值 |",
-        "|------|------|",
-        f"| 任务完成率 | **{s.get('task_completion_rate', 0):.1%}**（{s.get('passed', 0)}/{s.get('total', 0)}） |",
-        f"| 工具调用准确率 | {s.get('tool_accuracy', 0):.1%} |",
-        f"| 合规通过率 | {s.get('compliance_pass_rate', 0):.1%} |",
-        f"| 平均耗时 | {s.get('avg_duration_s', 0)}s |",
+    parts = [
+        '<div style="font-size:16px;font-weight:600;letter-spacing:-0.01em;">📋 报告摘要</div>',
+        '<div style="margin-top:4px;font-size:12.5px;color:var(--cf-text-2);">'
+        f"数据集 <code>{data.get('dataset', '')}</code> · 变体 <code>{data.get('variant', '')}</code>"
+        f" · 分类 <code>{data.get('category') or '全部'}</code>"
+        f" · 生成于 {data.get('generated_at', '')}"
+        f" · commit <code>{data.get('git_sha') or 'unknown'}</code></div>",
+        '<div class="cf-kpi-grid">',
+        _kpi(
+            "任务完成率",
+            f"{s.get('task_completion_rate', 0):.1%}",
+            f"{s.get('passed', 0)}/{s.get('total', 0)} 通过",
+        ),
+        _kpi("工具调用准确率", f"{s.get('tool_accuracy', 0):.1%}"),
+        _kpi("合规通过率", f"{s.get('compliance_pass_rate', 0):.1%}"),
+        _kpi("平均耗时", f"{s.get('avg_duration_s', 0)}s"),
     ]
     if "avg_vector_hits" in s:
-        lines.append(
-            f"| 检索命中 | 向量 {s.get('avg_vector_hits', 0)} 条/例 · 图谱 {s.get('avg_graph_hits', 0)} 条/例"
-            f" · 图谱覆盖 {s.get('graph_coverage', 0):.1%} |"
+        parts.append(
+            _kpi(
+                "检索命中",
+                f"{s.get('avg_vector_hits', 0)}",
+                f"向量条/例 · 图谱 {s.get('avg_graph_hits', 0)} 条/例"
+                f" · 图谱覆盖 {s.get('graph_coverage', 0):.1%}",
+            )
         )
-    lines.append("")
+    parts.append("</div>")
 
     by_cat = s.get("by_category") or {}
     if by_cat:
-        lines += ["**分类明细**", "", "| 分类 | 通过率 |", "|------|--------|"]
-        lines += [
-            f"| {cat} | {stat['rate']:.1%}（{int(stat['passed'])}/{int(stat['total'])}） |"
+        rows = "".join(
+            "<tr style='border-top:1px solid var(--cf-hairline);'>"
+            f"<td style='padding:6px 10px;'>{cat}</td>"
+            f"<td style='padding:6px 10px;font-variant-numeric:tabular-nums;'>"
+            f"{stat['rate']:.1%}（{int(stat['passed'])}/{int(stat['total'])}）</td></tr>"
             for cat, stat in by_cat.items()
+        )
+        parts += [
+            '<div style="margin-top:14px;font-size:13px;font-weight:600;">分类明细</div>',
+            "<table style='width:100%;margin-top:6px;font-size:13px;border-collapse:collapse;'>"
+            "<thead><tr style='color:var(--cf-text-2);font-size:12px;text-align:left;'>"
+            "<th style='padding:4px 10px;font-weight:500;'>分类</th>"
+            "<th style='padding:4px 10px;font-weight:500;'>通过率</th></tr></thead>"
+            f"<tbody>{rows}</tbody></table>",
         ]
-        lines.append("")
 
     if traj:
         scored = lambda d: int(d.get("scored", 0))  # noqa: E731
-        lines += [
-            "**轨迹质量（D026 独立口径）**",
-            "",
-            f"- 顺序 {_rate(traj, 'order')}（{scored(traj.get('order', {}))} 条）· "
-            f"路由 {_rate(traj, 'route')}（{scored(traj.get('route', {}))} 条）· "
-            f"禁调 {_rate(traj, 'forbidden')}（{scored(traj.get('forbidden', {}))} 条）· "
-            f"次数 {_rate(traj, 'limit')}（{scored(traj.get('limit', {}))} 条）· "
-            f"入参 {_rate(traj, 'args')}（{scored(traj.get('args', {}))} 条）",
-            f"- 冗余调用均值 {traj.get('redundancy', {}).get('avg_redundant_calls', 0)}"
-            f"（有轨迹用例 {int(traj.get('redundancy', {}).get('cases_with_trace', 0))} 条）",
-            "",
+        dims = [
+            ("顺序", "order"),
+            ("路由", "route"),
+            ("禁调", "forbidden"),
+            ("次数", "limit"),
+            ("入参", "args"),
+        ]
+        pills = "".join(
+            f'<span class="cf-pill info">{name} {_rate(traj, key)}'
+            f"（{scored(traj.get(key, {}))} 条）</span>"
+            for name, key in dims
+        )
+        parts += [
+            '<div style="margin-top:14px;font-size:13px;font-weight:600;">轨迹质量（D026 独立口径）</div>',
+            f'<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">{pills}</div>',
+            '<div style="margin-top:6px;font-size:12.5px;color:var(--cf-text-2);">'
+            f"冗余调用均值 {traj.get('redundancy', {}).get('avg_redundant_calls', 0)}"
+            f"（有轨迹用例 {int(traj.get('redundancy', {}).get('cases_with_trace', 0))} 条）</div>",
         ]
 
     fails = [
@@ -145,7 +224,7 @@ def _render_report(data: dict) -> tuple[str, list[list]]:
         ]
         for f in data.get("failures", [])
     ]
-    return "\n".join(lines), fails
+    return "\n".join(parts), fails
 
 
 def _rate(traj: dict, key: str) -> str:
@@ -278,7 +357,7 @@ async def poll(state: dict, trend_dataset: str, trend_variant: str) -> tuple:
     )
     if run["status"] == "running":
         return (
-            _status_md(run),
+            _status_html(run),
             log_text,
             gr.update(),
             gr.update(),
@@ -310,7 +389,7 @@ async def poll(state: dict, trend_dataset: str, trend_variant: str) -> tuple:
         else f"❌ 评测失败（exit={run.get('return_code')}）"
     )
     return (
-        head + "\n\n" + _status_md(run),
+        head + "\n\n" + _status_html(run),
         log_text,
         gr.update(choices=names, value=newest),
         summary,
@@ -351,22 +430,29 @@ async def show_report(name: str | None) -> tuple[str, list[list]]:
 
 
 def build_ui() -> gr.Blocks:
+    """组装界面（T056：Apple 设计语言重构——浮层头部/KPI 卡/HTML 进度条）。
+
+    注：Gradio 6 起 theme/css 从 Blocks 构造器移至 launch()。
+    """
     with gr.Blocks(title="claimflow 评测台") as demo:
-        gr.Markdown(
-            "# 📊 Agent 评测台\n"
-            "选择参数后点击「开始评测」，进度实时刷新；评测报告落盘 `evals/reports/`，可在下方历史报告中回看。"
-        )
+        header = gr.HTML(_header_html(None))
         state = gr.State({})
 
-        with gr.Row():
-            dataset_dd = gr.Dropdown(label="数据集", value="main", choices=["main", "graph_assoc"])
-            category_dd = gr.Dropdown(label="分类", value="全部", choices=["全部"])
-            variant_dd = gr.Dropdown(label="变体", value="baseline", choices=["baseline"])
-            limit_num = gr.Number(label="条数上限（空 = 全量）", value=10, precision=0, minimum=1)
-            start_btn = gr.Button("▶️ 开始评测", variant="primary", scale=0)
+        with gr.Group(elem_classes=["cf-card"]):
+            with gr.Row():
+                dataset_dd = gr.Dropdown(label="数据集", value="main", choices=["main", "graph_assoc"])
+                category_dd = gr.Dropdown(label="分类", value="全部", choices=["全部"])
+                variant_dd = gr.Dropdown(label="变体", value="baseline", choices=["baseline"])
+                limit_num = gr.Number(label="条数上限（空 = 全量）", value=10, precision=0, minimum=1)
+                start_btn = gr.Button("▶️ 开始评测", variant="primary", scale=0)
 
-        status_md = gr.Markdown("待启动。")
-        log_box = gr.Textbox(label="运行日志（逐用例 PASS/FAIL）", lines=12, interactive=False)
+        status_md = gr.HTML('<div style="color:var(--cf-text-2);font-size:13px;">待启动。</div>')
+        log_box = gr.Textbox(
+            label="运行日志（逐用例 PASS/FAIL）",
+            lines=12,
+            interactive=False,
+            elem_classes=["cf-log"],
+        )
 
         gr.Markdown("## 📈 趋势")
         with gr.Row():
@@ -379,7 +465,7 @@ def build_ui() -> gr.Blocks:
         with gr.Row():
             reports_dd = gr.Dropdown(label="报告文件", choices=[], scale=5)
             refresh_btn = gr.Button("🔄 刷新", scale=0)
-        summary_md = gr.Markdown("选择报告查看详情。")
+        summary_md = gr.HTML('<div style="color:var(--cf-text-2);font-size:13px;">选择报告查看详情。</div>')
         gr.Markdown("### 失败用例明细")
         fails_df = gr.Dataframe(
             headers=["用例", "分类", "回答(截断)", "实际工具", "错误", "耗时(s)"],
@@ -387,6 +473,7 @@ def build_ui() -> gr.Blocks:
             interactive=False,
         )
 
+        demo.load(_check_backend, outputs=[header])
         demo.load(
             load_meta,
             outputs=[dataset_dd, category_dd, variant_dd, trend_dataset_dd, trend_variant_dd],
@@ -423,4 +510,9 @@ def build_ui() -> gr.Blocks:
 demo = build_ui()
 
 if __name__ == "__main__":
-    demo.launch(server_name="127.0.0.1", server_port=int(os.getenv("GRADIO_EVAL_PORT", "7861")))
+    demo.launch(
+        server_name="127.0.0.1",
+        server_port=int(os.getenv("GRADIO_EVAL_PORT", "7861")),
+        theme=build_theme(),
+        css=APP_CSS,
+    )

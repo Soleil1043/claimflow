@@ -1694,3 +1694,21 @@ demo.load 调 /health 探测三态：检测中/已连接/不可达）；chatbot 
 --screenshot 替代，含 --virtual-time-budget 等 JS 渲染完成）。
 
 **Git**：`feat: T055 用户聊天界面 Apple 化重构（浮层头部/气泡/材质输入区/chips，D030）`
+
+### [T056] 评测台界面重构 — 2026-09-02
+
+**内容**：ui/eval_app.py 应用共享设计系统（T056，D030）。gr.Markdown 标题 → gr.HTML 浮层头部
+（品牌 + /health 状态点，demo.load 探测）；_status_md（ASCII █░ 条）→ _status_html
+（状态 pill 三态 + cf-progress 渐变进度条 + tabular-nums 计数）；_render_report 摘要
+Markdown 表格 → KPI 大数字卡（.cf-kpi-grid：完成率/工具准确率/合规率/耗时/检索命中）+
+分类明细 HTML 表 + 轨迹质量 .cf-pill.info 组；status_md/summary_md 组件换 gr.HTML；
+日志框 elem_classes=cf-log（暗色等宽块）；参数行 gr.Group(.cf-card)；theme/css 移 launch()。
+
+**硬约束守住**：poll 仍 8 输出、start_eval 签名不变、按钮文案"▶️ 开始评测/⏳ 评测运行中…"
+不变、关键字符串（评测完成/报告摘要/运行中）保留——tests/ui/test_eval_app.py 4 用例零改动全绿。
+
+**验证**：ruff 通过；tests/ui 8 passed；HTTP 200；两路截图——整页（t056_eval_ui.png，
+headless 下 demo.load 队列覆盖层属虚拟时间冻结的截图伪影，非缺陷）+ 真实报告数据静态渲染
+预览（t056_render_preview.png：KPI 卡/70% 进度条/轨迹 pill 目检通过）。
+
+**Git**：`feat: T056 评测台 Apple 化重构（KPI 卡/HTML 进度条/浮层头部/暗色日志，D030）`

@@ -1,0 +1,297 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+/* ===== Claimflow 设计系统（D030） ===== */
+:root {
+  --cf-blue: #007AFF;
+  --cf-blue-dark: #0A66C2;
+  --cf-green: #34C759;
+  --cf-orange: #FF9500;
+  --cf-red: #FF3B30;
+  --cf-bg: #F5F5F7;
+  --cf-surface: #FFFFFF;
+  --cf-text: #1D1D1F;
+  --cf-text-2: #86868B;
+  --cf-hairline: rgba(0, 0, 0, 0.08);
+  --cf-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --cf-radius-card: 16px;
+  --cf-radius-bubble: 18px;
+  --cf-radius-control: 10px;
+}
+
+/* 排版：层级 = 字重 + 字号 + 行距；大标题负 tracking，正文 0 */
+.gradio-container {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  letter-spacing: 0;
+  color: var(--cf-text);
+  max-width: 1080px !important;
+}
+.gradio-container h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.gradio-container h2, .gradio-container h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.gradio-container .prose { color: var(--cf-text); }
+
+/* ===== 按压即时反馈（pointer-down 高亮，100ms）===== */
+.gradio-container button {
+  transition: transform 100ms var(--cf-ease), background-color 150ms var(--cf-ease),
+    box-shadow 150ms var(--cf-ease), border-color 150ms var(--cf-ease);
+}
+.gradio-container button:active {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+}
+.gradio-container button:focus-visible,
+.gradio-container a:focus-visible,
+.gradio-container input:focus-visible,
+.gradio-container textarea:focus-visible {
+  outline: 2px solid var(--cf-blue);
+  outline-offset: 2px;
+}
+
+/* ===== 浮层 chrome：半透明材质，内容从其下滚过 ===== */
+.cf-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: -16px -16px 12px;
+  padding: 14px 20px;
+  background: rgba(245, 245, 247, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--cf-hairline);
+}
+.cf-header .cf-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--cf-text);
+}
+.cf-header .cf-subtitle {
+  margin-top: 2px;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+  color: var(--cf-text-2);
+}
+.cf-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+.cf-status-dot.ok { background: var(--cf-green); }
+.cf-status-dot.warn { background: var(--cf-orange); }
+.cf-status-dot.err { background: var(--cf-red); }
+
+/* ===== 卡片与分组 ===== */
+.cf-card {
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-hairline);
+  border-radius: var(--cf-radius-card);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
+  padding: 16px 18px;
+}
+
+/* 状态 pill：四态语义色 */
+.cf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.cf-pill.ok { background: rgba(52, 199, 89, 0.14); color: #1F7A38; }
+.cf-pill.warn { background: rgba(255, 149, 0, 0.16); color: #8A5A00; }
+.cf-pill.err { background: rgba(255, 59, 48, 0.12); color: #B3261E; }
+.cf-pill.info { background: rgba(0, 122, 255, 0.12); color: var(--cf-blue-dark); }
+.cf-pill.muted { background: rgba(0, 0, 0, 0.06); color: var(--cf-text-2); }
+
+/* ===== KPI 大数字卡（评测台摘要）===== */
+.cf-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 8px 0 4px;
+}
+.cf-kpi {
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-hairline);
+  border-radius: var(--cf-radius-card);
+  padding: 14px 16px 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.cf-kpi .k-label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--cf-text-2);
+}
+.cf-kpi .k-value {
+  margin-top: 4px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--cf-text);
+}
+.cf-kpi .k-foot { margin-top: 2px; font-size: 12px; color: var(--cf-text-2); }
+
+/* ===== 进度条（替代 ASCII 条）===== */
+.cf-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.07);
+  overflow: hidden;
+}
+.cf-progress > div {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--cf-blue), #5CA8FF);
+  transition: width 300ms var(--cf-ease);
+}
+
+/* 运行日志：等宽暗色块 */
+.cf-log textarea, .cf-log pre {
+  font-family: ui-monospace, 'SF Mono', 'JetBrains Mono', Consolas, 'Courier New', monospace !important;
+  font-size: 12px !important;
+  line-height: 1.6 !important;
+  background: #1D1D1F !important;
+  color: #E8E8ED !important;
+  border-radius: var(--cf-radius-control) !important;
+}
+
+/* ===== 聊天气泡（用户右/助手左，18px 连续圆角）===== */
+.chatbot .message-row { margin: 6px 0; }
+.chatbot .message {
+  border-radius: var(--cf-radius-bubble) !important;
+  border: 1px solid var(--cf-hairline) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  line-height: 1.65;
+}
+.chatbot .message.user, .chatbot .message.user .message-content {
+  background: var(--cf-blue) !important;
+  color: #FFFFFF !important;
+}
+.chatbot .message.bot, .chatbot .message.bot .message-content {
+  background: var(--cf-surface) !important;
+  color: var(--cf-text) !important;
+}
+.chatbot .message.bot .message-content a { color: var(--cf-blue-dark); }
+
+/* 输入区浮起：材质底 + 圆角 */
+.cf-composer {
+  background: rgba(255, 255, 255, 0.8);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid var(--cf-hairline);
+  border-radius: var(--cf-radius-card);
+  padding: 10px 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+/* 示例问题 chips（Gradio 6 渲染为 .gallery-item 按钮，需提高特异性覆盖默认透明样式） */
+.gradio-container .cf-chips .gallery-item,
+.gradio-container .cf-chips button {
+  border-radius: 999px !important;
+  border: 1px solid var(--cf-hairline) !important;
+  background: var(--cf-surface) !important;
+  color: var(--cf-text) !important;
+  font-size: 13px !important;
+  padding: 6px 14px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+.gradio-container .cf-chips .gallery-item:hover,
+.gradio-container .cf-chips button:hover {
+  border-color: var(--cf-blue) !important;
+  color: var(--cf-blue-dark) !important;
+  background: #EAF3FF !important;
+}
+
+/* ===== 无障碍降级 ===== */
+@media (prefers-reduced-motion: reduce) {
+  .gradio-container button { transition: none; }
+  .gradio-container button:active { transform: none; }
+  .cf-progress > div { transition: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .cf-header { background: var(--cf-bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .cf-composer { background: var(--cf-surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+</style></head>
+<body class="gradio-container" style="max-width:900px;margin:24px auto;padding:0 16px;">
+
+<div class="cf-header">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div>
+      <div class="cf-title">Agent 评测台</div>
+      <div class="cf-subtitle">一键评测 · 实时进度 · 趋势对比 · 报告回看</div>
+    </div>
+    <div class="cf-subtitle" style="white-space:nowrap;">
+      <span class="cf-status-dot ok"></span>后端已连接
+    </div>
+  </div>
+</div>
+<div class="cf-card" style="margin-top:12px;">
+<div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <span class="cf-pill info">运行中</span>
+    <code style="font-size:12px;">r-demo</code>
+    <span style="font-size:13px;color:var(--cf-text-2);">main × 10 条 · 变体 baseline</span>
+  </div>
+  <div class="cf-progress" style="margin:10px 0 6px;">
+    <div style="width:70%;"></div>
+  </div>
+  <div style="font-size:13px;color:var(--cf-text-2);font-variant-numeric:tabular-nums;">
+    7/10（70%）· 通过 6 / 失败 1
+  </div>
+</div></div>
+<div class="cf-card" style="margin-top:12px;"><div style="font-size:16px;font-weight:600;letter-spacing:-0.01em;">📋 报告摘要</div>
+<div style="margin-top:4px;font-size:12.5px;color:var(--cf-text-2);">数据集 <code>main</code> · 变体 <code>baseline</code> · 分类 <code>全部</code> · 生成于 2026-09-02 23:48:25 · commit <code>7644047</code></div>
+<div class="cf-kpi-grid">
+
+<div class="cf-kpi">
+  <div class="k-label">任务完成率</div>
+  <div class="k-value">100.0%</div>
+  <div class="k-foot">2/2 通过</div>
+</div>
+
+<div class="cf-kpi">
+  <div class="k-label">工具调用准确率</div>
+  <div class="k-value">100.0%</div>
+  <div class="k-foot"></div>
+</div>
+
+<div class="cf-kpi">
+  <div class="k-label">合规通过率</div>
+  <div class="k-value">100.0%</div>
+  <div class="k-foot"></div>
+</div>
+
+<div class="cf-kpi">
+  <div class="k-label">平均耗时</div>
+  <div class="k-value">4.783s</div>
+  <div class="k-foot"></div>
+</div>
+
+<div class="cf-kpi">
+  <div class="k-label">检索命中</div>
+  <div class="k-value">4.0</div>
+  <div class="k-foot">向量条/例 · 图谱 8.0 条/例 · 图谱覆盖 100.0%</div>
+</div>
+</div>
+<div style="margin-top:14px;font-size:13px;font-weight:600;">分类明细</div>
+<table style='width:100%;margin-top:6px;font-size:13px;border-collapse:collapse;'><thead><tr style='color:var(--cf-text-2);font-size:12px;text-align:left;'><th style='padding:4px 10px;font-weight:500;'>分类</th><th style='padding:4px 10px;font-weight:500;'>通过率</th></tr></thead><tbody><tr style='border-top:1px solid var(--cf-hairline);'><td style='padding:6px 10px;'>simple_faq</td><td style='padding:6px 10px;font-variant-numeric:tabular-nums;'>100.0%（2/2）</td></tr></tbody></table>
+<div style="margin-top:14px;font-size:13px;font-weight:600;">轨迹质量（D026 独立口径）</div>
+<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;"><span class="cf-pill info">顺序 100.0%（0 条）</span><span class="cf-pill info">路由 100.0%（0 条）</span><span class="cf-pill info">禁调 100.0%（0 条）</span><span class="cf-pill info">次数 100.0%（0 条）</span><span class="cf-pill info">入参 100.0%（0 条）</span></div>
+<div style="margin-top:6px;font-size:12.5px;color:var(--cf-text-2);">冗余调用均值 0.0（有轨迹用例 2 条）</div></div>
+</body></html>
