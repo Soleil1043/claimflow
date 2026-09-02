@@ -51,8 +51,36 @@ def test_app_css_contains_material_and_press_feedback() -> None:
     assert ".chatbot .message" in css
 
 
+def test_app_css_contains_visual_polish() -> None:
+    """D031 视觉深化：分层阴影/入场动效/区块标题/细节打磨的关键选择器锁定。"""
+    css = theme.APP_CSS
+    # 分层阴影与 ease-out-quint 派生缓动
+    for token in ("--cf-shadow-1", "--cf-shadow-2", "--cf-shadow-3", "--cf-ease-out"):
+        assert token in css, f"派生令牌 {token} 缺失"
+    assert "cubic-bezier(0.22, 1, 0.36, 1)" in css
+    # 入场动效（cf-rise 交错 + cf-fade；warn 点脉冲）
+    assert "@keyframes cf-rise" in css
+    assert "@keyframes cf-fade" in css
+    assert "@keyframes cf-pulse" in css
+    # 区块标题体系与品牌块
+    assert ".cf-kicker" in css
+    assert ".cf-h2" in css
+    assert ".cf-logo" in css
+    # 细节打磨：选区/滚动条/footer 隐藏/焦点光环/primary hover 升起/mini 进度条/Tab 胶囊
+    assert "::selection" in css
+    assert "::-webkit-scrollbar" in css
+    assert ".footer" in css
+    assert "0 0 0 3px" in css
+    assert ".gr-button-primary:hover" in css
+    assert ".cf-bar" in css
+    assert ".tabs .tab-nav button.selected" in css
+
+
 def test_app_css_contains_accessibility_fallbacks() -> None:
     css = theme.APP_CSS
     assert "prefers-reduced-motion: reduce" in css
     assert "prefers-reduced-transparency: reduce" in css
     assert "focus-visible" in css
+    # D031：动效类与 hover 升起在 reduced-motion 下全部关闭（断言渲染后的 CSS）
+    assert ".cf-rise, .cf-rise-2, .cf-rise-3, .cf-fade { animation: none; }" in css
+    assert ".cf-kpi:hover { transform: none; }" in css
