@@ -50,6 +50,8 @@ class CaseResult(BaseModel):
     any_of_hit: bool = True
     must_not_include_clean: bool = True
     human_match: bool = True
+    # 转人工指标（T064，BUG-001）：透传用例期望值，聚合 precision/recall 才有正确分母分子
+    expect_human: bool = False
     passed: bool = False
 
 
@@ -64,7 +66,18 @@ class EvalReport(BaseModel):
     tool_scored_passed: int = Field(default=0, description="工具考核通过数")
     tool_scored_total: int = Field(default=0, description="工具考核用例数")
     compliance_pass_rate: float = Field(description="合规通过率：PASS verdict 占比")
-    human_precision: float = Field(description="转人工准确率：期望转人工用例中命中占比")
+    human_precision: float = Field(
+        description="转人工精确率：实际转人工的用例中「确实该转」（用例标注期望）的占比"
+    )
+    human_recall: float = Field(
+        description="转人工召回率：期望转人工的用例中实际转了人工的占比（北极星口径）"
+    )
+    human_scored: int = Field(
+        default=0, description="期望转人工用例数（recall 分母；0 表示本轮无该类标注）"
+    )
+    human_intervened: int = Field(
+        default=0, description="实际转人工用例数（precision 分母）"
+    )
     avg_duration_s: float = Field(description="平均单用例耗时（秒）")
     avg_vector_hits: float = Field(default=0.0, description="平均向量检索命中条数/用例")
     avg_graph_hits: float = Field(default=0.0, description="平均图谱事实命中条数/用例")
@@ -105,6 +118,7 @@ def score_case(case: EvalCase, result: CaseResult) -> CaseResult:
     if case.must_not_include:
         result.must_not_include_clean = not any(_norm(k) in answer for k in case.must_not_include)
 
+    result.expect_human = case.expect_human_intervention
     result.human_match = case.expect_human_intervention == result.need_human_intervention
 
     result.passed = (
@@ -141,10 +155,19 @@ def aggregate(results: list[CaseResult]) -> EvalReport:
         else 0.0
     )
 
-    human_expected = [r for r in results if r.human_match and r.need_human_intervention] or [
-        r for r in results if r.need_human_intervention
-    ]
-    human_precision = len(human_expected) / len(human_expected) if human_expected else 0.0
+    # 转人工指标（T064，BUG-001 修复）：precision 与 recall 分子分母各归其位——
+    # precision：实际转人工中「确实该转」（用例标注期望）的占比，考察"别乱转"；
+    # recall：期望转人工中被转了的占比，考察"该转的别漏"，北极星（62%→37%）的主口径
+    intervened = [r for r in results if r.need_human_intervention]
+    expected_true = [r for r in results if r.expect_human]
+    human_precision = (
+        sum(1 for r in intervened if r.expect_human) / len(intervened) if intervened else 0.0
+    )
+    human_recall = (
+        sum(1 for r in expected_true if r.need_human_intervention) / len(expected_true)
+        if expected_true
+        else 0.0
+    )
 
     avg_duration = (sum(r.duration_s for r in results) / total) if total else 0.0
     avg_vector_hits = (sum(r.vector_hits for r in results) / total) if total else 0.0
@@ -193,6 +216,9 @@ def aggregate(results: list[CaseResult]) -> EvalReport:
         tool_scored_total=len(tool_scored),
         compliance_pass_rate=compliance_pass_rate,
         human_precision=human_precision,
+        human_recall=human_recall,
+        human_scored=len(expected_true),
+        human_intervened=len(intervened),
         avg_duration_s=round(avg_duration, 3),
         avg_vector_hits=round(avg_vector_hits, 2),
         avg_graph_hits=round(avg_graph_hits, 2),

@@ -117,6 +117,67 @@ def test_aggregate_by_category() -> None:
     assert report.by_category["multi_step"]["rate"] == 0.0
 
 
+# ===== 转人工 precision/recall（T064，BUG-001 修复） =====
+
+
+def test_human_metrics_all_correct() -> None:
+    """3 条期望转人工全部转了、且无乱转：precision=recall=1.0。"""
+    results = [
+        _result(expect_human=True, need_human_intervention=True),
+        _result(expect_human=True, need_human_intervention=True),
+        _result(expect_human=True, need_human_intervention=True),
+        _result(expect_human=False, need_human_intervention=False),
+    ]
+    report = aggregate(results)
+    assert report.human_precision == 1.0
+    assert report.human_recall == 1.0
+    assert report.human_scored == 3
+    assert report.human_intervened == 3
+
+
+def test_human_metrics_all_missed() -> None:
+    """2 条期望转人工全没转：recall=0；无实际转人工：precision=0（而非旧公式恒 1）。"""
+    results = [
+        _result(expect_human=True, need_human_intervention=False),
+        _result(expect_human=True, need_human_intervention=False),
+    ]
+    report = aggregate(results)
+    assert report.human_precision == 0.0
+    assert report.human_recall == 0.0
+
+
+def test_human_metrics_empty() -> None:
+    """无任何转人工标注与行为：两项均 0.0（未考核），不再是退化值。"""
+    report = aggregate([_result(), _result()])
+    assert report.human_precision == 0.0
+    assert report.human_recall == 0.0
+    assert report.human_scored == 0
+
+
+def test_human_metrics_mixed() -> None:
+    """混合：4 期望转 3 转 1 漏；另 1 条不该转却转了 → recall=3/4、precision=3/4。"""
+    results = [
+        _result(expect_human=True, need_human_intervention=True),
+        _result(expect_human=True, need_human_intervention=True),
+        _result(expect_human=True, need_human_intervention=True),
+        _result(expect_human=True, need_human_intervention=False),  # 漏转
+        _result(expect_human=False, need_human_intervention=True),  # 乱转
+    ]
+    report = aggregate(results)
+    assert report.human_precision == 3 / 4
+    assert report.human_recall == 3 / 4
+    assert report.human_intervened == 4
+
+
+def test_score_case_transfers_expect_human() -> None:
+    """score_case 把用例期望值透传到 result（聚合分母来源）。"""
+    case = _case(must_include=["抱歉"], expect_human_intervention=True)
+    r = score_case(case, _result(answer="抱歉，该问题需转人工处理"))
+    assert r.expect_human is True
+    r2 = score_case(_case(must_include=["好的"]), _result(answer="好的"))
+    assert r2.expect_human is False
+
+
 # ===== result_from_a06 适配层 =====
 
 

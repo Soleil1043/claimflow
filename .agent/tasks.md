@@ -179,7 +179,7 @@ T001 → T002 → T003 → T004 → T005
 > → P2 防线闭环（对抗集/CI 门禁/统计增强）→ T074 全量回归换基线。
 > 缺陷对照：BUG-001/002（P0）、GAP-001/003/004（P1）、GAP-005/006/007/008（P2）、次要问题（并入 T069/T073）。
 
-- [ ] T064: 修复转人工指标（BUG-001） | 依赖: 无 | 涉及文件: evals/metrics.py、tests/evals/test_scoring.py | 验收: precision=实际转人工中「确实该转」占比、recall=期望转人工中被转的占比（CaseResult 增 expect_human 透传）；空集 0.0，不再恒 0/1 退化；单测全对/全错/空集/混合 4 用例
+- [x] T064: 修复转人工指标（BUG-001） | 依赖: 无 | 涉及文件: evals/metrics.py、tests/evals/test_scoring.py | 验收: precision=实际转人工中「确实该转」占比、recall=期望转人工中被转的占比（CaseResult 增 expect_human 透传）；空集 0.0，不再恒 0/1 退化；单测全对/全错/空集/混合 4 用例 ✅ 2026-09-03（17 passed）
 - [ ] T065: 转人工期望用例 18 条（human_handoff 类目，BUG-001 分母） | 依赖: T064 | 涉及文件: evals/schemas.py、evals/datasets/eval_dataset.json、tests/evals/test_dataset.py | 验收: HUMAN_HANDOFF 入 EvalCategory 并进主数据集（200→218，版本升 1.1.0）；覆盖合规 REJECT（骗保/高风险表述）/材料严重缺失/保障外情绪激动/法律纠纷/用户主动要求五类；每条 expect_human_intervention=true + must_not_include 违规承诺话术；`--category human_handoff` 真实跑通，precision/recall 非退化且可解释
 - [ ] T066: 意图准确率进报告（BUG-002） | 依赖: 无 | 涉及文件: evals/metrics.py、evals/test_suite.py、tests/evals/test_scoring.py | 验收: CaseResult.intent_match（None=未标注不考核）+ actual_intent 回填（run_case 从 state intent 取）；EvalReport 增 intent_accuracy/intent_scored；80 条标注计入分母；单测
 - [ ] T067: 数值精确断言（GAP-001a） | 依赖: 无 | 涉及文件: evals/schemas.py、evals/metrics.py、scripts/annotate_numbers.py（一次性迁移）、evals/datasets/eval_dataset.json、tests/evals/ | 验收: EvalCase 增 expected_numbers；判分归一化（千分位/全角/小数位 .0 容差）后精确包含、并入 passed；must_include/any_of 中纯数字关键词迁移为精确断言（金额算错必 FAIL）；容差单测
