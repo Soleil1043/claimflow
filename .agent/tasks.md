@@ -192,3 +192,9 @@ T001 → T002 → T003 → T004 → T005
 - [x] T075: 评测台 Phase 7 能力对齐 | 依赖: T074 | 涉及文件: schemas/api.py、services/eval_runner.py、ui/eval_app.py、tests/api/test_evals.py、tests/ui/test_eval_app.py、docs/diagrams/t075_*.png | 验收: judge 开关打通 UI 全链路（EvalRunStartRequest.judge → EvalRunParams → 子进程 --judge）；报告渲染补 judge 判过率 KPI 卡；真实渲染双截图目检（界面 Checkbox + baseline.json 静态预览：转人工召回/意图/judge 三张新卡 + p95/tok foot 全对）；API 端到端（judge:true → 报告 judge_scored=1）✅ 2026-09-03（469 passed；进程清理端口释放）
 
 - [x] T074: 全量回归重跑基线 + 文档口径同步 | 依赖: T064-T073 | 涉及文件: evals/reports/baseline.json、docs/architecture.md、README.md、.agent/progress.md | 验收: 218 条全量真实评测（--judge，新指标列全部产出非退化值）；baseline.json 替换存档（旧基线 → baseline_v1_200_20260825.json）；architecture.md §9 指标口径同步 ✅ 2026-09-03（完成率 79.8% CI[74.0,84.6]；老 200 条口径 87.0% 与 t048 持平；human_recall 0/18 北极星基线量化；intent 62.5% 低于 90% 线为遗留；轨迹 order 96.9%/route 97.1%/limit 33.3% 抓到 3 条绕圈；judge 98.6% 待校准；p95 27.8s/818.7 tok/例）
+
+---
+
+### 增量：README 专业化改造（2026-09-03 追加，依据 docs/readme-professional-guide.md）
+
+- [x] T076: README 企业级重排（成果前置/读者分层/数字纪律/内外视角） | 依赖: 无 | 涉及文件: README.md、LICENSE（新）、docs/readme-professional-guide.md（整改依据）、.agent/progress.md | 验收: ①数字统一（测试 469 以 collect-only 为准并注明口径、评测集 218+74=292，391/367/218+84 三处矛盾清零）②KPI 表+首屏截图+对话示例前置（含 ⚠️ 负向指标两条）③Quick Start 压 3 步 + 可选组件表格化后移（监控/追踪/坐席台/评测台/Gradio 对照）④TOC/License(MIT)/已知限制与路线图/安全与数据声明/英文 TL;DR/作者 齐备 ⑤内部编号（T0XX/D0XX 30+ 处）实际清零，收敛为 .agent/ 链接的说明性提及 ⑥能力表 16→8 行（一句话价值）⑦技术栈/项目结构/设计系统折叠进 details ⑧362→324 行 ✅ 2026-09-03
