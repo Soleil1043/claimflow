@@ -54,6 +54,13 @@ class EvalCase(BaseModel):
     any_of: list[str] = Field(
         default_factory=list, description="回答包含任一关键词即得分（同义表述容错）"
     )
+    expected_numbers: list[str] = Field(
+        default_factory=list,
+        description=(
+            "回答必须包含的精确数值（金额/天数/比例类；数字归一化 + 边界断言匹配，"
+            "4640 算成 5640 必 FAIL——T067，GAP-001a）"
+        ),
+    )
     must_not_include: list[str] = Field(
         default_factory=list, description="回答不得包含的关键词（命中即该用例失败，违规话术等）"
     )
@@ -93,8 +100,11 @@ class EvalCase(BaseModel):
             or self.any_of
             or self.must_not_include
             or self.expect_human_intervention
+            or self.expected_numbers
         ):
-            raise ValueError(f"用例 {self.id} 缺少判分要点（must_include/any_of/must_not_include）")
+            raise ValueError(
+                f"用例 {self.id} 缺少判分要点（must_include/any_of/must_not_include/expected_numbers）"
+            )
         return self
 
 

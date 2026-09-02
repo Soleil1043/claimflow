@@ -225,6 +225,46 @@ def test_result_from_a06_captures_intent() -> None:
     assert r2.actual_intent is None
 
 
+# ===== 数值精确断言（T067，GAP-001a） =====
+
+
+def test_number_hit_tolerance() -> None:
+    """容差：千分位 / 全角 / 空格 / 纯零小数尾都算命中。"""
+    from evals.metrics import number_hit
+
+    assert number_hit("可赔 4,640 元", "4640")
+    assert number_hit("可赔４６４０元", "4640")  # 全角数字
+    assert number_hit("可赔4640.00元", "4640")  # 纯零小数尾
+    assert number_hit("报销比例为80%", "80%")
+
+
+def test_number_hit_wrong_value_fails() -> None:
+    """金额算错必挂：4640 算成 5640 不许过（审计 GAP-001a 的核心场景）。"""
+    from evals.metrics import number_hit
+
+    assert not number_hit("可赔 5,640 元", "4640")
+
+
+def test_number_hit_boundary_guard() -> None:
+    """边界断言：640 不许混过 4640；4640 不许粘连小数（4640.5 是另一个数）。"""
+    from evals.metrics import number_hit
+
+    assert not number_hit("可赔 4640 元", "640")
+    assert not number_hit("可赔 4640.5 元", "4640")
+    assert number_hit("可赔 4640 元", "4640")
+
+
+def test_expected_numbers_scoring() -> None:
+    """score_case：数值断言并入 passed；未标注不考核。"""
+    case = _case(must_include=["免赔"], expected_numbers=["4640"])
+    ok = score_case(case, _result(answer="扣除免赔后可赔 4,640 元"))
+    assert ok.numbers_hit and ok.passed
+    bad = score_case(case, _result(answer="扣除免赔后可赔 5,640 元"))
+    assert not bad.numbers_hit and not bad.passed
+    unannotated = score_case(_case(), _result(answer="随便什么"))
+    assert unannotated.numbers_hit is True
+
+
 # ===== result_from_a06 适配层 =====
 
 

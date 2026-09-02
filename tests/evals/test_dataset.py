@@ -66,12 +66,8 @@ def test_annotation_quality(dataset: EvalDataset) -> None:
 
 
 def test_calc_anchor_cases(dataset: EvalDataset) -> None:
-    """kb03 计算锚点用例存在：期望回答含 4640。"""
-    anchors = [
-        c
-        for c in dataset.cases
-        if "4640" in (c.must_include or []) or "4,640" in (c.must_include or [])
-    ]
+    """kb03 计算锚点用例存在：期望回答含精确数值 4640（T067 迁移至 expected_numbers）。"""
+    anchors = [c for c in dataset.cases if "4640" in (c.expected_numbers or [])]
     assert len(anchors) >= 3, "计算锚点用例（kb03 示例 4640 元）不足 3 条"
 
 

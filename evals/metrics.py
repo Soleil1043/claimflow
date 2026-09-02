@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -50,6 +51,8 @@ class CaseResult(BaseModel):
     any_of_hit: bool = True
     must_not_include_clean: bool = True
     human_match: bool = True
+    # 数值精确断言（T067）：expected_numbers 为空不考核
+    numbers_hit: bool = True
     # 转人工指标（T064，BUG-001）：透传用例期望值，聚合 precision/recall 才有正确分母分子
     expect_human: bool = False
     # 意图准确率（T066，BUG-002）：actual_intent 回填实际识别结果；
@@ -105,6 +108,28 @@ def _norm(s: str) -> str:
     return s.replace(" ", "").replace("\u3000", "").replace(",", "")
 
 
+# 数值断言归一化（T067）：全角数字/小数点/逗号/百分号 → 半角
+_FULLWIDTH_MAP = str.maketrans("０１２３４５６７８９．，％", "0123456789.,%")
+
+
+def _norm_number(s: str) -> str:
+    """数值断言归一化：全角→半角、去千分位逗号与空白、纯零小数尾折叠（'4640.00'→'4640'）。
+
+    '4640.50' 保留不动（有效金额，不是尾零）。
+    """
+    s = s.translate(_FULLWIDTH_MAP).replace(",", "").replace(" ", "").replace("\u3000", "")
+    # 数字后跟 ".000…"（小数部分全零且后继不是数字）→ 折叠为整数
+    return re.sub(r"(\d)\.0+(?!\d)", r"\1", s)
+
+
+def number_hit(answer: str, expected: str) -> bool:
+    """精确数值断言：归一化后按数字边界匹配（'640' 不许混过 '4640'，'.5' 不许粘连）。"""
+    target = _norm_number(expected)
+    if not target:
+        return True
+    return re.search(rf"(?<![\d.]){re.escape(target)}(?![\d.])", _norm_number(answer)) is not None
+
+
 def score_case(case: EvalCase, result: CaseResult) -> CaseResult:
     """按用例要点判分，写回各分项与 passed。
 
@@ -112,6 +137,7 @@ def score_case(case: EvalCase, result: CaseResult) -> CaseResult:
     - must_include：全部命中（归一化子串）
     - any_of：任一命中（无 any_of 要求时视为通过）
     - must_not_include：全部未出现
+    - expected_numbers：全部数值精确命中（数字归一化 + 边界断言，T067）
     - human_match：期望转人工 ↔ 实际 need_human_intervention 一致
     - intent_match：期望意图 ↔ 实际识别意图一致（未标注 → None 不考核，T066）
     """
@@ -130,6 +156,11 @@ def score_case(case: EvalCase, result: CaseResult) -> CaseResult:
     if case.must_not_include:
         result.must_not_include_clean = not any(_norm(k) in answer for k in case.must_not_include)
 
+    if case.expected_numbers:
+        result.numbers_hit = all(
+            number_hit(result.answer, n) for n in case.expected_numbers
+        )
+
     result.expect_human = case.expect_human_intervention
     result.human_match = case.expect_human_intervention == result.need_human_intervention
 
@@ -142,6 +173,7 @@ def score_case(case: EvalCase, result: CaseResult) -> CaseResult:
         and result.must_include_hit
         and result.any_of_hit
         and result.must_not_include_clean
+        and result.numbers_hit
         and result.human_match
         and not result.error
     )
