@@ -1,12 +1,10 @@
 # 多智能体保险理赔助手 — Agent 架构设计文档
 
-> **文档状态**：v1 设计于 2026-08-24（规划期），2026-08-27（T042）按实际实现回填；
-> **v2 重设计于 2026-09-01（D021/ADR-007）：全面对齐 LangGraph/LangChain 标准构件，未实施**——
-> v2 内容以「v2」标注，实施前代码以 v1 落地描述为准；迁移任务见第 11 节 Phase 5（T044-T048）。
-> **2026-09-01 全量验证修正（D022）**：v2 全部 API 写法已对照官方文档与实锁版本逐一核实
-> （langgraph 1.2.11 / langgraph-prebuilt 1.1.0 / langchain-core 1.6.0 / langchain-openai 1.6.0）。
-> 演进决策全链见 ADR-001~007 与 `.agent/decisions.md`（D001-D022）；
-> v1 设计期原貌由 Git 历史承担（checkout 早期 commit 可查看）。
+> **文档状态**：v1 设计于 2026-08-24（规划期）；**v2 全面重构已于 2026-09-02 实施完成**
+> （T044-T048，D021-D023/ADR-007）——LangGraph/LangChain 标准构件对齐：supervisor 动态路由、
+> create_agent Worker/React 子图、with_structured_output 枚举判决、官方工具基类 + 守卫层、
+> 官方 Store 长期记忆。本文档即现行架构；v1 设计原貌由 Git 历史承担。
+> 演进决策全链见 ADR-001~007 与 `.agent/decisions.md`（D001-D025）。
 
 ## 1. 项目概述
 
@@ -124,9 +122,9 @@ Orchestrator 理解意图 → 判断任务类型
 v2 以「LangGraph 图结构为骨架」重构：**主图 = StateGraph，一切模块皆为图上标准构件**。
 凡 LangGraph/LangChain 已定义的类、方法、架构一律使用；自研仅保留框架确实没有对应物的最小集合。
 
-**模块 → 官方构件映射**（v1 现状 vs v2 目标）：
+**模块 → 官方构件映射**（v1 → v2，已于 2026-09-02 T044-T048 全部落地）：
 
-| 模块 | v1（已实现） | v2（官方标准构件） |
+| 模块 | v1（迁移前） | v2（官方标准构件，现行） |
 |---|---|---|
 | 意图识别 | 手写 JSON 解析（`_parse_llm_json`）+ 条件边 | `with_structured_output`（IntentType 枚举）+ 条件边；关键词兜底保留为降级路径 |
 | 多步调度 | planner 一次性计划 + step_executor 游标循环 | supervisor 节点：结构化输出 RoutingDecision + `Command(goto=...)` 动态路由（官方 multi-agent 模式） |
@@ -231,11 +229,11 @@ phase_ainvoke 包装、Qdrant 长期记忆管线。
 
 ## 4. 工具设计规范
 
-> **v2（未实施）**：工具层全面换用 `langchain_core.tools` 标准构件；v1 的自研 BaseTool /
-> ToolOutput 信封 / ToolRegistry / ToolExecutor 集中层由官方机制取代（映射见 2.4）。
-> 实施前代码以 v1 现状为准（tools/base.py、tools/executor.py 等）。
+> **T044 已实施**：工具层全面换用 `langchain_core.tools` 标准构件；v1 的自研 BaseTool /
+> ToolOutput 信封已删除，ToolRegistry / ToolExecutor 保留为兼容壳（消费端 T047 迁移完成，
+> 待删除）；熔断器与缓存白名单为守卫层最小自研（tools/guards.py）。
 
-### 4.1 工具接口标准（v2，已按 langchain-core 1.6.0 验证）
+### 4.1 工具接口标准（已按 langchain-core 1.6.0 验证）
 
 官方主推 **`@tool` 装饰器**：函数签名类型注解即入参 schema，docstring 即工具描述：
 
@@ -281,7 +279,7 @@ class PolicyQueryTool(BaseTool):
   v1 的 ToolRegistry 删除，测试 mock 经工厂参数注入
 - **Adapter 模式保留**：第三方系统（保单/医疗 API、RAG、OCR）仍经 Adapter 封装，挂接在工具实现内部
 
-### 4.2 工具执行与保障（v2）
+### 4.2 工具执行与保障
 
 执行：官方 `ToolNode`（`create_react_agent` 内置）。保障机制按官方构件分层承载：
 
@@ -300,10 +298,10 @@ class PolicyQueryTool(BaseTool):
 
 ## 5. 工作流设计（基于 LangGraph）
 
-> **v2（未实施）**：5.1–5.4 为 v2 目标设计（官方构件，D021/ADR-007）；
-> 5.5–5.6 保留 v1 现行设计供对照，Phase 5（T044-T048）迁移完成后移除。
+> **T047 已实施**：5.1–5.4 即现行设计（supervisor 动态路由 + create_agent 子图）；
+> 原 v1 对照节（旧主图与 planner/step_executor 设计）已随迁移移除，原貌见 Git 历史。
 
-### 5.1 状态定义（v2）
+### 5.1 状态定义
 
 ```python
 class AgentState(TypedDict, total=False):
@@ -327,11 +325,11 @@ class AgentState(TypedDict, total=False):
 - `medical_result` / `claim_result` / `need_human_intervention` 等——v1 已实际由
   shared_data / compliance_result / interrupt 承担，v2 状态收敛到实际使用的键
 
-### 5.2 主图（v2）
+### 5.2 主图
 
 ```
 __start__ → intent（意图枚举，条件边分流）
-  ├─ complex_consult（v1 名 multi_step，D023 更名）→ supervisor
+  ├─ complex_consult（complex_consult）→ supervisor
   │     ├─ Command(goto="claim")   → claim 子图   ──→ supervisor（循环）
   │     ├─ Command(goto="medical") → medical 子图 ──→ supervisor（循环）
   │     └─ Command(goto="FINISH")  → synthesize
@@ -348,7 +346,7 @@ compliance ─┬─ PASS → __end__
 （Command 动态路由）；Worker 从"节点内函数调用"变为**图上子图节点**；
 react 路径的手写循环换 prebuilt 子图。合规门禁与 HITL 结构不变（已是官方标准）。
 
-### 5.3 节点标准机制（v2）
+### 5.3 节点标准机制
 
 #### Intent（意图识别）
 官方 Routing 模式：**LLM 结构化输出（枚举）+ 条件边**。
@@ -462,87 +460,6 @@ MODIFY → revise_answer → 复审闭环；REJECT → human_review）。
 | 单 Agent LLM 故障 | 节点 try/except 降级话术 | `.with_fallbacks()` / 包装节点（同话术） |
 | 整合节点 LLM 故障 | summary 确定性拼接 | 不变（普通节点 try/except） |
 
-### 5.5 v1 现行主图（已实现，Phase 5 迁移后由 5.2 取代）
-
-```
-                    ┌──────────────┐
-                    │   __start__  │
-                    └──────┬───────┘
-                           ▼
-                    ┌──────────────┐
-                    │  intent_node │  ← 意图识别
-                    └──────┬───────┘
-                           │
-             ┌─────────────┼─────────────┐
-             ▼             ▼             ▼
-      ┌──────────┐  ┌───────────┐  ┌───────────┐
-      │ 简单FAQ  │  │ 单领域任务 │  │ 多步任务  │
-      └────┬─────┘  └─────┬─────┘  └─────┬─────┘
-           │              │              │
-           ▼              ▼              ▼
-      ┌──────────┐  ┌───────────┐  ┌───────────┐
-      │ rag_node │  │ worker    │  │ planner   │  ← 制定执行计划
-      └────┬─────┘  │ dispatch  │  └─────┬─────┘
-           │        └─────┬─────┘        │
-           │              │              ▼
-           │              │        ┌───────────┐
-           │              │        │  step     │  ← 循环执行每一步
-           │              │        │ executor  │
-           │              │        └─────┬─────┘
-           │              │              │
-           │              │        ┌─────▼─────┐
-           │              │        │  还有下一步?│
-           │              │        └─────┬─────┘
-           │              │              │否
-           │              │              ▼
-           └──────────────┼──────────────┘
-                          ▼
-                   ┌──────────────┐
-                   │ compliance   │  ← 合规审查（必经节点）
-                   └──────┬───────┘
-                          │
-                   ┌──────▼───────┐
-                   │  合规通过?    │
-                   └──┬───────┬───┘
-                      │是      │否
-                      ▼        ▼
-               ┌──────────┐ ┌────────────┐
-               │ generate │ │ human_flag │  ← 标记需人工介入
-               │  answer  │ └────────────┘
-               └────┬─────┘
-                    ▼
-              ┌──────────┐
-              │  __end__ │
-              └──────────┘
-```
-
-### 5.6 v1 关键节点设计（参考，Phase 5 迁移后移除）
-
-#### Intent Node（意图识别节点）
-- **功能**：将用户问题分类为「简单FAQ / 单领域查询 / 多步复杂任务 / 闲聊 / 其他」
-- **实现**：Few-shot Prompt + 结构化输出（JSON），结合关键词规则兜底
-- **为什么不用微调分类模型**：初期样本少，Few-shot 灵活性更高；后续可根据积累的数据迭代为微调模型
-
-#### Planner Node（任务规划节点）
-- **功能**：对于复杂任务，拆解为有序的步骤序列，每步指定一个 Worker Agent
-- **实现**：让 LLM 生成步骤计划，Orchestrator 校验计划的合理性（Agent 是否存在、步骤是否有依赖冲突）
-- **动态调整**：执行过程中如果某一步失败或结果异常，可以重新规划后续步骤
-
-#### Step Executor（步骤执行器）
-- **功能**：执行单步任务，调用对应的 Worker Agent
-- **设计**：循环节点（LangGraph 的 `Send` 或条件边），每执行完一步判断是否继续
-- **结果传递**：每步结果写入 `shared_data`，后续步骤可读取前面的结果
-
-#### Compliance Node（合规审查节点）
-- **位置**：所有输出路径的必经节点
-- **功能**：调用 Compliance Agent 审查待输出内容
-- **三态结果**：
-  - `PASS`：直接通过
-  - `MODIFY`：给出修改建议，交由生成节点修正后再审
-  - `REJECT`：直接拦截，转人工
-
----
-
 ## 6. 记忆机制
 
 ### 6.1 三层记忆架构
@@ -582,7 +499,7 @@ MODIFY → revise_answer → 复审闭环；REJECT → human_review）。
 > 落地说明：设计期的"工作记忆 MySQL"未单独建表——其职责由 shared_data（Agent 间传递）
 > 与 messages 审计字段（tool_trace/agent_steps）分担；业务库实际为 SQLite（dev）/ PostgreSQL（prod）。
 
-> **v2（未实施）**：长期记忆收敛到官方 **LangGraph Store** 体系——dev=`InMemoryStore`
+> **T048 已实施**：长期记忆收敛到官方 **LangGraph Store** 体系——dev=`InMemoryStore`
 > （`langgraph.store.memory`）、prod=`AsyncPostgresStore`（`langgraph.store.postgres`，
 > langgraph 主包提供，复用 psycopg 驱动），namespace 按 `(user_id,)` 隔离，
 > 向量检索用 Store 内建 index 配置（`IndexConfig`：`dims` / `embed` / `fields`，
@@ -762,26 +679,26 @@ MODIFY → revise_answer → 复审闭环；REJECT → human_review）。
 - [x] A/B 实验框架与实战（T040/T041：变体注册表 + z 检验，glm-5.3-flash 跨供应商对比，结论见 ADR-006）
 - （合规风控模型优化按 D017 决策不纳入：规则引擎红线违规 0/200 已达标）
 
-### Phase 5：LangGraph 标准构件对齐重构 — ⏸ 待启动（T044-T048，D021/ADR-007）
+### Phase 5：LangGraph 标准构件对齐重构 — ✅ 已交付（2026-09-01/02，T044-T048，D021/ADR-007）
 
-- [ ] T044 工具层标准化：9 个工具迁移官方工具定义（`@tool` 装饰器主推，有状态工具用
-      `BaseTool` 子类 args_schema + _arun），重试/降级换 `.with_retry()` / `.with_fallbacks()`，
-      删 ToolOutput 信封 / ToolRegistry / ToolExecutor 集中层；熔断器与缓存白名单保留为最小自研；
-      **新增 `langchain>=1.0` 依赖**（create_agent 官方标准所需）
-- [ ] T045 决策点结构化输出原生化：意图 / 合规判决改 `with_structured_output`（枚举 Literal），
-      手写 `_parse_llm_json` ×2 删除，关键词 / 确定性兜底保留
-- [ ] T046 Worker 子图化：AgentDefinition ×3 → `langchain.agents.create_agent` 子图
+- [x] T044 工具层标准化：9 个工具迁移官方工具定义（`ClaimflowTool` 继承 `langchain_core.tools.BaseTool`，
+      args_schema + _arun 返回 dict），重试换官方 `.with_retry()`、超时 `asyncio.timeout`；
+      守卫下沉工具层（`tools/guards.py` GuardedTool：熔断 + 缓存白名单 + 超时，agent 循环内外统一生效）；
+      `tools/factory.py` 工厂装配替代全局注册；AGENTS.md 6.1 同步修订
+- [x] T045 决策点结构化输出原生化：意图（IntentType StrEnum）/ 合规判决（ComplianceVerdict Literal）
+      改 `with_structured_output`，手写 `_parse_llm_json` ×2 删除，关键词 / 确定性兜底保留；
+      意图 multi_step → complex_consult 更名（D023，全链含历史值映射）
+- [x] T046 Worker 子图化：AgentDefinition → `langchain.agents.create_agent` 子图
       （system_prompt + 输入 messages 注入 shared_data + response_format → structured_response），
-      手写 ReAct 循环删除；tool_trace 改 messages 派生 + callbacks 归集
-- [ ] T047 supervisor 动态路由化：planner + step_executor 并入 supervisor 节点
-      （RoutingDecision + `Command(goto)`，支持重规划）；react 路径换 `create_agent` 子图；
-      State 精简（删 current_step / tool_trace / agent_steps）
-- [ ] T048 长期记忆 Store 化 + 全量回归：迁官方 Store（InMemoryStore / AsyncPostgresStore +
-      内建向量 index），删 Qdrant 记忆 collection；200 条评测基线回归（完成率 89.5% 回退 ≤1pp）；
-      文档回填"已实施"、README 架构图更新
+      手写 ReAct 循环删除；tool_trace 改 messages 派生
+- [x] T047 supervisor 动态路由化：planner + step_executor 删除，supervisor 节点
+      （RoutingDecision + `Command(goto)` + 计划对账守卫，支持执行中重规划）；
+      react 路径换 `create_agent` 子图；State 精简（used_tools/agent_steps 改 messages/task_plan 派生）
+- [x] T048 长期记忆 Store 化 + 全量回归：迁官方 Store（dev=InMemoryStore / prod=AsyncPostgresStore +
+      内建向量 index），删 Qdrant 记忆 collection；200 条评测基线回归（报告见
+      evals/reports/t048_phase5_regression.json）；文档回填"已实施"、README 架构图更新
 
-> 启动前置：AGENTS.md 6.1/6.2 与 v2 冲突需先修订（列入 T044）；pyproject 新增 langchain≥1.0
-> （langgraph 实锁 1.2.11 已满足全部 API）。
+> 依赖前置随 T044 完成：langchain 1.3.18 新增（create_agent 官方标准）+ langchain-core 1.6.1。
 
 ---
 

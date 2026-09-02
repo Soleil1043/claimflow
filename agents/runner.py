@@ -19,8 +19,10 @@ import json
 from typing import Any
 
 from langchain.agents import create_agent
+from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.errors import GraphRecursionError
 
 from agents.base import AgentDefinition
 from app.core.logging import get_logger
@@ -55,9 +57,13 @@ class _WorkerTokenHandler(BaseCallbackHandler):
         except (AttributeError, IndexError, TypeError, ValueError):
             pass  # 非标准响应（测试假件等）：记账跳过，不影响执行
 
-# 单个 Worker 步骤内的工具循环上限（v1 MAX_TOOL_ROUNDS=8；每轮消耗模型+工具两个节点）
+# 单个 Worker 步骤内的工具循环预算（v1 MAX_TOOL_ROUNDS=8）。
+# 硬截断由官方 ModelCallLimitMiddleware 承载（run_limit=9 ≈ 8 轮工具循环 + 终局），
+# 超限 exit_behavior="end" 强制收口（与 v1 轮数到顶语义一致，T048 回归实测：
+# "对比两张保单"类多查询任务模型会连续调工具不收口，仅靠 recursion_limit 会爆异常）。
 MAX_TOOL_ROUNDS = 8
-_RECURSION_LIMIT = MAX_TOOL_ROUNDS * 2 + 4
+_RUN_MODEL_CALL_LIMIT = 9
+_RECURSION_LIMIT = 50
 
 # Worker 子图缓存（编译一次，进程内复用；测试可预置/重置）
 _worker_cache: dict[str, Any] = {}
@@ -72,6 +78,7 @@ def get_worker_subgraph(agent_def: AgentDefinition) -> Any:
             tools=tools,
             system_prompt=agent_def.system_prompt,
             response_format=agent_def.output_schema,
+            middleware=[ModelCallLimitMiddleware(run_limit=_RUN_MODEL_CALL_LIMIT, exit_behavior="end")],
             name=agent_def.name,
         )
         log.info("worker_subgraph_built", agent=agent_def.name, tools=[t.name for t in tools])
@@ -121,13 +128,16 @@ def _derive_tool_trace(
     return trace
 
 
-def derive_tool_trace(messages: list[Any]) -> list[dict[str, Any]]:
+def derive_tool_trace(
+    messages: list[Any], exclude: set[str] | None = None
+) -> list[dict[str, Any]]:
     """任意消息列表 → 工具轨迹（A06 used_tools / 评测口径）。
 
     AIMessage.tool_calls（id→name/args，AIMessage.name 为产出 Agent）与
-    ToolMessage（tool_call_id→output）跨消息配对；response_format 的隐藏
-    结构化工具不出现在 tool_calls 消费侧之外，天然不入列。
+    ToolMessage（tool_call_id→output）跨消息配对；exclude 用于剔除
+    response_format 的隐藏结构化输出工具（以 schema 类名命名的非业务工具）。
     """
+    exclude = exclude or set()
     calls: dict[str, tuple[str, dict[str, Any], str]] = {}
     trace: list[dict[str, Any]] = []
     for m in messages:
@@ -137,6 +147,8 @@ def derive_tool_trace(messages: list[Any]) -> list[dict[str, Any]]:
         if not isinstance(m, ToolMessage):
             continue
         name, args, owner = calls.get(m.tool_call_id, (getattr(m, "name", "") or "", {}, owner))
+        if not name or name in exclude:
+            continue
         try:
             output = json.loads(m.content) if isinstance(m.content, str) else m.content
         except (json.JSONDecodeError, TypeError):
@@ -157,14 +169,20 @@ async def invoke_worker(
     worker = get_worker_subgraph(agent_def)
     input_messages = [_build_task_message(instruction, shared_data)]
 
-    with track_phase("executor"):
-        result = await worker.ainvoke(
-            {"messages": input_messages},
-            config={
-                "recursion_limit": _RECURSION_LIMIT,
-                "callbacks": [_WorkerTokenHandler()],
-            },
-        )
+    try:
+        with track_phase("executor"):
+            result = await worker.ainvoke(
+                {"messages": input_messages},
+                config={
+                    "recursion_limit": _RECURSION_LIMIT,
+                    "callbacks": [_WorkerTokenHandler()],
+                },
+            )
+    except GraphRecursionError:
+        # 防御性兜底（正常由 ModelCallLimitMiddleware 硬截断收口）：
+        # 循环超限 → 按已获信息收口，不炸上层（v1 轮数到顶语义）
+        log.warning("worker_recursion_limit_hit", agent=agent_def.name)
+        return {"summary": "（已获取部分信息，未能完成全部查询，请基于现有结论回答或建议用户补充材料。）"}, []
 
     new_messages = list(result["messages"][len(input_messages) :])
 

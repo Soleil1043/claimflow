@@ -39,3 +39,15 @@ def embed_query(text: str) -> list[float]:
     """单条编码（检索用）。"""
     vector = _get_model().encode(text, normalize_embeddings=True, show_progress_bar=False)
     return vector.tolist()
+
+
+def preload_embedding_model() -> None:
+    """预热：进程启动时同步加载模型（约 10-20s CPU，一次性成本）。
+
+    必须在事件循环外执行（FastAPI lifespan 用 asyncio.to_thread 包装）——
+    否则首次 RAG/claim_rule_rag 调用的同步加载会阻塞事件循环，把同 Worker
+    内其他工具的守卫超时窗口连坐引爆（T048 评测实测：BGE-M3 冷加载 19s
+    → diagnosis_matcher 判超时）。
+    """
+    _get_model()
+    log.info("embedding_model_preloaded")

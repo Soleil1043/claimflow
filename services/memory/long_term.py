@@ -1,23 +1,30 @@
-"""长期记忆服务（T034 写路径 + T035 读注入，architecture.md 6.3 三层记忆）。
+"""长期记忆服务（T034 写路径 + T035 读注入；T048 迁移 LangGraph 官方 Store）。
+
+存储层（T048，D021/ADR-007）：LangGraph Store 体系——
+- dev：InMemoryStore（进程内，零依赖）
+- prod：AsyncPostgresStore（langgraph.store.postgres，复用 psycopg 连接）
+- 向量检索：Store 内建 index（IndexConfig：dims=1024 / embed=BGE-M3 / fields=[embed_text]），
+  namespace 按 (user_id,) 隔离，key 为会话确定性 id（upsert 幂等覆盖）
+- 自研 Qdrant long_term_memory collection 与注入管线删除；Qdrant 仅保留 RAG 用途
 
 写路径（T034）：会话累计 N 轮（用户消息数）时生成对话摘要 + 关键实体
-（保单号/诊断/金额），BGE-M3 向量化写入 Qdrant 独立 collection，payload 携带
-user_id 实现用户隔离。
+（保单号/诊断/金额），嵌入文本 = 摘要 + 实体字段（实体入向量，保证
+"我上次问的那张保单"类实体查询可命中）。
 
-读路径（T035）：新会话首轮按 user_id filter 检索 top-k 历史摘要（相似度低于
-memory_min_score 的噪声过滤），拼装注入 system prompt——跨会话上下文连贯
-（"我上次问的那张保单"正确引用历史）；无历史用户检索空直跳，零影响。
+读路径（T035）：新会话首轮按 user_id 命名空间语义检索 top-k 历史摘要（相似度低于
+memory_min_score 的噪声过滤），拼装注入 system prompt——跨会话上下文连贯；
+无历史用户检索空直跳，零影响。
 
 - 摘要主路径：LLM 结构化提取（MEMORY_SUMMARY_PROMPT）；
   失败/非法输出降级确定性提取（正则实体 + 尾部对话粗摘要）
-- 幂等：point id = uuid5(conversation_id) 确定性——同一会话重复写 upsert 覆盖
-  （摘要始终反映该会话最新全貌），不产生重复条目
+- 幂等：key = uuid5(conversation_id) 确定性——同一会话重复写 upsert 覆盖
 - 旁路容错：maybe_write_memory / search_memories 永不向调用方抛错，失败只记日志
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import inspect
 import json
 import re
 import uuid
@@ -25,8 +32,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.store.base import BaseStore
 from pydantic import BaseModel, Field
-from qdrant_client import models
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -34,8 +41,7 @@ from services.llm.client import get_chat_model
 from services.llm.prompts import MEMORY_SUMMARY_PROMPT
 from services.observability import metrics
 from services.observability.token_tracker import phase_ainvoke
-from services.rag.embedder import EMBEDDING_DIM, embed_query, embed_texts
-from services.rag.qdrant_client import get_qdrant_client
+from services.rag.embedder import EMBEDDING_DIM, embed_texts
 
 log = get_logger(__name__)
 
@@ -50,9 +56,12 @@ MAX_MEMORY_CONTEXT_CHARS = 1200
 _POLICY_NO_RE = re.compile(r"POL-\d{4}-\d{4,}")
 _AMOUNT_RE = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*[元万]")
 
+# Store 命名空间：("memory", user_id)
+_MEMORY_NAMESPACE = "memory"
+
 
 class MemoryRecord(BaseModel):
-    """一条会话记忆（写入 Qdrant 的业务结构）。"""
+    """一条会话记忆（写入 Store 的业务结构）。"""
 
     conversation_id: str
     user_id: str
@@ -65,9 +74,13 @@ class MemoryRecord(BaseModel):
     source: str = "llm"
 
 
-def memory_point_id(conversation_id: str) -> str:
-    """确定性 point id：一会话一条记忆，upsert 覆盖实现幂等。"""
+def memory_key(conversation_id: str) -> str:
+    """确定性 key：一会话一条记忆，upsert 覆盖实现幂等。"""
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"claimflow:memory:{conversation_id}"))
+
+
+# 兼容别名（T034 时代名称，tests / 外部可能引用）
+memory_point_id = memory_key
 
 
 def count_user_turns(messages: list[Any]) -> int:
@@ -174,18 +187,19 @@ async def summarize_conversation(
     )
 
 
-async def write_memory(record: MemoryRecord) -> None:
-    """向量化并写入 Qdrant 记忆 collection（确定性 id upsert，幂等覆盖）。"""
-    client = get_qdrant_client()
-    collection = settings.qdrant_memory_collection
-    if not await client.collection_exists(collection):
-        await client.create_collection(
-            collection_name=collection,
-            vectors_config=models.VectorParams(size=EMBEDDING_DIM, distance=models.Distance.COSINE),
-        )
-        log.info("memory_collection_created", collection=collection, dim=EMBEDDING_DIM)
+# ===== Store 存储层（T048） =====
 
-    # 嵌入文本 = 摘要 + 实体字段（实体入向量，保证"我上次问的那张保单"类实体查询可命中）
+_memory_store: BaseStore | None = None
+_pg_setup_done = False
+
+
+def _embed_for_store(texts: list[str]) -> list[list[float]]:
+    """Store index 嵌入函数（BGE-M3 同源，1024 维）。"""
+    return embed_texts(texts)
+
+
+def _build_embed_text(record: MemoryRecord) -> str:
+    """嵌入文本 = 摘要 + 实体字段（与 v1 口径一致）。"""
     ent = record.entities or {}
     extras: list[str] = []
     if ent.get("policy_nos"):
@@ -194,19 +208,67 @@ async def write_memory(record: MemoryRecord) -> None:
         extras.append("诊断：" + "、".join(str(x) for x in ent["diagnoses"]))
     if ent.get("amounts"):
         extras.append("金额：" + "、".join(str(x) for x in ent["amounts"]))
-    embed_text = record.summary + ("\n" + "\n".join(extras) if extras else "")
+    return record.summary + ("\n" + "\n".join(extras) if extras else "")
 
-    vector = embed_texts([embed_text])[0]
-    await client.upsert(
-        collection_name=collection,
-        points=[
-            models.PointStruct(
-                id=memory_point_id(record.conversation_id),
-                vector=vector,
-                payload=record.model_dump(),
+
+def get_memory_store() -> BaseStore:
+    """记忆 Store 单例：dev=InMemoryStore / prod=AsyncPostgresStore（均带向量 index）。"""
+    global _memory_store
+    if _memory_store is None:
+        index = {
+            "dims": EMBEDDING_DIM,
+            "embed": _embed_for_store,
+            "fields": ["embed_text"],
+        }
+        if settings.app_profile.value == "prod":
+            from langgraph.store.postgres import AsyncPostgresStore
+
+            dsn = (
+                f"postgresql://{settings.postgres_user}:{settings.postgres_password}"
+                f"@{settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}"
             )
-        ],
-    )
+            _memory_store = AsyncPostgresStore(conn=dsn, index=index)  # type: ignore[call-arg]
+            log.info("memory_store_initialized", backend="AsyncPostgresStore")
+        else:
+            from langgraph.store.memory import InMemoryStore
+
+            _memory_store = InMemoryStore(index=index)  # type: ignore[call-arg]
+            log.info("memory_store_initialized", backend="InMemoryStore", dim=EMBEDDING_DIM)
+    return _memory_store
+
+
+def reset_memory_store() -> None:
+    """重置 Store 单例（测试用：换嵌入桩后重建）。"""
+    global _memory_store, _pg_setup_done
+    _memory_store = None
+    _pg_setup_done = False
+
+
+async def _ensure_pg_setup(store: BaseStore) -> None:
+    """prod AsyncPostgresStore 首用时建表（幂等，一次）。"""
+    global _pg_setup_done
+    if _pg_setup_done or settings.app_profile.value != "prod":
+        return
+    setup = getattr(store, "setup", None)
+    if setup is not None:
+        result = setup()
+        if inspect.isawaitable(result):
+            await result
+    _pg_setup_done = True
+
+
+async def _store_put(record: MemoryRecord, embed_text: str) -> None:
+    store = get_memory_store()
+    await _ensure_pg_setup(store)
+    value = {**record.model_dump(), "embed_text": embed_text}
+    result = store.put((_MEMORY_NAMESPACE, record.user_id), memory_key(record.conversation_id), value)
+    if inspect.isawaitable(result):
+        await result
+
+
+async def write_memory(record: MemoryRecord) -> None:
+    """写入记忆 Store（确定性 key upsert，幂等覆盖）。"""
+    await _store_put(record, _build_embed_text(record))
     log.info(
         "memory_written",
         conversation_id=record.conversation_id,
@@ -262,44 +324,32 @@ class MemoryHit:
     updated_at: str
 
 
-def _user_filter(user_id: str) -> models.Filter:
-    """按 user_id 过滤（local mode 必须强类型 Filter，不接受裸 dict——T034 实测坑）。"""
-    return models.Filter(
-        must=[models.FieldCondition(key="user_id", match=models.MatchValue(value=user_id))]
-    )
-
-
 async def search_memories(query: str, user_id: str, top_k: int | None = None) -> list[MemoryHit]:
-    """按 user_id 检索 top-k 历史会话记忆（相似度低于 memory_min_score 的噪声过滤）。
+    """按 user_id 命名空间检索 top-k 历史会话记忆（低于 memory_min_score 的噪声过滤）。
 
-    禁用 / collection 不存在 / 检索异常 → 空列表直跳（无历史用户零影响，永不抛错）。
+    禁用 / 检索异常 → 空列表直跳（无历史用户零影响，永不抛错）。
     """
     if not settings.memory_enabled:
         return []
     try:
-        client = get_qdrant_client()
-        collection = settings.qdrant_memory_collection
-        if not await client.collection_exists(collection):
-            return []
-        hits = (
-            await client.query_points(
-                collection_name=collection,
-                query=embed_query(query),
-                limit=top_k or settings.memory_top_k,
-                query_filter=_user_filter(user_id),
-                with_payload=True,
-            )
-        ).points
+        store = get_memory_store()
+        await _ensure_pg_setup(store)
+        result = store.search(
+            (_MEMORY_NAMESPACE, user_id),
+            query=query,
+            limit=top_k or settings.memory_top_k,
+        )
+        items = list(await result) if inspect.isawaitable(result) else list(result)
         results = [
             MemoryHit(
-                conversation_id=str(p.payload.get("conversation_id", "")),
-                summary=str(p.payload.get("summary", "")),
-                entities=dict(p.payload.get("entities") or {}),
-                score=float(p.score),
-                updated_at=str(p.payload.get("updated_at", "")),
+                conversation_id=str(item.value.get("conversation_id", "")),
+                summary=str(item.value.get("summary", "")),
+                entities=dict(item.value.get("entities") or {}),
+                score=float(item.score),
+                updated_at=str(item.value.get("updated_at", "")),
             )
-            for p in hits
-            if p.score >= settings.memory_min_score
+            for item in items
+            if float(item.score) >= settings.memory_min_score
         ]
         log.info(
             "memory_search_done",

@@ -95,7 +95,7 @@ async def run_case(graph: Any, case: EvalCase, thread_prefix: str = "eval") -> C
                 "need_human_intervention": False,
                 "intervention_reason": None,
             },
-            config={"configurable": {"thread_id": thread_id}},
+            config={"configurable": {"thread_id": thread_id}, "recursion_limit": 50},
         )
         a06 = result
     except Exception as exc:  # noqa: BLE001 单用例失败不中断整轮评测
@@ -107,11 +107,14 @@ async def run_case(graph: Any, case: EvalCase, thread_prefix: str = "eval") -> C
         a06["answer"] = a06["final_answer"]
     if a06.get("compliance_result") and not a06.get("compliance_status"):
         a06["compliance_status"] = (a06["compliance_result"] or {}).get("verdict")
-    # 工具轨迹（T047）：与 A06 一致，从 messages 派生
+    # 工具轨迹（T047）：与 A06 一致，从 messages 派生（按业务工具白名单过滤）
     from agents.runner import derive_tool_trace
+    from tools.factory import get_default_tool_map
 
     if not a06.get("used_tools"):
-        a06["used_tools"] = derive_tool_trace(a06.get("messages") or [])
+        business_tools = set(get_default_tool_map())
+        all_trace = derive_tool_trace(a06.get("messages") or [])
+        a06["used_tools"] = [t for t in all_trace if t["tool"] in business_tools]
 
     cr = result_from_a06(case, a06, time.perf_counter() - started, error)
     # simple_faq 走 rag_node 直检（不经过 claim_rule_rag 工具），轨迹无 tool 记录——
@@ -156,6 +159,13 @@ async def main() -> None:
 
     spec = apply_variant(args.variant)
     print(f"variant={args.variant}（{spec.description}）")
+    # T048：嵌入模型预热（线程池加载）——冷加载 10-20s 会引爆工具守卫超时
+    import asyncio as _asyncio
+
+    from services.rag.embedder import preload_embedding_model
+
+    await _asyncio.to_thread(preload_embedding_model)
+
     graph = await build_eval_graph()
 
     results: list[CaseResult] = []

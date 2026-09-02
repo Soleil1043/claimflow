@@ -58,6 +58,13 @@ def _print_result(tag: str, result: dict) -> None:
 
 async def main() -> None:
     await init_db()
+    import asyncio as _asyncio
+
+    from services.rag.embedder import preload_embedding_model
+
+    await _asyncio.to_thread(preload_embedding_model)
+
+
     await seed_policies()
     await seed_medical_records()
 

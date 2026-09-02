@@ -1,7 +1,8 @@
-"""T035 验收脚本：长期记忆读注入（真实 LLM + 真实 BGE-M3 + 完整主图，dev profile）。
+"""T035/T048 验收脚本：长期记忆读注入（真实 LLM + 真实 BGE-M3 + 完整主图，dev profile）。
 
 验收点：
 1. 检索注入：新会话首轮"我上次问的那张保单"按 user_id 检索历史记忆命中
+   （T048 起存储为 LangGraph Store：dev=InMemoryStore + 内建向量 index）
 2. 跨会话上下文连贯：会话 B（同一用户新会话）完整主图流程的回答正确引用
    历史会话 A 的保单号 POL-2025-0001 与预估赔付金额
 3. 无历史用户零影响：其他用户同问题检索空直跳，回答不引用该保单
@@ -13,16 +14,13 @@ import asyncio
 import uuid
 
 from langchain_core.messages import AIMessage, HumanMessage
-from qdrant_client import models
 
-from app.core.config import settings
 from services.memory.long_term import (
     format_memory_context,
     search_memories,
     summarize_conversation,
     write_memory,
 )
-from services.rag.qdrant_client import get_qdrant_client
 
 USER_ID = "demo-user-002"
 OTHER_USER_ID = "demo-user-other"
@@ -39,25 +37,8 @@ SESSION_A_MESSAGES: list = [
 QUESTION = "我上次问的那张保单，最后说能赔多少来着？"
 
 
-async def _cleanup(client) -> None:  # noqa: ANN001
-    """清理本脚本演示用户的历史数据。"""
-    collection = settings.qdrant_memory_collection
-    if await client.collection_exists(collection):
-        for uid in (USER_ID, OTHER_USER_ID):
-            await client.delete(
-                collection_name=collection,
-                points_selector=models.FilterSelector(
-                    filter=models.Filter(
-                        must=[
-                            models.FieldCondition(key="user_id", match=models.MatchValue(value=uid))
-                        ]
-                    )
-                ),
-            )
-
-
 async def _ask_graph(graph, memory_context: str) -> str:  # noqa: ANN001
-    """模拟 A06 首轮：注入记忆跑完整主图（intent → 分流 → … → 合规）。"""
+    """模拟 A06 首轮：注入记忆跑完整主图（intent → supervisor/react → 合规）。"""
     thread_id = f"verify-t035-{uuid.uuid4().hex[:8]}"
     result = await graph.ainvoke(
         {
@@ -66,10 +47,7 @@ async def _ask_graph(graph, memory_context: str) -> str:  # noqa: ANN001
             "memory_context": memory_context,
             "intent": None,
             "task_plan": [],
-            "current_step": 0,
             "shared_data": {},
-            "agent_steps": [],
-            "tool_trace": [],
             "compliance_result": None,
             "compliance_rounds": 0,
             "final_answer": "",
@@ -82,14 +60,18 @@ async def _ask_graph(graph, memory_context: str) -> str:  # noqa: ANN001
 
 
 async def main() -> None:
-    # 0. 会话 A 落记忆（T034 写路径，真实 LLM 摘要）
-    client = get_qdrant_client()
-    await _cleanup(client)
+    import asyncio as _asyncio
+
+    from services.rag.embedder import preload_embedding_model
+
+    await _asyncio.to_thread(preload_embedding_model)
+
+    # 0. 会话 A 落记忆（T034 写路径，真实 LLM 摘要；T048 起入 LangGraph Store）
     record = await summarize_conversation(
         SESSION_A_MESSAGES, conversation_id="demo-t035-session-a", user_id=USER_ID
     )
     await write_memory(record)
-    print(f"[会话 A 记忆已写入] {record.summary}")
+    print(f"[会话 A 记忆已写入 Store] {record.summary}")
 
     # 1. 检索验证：新会话首轮问句按 user_id 检索命中
     hits = await search_memories(QUESTION, USER_ID)
@@ -99,9 +81,6 @@ async def main() -> None:
     print(f"[注入文本] {memory_context[:100]}...")
 
     # 2. 跨会话端到端：完整主图回答引用历史
-    import tools.claim  # noqa: F401 注册工具
-    import tools.compliance  # noqa: F401
-    import tools.medical  # noqa: F401
     from services.memory.short_term import get_checkpoint_manager
     from tools.executor import ToolExecutor
     from tools.registry import get_default_registry
@@ -126,7 +105,7 @@ async def main() -> None:
     print(f"[回答] {other_answer[:120]}...")
     assert "POL-2025-0001" not in other_answer, "无历史用户回答不应引用他人保单"
 
-    print("\nT035 验收通过：检索注入 ✓ / 跨会话引用历史 ✓ / 无历史零影响 ✓")
+    print("\nT035/T048 验收通过：Store 检索注入 ✓ / 跨会话引用历史 ✓ / 无历史零影响 ✓")
 
 
 asyncio.run(main())

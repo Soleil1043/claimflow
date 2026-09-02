@@ -79,7 +79,6 @@ class Settings(BaseSettings):
     # 会话摘要写入记忆 collection 的开关；每 N 轮（用户消息数）触发一次摘要更新
     memory_enabled: bool = True
     memory_summary_every_n_turns: int = 3
-    qdrant_memory_collection: str = "long_term_memory"
     # 读注入（T035）：首轮检索条数与相似度下限（低于 min_score 视为噪声不注入）
     memory_top_k: int = 2
     memory_min_score: float = 0.4

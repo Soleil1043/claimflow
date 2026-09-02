@@ -29,7 +29,11 @@ _DEFAULT_TIMEOUT = 60
 def get_chat_model(temperature: float = _DEFAULT_TEMPERATURE) -> BaseChatModel:
     """主链路 ChatModel（deepseek-v4-flash），进程内单例。
 
-    用途：意图识别、任务规划、工具调用（bind_tools）、回答生成。
+    用途：意图识别、supervisor 调度、Worker/React 工具调用、回答生成。
+
+    extra_body 显式关闭 thinking mode（v1 基线行为）：DeepSeek thinking 下
+    不支持 create_agent/with_structured_output 传入的 tool_choice 强制选工具
+    （400 "Thinking mode does not support this tool_choice"，T048 回归实测）。
     """
     model = ChatOpenAI(
         model=settings.llm_model,
@@ -38,6 +42,7 @@ def get_chat_model(temperature: float = _DEFAULT_TEMPERATURE) -> BaseChatModel:
         temperature=temperature,
         timeout=_DEFAULT_TIMEOUT,
         max_retries=2,  # langchain 内建重试（网络层瞬时故障）
+        extra_body={"thinking": {"type": "disabled"}},
     )
     log.info("chat_model_initialized", model=settings.llm_model, base_url=settings.llm_base_url)
     return model

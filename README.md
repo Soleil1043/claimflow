@@ -10,8 +10,8 @@
 
 | 能力 | 说明 |
 |------|------|
-| 意图识别分流 | 五类意图（FAQ / 单领域 / 多步 / 闲聊 / 其他）驱动主图分流，LLM 失败走关键词规则兜底 |
-| 多 Agent 协作 | "我做了阑尾炎手术能赔多少" → 自动拆解 2 步计划（医疗审核→理赔核算）依次执行，全程可追溯 |
+| 意图识别分流 | 五类意图（FAQ / 单领域 / 复杂咨询 / 闲聊 / 其他）结构化输出枚举 + 条件边分流，LLM 失败走关键词规则兜底 |
+| 多 Agent 协作 | Supervisor 动态调度（Command(goto) + 计划对账，支持执行中重规划）："我做了阑尾炎手术能赔多少" → 自动编排 medical→claim 两个 create_agent 子图，全程可追溯 |
 | RAG 知识库 | 12 篇理赔规则文档（Qdrant + BGE-M3）检索等待期 / 免责 / 材料清单等条款 |
 | 重排序精排（可选开关） | bge-reranker-v2-m3 CrossEncoder：top-8 召回 → 精排 → top-4，默认关（小语料下评测结论：次序去重有改善、完成率不显著，D020） |
 | 合规一票否决 | 所有输出必经 Compliance 节点（图结构保证无旁路）：PASS 直通 / MODIFY 自动修订复审 / REJECT 拦截转人工 |
@@ -31,38 +31,40 @@
 
 ```mermaid
 graph TD
-    START([__start__]) --> intent[意图识别]
-    intent -->|multi_step| planner[任务规划 Planner]
+    START([__start__]) --> intent[意图识别<br/>with_structured_output 枚举]
+    intent -->|complex_consult| supervisor[Supervisor 调度<br/>RoutingDecision + Command（goto）]
     intent -->|simple_faq| rag[RAG 检索]
-    intent -->|其他| react[ReAct Agent]
-    planner --> step_exec[步骤执行循环<br/>Medical → Claim Agent]
-    step_exec -->|全部完成| synth[回答整合 synthesize]
+    intent -->|其他| react[通用助手子图<br/>create_agent]
+    supervisor -->|goto=medical| medical[medical 子图<br/>create_agent・医疗审核]
+    supervisor -->|goto=claim| claim[claim 子图<br/>create_agent・理赔核算]
+    supervisor -->|goto=FINISH| synth[回答整合 synthesize]
+    medical --> supervisor
+    claim --> supervisor
     rag --> synth
-    react -->|工具循环| react
-    react -->|产出回答| compliance[合规审查]
+    react -->|工具循环内置| compliance[合规审查<br/>结构化三态判决]
     synth --> compliance
     compliance -->|PASS| END([__end__])
     compliance -->|MODIFY| revise[回答修订] --> compliance
-    compliance -->|REJECT| human_review[人工审核<br/>interrupt 挂起]
+    compliance -->|REJECT| human_review[人工介入<br/>interrupt 挂起]
     human_review -->|坐席 resolve<br/>Command（resume）恢复| END
 ```
 
-- **4 个 Agent**：Orchestrator（调度）/ Claim（理赔核算）/ Medical（医疗审核）/ Compliance（合规风控，一票否决）
-- **9 个工具**：保单查询、理赔计算器、RAG 检索、就诊记录、ICD-10 匹配、OCR、规则检查、风险评分、脱敏
-- **工具执行器**：统一超时 / 指数退避重试 / 熔断（5 次失败→30s 冷却→半开探测）
-- **全链路降级设计**：意图（关键词兜底）/ 规划（规则兜底）/ 合规（确定性兜底）/ OCR（Mock 兜底）/ ReAct（降级话术）——任一 LLM 故障不导致接口报错
+- **4 个 Agent**：Supervisor（调度，动态路由 + 执行中重规划）/ Claim（理赔核算）/ Medical（医疗审核）/ Compliance（合规风控，一票否决）——Worker 均为 `langchain.agents.create_agent` 官方子图
+- **9 个工具**：保单查询、理赔计算器、RAG 检索、就诊记录、ICD-10 匹配、OCR、规则检查、风险评分、脱敏——继承 langchain 官方 BaseTool
+- **工具守卫层**：官方 `.with_retry()` 重试 + 守卫（超时 / 熔断 5 次失败→30s 冷却→半开探测 / 缓存白名单），随工具对象走、循环内外统一生效
+- **全链路降级设计**：意图（关键词兜底）/ 调度（计划兜底）/ Worker 与 React（summary 降级 / 降级话术）/ 合规（确定性兜底）/ 材料（Mock 兜底）——任一 LLM 故障不导致接口报错
 
 ## 技术栈
 
 | 类别 | 选型 |
 |------|------|
 | 语言 | Python 3.12（全量类型注解） |
-| Agent 框架 | LangGraph（状态机 + Checkpoint） |
+| Agent 框架 | LangGraph 1.2（状态机 + Checkpoint + Store）+ LangChain 1.3（create_agent / 结构化输出） |
 | Web | FastAPI（async）+ Gradio 演示界面 |
 | 数据库 | PostgreSQL + SQLAlchemy 2.0 async（dev 降级 SQLite） |
-| 向量库 | Qdrant（dev local mode 零容器）+ BGE-M3 本地向量化 |
+| 向量库 | Qdrant（RAG 知识库，dev local mode）+ BGE-M3 本地向量化；长期记忆用 LangGraph Store（dev=InMemory / prod=AsyncPostgres） |
 | LLM | DeepSeek（OpenAI 兼容接口，配置切换；OCR 专职 vision 模型） |
-| 工程 | uv / pytest（269 用例）/ ruff / Docker Compose / GitHub Actions |
+| 工程 | uv / pytest（391 用例）/ ruff / Docker Compose / GitHub Actions |
 
 ## 快速开始
 
@@ -144,7 +146,7 @@ docker compose --profile tracing up -d   # Jaeger UI 16686 + OTLP Collector 4317
 ```
 
 - 采样率 `OTEL_SAMPLING_RATIO` 可配（默认 1.0）；开关关闭时全部埋点 no-op 零开销
-- 单轮 multi_step 请求约 25 个 span：A06 server → intent/planner/worker（LLM span 带
+- 单轮 complex_consult 请求约 25 个 span：A06 server → intent/supervisor/worker（LLM span 带
   分环节 token 用量）→ 工具 span → 合规裁决 span（verdict / risk_score 属性）
 
 ## API
@@ -168,7 +170,7 @@ docker compose --profile tracing up -d   # Jaeger UI 16686 + OTLP Collector 4317
 ```json
 {
   "answer": "根据条款预估可赔付 4,640 元，最终以理赔审核结果为准。",
-  "intent": "multi_step",
+  "intent": "complex_consult",
   "used_tools": [{"tool": "policy_query", "input": {}, "output": {}}],
   "agent_steps": [{"step_index": 0, "agent": "medical", "status": "done", "duration_ms": 41593}],
   "compliance_status": "PASS",
@@ -185,7 +187,7 @@ uv run ruff check .           # lint
 ```
 
 真实 LLM 验收脚本（需 .env 配置 API Key）：`scripts/verify_intent.py`（意图准确率 95%）/
-`verify_rag.py` / `verify_planner.py` / `verify_compliance.py` / `verify_ocr.py` / `verify_e2e.py`
+`verify_rag.py` / `verify_compliance.py` / `verify_ocr.py` / `verify_e2e.py` / `verify_memory_read.py`
 
 ## 评测体系
 

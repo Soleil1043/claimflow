@@ -32,11 +32,14 @@ def get_react_agent() -> Any:
     global _react_agent
     if _react_agent is None:
         from langchain.agents import create_agent
+        from langchain.agents.middleware import ModelCallLimitMiddleware
 
         _react_agent = create_agent(
             model=get_chat_model(),
             tools=list(get_default_tool_map().values()),
             system_prompt=GENERAL_ASSISTANT_PROMPT,
+            # 工具循环硬截断（v1 MAX_TOOL_ROUNDS=8 语义，T048）
+            middleware=[ModelCallLimitMiddleware(run_limit=9, exit_behavior="end")],
             name="react",
         )
         log.info("react_agent_built", tools=len(get_default_tool_map()))

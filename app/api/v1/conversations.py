@@ -250,16 +250,20 @@ async def send_message(
             "need_human_intervention": False,
             "intervention_reason": None,
         },
-        config={"configurable": {"thread_id": str(conversation_id)}},
+        config={"configurable": {"thread_id": str(conversation_id)}, "recursion_limit": 50},
     )
 
     answer = result.get("final_answer") or "抱歉，我暂时无法处理该问题，请稍后再试。"
     intent = result.get("intent")
-    # T047：工具轨迹 / 执行步骤由 messages 与 task_plan 派生（State 不再承载簿记字段）
+    # T047：工具轨迹 / 执行步骤由 messages 与 task_plan 派生（State 不再承载簿记字段）；
+    # 工具轨迹按业务工具白名单过滤（剔除 create_agent 隐藏的结构化输出工具）
     from agents.runner import derive_tool_trace
     from nodes.supervisor import derive_agent_steps
+    from tools.factory import get_default_tool_map
 
-    tool_trace = derive_tool_trace(result.get("messages") or [])
+    business_tools = set(get_default_tool_map())
+    all_trace = derive_tool_trace(result.get("messages") or [])
+    tool_trace = [t for t in all_trace if t["tool"] in business_tools]
     agent_steps = derive_agent_steps(result.get("task_plan"), result.get("shared_data"))
     compliance = result.get("compliance_result") or {}
     compliance_status = compliance.get("verdict")

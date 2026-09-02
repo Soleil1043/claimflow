@@ -127,6 +127,10 @@ def graph_env(monkeypatch):
         "echo": assemble_tool(_EchoTool(), enable_cache=False),
     }
     monkeypatch.setattr(generator_module, "get_default_tool_map", lambda: patched_map)
+    # A06 used_tools 派生白名单同样取自工厂（保持与图上工具一致，echo 才能入列）
+    import tools.factory as factory_module
+
+    monkeypatch.setattr(factory_module, "get_default_tool_map", lambda: patched_map)
     monkeypatch.setattr(generator_module, "_react_agent", None)
 
     # 合规审查 LLM：固定返回 PASS（回答无违规，走直通路径；结构化输出同上）

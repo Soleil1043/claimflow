@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -37,6 +38,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # dev 直接建表；prod 由 alembic 迁移管理，不自动建表
     if not settings.is_prod:
         await init_db()
+
+    # T048：BGE-M3 启动预热（在线程池加载，不阻塞事件循环）——冷加载约 10-20s，
+    # 若泄漏到首个工具调用的守卫超时窗口会连坐引爆（T048 评测实测）
+    from services.rag.embedder import preload_embedding_model
+
+    await asyncio.to_thread(preload_embedding_model)
 
     app.state.graph: Any = build_main_graph(
         executor=ToolExecutor(registry),
