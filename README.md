@@ -139,7 +139,32 @@ cd workbench && npm install && npm run dev
 
 ![工单详情](docs/screenshots/workbench-ticket-detail.png)
 
-### 7. 追踪栈（可选：OTel Collector + Jaeger）
+### 7. 界面设计系统（Phase 6 / D030：Apple Design 移植）
+
+三个界面统一消费一套设计令牌（双栈同源）：
+
+| 界面 | 入口 | 技术栈 | 令牌来源 |
+|------|------|--------|---------|
+| 用户聊天界面 | `http://127.0.0.1:7860` | Gradio 6 | `ui/theme.py`（`build_theme()` + `APP_CSS`） |
+| Agent 评测台 | `http://127.0.0.1:7861` | Gradio 6 | `ui/theme.py`（同上共享） |
+| 坐席工作台 | `http://localhost:5173` | Next.js 15 + Tailwind 4 | `workbench/app/globals.css`（`@theme` 同名同值） |
+
+设计语言（Apple 系统规范的可移植部分）：
+
+- **色彩**：Apple 系统调色板（蓝 `#007AFF` / 绿 `#34C759` / 橙 `#FF9500` / 红 `#FF3B30`），
+  背景 `#F5F5F7`、一级文字 `#1D1D1F`
+- **排版**：系统字体栈（PingFang SC / 微软雅黑回退）；大标题负 tracking、正文 0、
+  数字 `tabular-nums`；层级 = 字重 + 字号 + 行距组合
+- **材质**：浮层 chrome 半透明毛玻璃（`backdrop-filter: blur + saturate`），内容从其下滚过；
+  hairline 分隔线；卡片 16px / 气泡 18px 连续圆角近似
+- **动效**：按压即时反馈 `:active scale(0.97) / 100ms`；统一 `cubic-bezier(0.32, 0.72, 0, 1)`
+  标准缓动；`prefers-reduced-motion` / `prefers-reduced-transparency` 自动降级
+- **反馈**：四态语义 pill（ok/warn/err/info）；评测台 KPI 大数字卡 + 渐变进度条；
+  聊天/评测台头部实时后端健康状态点（demo.load 探测 `/health`）
+
+界面截图见 `docs/diagrams/`（t055 聊天 / t056 评测台 / t057 工作台列表与详情）。
+
+### 8. 追踪栈（可选：OTel Collector + Jaeger）
 
 ```bash
 docker compose --profile tracing up -d   # Jaeger UI 16686 + OTLP Collector 4317

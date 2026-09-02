@@ -104,7 +104,7 @@
 - [x] T055: 用户聊天界面重构 | 依赖: T054 | 涉及文件: ui/app.py | 验收: 应用共享主题与 CSS（半透明吸顶头部/气泡重排/示例 chips/工具轨迹折叠卡片/输入区材质）；启动 HTTP 200；浏览器截图目检层级与材质正确；既有聊天回调逻辑零改动 ✅ 2026-09-02（截图 docs/diagrams/t055_chat_ui.png：浮层头部 + 后端健康状态点（demo.load 探测 /health）+ 气泡 + 材质输入区 + chips；Gradio 6 theme/css 移至 launch()；chips 选择器提权覆盖 .gallery-item 默认透明样式；回调零改动，8 passed）
 - [x] T056: 评测台界面重构 | 依赖: T054 | 涉及文件: ui/eval_app.py | 验收: 应用共享主题；报告摘要 KPI 大数字卡；HTML 渐变进度条 + 状态 pill 替代纯文本；日志暗色等宽块；poll 8 输出元数不变、tests/ui/test_eval_app.py 4 用例全绿；截图目检 ✅ 2026-09-02（8 passed；整页截图 + 真实报告静态渲染预览 docs/diagrams/t056_render_preview.png：KPI 大数字卡/渐变进度条/轨迹 pill 均正确）
 - [x] T057: 坐席工作台重构 | 依赖: T054 | 涉及文件: workbench/app/{layout,page,globals.css}、workbench/app/tickets/[id]/page.tsx、workbench/components/*.tsx | 验收: 全站 sticky 毛玻璃导航；列表/详情/时间线/审计/表单/徽章全部消费设计令牌；:active 按压反馈与 focus ring；reduced-motion/reduced-transparency 媒体查询生效；`npm run build` 通过；截图目检 ✅ 2026-09-02（build 通过；列表/详情截图目检：分段控件/KPI 风险分/气泡/四态 pill 均正确）
-- [ ] T058: Phase 6 收尾验证 | 依赖: T055、T056、T057 | 涉及文件: README.md、.agent/decisions.md（D030）、.agent/progress.md | 验收: ruff + pytest 全量绿；README 三界面章节更新（设计系统说明 + 启动方式不变）；D030 与 progress 回填；逐任务 commit 齐备
+- [x] T058: Phase 6 收尾验证 | 依赖: T055、T056、T057 | 涉及文件: README.md、.agent/decisions.md（D030）、.agent/progress.md | 验收: ruff + pytest 全量绿；README 三界面章节更新（设计系统说明 + 启动方式不变）；D030 与 progress 回填；逐任务 commit 齐备 ✅ 2026-09-02（428 passed 全绿；README 新增「7. 界面设计系统」章节；T054-T057 逐任务 commit）
 
 ---
 
@@ -148,9 +148,9 @@ T001 → T002 → T003 → T004 → T005
 ## 进度统计
 
 - 总任务数：58（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049-T053 + Phase 6 五个）
-- 已完成：53（2026-08-27 完成 T001-T043；2026-09-01 完成 T049、T044、T045；2026-09-02 完成 T046-T048、T050-T053）
+- 已完成：58（2026-08-27 完成 T001-T043；2026-09-01 完成 T049、T044、T045；2026-09-02 完成 T046-T048、T050-T053、T054-T058——**全部完成**）
 - 进行中：0
-- 待开始：5（Phase 6：T054-T058 界面设计优化）
+- 待开始：0
 
 > Phase 5 回归实测（T048，deepseek-v4-flash 全量 200 条，evals/reports/t048_phase5_regression.json）：
 > 完成率 87.0%（基线 88%，回退 1pp 达标线压线）｜工具准确率 94.7%（基线 95.26%，差 0.3pp 未达
