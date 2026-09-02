@@ -96,6 +96,16 @@
 - [x] T052: 评测运行历史持久化 + git_sha（D028） | 依赖: 无（T051 运行管理器上增量） | 涉及文件: services/db/models.py（eval_runs 表）、alembic/versions/（迁移）、services/eval_history.py（新）、services/eval_runner.py、evals/test_suite.py、schemas/api.py、app/api/v1/evals.py、ui/eval_app.py、tests/api/test_evals.py、.agent/decisions.md | 验收: eval_runs 表落库（run_id/来源/参数/状态/exit code/git_sha/计数/率冗余列/summary/日志尾/起止时间）；UI 运行由 EvalRunManager 两阶段写（start=running / finish=终态），CLI 运行由 test_suite 收尾自记（EVAL_MANAGED_BY=api 防双写）；历史写入 fail-open（DB 故障不影响评测）；/runs 合并内存+DB（重启后历史可查）；报告 JSON 增 git_sha 字段；历史写入/查询/合并有单测 ✅ 2026-09-02（420 passed；迁移 upgrade/downgrade/再 upgrade 在临时 SQLite 全程验证；真实 e2e：API 发起 2 条评测 → DB 行 source=ui/completed/git_sha=f8b7d48/率值齐备；发现并修复内存终态覆盖 DB 行致率值丢失的合并缺陷；本地 dev 库 alembic stamp 同步 head）
 - [x] T053: 评测趋势对比图（D029） | 依赖: T052 | 涉及文件: schemas/api.py、app/api/v1/evals.py（/trends）、ui/eval_app.py（gr.Plot）、pyproject.toml（plotly 依赖）、tests/api/test_evals.py、.agent/decisions.md | 验收: GET /api/v1/evals/trends 合并 DB 历史与 reports 文件两个来源（按 report_name 去重，时间升序），每点含完成率/工具准确率/变体/git_sha/来源标签；UI 趋势区按数据集+变体过滤，双指标折线（hover 显示 run 标签与 commit）；端点合并逻辑与图形构建有单测 ✅ 2026-09-02（420 passed；/trends 实测 14 点：13 个历史存量报告 + 1 个 DB 行，时间升序、去重正确；UI 趋势区对真实后端出 plotly 双 trace 折线，hover 含 run 标签/变体/commit，数据集+变体过滤生效；运行结束后曲线随轮询自动刷新）
 
+### Phase 6：三界面设计优化（D030，Apple Design 移植）— 2026-09-02 启动
+
+> 硬约束：纯表现层——不改 API 契约 / 业务逻辑 / Gradio 回调元数；设计语言见 plan.md 第 7 节。
+
+- [ ] T054: 设计令牌与共享主题 | 依赖: 无 | 涉及文件: ui/theme.py（新）、tests/ui/test_theme.py（新）、workbench/app/globals.css | 验收: ui/theme.py 导出 build_theme()/APP_CSS（Apple 调色板/系统字体栈/材质/按压/reduced-motion 齐备）；workbench globals.css 定义同名同值设计变量 + .card/.btn/.pill 工具类；主题模块单测通过
+- [ ] T055: 用户聊天界面重构 | 依赖: T054 | 涉及文件: ui/app.py | 验收: 应用共享主题与 CSS（半透明吸顶头部/气泡重排/示例 chips/工具轨迹折叠卡片/输入区材质）；启动 HTTP 200；浏览器截图目检层级与材质正确；既有聊天回调逻辑零改动
+- [ ] T056: 评测台界面重构 | 依赖: T054 | 涉及文件: ui/eval_app.py | 验收: 应用共享主题；报告摘要 KPI 大数字卡；HTML 渐变进度条 + 状态 pill 替代纯文本；日志暗色等宽块；poll 8 输出元数不变、tests/ui/test_eval_app.py 4 用例全绿；截图目检
+- [ ] T057: 坐席工作台重构 | 依赖: T054 | 涉及文件: workbench/app/{layout,page,globals.css}、workbench/app/tickets/[id]/page.tsx、workbench/components/*.tsx | 验收: 全站 sticky 毛玻璃导航；列表/详情/时间线/审计/表单/徽章全部消费设计令牌；:active 按压反馈与 focus ring；reduced-motion/reduced-transparency 媒体查询生效；`npm run build` 通过；截图目检
+- [ ] T058: Phase 6 收尾验证 | 依赖: T055、T056、T057 | 涉及文件: README.md、.agent/decisions.md（D030）、.agent/progress.md | 验收: ruff + pytest 全量绿；README 三界面章节更新（设计系统说明 + 启动方式不变）；D030 与 progress 回填；逐任务 commit 齐备
+
 ---
 
 ## 依赖关系图
@@ -131,14 +141,16 @@ T001 → T002 → T003 → T004 → T005
                                   ↓
         Phase 5:  T044（工具层标准化）→ T046（Worker 子图化）→ T047（supervisor 化）→ T048（Store 化 + 回归）
                   T045（决策点结构化输出，独立链，T044 后执行）
+                                  ↓
+        Phase 6:  T054（设计令牌/主题）→ T055（聊天 UI）→ T056（评测台 UI）→ T057（坐席工作台）→ T058（收尾）
 ```
 
 ## 进度统计
 
-- 总任务数：53（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049-T053）
-- 已完成：53（2026-08-27 完成 T001-T043；2026-09-01 完成 T049、T044、T045；2026-09-02 完成 T046-T048、T050-T053——**全部完成**）
+- 总任务数：58（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049-T053 + Phase 6 五个）
+- 已完成：53（2026-08-27 完成 T001-T043；2026-09-01 完成 T049、T044、T045；2026-09-02 完成 T046-T048、T050-T053）
 - 进行中：0
-- 待开始：0
+- 待开始：5（Phase 6：T054-T058 界面设计优化）
 
 > Phase 5 回归实测（T048，deepseek-v4-flash 全量 200 条，evals/reports/t048_phase5_regression.json）：
 > 完成率 87.0%（基线 88%，回退 1pp 达标线压线）｜工具准确率 94.7%（基线 95.26%，差 0.3pp 未达

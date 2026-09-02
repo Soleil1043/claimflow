@@ -612,3 +612,29 @@ eval_runs 表会丢掉全部历史。
   是趋势图的核心可读性需求，matplotlib 静态图无法承载；点量级 <10² 性能无忧
 
 **影响**：T053 落地；pyproject 增 plotly 直接依赖。
+
+## D030: 三界面设计系统——Apple Design 移植 Web + 双栈令牌同源 — 2026-09-02
+
+**背景**：
+三个界面（Gradio 聊天 7860 / Gradio 评测台 7861 / Next.js 坐席工作台 3000）均为功能优先的
+默认样式：Gradio 裸主题、工作台基础 Tailwind，无统一设计语言。用户要求按 Apple Design
+方法论（WWDC Designing Fluid Interfaces / UI Typography / 八项设计原则）优化重构。
+
+**选项**：
+1. 各界面各自美化——快但三界面三套风格，后续改设计要改三处
+2. **双栈令牌同源**——Python 侧 ui/theme.py（Gradio theme + 共享 CSS）与 Next 侧
+   globals.css（Tailwind v4 @theme 变量 + 工具类）定义同名同值令牌，各自消费（选定）
+3. 全量换框架（如聊天/评测台也改 Next.js）——收益不抵重写成本，Gradio 承载回调已稳定
+
+**决策**：
+- 设计语言：Apple 系统调色板（#007AFF/#34C759/#FF9500/#FF3B30 + #F5F5F7 底 + #1D1D1F 文）、
+  系统字体栈 + 尺寸分级 tracking、半透明浮层 chrome（backdrop-filter）、连续圆角近似、
+  :active scale(0.97)/100ms 按压反馈、cubic-bezier(0.32,0.72,0,1) 标准缓动、
+  prefers-reduced-motion/reduced-transparency 降级
+- 硬约束：纯表现层——不改 API 契约 / 业务逻辑 / Gradio 回调元数（T053 教训：poll 8 输出锁定）
+- 取舍：Web 端不做手势弹簧物理（无拖拽场景），取 Apple 设计中的静态可移植部分
+  （排版/材质/色彩/反馈/微动效/无障碍），手势相关原则不适用范围不强行套用
+
+**影响**：
+T054-T058 落地（ui/theme.py + 两 Gradio 应用重构 + workbench 全站重构 + 主题单测）；
+README 增设计系统章节；后续新 UI 一律消费既有令牌，不再散装样式。

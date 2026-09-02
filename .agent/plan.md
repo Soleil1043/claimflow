@@ -210,3 +210,43 @@ claim-agent/
 - **D006** messages 表与 checkpoint 并存：前者服务 API 展示与审计，后者服务状态机恢复
 - **D007** LLM 模型确定 `deepseek-v4-flash`（旧别名 deepseek-chat 已退役，调用报错）
 - **D008** 混合模型策略：主链路 flash 正式版 + OCR 专职 vision-exp + Mock 兜底，与架构 6.3"分级模型"自洽
+
+---
+
+## 7. Phase 6：三界面设计优化方案（2026-09-02，D030）
+
+> 范围：用户聊天界面（ui/app.py）、坐席工作台（workbench/ Next.js）、评测台（ui/eval_app.py）。
+> **硬约束：纯表现层重构——不改 API 契约、不改业务逻辑、不改 Gradio 回调元数（T053 教训）。**
+
+### 7.1 设计语言（Apple Design 移植到 Web）
+
+| 维度 | 方案 | 出处原则 |
+|------|------|---------|
+| 排版 | 系统字体栈（-apple-system/system-ui/PingFang/微软雅黑）；层级 = 字重+字号+行距组合；大标题负 tracking（-0.02em）、正文 0、小字正 tracking | §15 光学尺寸 |
+| 色彩 | Apple 系统调色板：蓝 #007AFF / 绿 #34C759 / 橙 #FF9500 / 红 #FF3B30；背景 #F5F5F7、一级文字 #1D1D1F、次级 #86868B | §16 Craft |
+| 材质 | 浮层 chrome 半透明化（backdrop-filter: blur+saturate），内容从其下滚过；hairline 分隔线替代粗边框；大面更重材质（更强 blur+更深阴影） | §12 材质与深度 |
+| 圆角 | 连续圆角近似：卡片 14-18px、气泡 18px、控件 10px | — |
+| 动效 | 按压即时反馈 `:active { transform: scale(0.97); transition: 100ms }`；统一 Apple 标准缓动 cubic-bezier(0.32, 0.72, 0, 1)；`prefers-reduced-motion` 降级为短淡入 | §1 Response / §14 无障碍 |
+| 反馈 | 四态分级（status/completion/warning/error）：状态 pill 色彩语义化、行内错误、进度实时可见 | §16 反馈四类 |
+| 简化 | 信息层级优先：KPI 大数字 + 权重分级；标签直接具体（"运行记录"优于"历史"）；高级选项退一层 | §6 Simplicity |
+
+### 7.2 落地架构
+
+- **ui/theme.py（新）**：两个 Gradio 应用的单一设计源——`build_theme()`（gr.themes.Base 令牌定制）+ `APP_CSS`（共享 CSS：材质/按压/气泡/状态 pill/进度条）。改设计只改一处。
+- **workbench/app/globals.css**：Tailwind v4 `@theme` 设计变量 + 通用工具类（.card/.btn/.pill），与 Python 侧令牌同名同值，跨栈一致。
+- 三界面各自消费令牌，业务回调逻辑零改动；评测台 poll 仍返回 8 输出（tests/ui 锁定）。
+
+### 7.3 各界面改造点
+
+**用户聊天界面（ui/app.py）**：半透明吸顶头部（品牌 + 状态点）；气泡重排（用户右/助手左、18px 圆角、hairline ring）；示例问题改 chips 横排；工具轨迹脚注改折叠卡片样式；输入区浮起（材质底 + 按压反馈按钮）。
+
+**评测台（ui/eval_app.py）**：报告摘要改 KPI 大数字卡（完成率/工具准确率/合规率/耗时）；ASCII 进度条改 HTML 渐变进度条 + 状态 pill；运行日志等宽暗色块；趋势/报告区分组卡片化。
+
+**坐席工作台（workbench/）**：全站 sticky 半透明导航（毛玻璃）；工单表 hover/按压反馈、状态 pill 精化；详情页风险分大数字 + verdict 印章；时间线气泡与审计展开动画（grid-rows 过渡）；ResolveForm 主按钮按压反馈 + focus ring；全站 reduced-motion/reduced-transparency 媒体查询。
+
+### 7.4 验证策略
+
+- ui/theme.py 单测（令牌非空、CSS 含关键选择器/媒体查询）
+- 既有 tests/ui/test_eval_app.py 4 用例保持绿（元数锁定）
+- 三界面真实启动 + 浏览器截图目检（7860/7861/3000）
+- workbench `npm run build` 通过；全量 ruff + pytest 绿
