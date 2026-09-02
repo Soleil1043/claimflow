@@ -191,6 +191,8 @@ claimflow/
 │   ├── app.py                 # 聊天演示（T014）
 │   └── eval_app.py            # 评测台：一键评测/进度/趋势/报告（T051-T053）
 │
+├── chatui/                    # 用户对话界面（Next.js 15 + Tailwind 4，T063，共享 workbench 设计系统，端口 3000）
+│
 ├── workbench/                 # HITL 人工介入工作台（Next.js，T038）
 ├── scripts/                   # 种子数据 / verify 验证脚本 / 知识图谱构建
 ├── data/                      # 运行数据：mock 种子 / kb_docs 知识库 / graph / qdrant 本地存储

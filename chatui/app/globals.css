@@ -1,0 +1,326 @@
+@import "tailwindcss";
+
+/* ===== Claimflow 设计系统（Phase 6 / D030，T063 扩展消费）——与 ui/theme.py、workbench 同名同值，多栈同源 ===== */
+
+@theme {
+  /* Apple 系统调色板 */
+  --color-cf-blue: #007AFF;
+  --color-cf-blue-dark: #0A66C2;
+  --color-cf-green: #34C759;
+  --color-cf-orange: #FF9500;
+  --color-cf-red: #FF3B30;
+  --color-cf-violet: #AF52DE;
+  /* 中性色阶 */
+  --color-cf-bg: #F5F5F7;
+  --color-cf-surface: #FFFFFF;
+  --color-cf-text: #1D1D1F;
+  --color-cf-text-2: #86868B;
+  /* 圆角（连续圆角近似） */
+  --radius-cf-card: 16px;
+  --radius-cf-bubble: 18px;
+  --radius-cf-control: 10px;
+  /* 动效 */
+  --ease-cf-standard: cubic-bezier(0.32, 0.72, 0, 1);
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+
+:root {
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
+  --cf-hairline: rgba(0, 0, 0, 0.08);
+  --cf-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* T059 派生令牌：入场动效 ease-out-quint + 分层阴影 */
+  --cf-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --cf-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 1px rgba(0, 0, 0, 0.02);
+  --cf-shadow-2: 0 2px 4px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+  /* 文字渲染：亚像素抗锯齿，贴近 Apple 平台观感 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.01em;
+}
+
+/* ===== 按压即时反馈（pointer-down 高亮，100ms）===== */
+button, a[class*="btn"], .cf-pressable {
+  transition:
+    transform 100ms var(--cf-ease),
+    background-color 150ms var(--cf-ease),
+    box-shadow 150ms var(--cf-ease),
+    border-color 150ms var(--cf-ease),
+    color 150ms var(--cf-ease);
+}
+button:active, .cf-pressable:active {
+  transform: scale(0.97);
+}
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid #007aff;
+  outline-offset: 2px;
+}
+
+/* ===== 浮层 chrome：半透明毛玻璃导航 ===== */
+.cf-chrome {
+  background: rgba(245, 245, 247, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--cf-hairline);
+}
+
+/* ===== 卡片 ===== */
+.cf-card {
+  background: #ffffff;
+  border: 1px solid var(--cf-hairline);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
+}
+
+/* ===== 状态 pill：四态语义色 ===== */
+.cf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.cf-pill.ok { background: rgba(52, 199, 89, 0.14); color: #1f7a38; }
+.cf-pill.warn { background: rgba(255, 149, 0, 0.16); color: #8a5a00; }
+.cf-pill.err { background: rgba(255, 59, 48, 0.12); color: #b3261e; }
+.cf-pill.info { background: rgba(0, 122, 255, 0.12); color: #0a66c2; }
+.cf-pill.muted { background: rgba(0, 0, 0, 0.06); color: #86868b; }
+
+/* 状态点（头部健康指示） */
+.cf-dot-ok, .cf-dot-warn, .cf-dot-err {
+  width: 6px; height: 6px; border-radius: 999px; display: inline-block;
+}
+.cf-dot-ok { background: #34c759; }
+.cf-dot-warn { background: #ff9500; animation: cf-pulse 1.6s ease-in-out infinite; }
+.cf-dot-err { background: #ff3b30; }
+@keyframes cf-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 149, 0, 0.45); }
+  50% { box-shadow: 0 0 0 4px rgba(255, 149, 0, 0); }
+}
+
+/* ===== 按钮 ===== */
+.cf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.cf-btn:disabled { cursor: not-allowed; opacity: 0.45; }
+.cf-btn.primary { background: #007aff; color: #fff; }
+.cf-btn.primary:hover:not(:disabled) { background: #0a66c2; box-shadow: 0 4px 14px rgba(0, 122, 255, 0.32); }
+.cf-btn.secondary {
+  background: #fff;
+  color: #1d1d1f;
+  border-color: var(--cf-hairline);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.cf-btn.secondary:hover:not(:disabled) { background: #e8e8ed; }
+
+/* ===== 展开按钮（处理过程 / 工具轨迹）===== */
+.cf-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0a66c2;
+}
+.cf-toggle:hover { color: #007aff; }
+.cf-toggle .chev { transition: transform 200ms var(--cf-ease); display: inline-block; }
+.cf-toggle .chev.open { transform: rotate(90deg); }
+
+/* ===== 展开/收起过渡：grid-rows 技巧 ===== */
+.cf-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 250ms var(--cf-ease);
+}
+.cf-collapse.open { grid-template-rows: 1fr; }
+.cf-collapse > .cf-collapse-inner { overflow: hidden; }
+
+/* JSON/入参块的等宽排版 */
+.mono-block {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ===== 聊天气泡（T063 对话界面专用）===== */
+.cf-msglist {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 4px 12px;
+}
+.cf-bubble {
+  max-width: 85%;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.65;
+  animation: cf-rise 420ms var(--cf-ease-out) both;
+}
+.cf-bubble .cf-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.cf-bubble.user {
+  align-self: flex-end;
+  background: linear-gradient(180deg, #1e8fff, #007aff);
+  color: #fff;
+  border-radius: 18px 18px 4px 18px;
+  box-shadow: 0 1px 2px rgba(0, 122, 255, 0.25), 0 4px 12px rgba(0, 122, 255, 0.18);
+}
+.cf-bubble.bot {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid var(--cf-hairline);
+  border-radius: 18px 18px 18px 4px;
+  box-shadow: var(--cf-shadow-1);
+}
+/* 错误气泡：橙色警示染色 */
+.cf-bubble.err {
+  background: rgba(255, 149, 0, 0.08);
+  border-color: rgba(255, 149, 0, 0.35);
+}
+/* 气泡内元数据区：细线分隔 + 弱化排版 */
+.cf-meta {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--cf-hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+/* 助手气泡 markdown 排版（react-markdown 输出） */
+.cf-md > :first-child { margin-top: 0; }
+.cf-md > :last-child { margin-bottom: 0; }
+.cf-md p { margin: 0 0 8px; }
+.cf-md ul, .cf-md ol { margin: 4px 0 8px; padding-left: 20px; display: flex; flex-direction: column; gap: 2px; }
+.cf-md strong { font-weight: 650; }
+.cf-md code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.cf-md pre {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--cf-hairline);
+  border-radius: 10px;
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+.cf-md pre code { background: none; padding: 0; }
+.cf-md table { border-collapse: collapse; margin: 4px 0 8px; font-size: 13px; }
+.cf-md th, .cf-md td { border: 1px solid var(--cf-hairline); padding: 4px 10px; text-align: left; }
+
+/* 打字中三点动画 */
+.cf-typing { display: inline-flex; gap: 4px; align-items: center; padding: 4px 0; }
+.cf-typing i {
+  width: 6px; height: 6px; border-radius: 999px; background: #c7c7cc;
+  animation: cf-bounce 1.2s infinite ease-in-out;
+}
+.cf-typing i:nth-child(2) { animation-delay: 0.15s; }
+.cf-typing i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes cf-bounce {
+  0%, 60%, 100% { transform: none; opacity: 0.5; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* 入场动效（T059 同款：420ms ease-out-quint 上浮） */
+@keyframes cf-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.cf-rise { animation: cf-rise 420ms var(--cf-ease-out) both; }
+
+/* ===== 示例问题 chips ===== */
+.cf-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--cf-hairline);
+  background: #fff;
+  color: #1d1d1f;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  box-shadow: var(--cf-shadow-1);
+  cursor: pointer;
+  text-align: left;
+}
+.cf-chip:hover { border-color: rgba(0, 122, 255, 0.45); color: #007aff; }
+.cf-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ===== composer：毛玻璃输入区 ===== */
+.cf-composer {
+  background: rgba(245, 245, 247, 0.86);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-top: 1px solid var(--cf-hairline);
+}
+.cf-textarea {
+  width: 100%;
+  resize: none;
+  border-radius: 14px;
+  border: 1px solid var(--cf-hairline);
+  background: #fff;
+  padding: 9px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  max-height: 120px;
+  transition: border-color 150ms var(--cf-ease), box-shadow 150ms var(--cf-ease);
+}
+.cf-textarea:focus {
+  outline: none;
+  border-color: #007aff;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+.cf-textarea::placeholder { color: #86868b; }
+
+/* ===== 无障碍降级 ===== */
+@media (prefers-reduced-motion: reduce) {
+  button, .cf-pressable { transition: none; }
+  button:active, .cf-pressable:active { transform: none; }
+  .cf-collapse { transition: none; }
+  .cf-bubble, .cf-rise { animation: none; }
+  .cf-typing i { animation: none; opacity: 0.6; }
+  .cf-dot-warn { animation: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .cf-chrome, .cf-composer {
+    background: #f5f5f7;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

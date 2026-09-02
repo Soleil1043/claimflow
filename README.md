@@ -60,7 +60,7 @@ graph TD
 |------|------|
 | 语言 | Python 3.12（全量类型注解） |
 | Agent 框架 | LangGraph 1.2（状态机 + Checkpoint + Store）+ LangChain 1.3（create_agent / 结构化输出） |
-| Web | FastAPI（async）+ Gradio 演示界面 |
+| Web | FastAPI（async）+ Next.js 对话界面与坐席工作台 + Gradio 评测台 |
 | 数据库 | PostgreSQL + SQLAlchemy 2.0 async（dev 降级 SQLite） |
 | 向量库 | Qdrant（RAG 知识库，dev local mode）+ BGE-M3 本地向量化；长期记忆用 LangGraph Store（dev=InMemory / prod=AsyncPostgres） |
 | LLM | DeepSeek（OpenAI 兼容接口，配置切换；OCR 专职 vision 模型） |
@@ -91,7 +91,8 @@ uv run python -m services.rag.ingest # 知识库向量化入库（首次运行�
 
 ```bash
 uv run uvicorn app.main:app --port 8000   # 后端 API
-uv run python ui/app.py                   # 演示界面（http://127.0.0.1:7860）
+cd chatui && npm install && npm run dev   # Next.js 对话界面（http://localhost:3000，推荐）
+uv run python ui/app.py                   # Gradio 演示界面（http://127.0.0.1:7860，对照/兜底）
 uv run python ui/eval_app.py              # 评测台界面（http://127.0.0.1:7861）
 ```
 
@@ -139,15 +140,40 @@ cd workbench && npm install && npm run dev
 
 ![工单详情](docs/screenshots/workbench-ticket-detail.png)
 
-### 7. 界面设计系统（Phase 6 / D030：Apple Design 移植）
+### 7. 对话界面（Next.js 15，T063 / D032）
 
-三个界面统一消费一套设计令牌（双栈同源）：
+用户对话演示前端（`chatui/` 目录），与坐席工作台同设计系统、同代理模式：
+
+```bash
+# 终端 1：先启动后端（端口 8000）
+uv run uvicorn app.main:app --port 8000
+
+# 终端 2：启动对话界面（端口 3000，/api/* 代理直连后端）
+cd chatui && npm install && npm run dev
+```
+
+- `http://localhost:3000` → 对话主界面：示例问题 chips 点击即发、消息气泡
+  （markdown 渲染）、打字中动效、材料上传识别（图片 / PDF / Word 字段提取卡）、
+  头部后端健康状态 pill、一键新会话
+- **富数据结构化展示**（相对 Gradio 版的核心增强）：A06 响应的意图与合规三态 pill、
+  处理过程（Agent 步骤 + 耗时 + 结论摘要）、工具调用入参折叠明细、转人工提示卡
+- 后端不可达 / 处理失败以警示气泡原位提示；`CHATUI_API_TARGET` 可覆盖后端地址
+- 同期保留的 Gradio 演示界面（`ui/app.py`）功能口径一致，作为对照与兜底入口
+
+![对话界面](docs/diagrams/t063_chat_next_home.png)
+
+![对话富数据展示](docs/diagrams/t063_chat_next_conversation.png)
+
+### 8. 界面设计系统（Phase 6 / D030：Apple Design 移植）
+
+四个界面统一消费一套设计令牌（多栈同源，源头 `ui/theme.py` TOKENS）：
 
 | 界面 | 入口 | 技术栈 | 令牌来源 |
 |------|------|--------|---------|
-| 用户聊天界面 | `http://127.0.0.1:7860` | Gradio 6 | `ui/theme.py`（`build_theme()` + `APP_CSS`） |
-| Agent 评测台 | `http://127.0.0.1:7861` | Gradio 6 | `ui/theme.py`（同上共享） |
+| 用户对话界面（Next.js） | `http://localhost:3000` | Next.js 15 + Tailwind 4 | `chatui/app/globals.css`（`@theme` 同名同值） |
 | 坐席工作台 | `http://localhost:5173` | Next.js 15 + Tailwind 4 | `workbench/app/globals.css`（`@theme` 同名同值） |
+| 用户聊天界面（Gradio） | `http://127.0.0.1:7860` | Gradio 6 | `ui/theme.py`（`build_theme()` + `APP_CSS`） |
+| Agent 评测台 | `http://127.0.0.1:7861` | Gradio 6 | `ui/theme.py`（同上共享） |
 
 设计语言（Apple 系统规范的可移植部分）：
 
@@ -178,9 +204,10 @@ cd workbench && npm install && npm run dev
 - 派生令牌（`--cf-shadow-*` / `--cf-ease-out` 等）不影响双栈同源契约（`TOKENS` 核心值不动）
 
 界面截图见 `docs/diagrams/`（t055 聊天 / t056 评测台 / t057 工作台列表与详情 /
-t060 聊天深化版 / t061 评测台深化版 / t062 宽屏居中 + 真 420 移动端适配版）。
+t060 聊天深化版 / t061 评测台深化版 / t062 宽屏居中 + 真 420 移动端适配版 /
+t063 Next.js 对话界面首页 + 对话富数据展示）。
 
-### 8. 追踪栈（可选：OTel Collector + Jaeger）
+### 9. 追踪栈（可选：OTel Collector + Jaeger）
 
 ```bash
 docker compose --profile tracing up -d   # Jaeger UI 16686 + OTLP Collector 4317
@@ -289,7 +316,8 @@ nodes/        LangGraph 节点（8 个）     tools/      工具层（claim/medi
 workflows/    主图组装                  services/   LLM / RAG / DB / 缓存 / 观测
 schemas/      Pydantic 模型             tests/      367 个测试用例
 scripts/      seed 与验收脚本           data/       Mock 数据与知识库文档
-ui/           Gradio 演示界面           evals/      评测集与运行器（200 条）
+ui/           Gradio 演示/评测界面      chatui/     Next.js 对话界面（T063）
+workbench/    坐席工作台（Next.js）     evals/      评测集与运行器（200 条）
 grafana/      仪表盘 JSON               prometheus/  抓取配置
 ```
 
