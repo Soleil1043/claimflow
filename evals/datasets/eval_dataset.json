@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "description": "claimflow 评测数据集：期望值溯源 data/mock/*.json 与 data/kb_docs/*.md；配比 FAQ 30 / 单领域 60 / 多步 80 / 边界 30",
+  "description": "claimflow 评测数据集：期望值溯源 data/mock/*.json 与 data/kb_docs/*.md；配比 FAQ 30 / 单领域 60 / 多步 80 / 边界 30；T050 轨迹期望抽样标注 12 条（multi_step 顺序/路由/入参 + edge_case 禁调/入参，见 D026）",
   "cases": [
     {
       "id": "FAQ-001",
@@ -1600,7 +1600,20 @@
       "any_of": [],
       "must_not_include": [],
       "expect_human_intervention": false,
-      "note": "kb03 计算示例 4640 元"
+      "note": "kb03 计算示例 4640 元；轨迹标注 T050（D026）",
+      "expected_tool_order": [
+        "policy_query",
+        "claim_calculator"
+      ],
+      "expected_route": [
+        "claim"
+      ],
+      "expected_tool_args": {
+        "policy_query": {
+          "policy_no": "POL-2025-0001"
+        }
+      },
+      "max_tool_calls": 6
     },
     {
       "id": "MS-002",
@@ -1619,7 +1632,20 @@
       ],
       "must_not_include": [],
       "expect_human_intervention": false,
-      "note": "policies.json POL-2026-0005 计算要点"
+      "note": "policies.json POL-2026-0005 计算要点；轨迹标注 T050（D026）",
+      "expected_tool_order": [
+        "policy_query",
+        "claim_calculator"
+      ],
+      "expected_route": [
+        "claim"
+      ],
+      "expected_tool_args": {
+        "policy_query": {
+          "policy_no": "POL-2026-0005"
+        }
+      },
+      "max_tool_calls": 6
     },
     {
       "id": "MS-003",
@@ -1638,7 +1664,20 @@
       ],
       "must_not_include": [],
       "expect_human_intervention": false,
-      "note": "policies.json POL-2025-0001 计算要点"
+      "note": "policies.json POL-2025-0001 计算要点；轨迹标注 T050（D026）",
+      "expected_tool_order": [
+        "policy_query",
+        "claim_calculator"
+      ],
+      "expected_route": [
+        "claim"
+      ],
+      "expected_tool_args": {
+        "policy_query": {
+          "policy_no": "POL-2025-0001"
+        }
+      },
+      "max_tool_calls": 6
     },
     {
       "id": "MS-004",
@@ -1675,7 +1714,20 @@
       "any_of": [],
       "must_not_include": [],
       "expect_human_intervention": false,
-      "note": "kb03 计算示例 4640 元"
+      "note": "kb03 计算示例 4640 元；轨迹标注 T050（D026）",
+      "expected_tool_order": [
+        "policy_query",
+        "claim_calculator"
+      ],
+      "expected_route": [
+        "claim"
+      ],
+      "expected_tool_args": {
+        "policy_query": {
+          "policy_no": "POL-2025-0001"
+        }
+      },
+      "max_tool_calls": 6
     },
     {
       "id": "MS-006",
@@ -1694,7 +1746,20 @@
       ],
       "must_not_include": [],
       "expect_human_intervention": false,
-      "note": "policies.json POL-2026-0005 计算要点"
+      "note": "policies.json POL-2026-0005 计算要点；轨迹标注 T050（D026）",
+      "expected_tool_order": [
+        "policy_query",
+        "claim_calculator"
+      ],
+      "expected_route": [
+        "claim"
+      ],
+      "expected_tool_args": {
+        "policy_query": {
+          "policy_no": "POL-2026-0005"
+        }
+      },
+      "max_tool_calls": 6
     },
     {
       "id": "MS-007",
@@ -2629,7 +2694,20 @@
       ],
       "must_not_include": [],
       "expect_human_intervention": false,
-      "note": "社保抵扣计算"
+      "note": "社保抵扣计算；轨迹标注 T050（D026）",
+      "expected_tool_order": [
+        "policy_query",
+        "claim_calculator"
+      ],
+      "expected_route": [
+        "claim"
+      ],
+      "expected_tool_args": {
+        "policy_query": {
+          "policy_no": "POL-2025-0001"
+        }
+      },
+      "max_tool_calls": 6
     },
     {
       "id": "MS-061",
@@ -2978,7 +3056,10 @@
       ],
       "must_not_include": [],
       "expect_human_intervention": false,
-      "note": "保单不存在"
+      "note": "保单不存在；轨迹标注 T050（D026）",
+      "forbidden_tools": [
+        "claim_calculator"
+      ]
     },
     {
       "id": "EDGE-002",
@@ -2995,7 +3076,10 @@
       ],
       "must_not_include": [],
       "expect_human_intervention": false,
-      "note": "非法保单号"
+      "note": "非法保单号；轨迹标注 T050（D026）",
+      "forbidden_tools": [
+        "claim_calculator"
+      ]
     },
     {
       "id": "EDGE-003",
@@ -3236,7 +3320,17 @@
       ],
       "must_not_include": [],
       "expect_human_intervention": false,
-      "note": "越界请求"
+      "note": "越界请求；轨迹标注 T050（D026）",
+      "forbidden_tools": [
+        "policy_query",
+        "claim_calculator",
+        "claim_rule_rag",
+        "record_query",
+        "diagnosis_matcher",
+        "ocr_extract",
+        "risk_scoring",
+        "sensitive_filter"
+      ]
     },
     {
       "id": "EDGE-018",
@@ -3252,7 +3346,17 @@
       ],
       "must_not_include": [],
       "expect_human_intervention": false,
-      "note": "无关请求"
+      "note": "无关请求；轨迹标注 T050（D026）",
+      "forbidden_tools": [
+        "policy_query",
+        "claim_calculator",
+        "claim_rule_rag",
+        "record_query",
+        "diagnosis_matcher",
+        "ocr_extract",
+        "risk_scoring",
+        "sensitive_filter"
+      ]
     },
     {
       "id": "EDGE-019",
@@ -3268,7 +3372,17 @@
       ],
       "must_not_include": [],
       "expect_human_intervention": false,
-      "note": "闲聊越界"
+      "note": "闲聊越界；轨迹标注 T050（D026）",
+      "forbidden_tools": [
+        "policy_query",
+        "claim_calculator",
+        "claim_rule_rag",
+        "record_query",
+        "diagnosis_matcher",
+        "ocr_extract",
+        "risk_scoring",
+        "sensitive_filter"
+      ]
     },
     {
       "id": "EDGE-020",
@@ -3299,7 +3413,12 @@
       "any_of": [],
       "must_not_include": [],
       "expect_human_intervention": false,
-      "note": "正常身份证查询"
+      "note": "正常身份证查询；轨迹标注 T050（D026）",
+      "expected_tool_args": {
+        "policy_query": {
+          "id_card": "330106199203154817"
+        }
+      }
     },
     {
       "id": "EDGE-022",

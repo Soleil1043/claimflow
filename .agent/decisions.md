@@ -529,3 +529,32 @@ Unstructured / MinerU / PyMuPDF+pdfplumber；商业 API：LlamaParse / Firecrawl
   与 D003 本地优先原则及保险合规叙事冲突
 
 **影响**：T049 按现实现收尾；知识库 PDF 摄入立项时按本决策选 Docling（开新任务，不进 T049）。
+
+## D026: 轨迹质量评测独立口径——暂不并入 passed — 2026-09-02
+
+**背景**：
+现行评测只考核"调没调对工具"（expected_tools 集合子集匹配），轨迹维度（调用顺序 / 冗余 /
+Agent 路由 / 入参正确性）不可见。多步任务的 ReAct 绕圈、乱序、参数幻觉是后续 prompt 调优的
+主要观察对象，需要可量化的轨迹指标；但轨迹数据集标注刚起步，标注覆盖率与准确性未经验证。
+
+**选项**：
+1. 轨迹分并入 passed——历史曲线断档（baseline.json 88% 为旧口径），标注不全时全量回归被
+   新维度绑架，T048 验收结论失去可比基准
+2. 独立报告口径——新指标单列进报告，passed 五维判分不变；待标注稳定后随数据集 version bump
+   再决策是否并入
+3. 单独 trajectory 数据集——用例与期望割裂，同题两处维护
+
+**最终选择**：选项 2（用户 2026-09-02 拍板"轨迹暂时不列入 passed"）。
+
+**关键口径**：
+- 顺序匹配 = 期望序列是实际序列的按序子序列（LCS 占比 == 1.0）：容忍合理插入调用、惩罚乱序
+- 路由序列从 task_plan 派生（全局去重保序）——Worker 子图消息不带 agent 名，messages 派生不可靠
+- CaseResult.tool_trace 只存 {agent, tool, input} 摘要（output 不入库控报告体积；检索命中统计
+  在 result_from_a06 内消费完整 output，口径不变）
+- simple_faq 的 rag_node 直检路径补记一条隐式 claim_rule_rag 轨迹（与 used_tools 补记口径一致）
+- 未标注维度不考核（分母不计入），与 expected_tools 为空不考核的既有原则一致
+
+**影响**：
+T050 落地（schemas/trajectory/metrics/test_suite/数据集抽样标注/单测）；A/B 对比 JSON 的
+variant_summaries 自动携带新指标（aggregate 聚合层透传），MD 表格暂不加列；
+是否并入 passed 待轨迹标注稳定一至两个版本后另立决策。

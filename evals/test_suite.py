@@ -107,22 +107,37 @@ async def run_case(graph: Any, case: EvalCase, thread_prefix: str = "eval") -> C
         a06["answer"] = a06["final_answer"]
     if a06.get("compliance_result") and not a06.get("compliance_status"):
         a06["compliance_status"] = (a06["compliance_result"] or {}).get("verdict")
-    # 工具轨迹（T047）：与 A06 一致，从 messages 派生（按业务工具白名单过滤）
+    # 工具轨迹（T047）：与 A06 一致，从 messages 派生（按业务工具白名单过滤）；
+    # T050：完整轨迹（含 input/output）单独进 a06["tool_trace"] 供轨迹判分
     from agents.runner import derive_tool_trace
     from tools.factory import get_default_tool_map
 
     if not a06.get("used_tools"):
         business_tools = set(get_default_tool_map())
-        all_trace = derive_tool_trace(a06.get("messages") or [])
-        a06["used_tools"] = [t for t in all_trace if t["tool"] in business_tools]
+        business_trace = [
+            t for t in derive_tool_trace(a06.get("messages") or []) if t["tool"] in business_tools
+        ]
+        a06["tool_trace"] = business_trace
+        a06["used_tools"] = [t["tool"] for t in business_trace]
+
+    # 实际 Agent 路由（T050，D026）：task_plan 派生（去重保序）——Worker 子图消息
+    # 不带 agent 名，messages 派生不可靠
+    route: list[str] = []
+    for step in a06.get("task_plan") or []:
+        agent = str((step or {}).get("agent") or "")
+        if agent and agent not in route:
+            route.append(agent)
+    a06["agent_route"] = route
 
     cr = result_from_a06(case, a06, time.perf_counter() - started, error)
     # simple_faq 走 rag_node 直检（不经过 claim_rule_rag 工具），轨迹无 tool 记录——
-    # 评测口径与 A06 一致：用 shared_data.rag_context 命中补记 used_tools
+    # 评测口径与 A06 一致：用 shared_data.rag_context 命中补记 used_tools；
+    # 轨迹同步补一条隐式 RAG 调用（D026），保证顺序/次数维度对 FAQ 类也可考核
     if not cr.used_tools and isinstance(a06.get("shared_data"), dict):
         rag_ctx = a06["shared_data"].get("rag_context") or {}
         if rag_ctx.get("results"):
             cr.used_tools = ["claim_rule_rag"]
+            cr.tool_trace = [{"agent": "rag", "tool": "claim_rule_rag", "input": {}}]
     return score_case(case, cr)
 
 
@@ -210,6 +225,17 @@ async def main() -> None:
     )
     for cat, stat in report.by_category.items():
         print(f"  {cat}: {stat['rate']:.1%} ({int(stat['passed'])}/{int(stat['total'])})")
+    traj = report.trajectory
+    if any(traj.get(k, {}).get("scored") for k in ("order", "route", "forbidden", "args", "limit")):
+        print(
+            "轨迹质量(D026): "
+            f"顺序 {traj['order']['rate']:.1%}({int(traj['order']['scored'])}条) "
+            f"| 路由 {traj['route']['rate']:.1%}({int(traj['route']['scored'])}条) "
+            f"| 禁调 {traj['forbidden']['rate']:.1%}({int(traj['forbidden']['scored'])}条) "
+            f"| 次数 {traj['limit']['rate']:.1%}({int(traj['limit']['scored'])}条) "
+            f"| 入参 {traj['args']['rate']:.1%}({int(traj['args']['scored'])}条) "
+            f"| 冗余调用均值 {traj['redundancy']['avg_redundant_calls']}"
+        )
     print(f"报告已写入: {out_path}")
 
 

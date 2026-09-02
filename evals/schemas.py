@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -55,6 +56,29 @@ class EvalCase(BaseModel):
     )
     expect_human_intervention: bool = Field(
         default=False, description="是否期望转人工（need_human_intervention=True）"
+    )
+    # ===== 轨迹期望（T050，D026：独立报告口径，不并入 passed；全可选，未标注不考核） =====
+    expected_tool_order: list[str] = Field(
+        default_factory=list,
+        description="期望的工具调用顺序（按序子序列匹配：实际序列须按此顺序包含全部，容忍额外插入调用）",
+    )
+    forbidden_tools: list[str] = Field(
+        default_factory=list,
+        description="禁止调用的工具（越界/不存在数据用例；任一出现即轨迹违规）",
+    )
+    expected_route: list[str] = Field(
+        default_factory=list,
+        description="期望的 Agent 路由序列（如 ['claim','medical']，与 task_plan 派生序列做按序子序列匹配）",
+    )
+    max_tool_calls: int | None = Field(
+        default=None, ge=1, description="工具调用次数上限（防 ReAct 绕圈；None 不考核）"
+    )
+    expected_tool_args: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        description=(
+            "按工具名的关键入参断言（子集匹配，如 {'policy_query': {'policy_no': 'POL-2025-0001'}}，"
+            "防参数幻觉）；实际该工具任一次调用的入参包含全部断言键值即通过"
+        ),
     )
     note: str = Field(default="", description="标注说明（期望值来源，如 kb_docs/03 计算示例）")
 

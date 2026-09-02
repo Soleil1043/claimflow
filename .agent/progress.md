@@ -1500,3 +1500,46 @@ BaseTool.model_fields 含 args_schema、IndexConfig TypedDict 含 dims/embed/fie
 **Git**：`feat: T048 长期记忆 Store 化 + 回归三项修复（thinking disabled / 嵌入预热 / 模型调用硬截断）+ 文档回填`
 
 <!-- 遇到的问题记录在此，方便回溯 -->
+### [T050] 轨迹质量评测（D026 独立口径，不并入 passed）— 2026-09-02
+
+**背景**：用户问"如何加入轨迹质量的评测"并拍板口径：**轨迹暂不列入 passed**（D026）。
+现状缺口：used_tools 集合匹配只看"调没调对"，顺序/冗余/路由/入参不可见——而这恰是
+ReAct 绕圈、乱序、参数幻觉等退化模式的观察面。
+
+**操作**：
+- **schema**（evals/schemas.py）：EvalCase 增 5 个全可选轨迹期望字段——
+  expected_tool_order（按序子序列匹配）/ forbidden_tools（任一出现即违规）/
+  expected_route（task_plan 路由子序列匹配）/ max_tool_calls（次数上限）/
+  expected_tool_args（按工具名关键入参子集断言）；旧数据集零改动可读
+- **判分纯函数**（evals/trajectory.py 新）：lcs_length（滚动行 O(nm)）+ count_redundant
+  （(tool,input) 全同重复）+ _args_match（值经 _norm 归一化后子集匹配，任一次调用命中即可）+
+  score_trajectory（写分项与 trajectory_expectations，不触碰 passed）；CaseResult 增
+  tool_trace（按序摘要 {agent,tool,input}，output 不入库控报告体积）/ agent_route /
+  trajectory_expectations（聚合分母标记）
+- **路由派生**（evals/test_suite.py）：run_case 从 task_plan 派生实际路由（全局去重保序）——
+  Worker 子图消息不带 agent 名，messages 派生不可靠；simple_faq 的 rag_node 直检路径补记
+  一条隐式 claim_rule_rag 轨迹（与 used_tools 补记口径一致）；result_from_a06 改为优先读
+  a06["tool_trace"]（旧 used_tools 键兜底兼容）
+- **聚合**（evals/metrics.py）：EvalReport 增独立 trajectory 块 {维度: {rate, scored}}——
+  order/route/forbidden/args/limit 五维 rate + redundancy（avg_redundant_calls /
+  cases_with_trace）；分母只计标注用例，scored=0 时 rate=1.0（无标注不考核，与 tool_accuracy
+  空分母口径一致）；汇总输出增"轨迹质量(D026)"行（有标注才打印）
+- **数据集抽样标注 12 条**（eval_dataset.json，期望值溯源 policies.json/kb_docs）：MS-001~006、
+  MS-060 标 顺序[policy_query→claim_calculator]+路由[claim]+policy_no 入参断言+次数≤6；
+  EDGE-001/002 禁调 claim_calculator（不存在/非法保单不得进入计算）；EDGE-017/018/019 禁调
+  全部业务工具（纯越界题）；EDGE-021 断言 id_card 原样透传（防编造）
+- **单测**（tests/evals/test_trajectory.py 新，17 用例）：LCS/乱序/插容忍/禁调/路由子序列/
+  超限/冗余计数/入参归一化与错值/**轨迹违规不影响 passed（D026 核心断言）**/聚合分母与
+  scored=0 口径/result_from_a06 摘要与兜底
+
+**验证方式**：
+- `uv run pytest -q` → **408 passed**（+17）；ruff check/format 全绿
+- 真实冒烟（deepseek-v4-flash）：FAQ×3（evals/reports/t050_smoke.json）+ MS-001
+  （t050_smoke_ms.json）——trajectory 块端到端产出；MS-001 两轮对比：一轮 7+ 次调用含 1 次
+  完全重复（次数 0%/冗余 1.0）、一轮干净 6 次（全部命中）——**轨迹指标捕捉到答案层指标
+  不可见的运行间行为方差**，正是本任务的目标观察面
+- A/B 框架自动携带新指标（variant_summaries 透传 report 全量 dump），MD 表格暂不加列（D026）
+
+**状态**：✅ 通过验证（轨迹为独立报告口径，是否并入 passed 待标注稳定后另立决策）
+
+**Git**：`feat: T050 轨迹质量评测（LCS 顺序/禁调/路由/次数冗余/入参断言，D026 独立口径不并入 passed）`

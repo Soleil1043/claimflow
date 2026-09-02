@@ -91,6 +91,7 @@
 ### 增量任务（用户直接需求，独立于 Phase 5）
 
 - [x] T049: 材料上传支持 PDF/Word（D024） | 依赖: 无 | 涉及文件: services/materials.py（新）、app/api/v1/conversations.py、schemas/api.py、services/llm/prompts.py、app/core/config.py、.env.example、ui/app.py、pyproject.toml、tests/ | 验收: PDF 两段式（pypdf 文本提取 → 扫描件 pypdfium2 渲染走 vision，逐页取首个有效页）；.docx 文本提取走主链路模型；.doc 旧格式 422 提示转存；`/materials` 新端点 + `/images` 兼容别名双路由；≤10MB / 渲染≤3 页 / PDF 文本<50 字符判扫描件三护栏可配置；任何失败 Mock 兜底（source=mock_fallback）不报错；响应含 file_type；提取服务单测 + API 测试全绿 ✅ 2026-09-01（394 passed；PDF 识别技术栈定位另见 D025）
+- [x] T050: 轨迹质量评测（D026） | 依赖: 无（T027/T040 评测框架上增量） | 涉及文件: evals/schemas.py、evals/trajectory.py（新）、evals/metrics.py、evals/test_suite.py、evals/datasets/eval_dataset.json（抽样标注）、tests/evals/test_trajectory.py（新）、.agent/decisions.md | 验收: EvalCase 增轨迹期望字段（expected_tool_order/forbidden_tools/expected_route/max_tool_calls/expected_tool_args，全可选向后兼容）；CaseResult 存按序轨迹摘要 {agent, tool, input}（output 不入库）+ task_plan 派生路由；判分纯函数（LCS 按序子序列匹配 / 禁调 / 次数上限与冗余计数 / 入参子集断言）；报告新增独立 trajectory 指标块，passed 五维判分不变（D026：轨迹暂不列入 passed）；数据集抽样标注 ≥12 条（multi_step 顺序与入参 / edge_case 禁调）；单测覆盖判分规则与聚合口径 ✅ 2026-09-02（408 passed；真实冒烟 FAQ×3 + MS-001：顺序/路由/入参端到端产出，两轮 MS 对比暴露调用次数波动 7+→6——轨迹指标捕捉到答案层不可见的行为方差）
 
 ---
 
@@ -131,8 +132,8 @@ T001 → T002 → T003 → T004 → T005
 
 ## 进度统计
 
-- 总任务数：49（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049）
-- 已完成：49（2026-08-27 完成 T001-T043；2026-09-01 完成 T049、T044、T045；2026-09-02 完成 T046、T047、T048——**全部完成**）
+- 总任务数：50（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049/T050）
+- 已完成：50（2026-08-27 完成 T001-T043；2026-09-01 完成 T049、T044、T045；2026-09-02 完成 T046、T047、T048、T050——**全部完成**）
 - 进行中：0
 - 待开始：0
 

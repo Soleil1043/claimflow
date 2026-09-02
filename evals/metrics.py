@@ -28,6 +28,22 @@ class CaseResult(BaseModel):
     # 检索命中统计（T033 对比口径：向量条数 / 图谱事实条数，来自 rag_context）
     vector_hits: int = 0
     graph_hits: int = 0
+    # 轨迹（T050，D026）：按序摘要 {agent, tool, input}（output 不入库控报告体积）
+    tool_trace: list[dict[str, Any]] = Field(default_factory=list)
+    agent_route: list[str] = Field(
+        default_factory=list, description="实际 Agent 路由序列（task_plan 派生，去重保序）"
+    )
+    # 轨迹判分明细（独立口径，不并入 passed；未标注维度保持默认通过）
+    trajectory_expectations: dict[str, bool] = Field(
+        default_factory=dict, description="该用例实际考核的轨迹维度（聚合分母只计这些用例）"
+    )
+    order_ratio: float = 1.0
+    order_match: bool = True
+    forbidden_clean: bool = True
+    route_match: bool = True
+    calls_within_limit: bool = True
+    args_match: bool = True
+    redundant_calls: int = 0
     # 判分明细
     tool_match: bool = True  # 期望工具为空时视为通过（该用例不考核工具）
     must_include_hit: bool = True
@@ -54,6 +70,9 @@ class EvalReport(BaseModel):
     avg_graph_hits: float = Field(default=0.0, description="平均图谱事实命中条数/用例")
     graph_coverage: float = Field(default=0.0, description="图谱命中用例占比（graph_hits>0）")
     by_category: dict[str, dict[str, float]] = Field(default_factory=dict)
+    # 轨迹质量指标（T050，D026 独立口径）：{维度: {rate, scored}}，scored=标注用例数
+    # （rate 在 scored=0 时为 1.0，表示"无标注不考核"，与 tool_accuracy 空分母口径一致）
+    trajectory: dict[str, dict[str, float]] = Field(default_factory=dict)
     failures: list[CaseResult] = Field(default_factory=list, description="失败用例明细")
 
 
@@ -96,6 +115,10 @@ def score_case(case: EvalCase, result: CaseResult) -> CaseResult:
         and result.human_match
         and not result.error
     )
+    # 轨迹判分（T050，D026）：只写分项与 trajectory_expectations，不参与 passed
+    from evals.trajectory import score_trajectory  # 局部导入避免顶层循环引用
+
+    score_trajectory(case, result)
     return result
 
 
@@ -139,6 +162,28 @@ def aggregate(results: list[CaseResult]) -> EvalReport:
             "rate": sum(1 for r in sub if r.passed) / len(sub),
         }
 
+    # 轨迹质量聚合（T050，D026 独立口径）：分母只计标注了对应维度的用例
+    def _traj(key: str, attr: str) -> dict[str, float]:
+        scored = [r for r in results if r.trajectory_expectations.get(key)]
+        rate = sum(1 for r in scored if getattr(r, attr)) / len(scored) if scored else 1.0
+        return {"rate": round(rate, 4), "scored": float(len(scored))}
+
+    with_trace = [r for r in results if r.tool_trace]
+    trajectory = {
+        "order": _traj("order", "order_match"),
+        "route": _traj("route", "route_match"),
+        "forbidden": _traj("forbidden", "forbidden_clean"),
+        "args": _traj("args", "args_match"),
+        "limit": _traj("limit", "calls_within_limit"),
+        "redundancy": {
+            "avg_redundant_calls": round(
+                sum(r.redundant_calls for r in with_trace) / len(with_trace) if with_trace else 0.0,
+                2,
+            ),
+            "cases_with_trace": float(len(with_trace)),
+        },
+    }
+
     return EvalReport(
         total=total,
         passed=passed,
@@ -153,6 +198,7 @@ def aggregate(results: list[CaseResult]) -> EvalReport:
         avg_graph_hits=round(avg_graph_hits, 2),
         graph_coverage=round(graph_coverage, 4),
         by_category=by_category,
+        trajectory=trajectory,
         failures=[r for r in results if not r.passed],
     )
 
@@ -161,10 +207,14 @@ def result_from_a06(
     case: EvalCase, a06: dict[str, Any], duration_s: float, error: str = ""
 ) -> CaseResult:
     """从 A06 响应构造 CaseResult（运行器适配层）。"""
-    used = [t.get("tool", "") for t in (a06.get("used_tools") or [])]
+    # 轨迹来源优先 tool_trace（T050 完整 {agent,tool,input,output}），旧键 used_tools 兜底
+    trace = [
+        t for t in (a06.get("tool_trace") or a06.get("used_tools") or []) if isinstance(t, dict)
+    ]
+    used = [t.get("tool", "") for t in trace]
 
     # 检索命中统计（T033）：rag_node 路径从 shared_data.rag_context 提取；
-    # Worker 路径（claim_rule_rag 工具）从 tool_trace 的 results/graph_facts 提取
+    # Worker 路径（claim_rule_rag 工具）从轨迹的 results/graph_facts 提取
     vector_hits = 0
     graph_hits = 0
     if isinstance(a06.get("shared_data"), dict):
@@ -172,11 +222,11 @@ def result_from_a06(
         vector_hits = len(rag_ctx.get("results") or [])
         graph_hits = len((rag_ctx.get("graph_facts") or {}).get("facts") or [])
     if vector_hits == 0 and graph_hits == 0:
-        for trace in a06.get("used_tools") or []:
-            if not isinstance(trace, dict) or trace.get("tool") != "claim_rule_rag":
+        for trace_item in trace:
+            if trace_item.get("tool") != "claim_rule_rag":
                 continue
-            # tool_trace 元素：{agent, tool, input, output}；output 为 ToolOutput dump
-            output = trace.get("output") or {}
+            # 轨迹元素：{agent, tool, input, output}；output 为 ToolOutput dump
+            output = trace_item.get("output") or {}
             data = output.get("data") if isinstance(output, dict) else {}
             if not isinstance(data, dict):
                 data = {}
@@ -194,6 +244,16 @@ def result_from_a06(
         error=error,
         vector_hits=vector_hits,
         graph_hits=graph_hits,
+        # 轨迹摘要（D026）：input 保留用于入参断言，output 不入库控报告体积
+        tool_trace=[
+            {
+                "agent": str(t.get("agent") or ""),
+                "tool": str(t.get("tool") or ""),
+                "input": t.get("input") or {},
+            }
+            for t in trace
+        ],
+        agent_route=[str(a) for a in (a06.get("agent_route") or [])],
     )
 
 
