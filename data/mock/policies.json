@@ -63,5 +63,31 @@
     "effective_date": "2026-08-01",
     "expiry_date": "2027-07-31",
     "status": "active"
+  },
+  {
+    "policy_no": "POL-2026-0006",
+    "holder_name": "赵敏",
+    "holder_id_card": "330105199210184460",
+    "product_name": "安心医疗保险（旗舰版）",
+    "product_type": "医疗险",
+    "coverage_amount": "1000000.00",
+    "deductible": "10000.00",
+    "payout_ratio": "0.8000",
+    "effective_date": "2026-01-01",
+    "expiry_date": "2026-12-31",
+    "status": "active"
+  },
+  {
+    "policy_no": "POL-2026-0007",
+    "holder_name": "孙强",
+    "holder_id_card": "330103198805126778",
+    "product_name": "无忧住院医疗保险（标准版）",
+    "product_type": "医疗险",
+    "coverage_amount": "300000.00",
+    "deductible": "5000.00",
+    "payout_ratio": "0.7000",
+    "effective_date": "2026-03-01",
+    "expiry_date": "2027-02-28",
+    "status": "active"
   }
 ]

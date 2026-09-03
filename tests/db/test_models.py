@@ -11,12 +11,16 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from services.db.models import (
     Base,
+    Case,
+    CaseEvent,
     ClaimRecord,
     Conversation,
+    DecisionDocument,
     KbDocument,
     MedicalRecord,
     Message,
@@ -37,7 +41,7 @@ async def db_session():
 
 
 async def test_all_tables_created(db_session) -> None:
-    """8 张业务表全部可建、可查（T052 新增 eval_runs）。"""
+    """11 张业务表全部可建、可查（T078 新增核赔域 cases/case_events/decision_documents）。"""
     tables = {t for t in Base.metadata.tables}
     assert tables == {
         "conversations",
@@ -48,6 +52,9 @@ async def test_all_tables_created(db_session) -> None:
         "kb_documents",
         "human_tickets",
         "eval_runs",
+        "cases",
+        "case_events",
+        "decision_documents",
     }
     for table in Base.metadata.tables.values():
         # 每张表均可查询（空表 select 即验证表结构已创建）
@@ -152,3 +159,84 @@ async def test_medical_record_and_claim_and_kb_document(db_session) -> None:
     claim = (await db_session.execute(select(ClaimRecord))).scalar_one()
     assert claim.status == "reviewing" and claim.approved_amount is None
     assert (await db_session.execute(select(KbDocument))).scalar_one().chunk_count == 12
+
+
+async def test_adjudication_tables_crud(db_session) -> None:
+    """核赔域三表（T078）：案件主档 + 事件审计 append-only + 决定书版本化。"""
+    case = Case(
+        id="CASE-2026-0001",
+        user_id="u-zhangwei",
+        policy_no="POL-2025-0001",
+        case_type="unknown",  # intake 分类前为 unknown
+        status="received",
+        claimed_amount=Decimal("15800.00"),
+        incident_date=dt.date(2026, 8, 10),
+        incident_description="急性阑尾炎住院手术",
+        materials=[{"file_name": "invoice.jpg", "doc_type": "invoice"}],
+    )
+    db_session.add(case)
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            CaseEvent(
+                case_id=case.id,
+                kind="routing",
+                stage=None,
+                seq=1,
+                payload={
+                    "decision": {"next": ["material_review"]},
+                    "guard_corrected": False,
+                    "reason": "案件受理，先审材料",
+                },
+            ),
+            CaseEvent(
+                case_id=case.id,
+                kind="stage_result",
+                stage="material_review",
+                seq=2,
+                payload={"completeness": "complete", "confidence": 0.97},
+            ),
+        ]
+    )
+    db_session.add(
+        DecisionDocument(
+            case_id=case.id,
+            version=1,
+            title="理赔决定书",
+            body="兹核定赔付 4640.00 元……",
+            conclusion="approved",
+            approved_amount=Decimal("4640.00"),
+            issued_by="auto",
+        )
+    )
+    await db_session.flush()
+
+    loaded_case = (await db_session.execute(select(Case))).scalar_one()
+    assert loaded_case.claimed_amount == Decimal("15800.00")
+    assert loaded_case.materials[0]["doc_type"] == "invoice"
+    assert loaded_case.created_at is not None
+
+    events = (
+        (await db_session.execute(select(CaseEvent).order_by(CaseEvent.seq))).scalars().all()
+    )
+    assert [e.kind for e in events] == ["routing", "stage_result"]
+    assert events[0].payload["decision"]["next"] == ["material_review"]
+
+    doc = (await db_session.execute(select(DecisionDocument))).scalar_one()
+    assert doc.approved_amount == Decimal("4640.00")
+    assert doc.issued_by == "auto"
+
+    # (case_id, version) 唯一：同版本重复出书必须拒错
+    db_session.add(
+        DecisionDocument(
+            case_id=case.id,
+            version=1,
+            title="重复版本",
+            body="x",
+            conclusion="approved",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        await db_session.flush()
+    await db_session.rollback()

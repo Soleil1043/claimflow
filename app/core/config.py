@@ -6,6 +6,7 @@
 - prod：PostgreSQL + Qdrant 服务 + Redis（交付架构，不降级）
 """
 
+from decimal import Decimal
 from enum import StrEnum
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -95,6 +96,20 @@ class Settings(BaseSettings):
     # ===== 轮次 Token 预算（T029） =====
     # 单轮对话（意图→规划→执行→生成→合规）总 token 上限；超限只告警日志，不阻断。0=不设预算
     turn_token_budget: int = 0
+
+    # ===== 核赔分级自动阈值（Phase 8，D037/D039） =====
+    # 自动签发金额上限：核定金额 ≤ 该值且低风险才允许自动出《理赔决定书》
+    auto_approve_limit: Decimal = Decimal("5000.00")
+    # 自动签发要求的全链路最低置信度（各阶段结论置信度门槛）
+    auto_approve_confidence_floor: float = 0.8
+    # 材料抽取置信度下限：低于该值转 orchestrator 异常裁量（而非直接补件）
+    material_confidence_floor: float = 0.6
+    # 合规 MODIFY 修订闭环轮数上限（防死循环，v1 D012 语义延续）
+    compliance_max_rounds: int = 2
+    # orchestrator 每案件调度调用预算（超限告警并强制收敛；D039 防绕圈）
+    routing_call_budget: int = 15
+    # 自动签发案件人工抽检比例（试点期质量兜底，0=关闭）
+    manual_review_sample_rate: float = 0.05
 
     # ===== OTel 追踪（T039，D015 后置项） =====
     # 开关（默认关：不起 tracing 栈时零开销）；OTLP gRPC 上报地址；采样率 0.0-1.0

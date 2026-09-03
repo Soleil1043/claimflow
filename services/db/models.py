@@ -1,7 +1,8 @@
 """数据库 ORM 模型（SQLAlchemy 2.0 声明式）。
 
-表结构见 .agent/plan.md 第 3 节，共 6 张业务表：
-conversations / messages / policies / medical_records / claim_records / kb_documents。
+业务表共 11 张（Phase 8 T078 新增核赔域 3 张）：
+conversations / messages / policies / medical_records / claim_records / kb_documents /
+human_tickets / eval_runs / cases / case_events / decision_documents。
 LangGraph checkpoint 表由 PostgreSQLSaver 自管，不在此建模（D006）。
 
 跨后端兼容：JSONB（PostgreSQL）自动降级 JSON（SQLite dev），Uuid/BigInteger 走 SQLAlchemy
@@ -24,6 +25,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     Uuid,
     func,
 )
@@ -230,3 +232,92 @@ class EvalRunRecord(Base):
 
     def __repr__(self) -> str:
         return f"<EvalRunRecord {self.run_id} status={self.status}>"
+
+
+class Case(Base):
+    """核赔案件主档（Phase 8 T078）：案件事实态的权威来源。
+
+    checkpoint 只承载图执行态（可重建）；案件状态以本表为准（D006 原则延续）。
+    状态机：received → in_progress →（supplement_pending 补件挂起）→
+    auto_issued / referred / closed。
+    """
+
+    __tablename__ = "cases"
+
+    # 业务案件号（CASE-YYYY-NNNN），非自增
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    # 逻辑外键 policies.policy_no
+    policy_no: Mapped[str] = mapped_column(String(32), index=True)
+    # intake 分类写入：medical / auto / property / accident / unknown（未上线险种受理即转人工）
+    case_type: Mapped[str] = mapped_column(String(16), default="unknown", index=True)
+    status: Mapped[str] = mapped_column(String(24), default="received", index=True)
+    claimed_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    approved_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    incident_date: Mapped[dt.date] = mapped_column(Date)
+    incident_description: Mapped[str] = mapped_column(Text)
+    # approved / rejected / partial / referred（签发或转人工时写入）
+    final_decision: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 材料引用清单 [{file_name, doc_type, storage_path}]
+    materials: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        _jsonb_or_json(), nullable=True
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<Case {self.id} type={self.case_type} status={self.status}>"
+
+
+class CaseEvent(Base):
+    """案件事件审计（append-only，只插不改）。
+
+    kind 取值：
+    - stage_result：worker 阶段结论（payload=阶段模型 dump）
+    - routing：orchestrator 路由决策（payload=原始决策+守卫修正+reason，D039 决策审计）
+    - guard_correction：守卫纠错（payload=违规路由与改投结果）
+    - human：人工动作（补件/签批/升级）
+    - status_change：案件状态流转
+    """
+
+    __tablename__ = "case_events"
+
+    id: Mapped[int] = mapped_column(_autoincrement_id(), primary_key=True, autoincrement=True)
+    case_id: Mapped[str] = mapped_column(String(64), ForeignKey("cases.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(24), index=True)
+    stage: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # 案件内递增序号（回放排序依据）
+    seq: Mapped[int] = mapped_column(Integer)
+    payload: Mapped[dict[str, Any] | None] = mapped_column(_jsonb_or_json(), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+
+    def __repr__(self) -> str:
+        return f"<CaseEvent {self.id} case={self.case_id} kind={self.kind} seq={self.seq}>"
+
+
+class DecisionDocument(Base):
+    """理赔决定书（版本化，F09）：正文金额与理算结果断言一致（F10 金额断言）。
+
+    版本规则：AI 草稿/修订与坐席改判各占一版，(case_id, version) 唯一。
+    """
+
+    __tablename__ = "decision_documents"
+    __table_args__ = (UniqueConstraint("case_id", "version", name="uq_decision_case_version"),)
+
+    id: Mapped[int] = mapped_column(_autoincrement_id(), primary_key=True, autoincrement=True)
+    case_id: Mapped[str] = mapped_column(String(64), ForeignKey("cases.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    title: Mapped[str] = mapped_column(String(128))
+    body: Mapped[str] = mapped_column(Text)
+    # approved / rejected / partial
+    conclusion: Mapped[str] = mapped_column(String(16))
+    approved_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    # auto（系统自动签发）/ agent:<id>（坐席签批）
+    issued_by: Mapped[str] = mapped_column(String(64), default="auto")
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+
+    def __repr__(self) -> str:
+        return (
+            f"<DecisionDocument {self.id} case={self.case_id} "
+            f"v{self.version} conclusion={self.conclusion}>"
+        )

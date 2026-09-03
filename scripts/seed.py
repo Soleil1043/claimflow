@@ -4,8 +4,10 @@
     uv run python -m scripts.seed          # 全部数据入库
     uv run python -m scripts.seed --only policies
     uv run python -m scripts.seed --only medical_records
+    uv run python -m scripts.seed --only cases
 
-数据源：data/mock/*.json，入库后供各查询工具使用。
+数据源：data/mock/*.json，入库后供各查询工具/核赔主图使用。
+cases 的 expected 块（金样本期望）不入库——由评测器（T088）/主图测试（T079）直接读 JSON。
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.core.logging import configure_logging, get_logger
-from services.db.models import MedicalRecord, Policy
+from services.db.models import Case, MedicalRecord, Policy
 from services.db.session import get_session_factory, init_db
 
 log = get_logger(__name__)
@@ -123,6 +125,62 @@ async def seed_medical_records() -> int:
     return inserted + updated
 
 
+def _load_cases() -> list[Case]:
+    """从 JSON 构造 Case ORM 对象列表（expected 块跳过，不入库）。"""
+    raw = json.loads((DATA_DIR / "cases.json").read_text(encoding="utf-8"))
+    cases = []
+    for item in raw["cases"]:
+        cases.append(
+            Case(
+                id=item["case_id"],
+                user_id=item["user_id"],
+                policy_no=item["policy_no"],
+                # case_type 留 unknown——险种分类是 intake 阶段（F01）的职责
+                case_type="unknown",
+                status="received",
+                claimed_amount=Decimal(item["claimed_amount"]),
+                incident_date=dt.date.fromisoformat(item["incident_date"]),
+                incident_description=item["incident_description"],
+                materials=item.get("materials") or [],
+            )
+        )
+    return cases
+
+
+async def seed_cases() -> int:
+    """金样本案件入库（幂等 upsert：按 case_id 判重）。
+
+    只刷新案件"事实"字段；status/case_type/final_decision/approved_amount 为运行时
+    字段（intake/主图写），重跑种子不重置，避免破坏进行中的演示案件。
+    """
+    cases = _load_cases()
+    factory = get_session_factory()
+    inserted, updated = 0, 0
+    async with factory() as session:
+        existing = {
+            c.id: c for c in (await session.execute(select(Case))).scalars().all()
+        }
+        for case in cases:
+            old = existing.get(case.id)
+            if old is None:
+                session.add(case)
+                inserted += 1
+            else:
+                for col in (
+                    "user_id",
+                    "policy_no",
+                    "claimed_amount",
+                    "incident_date",
+                    "incident_description",
+                    "materials",
+                ):
+                    setattr(old, col, getattr(case, col))
+                updated += 1
+        await session.commit()
+    log.info("seed_cases_done", inserted=inserted, updated=updated)
+    return inserted + updated
+
+
 async def main(targets: list[str]) -> None:
     configure_logging()
     # dev 直接建表；prod 依赖 alembic 已迁移
@@ -131,17 +189,23 @@ async def main(targets: list[str]) -> None:
         await seed_policies()
     if "medical_records" in targets:
         await seed_medical_records()
+    if "cases" in targets:
+        await seed_cases()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Mock 数据入库")
     parser.add_argument(
         "--only",
-        choices=["policies", "medical_records"],
+        choices=["policies", "medical_records", "cases"],
         default=None,
         help="只入库指定数据集（缺省全部）",
     )
     args = parser.parse_args()
-    targets = [args.only] if args.only else ["policies", "medical_records"]
+    targets = (
+        [args.only]
+        if args.only
+        else ["policies", "medical_records", "cases"]
+    )
     asyncio.run(main(targets))
     sys.exit(0)
