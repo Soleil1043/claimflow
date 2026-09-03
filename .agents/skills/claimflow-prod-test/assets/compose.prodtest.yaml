@@ -1,0 +1,10 @@
+# 宿主机端口冲突 override：本机装有原生 postgres.exe(5432)/redis-server.exe(6379)，
+# compose 端口发布静默失败，改映射 15432/16379 供宿主机进程（评测/直连调试）使用。
+# 用法：docker compose -f docker-compose.yml -f <本文件> up -d
+services:
+  postgres:
+    ports: !override
+      - "15432:5432"
+  redis:
+    ports: !override
+      - "16379:6379"
