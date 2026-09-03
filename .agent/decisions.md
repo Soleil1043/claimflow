@@ -724,3 +724,10 @@ eval-audit-for-human.md 人话版）。骨架（A/B 框架、eval_runs 落库、
 - 背景：BUG-003 修复时有两个选项——①沿用 short_term 的 CheckpointManager 模式（from_conn_string 异步 CM + lifespan 显式 start/close）；②模块内自建 AsyncConnectionPool 常驻（open=False 构造、首次异步使用时 open+setup）。
 - 选项与理由：记忆是旁路路径（永不抛错、失败仅日志），调用点分散在 API 层读注入/写路径，没有集中 lifespan 挂载点；引入 Manager+lifespan 改动面大且 dev/prod 生命周期不一致。方案②池常驻进程生命周期，与 psycopg 官方池语义一致，零调用方改动。
 - 最终选择：方案②（AsyncConnectionPool open=False + _ensure_pg_setup 延迟开池），连接参数逐项对齐官方 from_conn_string 配方（autocommit/prepare_threshold=0/dict_row），保证行为与官方路径等价。
+
+## D035：容器自举用 init 一次性容器 + hf_cache 命名卷（2026-09-03）
+
+- 背景：BUG-004——镜像不含 data/，且 CMD 只有 alembic，容器起来后库与向量索引全空（对话"查不到保单"、RAG 静默降级）。
+- 选项：① app CMD 串联 seed+ingest（每次启动重跑，ingest 需加载嵌入模型拖慢重启）；② docker compose 的 depends_on + profile hack；③ 独立 init 容器跑完退出，app 以 service_completed_successfully 依赖。
+- 最终选择：③。顺序强制 alembic→seed（seed 的 init_db 是 create_all 兜底，先建表会让 app 的迁移撞已存在表）；BGE-M3 缓存入 hf_cache 命名卷供 init/app 共享，二次启动免下载（实测冷启动 HF 直连反复停摆 15+ 分钟，卷命中后秒级）。镜像按白名单反选携带 mock/kb_docs/graph（共 ~120K），qdrant 本地存储/SQLite 仍排除。
+- 附带：Qdrant server v1.12.6→v1.18.0（client 1.19 与 server minor 差须 ≤1，v1.12.6 差 7 个 minor）；app 的 OTEL_ENDPOINT 硬指向服务名（宿主 .env 的 localhost:4317 是直跑进程口径，透传进容器会指向容器自身）。

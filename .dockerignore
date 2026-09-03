@@ -1,17 +1,23 @@
-# 构建上下文排除项（避免宿主机 .venv / 数据 / 状态文件进入镜像）
+# 构建上下文排除项（避免宿主机 .venv / 状态文件进入镜像）
+# 注意（BUG-004）：data/mock、data/kb_docs、data/graph 与 evals/ 必须进镜像——
+# init 容器自举（seed/ingest）与评测 API 子进程（evals.test_suite）都依赖它们；
+# 仅排除 dev 运行产物（qdrant 本地存储 / SQLite 文件）
 .git
 .venv
 .agent
+.workbuddy
 .ruff_cache
 .pytest_cache
 .coverage
 htmlcov
-data
+data/*
+!data/mock
+!data/kb_docs
+!data/graph
 tests
 docs
 grafana
 prometheus
-evals
 .env
 .env.example
 Dockerfile
