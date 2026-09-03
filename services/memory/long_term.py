@@ -191,6 +191,8 @@ async def summarize_conversation(
 
 _memory_store: BaseStore | None = None
 _pg_setup_done = False
+# prod 连接池（typing.Any：psycopg_pool 仅 prod 路径导入，dev 不引入该依赖类型）
+_pg_pool: Any | None = None
 
 
 def _embed_for_store(texts: list[str]) -> list[list[float]]:
@@ -213,7 +215,7 @@ def _build_embed_text(record: MemoryRecord) -> str:
 
 def get_memory_store() -> BaseStore:
     """记忆 Store 单例：dev=InMemoryStore / prod=AsyncPostgresStore（均带向量 index）。"""
-    global _memory_store
+    global _memory_store, _pg_pool
     if _memory_store is None:
         index = {
             "dims": EMBEDDING_DIM,
@@ -221,13 +223,30 @@ def get_memory_store() -> BaseStore:
             "fields": ["embed_text"],
         }
         if settings.app_profile.value == "prod":
+            # BUG-003：conn 参数只接受 AsyncConnection / AsyncConnectionPool，
+            # 传 DSN 字符串会在首次 put/search 抛 Invalid connection type——
+            # 记忆是旁路路径，异常被吞成长期静默失效。这里按官方 from_conn_string
+            # 的同款配方自建池（autocommit / prepare_threshold=0 / dict_row），
+            # 池 open=False 延迟到 _ensure_pg_setup（异步上下文）再打开。
             from langgraph.store.postgres import AsyncPostgresStore
+            from psycopg.rows import dict_row
+            from psycopg_pool import AsyncConnectionPool
 
             dsn = (
                 f"postgresql://{settings.postgres_user}:{settings.postgres_password}"
                 f"@{settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}"
             )
-            _memory_store = AsyncPostgresStore(conn=dsn, index=index)  # type: ignore[call-arg]
+            _pg_pool = AsyncConnectionPool(
+                dsn,
+                min_size=1,
+                open=False,
+                kwargs={
+                    "autocommit": True,
+                    "prepare_threshold": 0,
+                    "row_factory": dict_row,
+                },
+            )
+            _memory_store = AsyncPostgresStore(conn=_pg_pool, index=index)  # type: ignore[call-arg]
             log.info("memory_store_initialized", backend="AsyncPostgresStore")
         else:
             from langgraph.store.memory import InMemoryStore
@@ -239,16 +258,19 @@ def get_memory_store() -> BaseStore:
 
 def reset_memory_store() -> None:
     """重置 Store 单例（测试用：换嵌入桩后重建）。"""
-    global _memory_store, _pg_setup_done
+    global _memory_store, _pg_setup_done, _pg_pool
     _memory_store = None
     _pg_setup_done = False
+    _pg_pool = None
 
 
 async def _ensure_pg_setup(store: BaseStore) -> None:
-    """prod AsyncPostgresStore 首用时建表（幂等，一次）。"""
+    """prod AsyncPostgresStore 首用时开池 + 建表（幂等，一次）。"""
     global _pg_setup_done
     if _pg_setup_done or settings.app_profile.value != "prod":
         return
+    if _pg_pool is not None:
+        await _pg_pool.open()
     setup = getattr(store, "setup", None)
     if setup is not None:
         result = setup()

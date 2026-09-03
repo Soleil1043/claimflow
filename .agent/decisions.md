@@ -718,3 +718,9 @@ eval-audit-for-human.md 人话版）。骨架（A/B 框架、eval_runs 落库、
 
 **影响**：T064-T074 落地；主数据集版本 1.0.0→1.1.0；全量基线将在 T074 重跑替换
 （旧 baseline.json 改名存档，不删）。
+
+## D034：长期记忆 prod Store 用常驻连接池而非 from_conn_string 上下文（2026-09-03）
+
+- 背景：BUG-003 修复时有两个选项——①沿用 short_term 的 CheckpointManager 模式（from_conn_string 异步 CM + lifespan 显式 start/close）；②模块内自建 AsyncConnectionPool 常驻（open=False 构造、首次异步使用时 open+setup）。
+- 选项与理由：记忆是旁路路径（永不抛错、失败仅日志），调用点分散在 API 层读注入/写路径，没有集中 lifespan 挂载点；引入 Manager+lifespan 改动面大且 dev/prod 生命周期不一致。方案②池常驻进程生命周期，与 psycopg 官方池语义一致，零调用方改动。
+- 最终选择：方案②（AsyncConnectionPool open=False + _ensure_pg_setup 延迟开池），连接参数逐项对齐官方 from_conn_string 配方（autocommit/prepare_threshold=0/dict_row），保证行为与官方路径等价。
