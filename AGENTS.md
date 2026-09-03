@@ -7,15 +7,18 @@
 
 ## 1. 项目是什么
 
-**多智能体保险理赔对话系统** —— 用户咨询理赔问题时，系统自动调度多个专业 Agent（理赔核算 / 医疗审核 / 合规风控），通过工具调用完成跨系统查询，最终给出准确回答。
+**保险理赔智能核赔平台（多险种）** —— 客户提交理赔申请与材料后，LLM Orchestrator 动态调度专业 Worker（材料审核 / 保单核验 / 风控筛查 / 责任认定 / 金额理算 / 决定书生成）完成自动核赔：低风险小额案件自动签发《理赔决定书》，其余转人工复核。领域知识以 skill 作业规程包（`skills/<stage>/<line>.md`）承载。
 
-核心数据：
+核心要点：
 
-- 目标：复杂任务完成率从 58% → 75%，人工转接率从 62% → 37%
-- 4 个 Agent：Orchestrator（调度）、Claim（理赔核算）、Medical（医疗审核）、Compliance（合规风控）
-- 10+ 个工具：保单查询、理赔计算器、RAG 检索、诊断匹配、合规审查等
+- LLM Orchestrator-Worker 架构（D039）：结构化路由决策 + 前置条件守卫（代码层）+ **静态合规门**（图结构保证不可绕过）+ 失败兜底默认计划
+- skill 机制：每阶段×险种一份 SKILL.md 作业规程，准确率迭代改文本不改代码
+- 多险种：case_type 枚举（medical/auto/property/accident），worker 按"险种 pack"分批上线——首批医疗险，未上线险种受理期转人工
+- 分级自动：阈值全部配置化（pydantic-settings）
+- v1 咨询问答版已冻结（tag `v1-consultation`）；决策链见 `.agent/decisions.md` D037-D039
 
-详细架构设计见 `docs/architecture.md`（架构文档不要放在这里，这里只给 AI 编程用）。
+总体架构与实施依据：`docs/claimflow-新架构设计-v2.md`（工程版）+ 同目录人话版导读。
+任务清单：`.agent/tasks.md` Phase 8（T077-T093）。
 
 ---
 
@@ -288,6 +291,9 @@ Agent 不直接调工具，通过 LangGraph 的 `ToolNode` 或工具执行器调
 | Phase 4 | 深度亮点                   | GraphRAG、A/B 测试、高级特性               |
 
 具体任务清单见 `.agent/tasks.md`（在 Phase 规划阶段生成）。
+
+> 上表为 v1 咨询产品历史规划（T001-T076 已全部完成）。当前推进 **Phase 8：核赔平台重写（D037-D039）**，
+> 任务 T077-T093，见 `.agent/tasks.md`。
 
 ---
 

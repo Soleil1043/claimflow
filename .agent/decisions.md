@@ -737,3 +737,96 @@ eval-audit-for-human.md 人话版）。骨架（A/B 框架、eval_runs 落库、
 - 背景：hf_cache 卷灌入宿主机缓存后离线加载仍失败。两层根因：Windows HF 缓存快照是真实文件（无符号链接支持），Linux huggingface_hub 要求快照为指向 blobs 的符号链接，校验不过判无效缓存；且在线模式每次向 HF 校验最新 revision，缓存快照落后即触发整模型重下载（弱网环境反复停摆）。
 - 选项：① 卷内快照重建符号链接结构（一次性数据修补，每次从 Windows 灌卷复发）；② hf_hub_download local_files_only 直读（仍受缓存格式校验约束）；③ SentenceTransformer 直载快照目录（Path.is_dir() 短路，完全绕开 hub）。
 - 最终选择：③——新增 embedding_model_path 配置，容器启动守卫 find 快照目录注入（命中即离线直载，未命中走 repo id 在线下载）。附带决策：compose 命令中的 shell 变量必须 $$ 转义（compose YAML 层变量替换先于容器执行）；postgres 用 pgvector/pgvector:pg16 镜像（长期记忆向量索引依赖 vector 扩展）；store.setup 移入 app lifespan 预建（迁移含 CREATE INDEX CONCURRENTLY，请求路径内会等自身已开事务形成自锁）；AsyncPostgresStore 一律异步接口（aput/asearch）。
+
+## D037：产品转向——本仓库重写为「智能核赔平台」，v0 草案评审修正（2026-09-04）
+
+**背景**：
+docs/claimflow - 新架构设计.md（v0 草案）经评审确认面向另一个产品：理赔案件自动核赔流水线
+（材料审核→保单核实→风控→责任认定→金额理算→理赔决定书），而非现行理赔咨询问答系统。
+用户确认推倒重来，并就三个方向性问题拍板：
+
+1. 代码归属：**本仓库原地重写**（不建新仓库）
+2. MVP 范围：**仅医疗险**
+3. 自动化策略：**分级自动**（低风险 + 责任明确 + 金额阈值内自动出决定书；
+   高风险/材料存疑/低置信/超阈值转人工，阈值全部配置化）
+
+**v0 草案评审结论**（修正明细见 docs/claimflow-新架构设计-v2.md 第二节）：
+- LangGraph 用法硬伤：4.1 supervisor 伪代码非 LLM 决策且路由键 "parallel_verify_fraud"
+  在 6.1 映射表不存在；7.3 `Command(goto=None)` 非挂起语义（正确为 interrupt + Command(resume)，
+  T037 已验证可行）；6.1 human_intervene→END 与图 2 回 supervisor 自相矛盾；
+  6.2 parallel_mode 无写入者；7.1 SqliteSaver 同步 with 块不适合 FastAPI 常驻服务
+- 选型倒退否决 3 项：LangSmith（已有 OTel+Prometheus+Grafana 自托管，D017 已论证）、
+  ChromaDB（已有 Qdrant+pgvector，不引第三套向量库）、requirements.txt/config/utils 目录
+  （违反 AGENTS.md 工程约定）
+- 铁律延续：所有输出必经合规门（F10）——v0 决定书直出 END 通道违规，v2 修正为决定书必审
+
+**v2 关键设计决策**：
+1. 编排：不设常驻 LLM supervisor——核赔是封闭管线，阶段间确定性路由（可审计/可单测/零 token），
+   LLM 裁量收敛到 triage 异常节点（TriageDecision 结构化输出 + 规则兜底）
+2. 并行：policy_verify ∥ fraud_check 用 Send fan-out/fan-in；各分支独立子图 input/output
+   schema，阶段结论字段唯一写者（policy/risk 各写各的 channel，天然无冲突，无需合并 reducer）
+3. State：ClaimCaseState 分域——各阶段结论为独立 Pydantic 模型 dump，禁 30+ 字段大扁平；
+   金额 Decimal（序列化 str 存储）、日期 date
+4. HITL：补件（SUPPLEMENT）/核赔复核（REVIEW）/升级（ESCAPE）三类工单；
+   interrupt + Command(resume) 模式移植 T037，坐席/客户回写必过合规复审
+
+**影响**：
+- 新蓝图：docs/claimflow-新架构设计-v2.md（取代 v0 作为实施依据，v0 留作历史参考）
+- 重写启动前先 `git tag v1-consultation` 冻结现行咨询产品快照
+- 下一步：架构 v2 经用户评审确认后，重新产出 spec/plan/tasks（新 Phase 规划）再开工
+- AGENTS.md 第 1 节（项目定位）随 M0 更新；evals 框架与判分口径（D026/D033）延续到核赔评测
+
+## D038：演示界面选型——chatui（Next.js）改造为案件提交门户（2026-09-04）
+
+**背景**：D037 开放问题 4（演示界面去留）。用户拍板："UI 改造为案件提交演示界面"。
+
+**选项**：
+| 选项 | 优点 | 缺点 |
+| A: Gradio ui/app.py 改造 | 最快 | D032 已论证 Gradio DOM 不可控、观感天花板已见 |
+| B: chatui（Next.js）改造为案件门户 | 产品级门面；复用三栈设计令牌与 rewrites 代理；与坐席工作台观感一致 | 需新写案件表单/进度时间线/决定书渲染 |
+
+**最终选择**：B（用户拍板）。chatui 从"对话演示"改造为"案件提交门户"：
+提交案件 + 上传材料 → 实时进度时间线 → 决定书查看 / 补件交互。
+Gradio ui/app.py 退役（M5 随旧代码删除）；ui/eval_app.py 评测台保留。
+
+**影响**：T091；spec F15。
+
+---
+
+## D039：架构改判——多险种前提确认，采用 LLM Orchestrator-Worker 全动态调度（2026-09-04）
+
+**背景**：D037 确定性管线设计的前提是"单一险种、路径可枚举"。用户澄清产品实际面向
+**多险种**（医疗/车险/财产/意外），不同险种的材料体系与核赔路径差异大——路由从"制度"
+变为"真决策"，D037 的编排子决策前提不成立。经三方案对比（A 确定性骨架+skill /
+B LLM orchestrator 全动态 / C 配置化 DAG），**用户拍板：直接采用 B**。
+
+**范围修正（覆盖 D037 的"仅医疗险 MVP"）**：
+- 产品按多险种原生设计：case_type 枚举（medical/auto/property/accident），受理期 LLM 分类
+- worker 按"险种 pack"分批上线：**首批医疗险 pack**（复用现有工具/条款库/材料解析资产）；
+  车险/财产险/意外险 pack 为二期任务（如需进首批需追加任务）
+- 未上线险种的案件：受理期即转人工受理，不让 orchestrator 无米之炊
+
+**安全设计（LLM 调度的对冲，吸收自 A/C 方案论证，必做项非可选项）**：
+1. **静态合规门不可绕过**：decision_generate → compliance_gate → 签发/人工为静态边，
+   不在 orchestrator 调度空间——任何路由决策都无法跳过合规
+2. **前置条件守卫（代码层）**：理算需责任认定+保单结论就绪、决定书需理算就绪、
+   必做集未全 done 禁止终局派发；orchestrator 违规路由由守卫改投（T047 reconcile 思想升级）
+3. **失败兜底**：orchestrator LLM 失败 → 按险种的确定性默认计划推进，不阻塞案件
+4. **决策审计**：每次 RoutingDecision（含守卫修正）落 case_events，可回放
+5. **防绕圈**：recursion_limit + ModelCallLimit + 每案件调度调用数指标
+
+**评测门调整**：金额正确率 100% 与红线 0 漏放**保持硬门**（分别由确定性理算工具与
+静态合规门保证，与调度方式无关）；新增软门：orchestrator 路由决策与金样本期望一致率 ≥95%。
+
+**skill 机制（D037 讨论确认采纳，与调度方式正交）**：
+`skills/<stage>/<line>.md` 作业规程包（SOP / few-shot / 红线清单 / 工具规程），
+worker 与 orchestrator 激活时装载进 system prompt；准确率迭代改文本不改代码；
+接既有 A/B 框架做 skill 对比实验。
+
+**复杂度代价（确认接受）**：每案件 +5-10 次调度调用（deepseek-v4-flash 单价下可接受，D007）。
+
+**影响**：
+- docs/claimflow-新架构设计-v2.md 修订（第四节编排重写为 orchestrator 设计）+ 人话版同步
+- .agent/spec.md / plan.md 重写、tasks.md 追加 Phase 8（T077-T093）
+- nodes/supervisor.py（T047）从"参考后删"升级为"改造复用"——orchestrator 基于该模式扩展
+- 责任认定/材料审核等 worker 仍为 ReAct agent + skill；triage 不再单列（异常裁量并入 orchestrator + 兜底）

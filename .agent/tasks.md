@@ -147,10 +147,10 @@ T001 → T002 → T003 → T004 → T005
 
 ## 进度统计
 
-- 总任务数：75（MVP 23 + Phase 3 七个 + Phase 4 十二个 + T043 重排序增量 + Phase 5 五个 + 增量 T049-T053 + Phase 6 五个 + Phase 6.5 四个 + 增量 T063 + Phase 7 十二个）
-- 已完成：75（2026-08-27 T001-T043；2026-09-01 T049/T044/T045；2026-09-02 T046-T048/T050-T053/T054-T058/T059-T062；2026-09-03 T063 + Phase 7 T064-T075 **全部完成**）
+- 总任务数：93（v1 咨询版 76 项 T001-T076 全部完成；Phase 8 核赔重写 17 项 T077-T093）
+- 已完成：76 + T077（2026-09-04 立项）
 - 进行中：0
-- 待开始：0
+- 待开始：16（T078-T093）
 
 > Phase 5 回归实测（T048，deepseek-v4-flash 全量 200 条，evals/reports/t048_phase5_regression.json）：
 > 完成率 87.0%（基线 88%，回退 1pp 达标线压线）｜工具准确率 94.7%（基线 95.26%，差 0.3pp 未达
@@ -197,4 +197,27 @@ T001 → T002 → T003 → T004 → T005
 
 ### 增量：README 专业化改造（2026-09-03 追加，依据 docs/readme-professional-guide.md）
 
-- [x] T076: README 企业级重排（成果前置/读者分层/数字纪律/内外视角） | 依赖: 无 | 涉及文件: README.md、LICENSE（新）、docs/readme-professional-guide.md（整改依据）、.agent/progress.md | 验收: ①数字统一（测试 469 以 collect-only 为准并注明口径、评测集 218+74=292，391/367/218+84 三处矛盾清零）②KPI 表+首屏截图+对话示例前置（含 ⚠️ 负向指标两条）③Quick Start 压 3 步 + 可选组件表格化后移（监控/追踪/坐席台/评测台/Gradio 对照）④TOC/License(MIT)/已知限制与路线图/安全与数据声明/英文 TL;DR/作者 齐备 ⑤内部编号（T0XX/D0XX 30+ 处）实际清零，收敛为 .agent/ 链接的说明性提及 ⑥能力表 16→8 行（一句话价值）⑦技术栈/项目结构/设计系统折叠进 details ⑧362→324 行 ✅ 2026-09-03
+### Phase 8：核赔平台重写（D037-D039）— 2026-09-04 启动
+
+> 产品转向：保险理赔智能核赔平台（多险种，LLM Orchestrator-Worker 全动态调度 + skill 作业规程包 + 静态合规门）。
+> v1 咨询版冻结于 tag `v1-consultation`。架构依据 docs/claimflow-新架构设计-v2.md（D039 修订版）。
+> 里程碑：M0=T077 ｜ M1 骨架=T078-T080 ｜ M2 LLM 化=T081-T085 ｜ M3 HITL=T086-T087 ｜ M4 评测观测=T088-T090 ｜ M5 收尾=T091-T093
+> 依赖链：T077→T078→…→T093 严格串行（工作流约束：不跳依赖、不同时多任务）
+
+- [x] T077: 核赔平台立项（v1 冻结 + spec/plan 重写 + Phase 8 挂账） | 依赖: 无 | 涉及文件: git tag v1-consultation、AGENTS.md（第 1/7 节）、.agent/spec.md（重写）、.agent/plan.md（重写）、.agent/tasks.md（本节）、.agent/progress.md、.agent/decisions.md（D037/D038/D039）、docs/claimflow-新架构设计-v2.md（D039 修订） | 验收: tag 指向 9062003；AGENTS.md 定位为核赔平台；spec/plan 为核赔版待确认；架构文档为 Orchestrator 版 ✅ 2026-09-04
+- [ ] T078: 案件域模型与数据库 | 依赖: T077 | 涉及文件: schemas/case.py、schemas/stages.py、services/db/models.py（cases/case_events/decision_documents）、alembic/versions/、data/mock/cases.json、scripts/seed.py、app/core/config.py（核赔阈值组）、tests/ | 验收: 迁移 upgrade/downgrade 通过；7 个阶段 Pydantic 模型 + CaseInput/CaseOutput schema 校验单测；金样本种子 ≥20 案件入库（正常/缺件/拒赔/部分责任/风控/边界六类）
+- [ ] T079: 核赔主图骨架（orchestrator 循环 + 确定性兜底编排） | 依赖: T078 | 涉及文件: state.py（ClaimCaseState 重写）、workflows/case_graph.py、nodes/{orchestrator,intake,material_review,policy_verify,fraud_check,liability_judge,amount_calc,decision_generate}.py（桩版）、services/db 落库接线、tests/workflows/ | 验收: 图编译执行通过；前置条件守卫纯函数单测全覆盖（违规改投/去重/必做集/并行依赖检查）；20 金样本（兜底编排+桩工具）金额与路由断言全绿；兜底计划=险种标准管线
+- [ ] T080: 案件 API | 依赖: T079 | 涉及文件: app/api/v1/cases.py、schemas/api.py、app/main.py、tests/api/ | 验收: POST /cases 触发执行；GET /cases/{id} 进度/结论/决定书/审计事件；重复提交幂等返回既有结论；材料上传 /cases/{id}/materials 复用提取服务
+- [ ] T081: skill 装载机制 + LLM Orchestrator 接入 | 依赖: T080 | 涉及文件: services/skills.py（新）、skills/（orchestrator/_shared.md 等）、nodes/orchestrator.py（RoutingDecision 结构化输出 + Command(goto=[Send...]) 并行 + 守卫改投 + 失败兜底 + 决策审计）、services/llm/prompts.py、tests/ | 验收: 装载器单测（缺失 skill 回退 base 并告警）；并行派发并发断言；守卫注入用例 100% 拦截；LLM 失败走兜底计划端到端；金样本路由一致率初测 ≥90%（终验 95% 在 T089）
+- [ ] T082: 材料审核真实化 + 首批 skill | 依赖: T081 | 涉及文件: nodes/material_review.py 子图真实化、tools/document/{completeness,classify}.py（新）、services/materials.py 对接、skills/material_review/medical.md、prompts、tests/ | 验收: 图片/PDF/Word 真实提取对齐 ExtractedDocument；完整性规则纯函数单测；skill 装配生效（开关对比断言）
+- [ ] T083: 保单核验与风控真实化 | 依赖: T082 | 涉及文件: tools/claim/policy_query.py 扩展（等待期/除外/限额）、tools/fraud/{rules,blacklist,history}.py（新 mock）、nodes/{policy_verify,fraud_check}.py 摘桩、skills/{policy_verify,fraud_check}/medical.md、tests/ | 验收: 等待期/除外/限额核验逻辑单测；欺诈规则评分与金样本期望一致；高风险短路路由断言
+- [ ] T084: 责任认定 Agent | 依赖: T083 | 涉及文件: nodes/liability_judge.py（create_agent 子图）、search_policy_terms 迁移、tools/medical/diagnosis_matcher.py 改造、skills/liability_judge/medical.md、prompts、tests/ | 验收: 输出含条款引用与置信度；除外/等待期/部分责任金样本判定正确；工具轨迹可派生
+- [ ] T085: 决定书生成 + 合规门（金额断言） | 依赖: T084 | 涉及文件: nodes/decision_generate.py、services/decision_doc.py（新）、nodes/compliance.py 改造（金额一致性断言 + 静态门）、skills/decision_writer/medical.md、prompts、tests/ | 验收: 模板渲染决定书版本化落库；金额不一致注入 100% 拦截；三态+revise 闭环单测；decision_generate→compliance 静态边无旁路（图结构断言）
+- [ ] T086: interrupt 人工介入全链 | 依赖: T085 | 涉及文件: nodes/human_gate.py、app/api/v1/interventions.py 改造（SUPPLEMENT/REVIEW/ESCAPE 三类）、Command(resume) 恢复分流、tests/ | 验收: 补件→材料审核重跑回调度；签批→签发落库；REJECT→坐席结论过合规复审；interrupt 跨服务重启恢复 e2e
+- [ ] T087: 坐席工作台改造 | 依赖: T086 | 涉及文件: workbench/ | 验收: 工单类型筛选/徽章、补件上传、签批表单、案件时间线（case_events 含路由决策与守卫修正）；npm run build 通过
+- [ ] T088: 金样本评测集与判分器 | 依赖: T087 | 涉及文件: evals/datasets/adjudication.json（新）、evals/schemas.py 扩展（expected_amount/expected_route/expected_liability/expected_worker_sequence/expected_case_type）、判分纯函数、tests/evals/ | 验收: 150-200 案件标注（金额精确到分）；判分单测全绿；七类覆盖达标（含受理分类/未上线险种）
+- [ ] T089: 评测接入与上线门 | 依赖: T088 | 涉及文件: evals/test_suite.py 适配核赔图、evals/metrics.py、评测台适配、evals/reports/ | 验收: 硬门全绿（金额 100%/红线 0/守卫拦截 100%）+ 软门（路由 ≥95%/F1 ≥95%/责任 ≥90%）+ 调度调用 ≤15/案件
+- [ ] T090: 可观测埋点 | 依赖: T080（排此处统一验证） | 涉及文件: services/observability/metrics.py、grafana/ | 验收: auto_close_rate/referral_rate/stage_duration/routing_calls_per_case/guard_corrections/orchestrator_fallback/tokens_per_case 指标 + 面板产出
+- [ ] T091: 案件提交演示门户（chatui 改造，D038） | 依赖: T087、T089 | 涉及文件: chatui/ | 验收: 提交案件+传材料→进度时间线→决定书查看/补件交互全链路；npm run build 通过；截图目检
+- [ ] T092: 容器化与端到端验证 | 依赖: T091 | 涉及文件: Dockerfile、docker-compose.yml（init 自举复用 D035 模式）、scripts/verify_adjudication.py（新） | 验收: compose up 全链冒烟（提交→自动签发→查询）通过；重启恢复验证；评测子进程容器内可用
+- [ ] T093: 旧代码删除与收尾 | 依赖: T092 | 涉及文件: 按 v2 文档十五节删除清单执行、README.md、docs/architecture.md | 验收: 旧咨询代码移除后 ruff+pytest 全绿；README/架构文档更新为核赔版
