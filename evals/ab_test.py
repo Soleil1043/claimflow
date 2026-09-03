@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import time
 from pathlib import Path
@@ -250,4 +249,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Windows 上 prod 口径（psycopg async）需 SelectorEventLoop，见 app/core/eventloop.py
+    from app.core.eventloop import run_async
+
+    run_async(main())

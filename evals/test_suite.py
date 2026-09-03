@@ -19,7 +19,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import datetime as dt
 import json
 import os
@@ -383,4 +382,7 @@ async def _save_cli_history(args: argparse.Namespace, report: Any, run_error: st
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Windows 上 prod 口径（psycopg async）需 SelectorEventLoop，见 app/core/eventloop.py
+    from app.core.eventloop import run_async
+
+    run_async(main())

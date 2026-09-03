@@ -76,7 +76,9 @@ async def main() -> None:
     cfg = {"configurable": {"thread_id": "verify-e2e"}}
 
     # ===== 场景 1：complex_consult 多步任务全链路 =====
-    q1 = "我做了阑尾炎手术能赔多少"
+    # 带身份信息（mock 张伟）：record_query/policy_query 结果可复现——
+    # 无身份时 LLM 会猜身份证号，查不到记录导致后续断言随模型方差漂移
+    q1 = "我是张伟，身份证号330106199203154817，做了急性阑尾炎手术住院花了15800元，能赔多少"
     result1 = await graph.ainvoke(
         {**RESET_INPUT, "messages": [HumanMessage(content=q1)]}, config=cfg
     )
@@ -124,6 +126,8 @@ async def main() -> None:
     assert q1 in humans3, "重启后历史消息丢失"
     answer3 = result3.get("final_answer", "")
     assert "阑尾炎" in answer3, f"重启后未能引用历史上下文：{answer3[:200]}"
+    # 身份已在场景 1 给定且记录可查，重启后追问应能复算出锚点金额（4640 = (15800-10000)*80%）
+    assert "4640" in answer3, f"重启后未能复算赔付锚点：{answer3[:200]}"
 
     # ===== 场景 4：chitchat ReAct 直答路径 =====
     cfg2 = {"configurable": {"thread_id": "verify-chitchat"}}
