@@ -84,6 +84,8 @@ class LiabilityOutput(BaseModel):
     reason: str
     clause_references: list[str] = Field(default_factory=list)
     exclusions_triggered: list[str] = Field(default_factory=list)
+    # partial 结论下的自费/乙类自付金额（理算扣减依据），covered/not_covered 为空
+    self_pay_amount: Decimal | None = None
     confidence: float
 
 

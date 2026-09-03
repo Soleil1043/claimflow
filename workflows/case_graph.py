@@ -1,0 +1,148 @@
+"""核赔案件主图组装（Phase 8 T079，D039）。
+
+结构：
+
+    START → intake ─┬─ orchestrator ⇄ {material_review, policy_verify ∥ fraud_check,
+                    │                  liability_judge, amount_calc}（worker 静态回边）
+                    │        orchestrator ── decision_generate（终局单派）
+                    └─ human_gate（未上线险种受理转人工）
+    decision_generate → compliance_gate（静态边，不可被调度绕过，D039）
+    compliance_gate ─┬─ pass → auto_adjudicate ─┬─ issue → END
+                     ├─ modify → revise_decision → compliance_gate
+                     └─ reject → human_gate
+    human_gate（interrupt 挂起）─┬─ supplement 恢复 → material_review → orchestrator
+                                └─ review/escape 恢复 → END（T086 接坐席闭环）
+
+依赖注入：recorder（案件审计）/policy_lookup/fraud_lookup 均可注入——
+图测试零 DB、零 LLM；运行时 create_default_case_graph() 接 DB 实现。
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import END, START, StateGraph
+
+from nodes.amount_calc import make_amount_calc_node
+from nodes.auto_adjudicate import adjudication_route, make_auto_adjudicate_node
+from nodes.compliance_gate import (
+    compliance_route,
+    make_compliance_gate_node,
+    revise_decision_node,
+)
+from nodes.decision_generate import make_decision_generate_node
+from nodes.fraud_check import make_fraud_check_node
+from nodes.human_gate import human_gate_route, make_human_gate_node
+from nodes.intake import make_intake_node, route_after_intake
+from nodes.liability_judge import make_liability_judge_node
+from nodes.material_review import make_material_review_node
+from nodes.orchestrator import make_orchestrator_node
+from nodes.policy_verify import make_policy_verify_node
+from schemas.case import CaseInputState, CaseOutput
+from services.case_store import CaseRecorder, DbCaseRecorder
+from state import ClaimCaseState
+
+
+def build_case_graph(
+    *,
+    recorder: CaseRecorder,
+    policy_lookup: Any,
+    fraud_lookup: Any,
+    checkpointer: BaseCheckpointSaver | None = None,
+) -> Any:
+    """编译核赔案件主图（依赖注入版——测试注入内存实现）。"""
+    builder = StateGraph(ClaimCaseState, input_schema=CaseInputState, output_schema=CaseOutput)
+
+    builder.add_node("intake", make_intake_node(recorder, policy_lookup))
+    builder.add_node("orchestrator", make_orchestrator_node(recorder))
+    builder.add_node("material_review", make_material_review_node(recorder))
+    builder.add_node("policy_verify", make_policy_verify_node(recorder, policy_lookup))
+    builder.add_node("fraud_check", make_fraud_check_node(recorder, fraud_lookup))
+    builder.add_node("liability_judge", make_liability_judge_node(recorder))
+    builder.add_node("amount_calc", make_amount_calc_node(recorder))
+    builder.add_node("decision_generate", make_decision_generate_node(recorder))
+    builder.add_node("compliance_gate", make_compliance_gate_node(recorder))
+    builder.add_node("revise_decision", revise_decision_node)
+    builder.add_node("auto_adjudicate", make_auto_adjudicate_node(recorder))
+    builder.add_node("human_gate", make_human_gate_node(recorder))
+
+    builder.add_edge(START, "intake")
+    builder.add_conditional_edges(
+        "intake",
+        route_after_intake,
+        {"orchestrator": "orchestrator", "human": "human_gate"},
+    )
+    # 工作层：worker 完成 → 回 orchestrator（decision_generate 例外，静态进合规链）
+    for worker in (
+        "material_review",
+        "policy_verify",
+        "fraud_check",
+        "liability_judge",
+        "amount_calc",
+    ):
+        builder.add_edge(worker, "orchestrator")
+    builder.add_edge("decision_generate", "compliance_gate")
+    builder.add_conditional_edges(
+        "compliance_gate",
+        compliance_route,
+        {"pass": "auto_adjudicate", "modify": "revise_decision", "reject": "human_gate"},
+    )
+    builder.add_edge("revise_decision", "compliance_gate")
+    builder.add_conditional_edges(
+        "auto_adjudicate",
+        adjudication_route,
+        {"issue": END, "human": "human_gate"},
+    )
+    # human_gate / orchestrator 动态路由：orchestrator 走 Command(goto)（受守卫约束），
+    # human_gate 消费 interrupt 后按条件边分流（见 nodes/human_gate.py 实现约定）
+    builder.add_conditional_edges(
+        "human_gate",
+        human_gate_route,
+        {"material_review": "material_review", "end": END},
+    )
+    return builder.compile(checkpointer=checkpointer)
+
+
+async def _db_policy_lookup(policy_no: str) -> dict[str, Any] | None:
+    """DB 保单查询（运行时默认实现；T083 工具化后由工具承接）。"""
+    from sqlalchemy import select
+
+    from services.db.models import Policy
+    from services.db.session import get_session_factory
+
+    factory = get_session_factory()
+    async with factory() as session:
+        row = (
+            await session.execute(select(Policy).where(Policy.policy_no == policy_no))
+        ).scalar_one_or_none()
+    if row is None:
+        return None
+    return {
+        "policy_no": row.policy_no,
+        "product_type": row.product_type,
+        "status": row.status,
+        "coverage_amount": str(row.coverage_amount),
+        "deductible": str(row.deductible),
+        "payout_ratio": str(row.payout_ratio),
+        "effective_date": row.effective_date.isoformat(),
+        "expiry_date": row.expiry_date.isoformat(),
+    }
+
+
+async def _db_fraud_lookup(user_id: str) -> dict[str, Any] | None:
+    """DB 风控名单查询桩（T083 接 blacklist/历史理赔 mock 工具）。"""
+    return None
+
+
+def create_default_case_graph(
+    checkpointer: BaseCheckpointSaver | None = None,
+) -> Any:
+    """运行时便捷工厂：DB 记录器 + DB 查询 + 内存 checkpointer（T080 API 接线用）。"""
+    return build_case_graph(
+        recorder=DbCaseRecorder(),
+        policy_lookup=_db_policy_lookup,
+        fraud_lookup=_db_fraud_lookup,
+        checkpointer=checkpointer if checkpointer is not None else InMemorySaver(),
+    )

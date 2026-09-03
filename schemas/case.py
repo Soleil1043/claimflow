@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, Field
+from typing_extensions import TypedDict
 
 from schemas.stages import DecisionDocOutput, FinalDecision, InsuranceLine
 
@@ -44,11 +45,32 @@ class CaseInput(BaseModel):
     materials: list[CaseMaterialRef] = Field(default_factory=list)
 
 
-class CaseOutput(BaseModel):
-    """案件终态出参（graph output_schema）。"""
+class CaseInputState(TypedDict, total=False):
+    """图 input_schema（TypedDict 版）。
+
+    不用 pydantic CaseInput 作 input_schema：langgraph 会把字段值转成模型对象，
+    节点内 materials 等需按 dict 消费；API 层（T080）用 CaseInput 校验后 dump dict 进图。
+    """
 
     case_id: str
-    case_type: InsuranceLine
+    user_id: str
+    policy_id: str
+    claimed_amount: Decimal
+    incident_date: date
+    incident_description: str
+    declared_case_type: str | None
+    materials: list[dict]
+
+
+class CaseOutput(BaseModel):
+    """案件终态出参（graph output_schema）。
+
+    case_type 用 str 而非 InsuranceLine：转人工案件可能是未上线险种（unknown/重疾等），
+    不能在出口被枚举校验卡住。
+    """
+
+    case_id: str
+    case_type: str
     final_decision: FinalDecision | None = None
     approved_amount: Decimal | None = None
     decision_document: DecisionDocOutput | None = None

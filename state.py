@@ -1,15 +1,15 @@
-"""AgentState：LangGraph 主图共享状态（architecture.md 5.1 v2）。
+"""LangGraph 状态定义。
 
-T047 精简（D021/ADR-007）：调度改 supervisor 动态路由（Command(goto)），
-游标与手写簿记字段移除——
-- current_step：supervisor 每轮按 shared_data 已有结论 + task_plan 状态推进
-- tool_trace：A06/评测从 messages 派生（agents.runner.derive_tool_trace）
-- agent_steps：由 task_plan（supervisor 维护状态）+ shared_data 摘要推导
-- medical_result/claim_result：自 shared_data 承载起即闲置，删除
+v1（咨询产品，冻结于 tag v1-consultation）：AgentState——main_graph.py 仍在使用，
+T093 删旧代码时随主图一并移除。
+v2（核赔平台，Phase 8 T079）：ClaimCaseState——案件主图共享状态（v2 架构文档 5.1）。
 """
 
 from __future__ import annotations
 
+import operator
+from datetime import date
+from decimal import Decimal
 from typing import Annotated, Any
 
 from langchain_core.messages import AnyMessage
@@ -44,3 +44,48 @@ class AgentState(TypedDict, total=False):
     # 新会话首轮按 user_id 检索的历史会话摘要（已拼装文本）；
     # 由 A06 入口写入、回答节点注入提示词，空串 = 无历史不注入
     memory_context: str
+
+
+class ClaimCaseState(TypedDict, total=False):
+    """核赔案件主图共享状态（T079，v2 架构文档 5.1）。
+
+    total=False：各节点局部更新；阶段结论字段各只有一个写者（字段所有权表见架构文档 5.3，
+    并行分支写不同 channel，无需合并 reducer）；errors 显式追加。
+    注意：claimed_amount 用 Decimal——InMemorySaver（dev/测试）直接持对象；
+    prod checkpoint 序列化兼容性在 T092 容器化时验证。
+    """
+
+    # ===== 案件标识与事实（intake/API 写入） =====
+    case_id: str
+    user_id: str
+    policy_id: str
+    claimed_amount: Decimal
+    incident_date: date
+    incident_description: str
+    materials: list[dict[str, Any]]          # [{file_name, doc_type?, storage_path?, note?}]
+    declared_case_type: str | None           # 客户自报险种（可空）
+    # intake 分类写入：medical / auto / property / accident / unknown
+    case_type: str
+
+    # ===== 阶段结论（各字段唯一写者；值为 schemas.stages 模型 dump） =====
+    material: dict[str, Any] | None
+    policy: dict[str, Any] | None
+    risk: dict[str, Any] | None
+    liability: dict[str, Any] | None
+    calc: dict[str, Any] | None
+    decision: dict[str, Any] | None
+    compliance: dict[str, Any] | None
+
+    # ===== 调度 =====
+    task_plan: list[dict[str, Any]]          # orchestrator 计划快照（审计/时间线）
+    routing_calls: int                       # orchestrator 已调用次数（预算控制，D039）
+
+    # ===== 交互与异常 =====
+    messages: Annotated[list[AnyMessage], add_messages]
+    human_request: dict[str, Any] | None     # interrupt 载荷 {kind: supplement/review/escape, ...}
+    human_resolution: dict[str, Any] | None  # Command(resume) 回写
+    errors: Annotated[list[dict[str, Any]], operator.add]
+
+    # ===== 最终产出 =====
+    final_decision: str | None               # approved / rejected / partial / referred
+    decision_document: dict[str, Any] | None # DecisionDocOutput dump
