@@ -46,6 +46,7 @@ class ListRecorder:
     def __init__(self) -> None:
         self.events: list[dict[str, Any]] = []
         self.updates: list[dict[str, Any]] = []
+        self.decisions: list[dict[str, Any]] = []
 
     async def event(self, case_id, kind, stage=None, payload=None) -> None:
         self.events.append(
@@ -54,6 +55,9 @@ class ListRecorder:
 
     async def update_case(self, case_id, **kwargs) -> None:
         self.updates.append({"case_id": case_id, **kwargs})
+
+    async def save_decision(self, case_id, **kwargs) -> None:
+        self.decisions.append({"case_id": case_id, **kwargs})
 
 
 async def _policy_lookup(policy_no: str) -> dict[str, Any] | None:

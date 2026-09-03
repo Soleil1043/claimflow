@@ -30,3 +30,12 @@ def get_app_graph(request: Request) -> Any:
         msg = "主图未初始化（lifespan 未启动？）"
         raise RuntimeError(msg)
     return graph
+
+
+def get_case_graph(request: Request) -> Any:
+    """应用级核赔案件主图（lifespan 中初始化到 app.state.case_graph，T080）。"""
+    graph = getattr(request.app.state, "case_graph", None)
+    if graph is None:
+        msg = "核赔主图未初始化（lifespan 未启动？）"
+        raise RuntimeError(msg)
+    return graph

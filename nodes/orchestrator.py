@@ -15,7 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from langgraph.types import Command
+from langgraph.graph import END
+from langgraph.types import Send
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -179,9 +180,14 @@ def default_route(state: ClaimCaseState) -> tuple[list[str], dict[str, Any] | No
 
 
 def make_orchestrator_node(recorder: CaseRecorder):
-    """orchestrator 节点工厂：决策（T079=兜底编排）→ 守卫 → 审计 → 派发。"""
+    """orchestrator 节点工厂：决策（T079=兜底编排）→ 守卫 → 审计 → 写派发目标。
 
-    async def orchestrator_node(state: ClaimCaseState) -> Command:
+    节点只写 `pending_dispatch`（普通 dict 返回）；并行派发由 route_dispatch
+    条件边以 Send 实现（文档化 map-reduce 语义）——节点内 Command(goto=[Send..])
+    实测会把非首目标以错误入参调用（T079 踩坑实录）。
+    """
+
+    async def orchestrator_node(state: ClaimCaseState) -> dict[str, Any]:
         calls = state.get("routing_calls", 0) + 1
         targets, human_request = default_route(state)
 
@@ -213,10 +219,26 @@ def make_orchestrator_node(recorder: CaseRecorder):
         update: dict[str, Any] = {
             "routing_calls": calls,
             "task_plan": [{"stage": t, "status": "dispatched"} for t in verdict.targets],
+            "pending_dispatch": verdict.targets,
         }
         if human_request is not None:
             update["human_request"] = {"case_id": state["case_id"], **human_request}
-
-        return Command(update=update, goto=verdict.targets)
+            update["pending_dispatch"] = None
+        return update
 
     return orchestrator_node
+
+
+def route_dispatch(state: ClaimCaseState) -> str | list[Send]:
+    """orchestrator 条件边：人工介入 → human_gate；否则按派发目标 Send 并行。
+
+    条件边函数返回 Send 列表是 langgraph 文档化的 fan-out 范式；载荷 = 当前完整
+    state——worker 按共享状态语义读写，写入经 channel 合并回主图。
+    """
+    if state.get("human_request"):
+        return "human_gate"
+    targets = state.get("pending_dispatch") or []
+    if not targets:
+        # 防御：无目标可派（正常流程不会到达）
+        return END
+    return [Send(w, state) for w in targets]

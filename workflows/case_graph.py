@@ -38,7 +38,7 @@ from nodes.human_gate import human_gate_route, make_human_gate_node
 from nodes.intake import make_intake_node, route_after_intake
 from nodes.liability_judge import make_liability_judge_node
 from nodes.material_review import make_material_review_node
-from nodes.orchestrator import make_orchestrator_node
+from nodes.orchestrator import make_orchestrator_node, route_dispatch
 from nodes.policy_verify import make_policy_verify_node
 from schemas.case import CaseInputState, CaseOutput
 from services.case_store import CaseRecorder, DbCaseRecorder
@@ -74,6 +74,9 @@ def build_case_graph(
         route_after_intake,
         {"orchestrator": "orchestrator", "human": "human_gate"},
     )
+    # orchestrator 条件边：消费 pending_dispatch → Send 并行派发（文档化 fan-out 范式）；
+    # human_request 置位 → human_gate
+    builder.add_conditional_edges("orchestrator", route_dispatch)
     # 工作层：worker 完成 → 回 orchestrator（decision_generate 例外，静态进合规链）
     for worker in (
         "material_review",

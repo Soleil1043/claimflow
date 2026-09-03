@@ -56,6 +56,14 @@ def make_decision_generate_node(recorder: CaseRecorder):
         await recorder.event(
             state["case_id"], "stage_result", stage="decision_generate", payload=output
         )
+        # 决定书落库（版本化）：API/工作台查询与坐席改判追溯的事实态
+        await recorder.save_decision(
+            state["case_id"],
+            title=output["title"],
+            body=output["body"],
+            conclusion=conclusion,
+            approved_amount=approved if conclusion != "rejected" else Decimal("0.00"),
+        )
         return {"decision": output}
 
     return decision_generate_node

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -330,3 +331,101 @@ class EvalTrendsResponse(BaseModel):
     """GET /api/v1/evals/trends 响应（时间升序，UI 侧按数据集/变体过滤）。"""
 
     points: list[EvalTrendPoint]
+
+
+# ---------- B01-B03 核赔案件（Phase 8 T080） ----------
+
+
+class CaseMaterialRefIn(BaseModel):
+    """案件提交时的材料引用。"""
+
+    file_name: str = Field(min_length=1, max_length=255)
+    doc_type: Literal["invoice", "diagnosis", "cost_list", "medical_record"] | None = None
+
+
+class CaseCreateRequest(BaseModel):
+    """POST /api/v1/cases 请求体。"""
+
+    user_id: str = Field(min_length=1, max_length=64)
+    policy_no: str = Field(min_length=1, max_length=32)
+    claimed_amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
+    incident_date: dt.date
+    incident_description: str = Field(min_length=1, max_length=2000)
+    # 客户自报险种（可空）；以 intake 分类为准（F01）
+    declared_case_type: Literal["medical", "auto", "property", "accident"] | None = None
+    materials: list[CaseMaterialRefIn] = Field(default_factory=list)
+
+
+class CaseDecisionDocumentOut(BaseModel):
+    """理赔决定书（版本化）。"""
+
+    version: int
+    title: str
+    conclusion: str
+    approved_amount: Decimal | None = None
+    issued_by: str = "auto"
+    body: str = ""
+
+
+class CaseHumanInfo(BaseModel):
+    """转人工挂起信息（supplement/review/escape）。"""
+
+    kind: str
+    reason: str | None = None
+    missing: list[str] = Field(default_factory=list)
+
+
+class CaseSubmitResponse(BaseModel):
+    """POST /api/v1/cases 响应（201 新建 / 200 幂等命中）。"""
+
+    case_id: str
+    case_type: str
+    status: str
+    final_decision: str | None = None
+    approved_amount: Decimal | None = None
+    decision_document: CaseDecisionDocumentOut | None = None
+    human: CaseHumanInfo | None = None
+    idempotent: bool = False
+
+
+class CaseTimelineEvent(BaseModel):
+    """案件审计时间线事件（case_events，seq 升序）。"""
+
+    seq: int
+    kind: str
+    stage: str | None = None
+    payload: dict[str, Any] | None = None
+    created_at: dt.datetime
+
+
+class CaseDetailResponse(BaseModel):
+    """GET /api/v1/cases/{case_id} 响应：进度/结论/决定书/审计时间线。"""
+
+    case_id: str
+    user_id: str
+    policy_no: str
+    case_type: str
+    status: str
+    claimed_amount: Decimal
+    approved_amount: Decimal | None = None
+    final_decision: str | None = None
+    materials: list[dict[str, Any]] = Field(default_factory=list)
+    decision_document: CaseDecisionDocumentOut | None = None
+    timeline: list[CaseTimelineEvent] = Field(default_factory=list)
+    created_at: dt.datetime
+    updated_at: dt.datetime | None = None
+
+
+class CaseMaterialUploadResponse(BaseModel):
+    """POST /api/v1/cases/{case_id}/materials 响应。"""
+
+    case_id: str
+    filename: str
+    file_type: str
+    doc_type: str | None = None
+    source: str
+    patient_name: str | None = None
+    diagnosis: str | None = None
+    amount: float | None = None
+    date: str | None = None
+    materials_count: int
