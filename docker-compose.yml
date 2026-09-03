@@ -6,7 +6,9 @@
 # 追踪栈（OTel Collector + Jaeger）：docker compose --profile tracing up -d，默认不启动
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector 变体镜像：长期记忆 AsyncPostgresStore 向量索引依赖 vector 扩展，
+    # 官方 postgres:16-alpine 不带（数据卷与 postgres:16 兼容）
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: claim
       POSTGRES_PASSWORD: claimpass
@@ -50,7 +52,7 @@ services:
 
   # ===== 初始化容器（BUG-004）：迁移 + Mock 种子 + 知识库向量化，成功退出后 app 才启动 =====
   # 顺序强制：alembic 必须先于 seed（seed 的 init_db 是 create_all 兜底，先建表会让 app 的迁移撞已存在表）
-  # 首次启动 ingest 会下载 BGE-M3（~2.3G）到 hf_cache 卷；二次启动秒级完成
+  # 首次启动 ingest 会下载 BGE-M3（~2.3G）到 hf_cache 卷；缓存命中时注入快照目录直载（秒级，免在线校验重下载）
   init:
     build: .
     image: claimflow:ci
@@ -59,7 +61,7 @@ services:
       [
         "sh",
         "-c",
-        "uv run --no-dev alembic upgrade head && uv run --no-dev python -m scripts.seed && uv run --no-dev python -m services.rag.ingest",
+        "MODEL_DIR=$$(find /root/.cache/huggingface/hub/models--BAAI--bge-m3/snapshots -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n 1); if [ -n \"$$MODEL_DIR\" ]; then export EMBEDDING_MODEL_PATH=\"$$MODEL_DIR\" HF_OFFLINE=1; fi; uv run --no-dev alembic upgrade head && uv run --no-dev python -m scripts.seed && uv run --no-dev python -m services.rag.ingest",
       ]
     environment:
       APP_PROFILE: prod

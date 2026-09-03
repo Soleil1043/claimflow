@@ -110,6 +110,9 @@ class Settings(BaseSettings):
 
     # ===== Embedding（BGE-M3，本地 sentence-transformers） =====
     embedding_model: str = "BAAI/bge-m3"
+    # 本地模型目录（优先于 embedding_model 的 repo id）：容器/离线场景直载快照目录，
+    # 绕开 huggingface_hub 缓存校验（Windows 拷入的真实文件快照在 Linux 会被判无效缓存）
+    embedding_model_path: str | None = None
     embedding_device: str = "cpu"
     # HF_HUB_OFFLINE 导出开关（HF_OFFLINE=1）：模型已入本地缓存时跳过 HuggingFace 在线
     # 版本检查——网络不可达时该检查会超时重试 5 轮，拖垮 API/evals 启动（README 已知坑）

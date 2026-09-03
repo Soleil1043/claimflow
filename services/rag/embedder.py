@@ -22,8 +22,12 @@ def _get_model():
     """惰性加载 sentence-transformers 模型（进程内单例）。"""
     from sentence_transformers import SentenceTransformer
 
-    model = SentenceTransformer(settings.embedding_model, device=settings.embedding_device)
-    log.info("embedding_model_loaded", model=settings.embedding_model, device=settings.embedding_device)
+    # 本地目录优先（容器/离线：直载快照目录，绕开 hub 缓存校验与在线版本检查）
+    source = settings.embedding_model_path or settings.embedding_model
+    model = SentenceTransformer(source, device=settings.embedding_device)
+    log.info(
+        "embedding_model_loaded", model=source, device=settings.embedding_device
+    )
     return model
 
 

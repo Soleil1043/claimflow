@@ -35,6 +35,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     registry = get_default_registry()
     checkpointer = await get_checkpoint_manager().start()
 
+    # BUG-003 配套：prod 长期记忆 Store 启动期预建（开池 + 建表）。不能懒加载到首个
+    # 请求——store 迁移含 CREATE INDEX CONCURRENTLY，会等请求自身已开的事务结束，
+    # 同请求内自锁（实测挂死 3 分钟）。失败仅告警不阻断启动（记忆是旁路路径）。
+    if settings.is_prod and settings.memory_enabled:
+        from services.memory.long_term import _ensure_pg_setup, get_memory_store
+
+        try:
+            await _ensure_pg_setup(get_memory_store())
+        except Exception as exc:  # noqa: BLE001
+            log.warning("memory_store_setup_failed", error=str(exc)[:200])
+
     # dev 直接建表；prod 由 alembic 迁移管理，不自动建表
     if not settings.is_prod:
         await init_db()

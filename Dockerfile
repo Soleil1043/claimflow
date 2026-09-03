@@ -21,5 +21,6 @@ RUN uv sync --frozen --no-dev
 
 EXPOSE 8000
 
-# prod 容器启动前先执行数据库迁移（连接 PostgreSQL）
-CMD ["sh", "-c", "uv run --no-dev alembic upgrade head && uv run --no-dev uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# 模型缓存命中时注入 EMBEDDING_MODEL_PATH（快照目录直载，绕开 hub 缓存校验与在线
+# 版本检查；Windows 拷入的真实文件快照在 Linux 会被 hub 判为无效缓存）+ HF_OFFLINE
+CMD ["sh", "-c", "MODEL_DIR=$(find /root/.cache/huggingface/hub/models--BAAI--bge-m3/snapshots -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n 1); if [ -n \"$MODEL_DIR\" ]; then export EMBEDDING_MODEL_PATH=\"$MODEL_DIR\" HF_OFFLINE=1; fi; uv run --no-dev alembic upgrade head && uv run --no-dev uvicorn app.main:app --host 0.0.0.0 --port 8000"]

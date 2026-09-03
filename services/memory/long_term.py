@@ -283,6 +283,16 @@ async def _store_put(record: MemoryRecord, embed_text: str) -> None:
     store = get_memory_store()
     await _ensure_pg_setup(store)
     value = {**record.model_dump(), "embed_text": embed_text}
+    # BUG-003 补充：AsyncPostgresStore 只能用异步接口（aput），同步 put 会触发
+    # langgraph 的主循环同步调用守卫直接抛错（实测 memory_write_failed）
+    aput = getattr(store, "aput", None)
+    if aput is not None:
+        await aput(
+            (_MEMORY_NAMESPACE, record.user_id),
+            memory_key(record.conversation_id),
+            value,
+        )
+        return
     result = store.put((_MEMORY_NAMESPACE, record.user_id), memory_key(record.conversation_id), value)
     if inspect.isawaitable(result):
         await result
@@ -356,12 +366,24 @@ async def search_memories(query: str, user_id: str, top_k: int | None = None) ->
     try:
         store = get_memory_store()
         await _ensure_pg_setup(store)
-        result = store.search(
-            (_MEMORY_NAMESPACE, user_id),
-            query=query,
-            limit=top_k or settings.memory_top_k,
-        )
-        items = list(await result) if inspect.isawaitable(result) else list(result)
+        # BUG-003 补充：异步接口优先（asearch），同步 search 在 AsyncPostgresStore 上
+        # 触发主循环同步调用守卫抛错（实测 memory_search_failed）
+        asearch = getattr(store, "asearch", None)
+        if asearch is not None:
+            items = list(
+                await asearch(
+                    (_MEMORY_NAMESPACE, user_id),
+                    query=query,
+                    limit=top_k or settings.memory_top_k,
+                )
+            )
+        else:
+            result = store.search(
+                (_MEMORY_NAMESPACE, user_id),
+                query=query,
+                limit=top_k or settings.memory_top_k,
+            )
+            items = list(await result) if inspect.isawaitable(result) else list(result)
         results = [
             MemoryHit(
                 conversation_id=str(item.value.get("conversation_id", "")),

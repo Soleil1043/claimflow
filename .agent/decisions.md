@@ -731,3 +731,9 @@ eval-audit-for-human.md 人话版）。骨架（A/B 框架、eval_runs 落库、
 - 选项：① app CMD 串联 seed+ingest（每次启动重跑，ingest 需加载嵌入模型拖慢重启）；② docker compose 的 depends_on + profile hack；③ 独立 init 容器跑完退出，app 以 service_completed_successfully 依赖。
 - 最终选择：③。顺序强制 alembic→seed（seed 的 init_db 是 create_all 兜底，先建表会让 app 的迁移撞已存在表）；BGE-M3 缓存入 hf_cache 命名卷供 init/app 共享，二次启动免下载（实测冷启动 HF 直连反复停摆 15+ 分钟，卷命中后秒级）。镜像按白名单反选携带 mock/kb_docs/graph（共 ~120K），qdrant 本地存储/SQLite 仍排除。
 - 附带：Qdrant server v1.12.6→v1.18.0（client 1.19 与 server minor 差须 ≤1，v1.12.6 差 7 个 minor）；app 的 OTEL_ENDPOINT 硬指向服务名（宿主 .env 的 localhost:4317 是直跑进程口径，透传进容器会指向容器自身）。
+
+## D036：容器模型加载策略——本地目录直载优先于 hub 缓存复用（2026-09-03）
+
+- 背景：hf_cache 卷灌入宿主机缓存后离线加载仍失败。两层根因：Windows HF 缓存快照是真实文件（无符号链接支持），Linux huggingface_hub 要求快照为指向 blobs 的符号链接，校验不过判无效缓存；且在线模式每次向 HF 校验最新 revision，缓存快照落后即触发整模型重下载（弱网环境反复停摆）。
+- 选项：① 卷内快照重建符号链接结构（一次性数据修补，每次从 Windows 灌卷复发）；② hf_hub_download local_files_only 直读（仍受缓存格式校验约束）；③ SentenceTransformer 直载快照目录（Path.is_dir() 短路，完全绕开 hub）。
+- 最终选择：③——新增 embedding_model_path 配置，容器启动守卫 find 快照目录注入（命中即离线直载，未命中走 repo id 在线下载）。附带决策：compose 命令中的 shell 变量必须 $$ 转义（compose YAML 层变量替换先于容器执行）；postgres 用 pgvector/pgvector:pg16 镜像（长期记忆向量索引依赖 vector 扩展）；store.setup 移入 app lifespan 预建（迁移含 CREATE INDEX CONCURRENTLY，请求路径内会等自身已开事务形成自锁）；AsyncPostgresStore 一律异步接口（aput/asearch）。
