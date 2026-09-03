@@ -110,6 +110,8 @@ class Settings(BaseSettings):
     routing_call_budget: int = 15
     # 自动签发案件人工抽检比例（试点期质量兜底，0=关闭）
     manual_review_sample_rate: float = 0.05
+    # orchestrator 路由是否启用 LLM 决策（False=纯确定性兜底编排；测试/降级用）
+    orchestrator_llm_enabled: bool = True
 
     # ===== OTel 追踪（T039，D015 后置项） =====
     # 开关（默认关：不起 tracing 栈时零开销）；OTLP gRPC 上报地址；采样率 0.0-1.0

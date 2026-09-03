@@ -12,15 +12,21 @@ T081 在同一切入点接入 LLM RoutingDecision（结构化输出），守卫�
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
+from langchain_core.messages import HumanMessage
 from langgraph.graph import END
 from langgraph.types import Send
+from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.logging import get_logger
 from services.case_store import CaseRecorder
+from services.llm.client import get_chat_model
+from services.llm.prompts import CASE_ORCHESTRATOR_ROUTING_PROMPT
+from services.skills import build_system_prompt
 from state import ClaimCaseState
 
 log = get_logger(__name__)
@@ -42,6 +48,40 @@ MUST_COMPLETE: tuple[str, ...] = (
     "liability_judge",
     "amount_calc",
 )
+
+# LLM 可派发目标（"human" 转人工；其余为 worker 阶段）
+RoutingTarget = Literal[
+    "material_review",
+    "policy_verify",
+    "fraud_check",
+    "liability_judge",
+    "amount_calc",
+    "decision_generate",
+    "human",
+]
+
+
+class OrchestratorPlanStep(BaseModel):
+    """LLM 计划单步（human 允许出现——转人工也是计划的一步）。"""
+
+    stage: Literal[
+        "material_review",
+        "policy_verify",
+        "fraud_check",
+        "liability_judge",
+        "amount_calc",
+        "decision_generate",
+        "human",
+    ]
+    description: str = ""
+
+
+class RoutingDecision(BaseModel):
+    """LLM orchestrator 结构化输出：本轮派发目标（可多个=并行）+ 计划 + 理由。"""
+
+    next: list[RoutingTarget]
+    plan: list[OrchestratorPlanStep] = Field(default_factory=list)
+    reason: str = ""
 
 
 @dataclass
@@ -179,9 +219,71 @@ def default_route(state: ClaimCaseState) -> tuple[list[str], dict[str, Any] | No
     return ["human_gate"], {"kind": "review", "reason": "流程未收敛，转人工核查"}
 
 
-def make_orchestrator_node(recorder: CaseRecorder):
-    """orchestrator 节点工厂：决策（T079=兜底编排）→ 守卫 → 审计 → 写派发目标。
+def _stage_snapshot(state: ClaimCaseState) -> dict[str, Any]:
+    """案件快照（LLM 路由的观察输入）：各阶段执行状态 + 关键事实摘要。"""
 
+    def fact(channel: str, keys: tuple[str, ...]) -> dict[str, Any] | None:
+        data = state.get(channel)
+        if not isinstance(data, dict):
+            return None
+        return {k: data.get(k) for k in keys}
+
+    errors = state.get("errors") or []
+    return {
+        "case": {
+            "case_type": state.get("case_type"),
+            "claimed_amount": str(state.get("claimed_amount", "")),
+            "incident_description": str(state.get("incident_description", ""))[:200],
+        },
+        "stages": {
+            "material_review": fact("material", ("completeness", "missing", "confidence")),
+            "policy_verify": fact(
+                "policy", ("coverage_valid", "waiting_period_passed", "invalid_reason")
+            ),
+            "fraud_check": fact("risk", ("risk_level", "risk_score")),
+            "liability_judge": fact("liability", ("verdict", "confidence")),
+            "amount_calc": fact("calc", ("approved_amount",)),
+            "decision_generate": "done" if state.get("decision") is not None else None,
+        },
+        "recent_errors": [
+            str(e.get("message", e))[:120] for e in errors[-3:] if isinstance(e, dict)
+        ],
+    }
+
+
+def make_llm_router():
+    """LLM 路由器工厂（默认路由器，D039）。
+
+    - 装载调度 skill（skills/orchestrator/<险种>.md → _shared.md 回退）拼入提示词
+    - RoutingDecision 结构化输出（function_calling，DeepSeek 口径同 D022/T068）
+    - settings.orchestrator_llm_enabled=False 时返回 None（纯确定性编排，测试/降级用）
+    - 调用侧对异常一律回退 default_route，本函数不吞错（让调用方感知失败并审计）
+    """
+    if not settings.orchestrator_llm_enabled:
+        return None
+
+    async def llm_router(state: ClaimCaseState) -> RoutingDecision:
+        system = build_system_prompt(
+            CASE_ORCHESTRATOR_ROUTING_PROMPT,
+            "orchestrator",
+            state.get("case_type") or "_shared",
+            snapshot=json.dumps(_stage_snapshot(state), ensure_ascii=False, default=str)[:3000],
+        )
+        model = get_chat_model(temperature=0.0)
+        structured = model.with_structured_output(RoutingDecision, method="function_calling")
+        return await structured.ainvoke([HumanMessage(content=system)])
+
+    return llm_router
+
+
+def make_orchestrator_node(recorder: CaseRecorder, llm_router=None):
+    """orchestrator 节点工厂：决策 → 守卫 → 审计 → 写派发目标。
+
+    llm_router=None 时为纯确定性兜底编排（T079 形态）；传入路由器后优先 LLM 决策
+    （D039），失败/超预算回退 default_route。安全对冲不变：
+    - 前置条件守卫 enforce_guards（代码层，违规改投）
+    - decision_generate 单派 + 必做集
+    - 决策审计（mode/reason/守卫修正）落 case_events
     节点只写 `pending_dispatch`（普通 dict 返回）；并行派发由 route_dispatch
     条件边以 Send 实现（文档化 map-reduce 语义）——节点内 Command(goto=[Send..])
     实测会把非首目标以错误入参调用（T079 踩坑实录）。
@@ -189,18 +291,57 @@ def make_orchestrator_node(recorder: CaseRecorder):
 
     async def orchestrator_node(state: ClaimCaseState) -> dict[str, Any]:
         calls = state.get("routing_calls", 0) + 1
-        targets, human_request = default_route(state)
+        over_budget = calls > settings.routing_call_budget
+        mode = "deterministic_fallback"
+        decision: RoutingDecision | None = None
+        human_request: dict[str, Any] | None = None
+        requested: list[str] = []
 
-        if human_request is not None:
-            verdict = GuardVerdict(targets=["human_gate"])
+        if llm_router is not None and not over_budget:
+            try:
+                decision = await llm_router(state)
+                mode = "llm"
+            except Exception as exc:  # noqa: BLE001 —— D039 安全设计 3：LLM 故障走兜底
+                log.warning("orchestrator_llm_failed", calls=calls, error=str(exc)[:200])
+                decision = None
+        elif over_budget:
+            log.warning("orchestrator_over_budget", calls=calls)
+
+        if decision is not None:
+            requested = [str(t) for t in decision.next]
+            if "human" in requested:
+                # kind 由代码按机械事实判定（LLM 只决定"要不要人"）：
+                # 材料残缺 → 补件（supplement）；其余 → 复核（review）
+                material = state.get("material") or {}
+                if material.get("completeness") == "partial":
+                    human_request = {
+                        "kind": "supplement",
+                        "reason": "材料不全，等待客户补件",
+                        "missing": material.get("missing", []),
+                    }
+                else:
+                    human_request = {
+                        "kind": "review",
+                        "reason": decision.reason or "orchestrator 裁量转人工",
+                    }
+            targets = [t for t in requested if t != "human"]
+            if human_request is not None:
+                verdict = GuardVerdict(targets=["human_gate"])
+            else:
+                verdict = enforce_guards(targets, state)
         else:
-            verdict = enforce_guards(targets, state)
+            targets, human_request = default_route(state)
+            requested = list(targets)
+            if human_request is not None:
+                verdict = GuardVerdict(targets=["human_gate"])
+            else:
+                verdict = enforce_guards(targets, state)
 
         if verdict.corrected:
             await recorder.event(
                 state["case_id"],
                 "guard_correction",
-                payload={"requested": targets, **verdict.__dict__},
+                payload={"requested": requested, **verdict.__dict__},
             )
 
         await recorder.event(
@@ -209,21 +350,29 @@ def make_orchestrator_node(recorder: CaseRecorder):
             stage="orchestrator",
             payload={
                 "calls": calls,
+                "mode": mode,
+                "over_budget": over_budget,
+                "requested": requested,
                 "targets": verdict.targets,
                 "corrected": verdict.corrected,
                 "notes": verdict.notes,
-                "mode": "deterministic_fallback",  # T081 起：llm / deterministic_fallback
+                "reason": (decision.reason[:200] if decision is not None else None),
             },
         )
 
+        plan = (
+            [{"stage": s.stage, "status": "dispatched", "description": s.description}
+             for s in decision.plan]
+            if decision is not None and decision.plan
+            else [{"stage": t, "status": "dispatched"} for t in verdict.targets]
+        )
         update: dict[str, Any] = {
             "routing_calls": calls,
-            "task_plan": [{"stage": t, "status": "dispatched"} for t in verdict.targets],
-            "pending_dispatch": verdict.targets,
+            "task_plan": plan,
+            "pending_dispatch": None if human_request is not None else verdict.targets,
         }
         if human_request is not None:
             update["human_request"] = {"case_id": state["case_id"], **human_request}
-            update["pending_dispatch"] = None
         return update
 
     return orchestrator_node

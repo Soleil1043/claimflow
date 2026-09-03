@@ -286,3 +286,27 @@ MEMORY_SUMMARY_PROMPT = """\
 直接输出 JSON（不要 markdown 代码块包裹）：
 {{"summary": "...", "entities": {{"policy_nos": [], "diagnoses": [], "amounts": []}}}}
 """
+
+# 核赔 Orchestrator 调度（Phase 8 T081，D039）：结构化输出 RoutingDecision 承载；
+# 调度作业规程经 skills/orchestrator/_shared.md 由 services.skills 拼接（先 format 后拼接）
+CASE_ORCHESTRATOR_ROUTING_PROMPT = """\
+你是保险理赔智能核赔平台的调度 Orchestrator。阅读案件快照，决定本轮派发目标。
+
+## 可派发目标（next 数组元素，可多个）
+- material_review：材料审核（OCR/解析、完整性校验）——案件起点
+- policy_verify：保单核验（有效性/等待期/除外/限额）——需材料完整
+- fraud_check：风控筛查（黑名单/理赔频率/可疑模式）——需材料完整，可与 policy_verify 同轮并行
+- liability_judge：责任认定（条款匹配/除外排查/置信度）——需保单与风控结论
+- amount_calc：金额理算（确定性计算）——需责任认定结论
+- decision_generate：决定书生成——需理算结论，且必须单独派发
+- human：转人工（缺件补件 / 高风险 / 置信度低 / 材料矛盾 / 规则未覆盖）
+
+## 调度原则
+1. 标准顺序：材料审核 → 保单核验∥风控筛查（同轮并行）→ 责任认定 → 金额理算 → 决定书生成
+2. 快照中为 null 的阶段尚未执行；已有结论的阶段不要重复派发
+3. 风险 high、材料缺失、材料自相矛盾、置信度低 → next = ["human"]
+4. plan 给出你视角的完整计划（含已完成步骤）；reason 一句话说明本轮决策依据
+5. 所有前置条件由代码守卫强制执行——你只需给出业务上合理的下一批目标
+
+## 案件快照
+{snapshot}"""

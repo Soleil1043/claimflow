@@ -22,7 +22,6 @@ from __future__ import annotations
 from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from nodes.amount_calc import make_amount_calc_node
@@ -51,12 +50,17 @@ def build_case_graph(
     policy_lookup: Any,
     fraud_lookup: Any,
     checkpointer: BaseCheckpointSaver | None = None,
+    orchestrator_router: Any = None,
 ) -> Any:
-    """编译核赔案件主图（依赖注入版——测试注入内存实现）。"""
+    """编译核赔案件主图（依赖注入版——测试注入内存实现）。
+
+    orchestrator_router：LLM 路由器（async state→RoutingDecision）；None = 纯确定性
+    兜底编排（测试零 LLM）。运行时经 create_default_case_graph 注入 make_llm_router()。
+    """
     builder = StateGraph(ClaimCaseState, input_schema=CaseInputState, output_schema=CaseOutput)
 
     builder.add_node("intake", make_intake_node(recorder, policy_lookup))
-    builder.add_node("orchestrator", make_orchestrator_node(recorder))
+    builder.add_node("orchestrator", make_orchestrator_node(recorder, orchestrator_router))
     builder.add_node("material_review", make_material_review_node(recorder))
     builder.add_node("policy_verify", make_policy_verify_node(recorder, policy_lookup))
     builder.add_node("fraud_check", make_fraud_check_node(recorder, fraud_lookup))
@@ -108,7 +112,7 @@ def build_case_graph(
     return builder.compile(checkpointer=checkpointer)
 
 
-async def _db_policy_lookup(policy_no: str) -> dict[str, Any] | None:
+async def db_policy_lookup(policy_no: str) -> dict[str, Any] | None:
     """DB 保单查询（运行时默认实现；T083 工具化后由工具承接）。"""
     from sqlalchemy import select
 
@@ -134,7 +138,7 @@ async def _db_policy_lookup(policy_no: str) -> dict[str, Any] | None:
     }
 
 
-async def _db_fraud_lookup(user_id: str) -> dict[str, Any] | None:
+async def db_fraud_lookup(user_id: str) -> dict[str, Any] | None:
     """DB 风控名单查询桩（T083 接 blacklist/历史理赔 mock 工具）。"""
     return None
 
@@ -142,10 +146,20 @@ async def _db_fraud_lookup(user_id: str) -> dict[str, Any] | None:
 def create_default_case_graph(
     checkpointer: BaseCheckpointSaver | None = None,
 ) -> Any:
-    """运行时便捷工厂：DB 记录器 + DB 查询 + 内存 checkpointer（T080 API 接线用）。"""
+    """运行时便捷工厂：DB 记录器 + DB 查询 + LLM orchestrator + 内存 checkpointer。
+
+    orchestrator_llm_enabled=False（配置）时降级为纯确定性编排（D039 安全设计 3 的
+    常驻形态）。checkpointer 缺省 InMemorySaver——interrupt 挂起/断点续跑必须有
+    checkpointer，生产经 main.py 注入 AsyncPostgresSaver。
+    """
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from nodes.orchestrator import make_llm_router
+
     return build_case_graph(
         recorder=DbCaseRecorder(),
-        policy_lookup=_db_policy_lookup,
-        fraud_lookup=_db_fraud_lookup,
+        policy_lookup=db_policy_lookup,
+        fraud_lookup=db_fraud_lookup,
         checkpointer=checkpointer if checkpointer is not None else InMemorySaver(),
+        orchestrator_router=make_llm_router(),
     )

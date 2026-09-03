@@ -1,0 +1,279 @@
+{
+  "task": "T081 LLM Orchestrator 金样本路由一致率初测",
+  "generated_at": "2026-09-04T05:16:02",
+  "model": "deepseek-v4-flash",
+  "dataset": "data/mock/cases.json",
+  "threshold": 0.9,
+  "summary": {
+    "total": 24,
+    "matched": 23,
+    "consistency": 0.9583,
+    "passed": true
+  },
+  "results": [
+    {
+      "case_id": "CASE-2026-0001",
+      "category": "normal",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": "4640.00",
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0002",
+      "category": "normal",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": "2800.00",
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0003",
+      "category": "normal",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": "1500.00",
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0004",
+      "category": "normal",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": "1600.00",
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0005",
+      "category": "normal",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": "1000.00",
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0006",
+      "category": "normal",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": "50.00",
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0007",
+      "category": "normal",
+      "expected_route": "human",
+      "observed_route": "human",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": null,
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0008",
+      "category": "normal",
+      "expected_route": "human",
+      "observed_route": "human",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": null,
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0009",
+      "category": "rejected",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": "0.00",
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0010",
+      "category": "rejected",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": "0.00",
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0011",
+      "category": "rejected",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": "0.00",
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0012",
+      "category": "rejected",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": "0.00",
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0013",
+      "category": "partial",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": "4000.00",
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0014",
+      "category": "partial",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": "2400.00",
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0015",
+      "category": "fraud",
+      "expected_route": "human",
+      "observed_route": "human",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": null,
+      "routing_calls": 3,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0016",
+      "category": "fraud",
+      "expected_route": "human",
+      "observed_route": "human",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": null,
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0017",
+      "category": "fraud",
+      "expected_route": "human",
+      "observed_route": "human",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": null,
+      "routing_calls": 3,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0018",
+      "category": "edge",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": "0.00",
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0019",
+      "category": "edge",
+      "expected_route": "human",
+      "observed_route": "human",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": null,
+      "routing_calls": 5,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0020",
+      "category": "edge",
+      "expected_route": "human",
+      "observed_route": "human",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": null,
+      "routing_calls": 1,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0021",
+      "category": "edge",
+      "expected_route": "human",
+      "observed_route": "human",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": null,
+      "routing_calls": null,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0022",
+      "category": "edge",
+      "expected_route": "human",
+      "observed_route": "human",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": null,
+      "routing_calls": null,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0023",
+      "category": "missing",
+      "expected_route": "supplement",
+      "observed_route": "human",
+      "matched": false,
+      "amount_ok": true,
+      "approved_amount": null,
+      "routing_calls": 1,
+      "error": null
+    },
+    {
+      "case_id": "CASE-2026-0024",
+      "category": "missing",
+      "expected_route": "supplement",
+      "observed_route": "supplement",
+      "matched": true,
+      "amount_ok": true,
+      "approved_amount": null,
+      "routing_calls": 2,
+      "error": null
+    }
+  ]
+}

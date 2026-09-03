@@ -35,6 +35,8 @@ async def client(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(session_module, "_engine", engine)
     monkeypatch.setattr(session_module, "_session_factory", factory)
     monkeypatch.setattr(session_module.settings, "llm_api_key", "sk-test")
+    # T081：API 测试保持确定性编排（零 LLM）；LLM 路由一致性见 verify_orchestrator 脚本
+    monkeypatch.setattr(session_module.settings, "orchestrator_llm_enabled", False)
 
     async with factory() as s:
         s.add_all(
