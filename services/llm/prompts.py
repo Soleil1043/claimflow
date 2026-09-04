@@ -334,6 +334,22 @@ CASE_LIABILITY_AGENT_PROMPT = """\
 
 案件材料与事实随每条任务消息提供（JSON：出险描述/已提取材料字段/保单要点）。"""
 
+# 核赔决定书叙述撰写（Phase 8 T085）：LLM 只写核定依据叙述段（不含金额），
+# 正文骨架由 services.decision_doc 代码模板渲染；规程经 skills/decision_writer 拼接
+DECISION_NARRATIVE_PROMPT = """\
+你是保险理赔决定书的撰写专员。基于以下责任认定与理算事实，撰写决定书的"核定依据"叙述段。
+
+## 事实
+{facts}
+
+## 要求
+1. 100-200 字公文语体：事实（出险与材料审核）→ 依据（条款名称）→ 结论（责任认定）
+2. 语气客观中立；禁止出现任何金额数字（金额由系统模板注入）
+3. 禁用"保证""肯定""百分百"等承诺性表述
+4. 只输出叙述段正文，不要标题、不要金额、不要救济途径
+
+直接输出叙述段正文。"""
+
 # 核赔材料审核 AI 一致性审查（Phase 8 T082）：结构化输出 MaterialAiReview 承载；
 # 审核规程经 skills/material_review/<险种>.md 由 services.skills 拼接
 MATERIAL_REVIEW_AI_PROMPT = """\

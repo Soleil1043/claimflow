@@ -39,6 +39,7 @@ async def client(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(session_module.settings, "orchestrator_llm_enabled", False)
     monkeypatch.setattr(session_module.settings, "material_review_llm_enabled", False)
     monkeypatch.setattr(session_module.settings, "liability_llm_enabled", False)
+    monkeypatch.setattr(session_module.settings, "decision_writer_llm_enabled", False)
 
     async with factory() as s:
         s.add_all(

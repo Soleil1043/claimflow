@@ -30,7 +30,7 @@ from nodes.auto_adjudicate import adjudication_route, make_auto_adjudicate_node
 from nodes.compliance_gate import (
     compliance_route,
     make_compliance_gate_node,
-    revise_decision_node,
+    make_revise_decision_node,
 )
 from nodes.decision_generate import make_decision_generate_node
 from nodes.fraud_check import make_fraud_check_node
@@ -54,6 +54,7 @@ def build_case_graph(
     orchestrator_router: Any = None,
     material_reviewer: Any = None,
     liability_invoker: Any = "__keyword__",
+    decision_writer: Any = "__fallback__",
 ) -> Any:
     """编译核赔案件主图（依赖注入版——测试注入内存实现）。
 
@@ -77,9 +78,13 @@ def build_case_graph(
         make_liability_judge_node(recorder, invoker=liability_invoker),
     )
     builder.add_node("amount_calc", make_amount_calc_node(recorder))
-    builder.add_node("decision_generate", make_decision_generate_node(recorder))
+    builder.add_node(
+        "decision_generate", make_decision_generate_node(recorder, decision_writer)
+    )
     builder.add_node("compliance_gate", make_compliance_gate_node(recorder))
-    builder.add_node("revise_decision", revise_decision_node)
+    builder.add_node(
+        "revise_decision", make_revise_decision_node(recorder)
+    )
     builder.add_node("auto_adjudicate", make_auto_adjudicate_node(recorder))
     builder.add_node("human_gate", make_human_gate_node(recorder))
 
@@ -197,5 +202,8 @@ def create_default_case_graph(
         material_reviewer=make_material_ai_reviewer(),
         liability_invoker=(
             None if settings.liability_llm_enabled else keyword_only_invoker
+        ),
+        decision_writer=(
+            None if settings.decision_writer_llm_enabled else "__fallback__"
         ),
     )
