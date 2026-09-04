@@ -4,6 +4,8 @@
 - 工具指标：调用成功率（Counter 按 status 分维）、耗时直方图、熔断拒绝计数
 - LLM 指标：调用耗时、Token 消耗（prompt/completion 分维）
 - 业务指标：轮次总数、转人工、合规三态、端到端处理时长直方图
+- 核赔指标（Phase 8 T090）：案件总量/自动签发率/转人工率/阶段耗时/调度调用/
+  守卫纠错/兜底触发/补件轮次/核定金额分布
 
 约定：
 - 指标在模块导入时注册（进程级单例 REGISTRY），多事件循环共享安全
@@ -14,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from prometheus_client import REGISTRY, Counter, Histogram
+from prometheus_client import REGISTRY, Counter, Gauge, Histogram
 from prometheus_client.core import REGISTRY as _GLOBAL_REGISTRY
 
 # 统一使用全局默认 REGISTRY：prometheus-fastapi-instrumentator / make_asgi_app 均读取它
@@ -121,8 +123,72 @@ MEMORY_WRITES = Counter(
     registry=registry,
 )
 
+# ===== 核赔业务指标（Phase 8 T090，D037/D039） =====
 
-def _safe_inc(counter: Counter | None, amount: float = 1.0, **labels: Any) -> None:
+CASES_TOTAL = Counter(
+    "claimflow_cases_total",
+    "核赔案件总数（按险种+终态分维——auto_close_rate/referral_rate 从此推导）",
+    labelnames=["case_type", "final_status"],  # final_status: auto_issued | referred | closed
+    registry=registry,
+)
+
+CASE_STAGE_LATENCY = Histogram(
+    "claimflow_case_stage_seconds",
+    "案件各阶段耗时（秒）",
+    labelnames=["stage"],
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0),
+    registry=registry,
+)
+
+CASE_DURATION = Histogram(
+    "claimflow_case_duration_seconds",
+    "案件端到端处理时长（秒，提交→签发/转人工）",
+    buckets=(1.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0),
+    registry=registry,
+)
+
+ROUTING_CALLS = Histogram(
+    "claimflow_routing_calls_per_case",
+    "每案件 orchestrator 调度调用次数（预算 ≤15，D039 防绕圈）",
+    buckets=(1, 3, 5, 8, 10, 12, 15, 20),
+    registry=registry,
+)
+
+GUARD_CORRECTIONS = Counter(
+    "claimflow_guard_corrections_total",
+    "orchestrator 前置条件守卫纠错次数（D039 安全设计 2）",
+    registry=registry,
+)
+
+ORCH_FALLBACK = Counter(
+    "claimflow_orchestrator_fallback_total",
+    "orchestrator LLM 失败回退确定性兜底次数（D039 安全设计 3）",
+    registry=registry,
+)
+
+SUPPLEMENT_ROUNDS = Histogram(
+    "claimflow_supplement_rounds",
+    "补件轮次分布（每案件补件请求次数）",
+    buckets=(1, 2, 3, 5),
+    registry=registry,
+)
+
+DECISION_AMOUNT = Histogram(
+    "claimflow_decision_amount",
+    "核定金额分布（元；rejected 案为 0）",
+    buckets=(0, 100, 500, 1000, 3000, 5000, 10000, 50000, 100000, 1000000),
+    registry=registry,
+)
+
+CASE_TOKENS = Counter(
+    "claimflow_case_tokens_total",
+    "核赔案件 LLM token 消耗（T090）",
+    labelnames=["model"],
+    registry=registry,
+)
+
+
+def _safe_inc(counter: Counter | Gauge | None, amount: float = 1.0, **labels: Any) -> None:
     """打点失败不抛错：观测层异常不允许影响业务链路。"""
     if counter is None:
         return
@@ -200,24 +266,90 @@ def record_memory_write(result: str) -> None:
     _safe_inc(MEMORY_WRITES, result=result)
 
 
+# ---------- 核赔埋点辅助（T090） ----------
+
+
+def record_case_closed(case_type: str, final_status: str) -> None:
+    """案件终态埋点（auto_issued / referred / closed——auto_close_rate 与 referral_rate 分母）。"""
+    _safe_inc(CASES_TOTAL, case_type=case_type, final_status=final_status)
+
+
+def record_case_stage(stage: str, duration_s: float) -> None:
+    """案件阶段耗时埋点。"""
+    _safe_observe(CASE_STAGE_LATENCY, duration_s, stage=stage)
+
+
+def record_case_duration(duration_s: float) -> None:
+    """案件端到端耗时埋点。"""
+    _safe_observe(CASE_DURATION, duration_s)
+
+
+def record_routing_calls(calls: int) -> None:
+    """调度调用次数埋点（预算监控）。"""
+    _safe_observe(ROUTING_CALLS, calls)
+
+
+def record_guard_correction() -> None:
+    """守卫纠错埋点。"""
+    _safe_inc(GUARD_CORRECTIONS)
+
+
+def record_orch_fallback() -> None:
+    """LLM 兜底触发埋点。"""
+    _safe_inc(ORCH_FALLBACK)
+
+
+def record_supplement_rounds(rounds: int) -> None:
+    """补件轮次埋点。"""
+    _safe_observe(SUPPLEMENT_ROUNDS, rounds)
+
+
+def record_decision_amount(amount: float) -> None:
+    """核定金额分布埋点。"""
+    _safe_observe(DECISION_AMOUNT, amount)
+
+
+def record_case_tokens(model: str, tokens: int) -> None:
+    """案件 token 消耗埋点。"""
+    _safe_inc(CASE_TOKENS, model=model, amount=float(tokens))
+
+
 __all__ = [
+    "CASES_TOTAL",
+    "CASE_DURATION",
+    "CASE_STAGE_LATENCY",
+    "CASE_TOKENS",
     "COMPLIANCE_VERDICTS",
     "CONVERSATION_TURNS",
+    "DECISION_AMOUNT",
+    "GUARD_CORRECTIONS",
     "HUMAN_INTERVENTIONS",
     "LLM_CALLS",
     "LLM_LATENCY",
     "LLM_TOKENS",
     "MEMORY_WRITES",
+    "ORCH_FALLBACK",
+    "REGISTRY",
+    "ROUTING_CALLS",
+    "SUPPLEMENT_ROUNDS",
     "TOOL_BREAKER_REJECTED",
     "TOOL_CACHE_HITS",
     "TOOL_CALLS",
     "TOOL_LATENCY",
     "TURN_LATENCY",
     "TURN_TOKENS",
-    "REGISTRY",
     "record_breaker_rejected",
+    "record_case_closed",
+    "record_case_duration",
+    "record_case_stage",
+    "record_case_tokens",
+    "record_decision_amount",
+    "record_guard_correction",
     "record_llm_call",
     "record_memory_write",
+    "record_orch_fallback",
+    "record_routing_calls",
+    "record_supplement_rounds",
     "record_tool_cache",
     "record_tool_call",
     "record_turn",

@@ -13,6 +13,7 @@ supplement_pending / referred，响应携带 human 信息；恢复通道见 T086
 from __future__ import annotations
 
 import datetime as dt
+import time
 import uuid
 from pathlib import Path
 
@@ -44,6 +45,7 @@ from schemas.api import (
 )
 from services.db.models import Case, CaseEvent, DecisionDocument
 from services.materials import detect_material_type, extract_material
+from services.observability import metrics as obs
 
 log = get_logger(__name__)
 
@@ -158,6 +160,7 @@ async def submit_case(
     # 显式提交：图内节点经独立会话（CaseRecorder）更新本行，先落基线避免锁等待
     await session.commit()
 
+    started = time.monotonic()
     result = await case_graph.ainvoke(
         {
             "case_id": case.id,
@@ -171,6 +174,8 @@ async def submit_case(
         },
         config={"configurable": {"thread_id": case.id}, "recursion_limit": 60},
     )
+
+    obs.record_case_duration(time.monotonic() - started)
 
     # 图内节点经独立会话更新了状态——重读权威行
     await session.refresh(case)

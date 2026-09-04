@@ -12,6 +12,7 @@ from typing import Any
 
 from app.core.config import settings
 from services.case_store import CaseRecorder
+from services.observability import metrics
 from state import ClaimCaseState
 
 
@@ -69,6 +70,11 @@ def make_auto_adjudicate_node(recorder: CaseRecorder):
         else:
             final_decision = "approved"
 
+        metrics.record_case_closed(
+            case_type=str(state.get("case_type") or "unknown"),
+            final_status="auto_issued",
+        )
+        metrics.record_decision_amount(float(approved))
         await recorder.update_case(
             state["case_id"],
             status="auto_issued",

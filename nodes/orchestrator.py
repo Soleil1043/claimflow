@@ -26,6 +26,7 @@ from app.core.logging import get_logger
 from services.case_store import CaseRecorder
 from services.llm.client import get_chat_model
 from services.llm.prompts import CASE_ORCHESTRATOR_ROUTING_PROMPT
+from services.observability import metrics
 from services.skills import build_system_prompt
 from state import ClaimCaseState
 
@@ -303,6 +304,7 @@ def make_orchestrator_node(recorder: CaseRecorder, llm_router=None):
                 mode = "llm"
             except Exception as exc:  # noqa: BLE001 —— D039 安全设计 3：LLM 故障走兜底
                 log.warning("orchestrator_llm_failed", calls=calls, error=str(exc)[:200])
+                metrics.record_orch_fallback()
                 decision = None
         elif over_budget:
             log.warning("orchestrator_over_budget", calls=calls)
@@ -338,12 +340,14 @@ def make_orchestrator_node(recorder: CaseRecorder, llm_router=None):
                 verdict = enforce_guards(targets, state)
 
         if verdict.corrected:
+            metrics.record_guard_correction()
             await recorder.event(
                 state["case_id"],
                 "guard_correction",
                 payload={"requested": requested, **verdict.__dict__},
             )
 
+        metrics.record_routing_calls(calls)
         await recorder.event(
             state["case_id"],
             "routing",
