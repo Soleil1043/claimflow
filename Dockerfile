@@ -1,4 +1,4 @@
-# 多智能体保险理赔对话系统 — 运行镜像
+# 保险理赔智能核赔平台 — 运行镜像
 # Python 3.12 + uv（torch 走 CPU 源，见 pyproject.toml [tool.uv]）
 FROM python:3.12-slim
 
