@@ -35,7 +35,9 @@ class ExtractedDocument(BaseModel):
     treatment_date: date | None = None
     confidence: float = 0.0
     # 提取来源：vision（图片 OCR）/ text（文本解析）/ mock_fallback（兜底，D008 语义延续）
-    source: Literal["vision", "text", "mock_fallback"] = "vision"
+    # 提取来源：vision（图片/扫描件识别）/ text_model（PDF/Word 文本提取）/
+    # mock_fallback（失败降级）——与 services.materials 的 source 口径一致
+    source: Literal["vision", "text_model", "mock_fallback"] = "vision"
 
 
 class MaterialReviewOutput(BaseModel):

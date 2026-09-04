@@ -112,6 +112,10 @@ class Settings(BaseSettings):
     manual_review_sample_rate: float = 0.05
     # orchestrator 路由是否启用 LLM 决策（False=纯确定性兜底编排；测试/降级用）
     orchestrator_llm_enabled: bool = True
+    # 材料审核 AI 一致性审查（skill 装配；False=仅规则层，测试/降级用）
+    material_review_llm_enabled: bool = True
+    # 案件材料上传落盘目录（B03；storage_path 供材料审核真实提取）
+    case_materials_dir: str = "./data/uploads"
 
     # ===== OTel 追踪（T039，D015 后置项） =====
     # 开关（默认关：不起 tracing 栈时零开销）；OTLP gRPC 上报地址；采样率 0.0-1.0

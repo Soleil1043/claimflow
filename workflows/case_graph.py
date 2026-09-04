@@ -51,17 +51,23 @@ def build_case_graph(
     fraud_lookup: Any,
     checkpointer: BaseCheckpointSaver | None = None,
     orchestrator_router: Any = None,
+    material_reviewer: Any = None,
 ) -> Any:
     """编译核赔案件主图（依赖注入版——测试注入内存实现）。
 
     orchestrator_router：LLM 路由器（async state→RoutingDecision）；None = 纯确定性
-    兜底编排（测试零 LLM）。运行时经 create_default_case_graph 注入 make_llm_router()。
+    兜底编排（测试零 LLM）。material_reviewer：材料 AI 一致性审查器；None = 仅规则层。
+    运行时经 create_default_case_graph 注入两者。
     """
     builder = StateGraph(ClaimCaseState, input_schema=CaseInputState, output_schema=CaseOutput)
 
     builder.add_node("intake", make_intake_node(recorder, policy_lookup))
-    builder.add_node("orchestrator", make_orchestrator_node(recorder, orchestrator_router))
-    builder.add_node("material_review", make_material_review_node(recorder))
+    builder.add_node(
+        "orchestrator", make_orchestrator_node(recorder, orchestrator_router)
+    )
+    builder.add_node(
+        "material_review", make_material_review_node(recorder, material_reviewer)
+    )
     builder.add_node("policy_verify", make_policy_verify_node(recorder, policy_lookup))
     builder.add_node("fraud_check", make_fraud_check_node(recorder, fraud_lookup))
     builder.add_node("liability_judge", make_liability_judge_node(recorder))
@@ -154,6 +160,7 @@ def create_default_case_graph(
     """
     from langgraph.checkpoint.memory import InMemorySaver
 
+    from nodes.material_review import make_material_ai_reviewer
     from nodes.orchestrator import make_llm_router
 
     return build_case_graph(
@@ -162,4 +169,5 @@ def create_default_case_graph(
         fraud_lookup=db_fraud_lookup,
         checkpointer=checkpointer if checkpointer is not None else InMemorySaver(),
         orchestrator_router=make_llm_router(),
+        material_reviewer=make_material_ai_reviewer(),
     )

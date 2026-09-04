@@ -13,6 +13,8 @@ supplement_pending / referred，响应携带 human 信息；恢复通道见 T086
 from __future__ import annotations
 
 import datetime as dt
+import uuid
+from pathlib import Path
 
 from fastapi import (
     APIRouter,
@@ -288,12 +290,20 @@ async def upload_case_material(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="doc_type 取值非法"
         )
 
+    # 文件落盘（T082）：storage_path 供材料审核真实提取（补件重跑/复核时读取）
+    materials_dir = Path(settings.case_materials_dir) / case_id
+    materials_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = f"{uuid.uuid4().hex[:8]}_{Path(filename).name}"
+    storage_path = materials_dir / safe_name
+    storage_path.write_bytes(content)
+
     materials = list(case.materials or [])
     materials.append(
         {
             "file_name": filename,
             "file_type": result.file_type,
             "doc_type": doc_type,
+            "storage_path": str(storage_path),
             "extraction": result.model_dump(),
         }
     )

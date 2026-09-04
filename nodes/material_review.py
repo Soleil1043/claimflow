@@ -1,64 +1,209 @@
-"""材料审核节点（F04）——T079 桩版。
+"""材料审核节点（F04，T082 真实化）。
 
-桩语义（确定性，无 LLM/OCR；T082 真实化为 OCR+抽取子图）：
-- 必备材料清单按 doc_type 判断完整性（医疗险：发票/诊断证明/费用清单）
-- 材料条目带 note 视为已知异常标记（如"发票与清单金额矛盾"）→ 置信度降至阈值下
-- 抽取字段留空，仅保留文件级引用
+三段流水线：
+1. 逐份材料提取——优先级：storage_path 真实文件（T049 两段式：图片 vision/PDF 文本+
+   扫描件渲染/Word 文本）→ 已存提取结果（B03 上传时落档）→ 引用型兜底（种子/测试：
+   doc_type 已知、无字段，source=mock_fallback）
+2. 规则层（零 LLM，tools/document）——完整性校验（险种清单）+ 金额交叉核验
+   （发票 vs 清单，不一致→置信度压至 0.4 交 orchestrator 裁量）
+3. AI 一致性审查（可选，llm_router 同款参数化注入）——装载
+   skills/material_review/<险种>.md 的审核规程，结构化输出异常清单（fail-open：
+   失败仅日志，不影响规则结论）
+
+置信度口径：per-doc 来源置信（vision/text_model=0.9，mock_fallback=0.3，引用型 1.0，
+带 note 异常标记 0.4）取最小值，矛盾/AI 异常再压至 0.4——低于
+material_confidence_floor（默认 0.6）时由 orchestrator 转人工裁量。
 """
 
 from __future__ import annotations
 
+import datetime as dt
+import json
+from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
+from langchain_core.messages import HumanMessage
+from pydantic import BaseModel, Field
+
+from app.core.config import settings
+from app.core.logging import get_logger
 from schemas.stages import ExtractedDocument, MaterialReviewOutput
 from services.case_store import CaseRecorder
+from services.llm.client import get_chat_model
+from services.llm.prompts import MATERIAL_REVIEW_AI_PROMPT
+from services.materials import extract_material
+from services.skills import build_system_prompt
 from state import ClaimCaseState
+from tools.document.classify import find_amount_contradictions, infer_doc_type
+from tools.document.completeness import validate_completeness
 
-# 险种必备材料清单（医疗险 pack；新险种 pack 在此扩展）
-MEDICAL_REQUIRED_DOCS: dict[str, str] = {
-    "invoice": "医疗发票",
-    "diagnosis": "诊断证明",
-    "cost_list": "费用清单",
-}
+log = get_logger(__name__)
+
+# 来源 → 置信度（与 T049 提取服务 source 口径对齐）
+_SOURCE_CONFIDENCE = {"vision": 0.9, "text_model": 0.9, "mock_fallback": 0.3}
+# 已知异常标记（材料条目 note 字段）的置信度
+_ANOMALY_CONFIDENCE = 0.4
+# 交叉核验/AI 异常命中时的置信度（低于 material_confidence_floor=0.6 → orchestrator 裁量）
+_CONTRADICTION_CONFIDENCE = 0.4
+
+# AI 一致性审查的结构化输出
+class MaterialAiReview(BaseModel):
+    """AI 材料一致性审查结论。"""
+
+    anomalies: list[str] = Field(default_factory=list)
+    notes: str = ""
 
 
-def make_material_review_node(recorder: CaseRecorder):
-    """材料审核节点工厂。"""
+async def _extract_from_file(entry: dict[str, Any]) -> ExtractedDocument:
+    """storage_path 真实文件 → T049 两段式提取（图片 vision / PDF / Word）。"""
+    path = Path(str(entry.get("storage_path")))
+    filename = str(entry.get("file_name") or path.name)
+    content = path.read_bytes()
+    result = await extract_material(filename, _guess_mime(filename), content)
+    return _to_document(filename, entry, result.source, result)
+
+
+def _guess_mime(filename: str) -> str:
+    lowered = filename.lower()
+    if lowered.endswith((".png", ".jpg", ".jpeg", ".webp", ".bmp")):
+        return "image/png"
+    if lowered.endswith(".pdf"):
+        return "application/pdf"
+    if lowered.endswith(".docx"):
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    return "application/octet-stream"
+
+
+def _to_document(
+    filename: str,
+    entry: dict[str, Any],
+    source: str,
+    extraction: Any = None,
+) -> ExtractedDocument:
+    """提取结果（services.materials.MaterialExtraction 或已落档 dict）→ ExtractedDocument。"""
+    if extraction is not None and not isinstance(extraction, dict):
+        extraction = extraction.model_dump()
+    extraction = extraction or {}
+    treatment_date: dt.date | None = None
+    raw_date = extraction.get("date")
+    if raw_date:
+        try:
+            treatment_date = dt.date.fromisoformat(str(raw_date)[:10])
+        except ValueError:
+            treatment_date = None
+    amount = extraction.get("amount")
+    return ExtractedDocument(
+        doc_type=str(entry.get("doc_type") or "medical_record"),
+        file_name=filename,
+        patient_name=extraction.get("patient_name"),
+        diagnosis=extraction.get("diagnosis"),
+        total_amount=Decimal(str(amount)) if amount not in (None, "") else None,
+        treatment_date=treatment_date,
+        confidence=_SOURCE_CONFIDENCE.get(source, 0.5),
+        source=source,  # type: ignore[arg-type]
+    )
+
+
+def _reference_document(entry: dict[str, Any]) -> ExtractedDocument:
+    """引用型材料（无文件无提取，种子/测试口径）：doc_type 已知、无字段。"""
+    doc_type = entry.get("doc_type")
+    if not doc_type:
+        doc_type = infer_doc_type(str(entry.get("file_name", ""))) or "medical_record"
+    confidence = _ANOMALY_CONFIDENCE if entry.get("note") else 1.0
+    return ExtractedDocument(
+        doc_type=str(doc_type),  # type: ignore[arg-type]
+        file_name=str(entry.get("file_name", "")),
+        confidence=confidence,
+        source="mock_fallback",
+    )
+
+
+async def _extract_one(entry: dict[str, Any]) -> ExtractedDocument:
+    """单份材料提取：真实文件 → 已落档提取结果 → 引用型兜底。"""
+    storage_path = entry.get("storage_path")
+    if storage_path and Path(str(storage_path)).is_file():
+        return await _extract_from_file(entry)
+    if entry.get("extraction"):
+        extraction = entry["extraction"]
+        # source 取自提取结果本身（vision/text_model 决定置信度）
+        source = str(extraction.get("source") or "mock_fallback")
+        return _to_document(
+            str(entry.get("file_name", "")), entry, source, extraction
+        )
+    return _reference_document(entry)
+
+
+def make_material_ai_reviewer():
+    """AI 一致性审查器工厂（默认；settings.material_review_llm_enabled=False → None）。"""
+    if not settings.material_review_llm_enabled:
+        return None
+
+    async def ai_reviewer(state: ClaimCaseState, documents: list[dict[str, Any]]) -> list[str]:
+        line = state.get("case_type") or "_shared"
+        system = build_system_prompt(
+            MATERIAL_REVIEW_AI_PROMPT, "material_review", line,
+            documents=json.dumps(documents, ensure_ascii=False, default=str)[:2500],
+        )
+        model = get_chat_model(temperature=0.0)
+        structured = model.with_structured_output(MaterialAiReview, method="function_calling")
+        review = await structured.ainvoke([HumanMessage(content=system)])
+        return review.anomalies
+
+    return ai_reviewer
+
+
+def make_material_review_node(recorder: CaseRecorder, ai_reviewer=None):
+    """材料审核节点工厂。ai_reviewer=None 时仅规则层（测试零 LLM）。"""
 
     async def material_review_node(state: ClaimCaseState) -> dict[str, Any]:
-        materials = state.get("materials") or []
-        present = {
-            m.get("doc_type") for m in materials if m.get("doc_type")
-        }
-        missing = [label for code, label in MEDICAL_REQUIRED_DOCS.items() if code not in present]
-        # 已知异常标记（种子/上传元数据）→ 低置信，交 orchestrator 裁量
-        has_anomaly_note = any(m.get("note") for m in materials)
+        line = state.get("case_type") or "medical"
+        entries = state.get("materials") or []
 
-        documents = [
-            ExtractedDocument(
-                doc_type="invoice",  # 占位：doc_type 未知时 schema 需要合法值
-                file_name=str(m.get("file_name", "")),
-                confidence=0.4 if has_anomaly_note else 1.0,
-            ).model_dump(mode="json")
-            for m in materials
-        ]
-        # 修正占位 doc_type（材料自带则透传）
-        for doc, m in zip(documents, materials, strict=False):
-            if m.get("doc_type"):
-                doc["doc_type"] = m["doc_type"]
+        documents: list[ExtractedDocument] = []
+        for entry in entries:
+            try:
+                documents.append(await _extract_one(entry))
+            # 单份提取失败不阻塞（fail-open，D008 语义）
+            except Exception as exc:  # noqa: BLE001
+                log.warning("material_extract_failed",
+                            case_id=state["case_id"],
+                            file=str(entry.get("file_name")), error=str(exc)[:200])
+                documents.append(_reference_document(entry))
+
+        docs_dump = [d.model_dump(mode="json") for d in documents]
+
+        # 规则层：完整性（险种清单）+ 金额交叉核验
+        completeness_result = validate_completeness(docs_dump, line)
+        contradictions = find_amount_contradictions(docs_dump)
+
+        # AI 一致性审查（可选，skill 装配；fail-open）
+        anomalies: list[str] = []
+        if ai_reviewer is not None:
+            try:
+                anomalies = await ai_reviewer(state, docs_dump)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("material_ai_review_failed",
+                            case_id=state["case_id"], error=str(exc)[:200])
+
+        confidence = min((d.confidence for d in documents), default=1.0)
+        if contradictions or anomalies:
+            confidence = min(confidence, _CONTRADICTION_CONFIDENCE)
 
         output = MaterialReviewOutput(
             documents=documents,
-            completeness="partial" if missing else "complete",
-            missing=missing,
-            confidence=0.4 if has_anomaly_note else 1.0,
+            completeness=completeness_result["completeness"],  # type: ignore[arg-type]
+            missing=completeness_result["missing"],
+            confidence=round(confidence, 2),
         ).model_dump(mode="json")
 
         await recorder.event(
             state["case_id"],
             "stage_result",
             stage="material_review",
-            payload=output,
+            payload={**output,
+                     "contradictions": contradictions,
+                     "ai_anomalies": anomalies},
         )
         return {"material": output}
 
