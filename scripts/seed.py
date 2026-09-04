@@ -23,7 +23,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.core.logging import configure_logging, get_logger
-from services.db.models import Case, MedicalRecord, Policy
+from services.db.models import Case, ClaimRecord, MedicalRecord, Policy
 from services.db.session import get_session_factory, init_db
 
 log = get_logger(__name__)
@@ -181,6 +181,51 @@ async def seed_cases() -> int:
     return inserted + updated
 
 
+def _load_claim_records() -> list[ClaimRecord]:
+    """从 JSON 构造 ClaimRecord ORM 对象列表（T083 风控频率数据源）。"""
+    raw = json.loads((DATA_DIR / "claim_records.json").read_text(encoding="utf-8"))
+    records = []
+    for item in raw:
+        submitted = dt.datetime.fromisoformat(item["submitted_at"])
+        records.append(
+            ClaimRecord(
+                claim_no=item["claim_no"],
+                policy_no=item["policy_no"],
+                status=item["status"],
+                applied_amount=Decimal(item["applied_amount"]),
+                approved_amount=Decimal(item["approved_amount"]),
+                submitted_at=submitted,
+                updated_at=submitted,
+            )
+        )
+    return records
+
+
+async def seed_claim_records() -> int:
+    """历史理赔记录入库（幂等 upsert：按 claim_no 判重，全字段刷新）。"""
+    records = _load_claim_records()
+    factory = get_session_factory()
+    inserted, updated = 0, 0
+    async with factory() as session:
+        existing = {
+            r.claim_no: r
+            for r in (await session.execute(select(ClaimRecord))).scalars().all()
+        }
+        for record in records:
+            old = existing.get(record.claim_no)
+            if old is None:
+                session.add(record)
+                inserted += 1
+            else:
+                for col in ("policy_no", "status", "applied_amount",
+                            "approved_amount", "submitted_at", "updated_at"):
+                    setattr(old, col, getattr(record, col))
+                updated += 1
+        await session.commit()
+    log.info("seed_claim_records_done", inserted=inserted, updated=updated)
+    return inserted + updated
+
+
 async def main(targets: list[str]) -> None:
     configure_logging()
     # dev 直接建表；prod 依赖 alembic 已迁移
@@ -189,6 +234,8 @@ async def main(targets: list[str]) -> None:
         await seed_policies()
     if "medical_records" in targets:
         await seed_medical_records()
+    if "claim_records" in targets:
+        await seed_claim_records()
     if "cases" in targets:
         await seed_cases()
 
@@ -197,7 +244,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Mock 数据入库")
     parser.add_argument(
         "--only",
-        choices=["policies", "medical_records", "cases"],
+        choices=["policies", "medical_records", "claim_records", "cases"],
         default=None,
         help="只入库指定数据集（缺省全部）",
     )
@@ -205,7 +252,7 @@ if __name__ == "__main__":
     targets = (
         [args.only]
         if args.only
-        else ["policies", "medical_records", "cases"]
+        else ["policies", "medical_records", "claim_records", "cases"]
     )
     asyncio.run(main(targets))
     sys.exit(0)

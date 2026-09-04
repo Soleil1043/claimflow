@@ -37,6 +37,9 @@ def build_raw_tools() -> list[ClaimflowTool]:
     from tools.compliance.risk_scoring import RiskScoringTool
     from tools.compliance.rule_check import ComplianceRuleCheckTool
     from tools.compliance.sensitive_filter import SensitiveFilterTool
+    from tools.fraud.blacklist import QueryBlacklistTool
+    from tools.fraud.history import ClaimsHistoryTool
+    from tools.fraud.rules import FraudRulesTool
     from tools.medical.diagnosis_matcher import DiagnosisMatcherTool
     from tools.medical.ocr_extract import OcrExtractTool
     from tools.medical.record_query import RecordQueryTool
@@ -51,6 +54,9 @@ def build_raw_tools() -> list[ClaimflowTool]:
         ComplianceRuleCheckTool(),
         SensitiveFilterTool(),
         RiskScoringTool(),
+        QueryBlacklistTool(),
+        ClaimsHistoryTool(),
+        FraudRulesTool(),
     ]
 
 

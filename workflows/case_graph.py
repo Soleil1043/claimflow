@@ -119,11 +119,12 @@ def build_case_graph(
 
 
 async def db_policy_lookup(policy_no: str) -> dict[str, Any] | None:
-    """DB 保单查询（运行时默认实现；T083 工具化后由工具承接）。"""
+    """DB 保单查询（运行时默认实现；T083 起携带条款要素供保单核验消费）。"""
     from sqlalchemy import select
 
     from services.db.models import Policy
     from services.db.session import get_session_factory
+    from tools.claim.policy_query import get_policy_terms
 
     factory = get_session_factory()
     async with factory() as session:
@@ -134,6 +135,7 @@ async def db_policy_lookup(policy_no: str) -> dict[str, Any] | None:
         return None
     return {
         "policy_no": row.policy_no,
+        "holder_id_card": row.holder_id_card,
         "product_type": row.product_type,
         "status": row.status,
         "coverage_amount": str(row.coverage_amount),
@@ -141,12 +143,29 @@ async def db_policy_lookup(policy_no: str) -> dict[str, Any] | None:
         "payout_ratio": str(row.payout_ratio),
         "effective_date": row.effective_date.isoformat(),
         "expiry_date": row.expiry_date.isoformat(),
+        "terms": get_policy_terms(row.product_type),
     }
 
 
-async def db_fraud_lookup(user_id: str) -> dict[str, Any] | None:
-    """DB 风控名单查询桩（T083 接 blacklist/历史理赔 mock 工具）。"""
-    return None
+async def db_fraud_lookup(state: dict[str, Any]) -> dict[str, Any] | None:
+    """真实风控信号（T083）：黑名单（mock JSON）+ 理赔频率（claim_records 90 天）。
+
+    经案件 policy_id 解析持有人证件号（黑名单/频率均按证件号口径）。
+    """
+    from tools.fraud.blacklist import query_blacklist_by_id
+    from tools.fraud.history import count_recent_claims
+
+    policy = await db_policy_lookup(str(state.get("policy_id") or ""))
+    id_card = str(policy.get("holder_id_card")) if policy else None
+    if not id_card:
+        return None
+    blacklist = query_blacklist_by_id(id_card)
+    recent = await count_recent_claims(id_card, days=90)
+    return {
+        "blacklisted": blacklist["blacklisted"],
+        "blacklist_reason": blacklist.get("reason"),
+        "recent_claims": recent,
+    }
 
 
 def create_default_case_graph(

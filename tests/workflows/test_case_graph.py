@@ -27,7 +27,7 @@ POLICIES = {
     for p in json.loads((DATA_DIR / "policies.json").read_text(encoding="utf-8"))
 }
 
-# T083 将落到 data/mock 名单文件；T079 测试内注入（与 cases.json fraud 期望对齐）
+# T083 起真实风控接黑名单/频率数据；本文件仍注入内存实现（编排层测试与数据解耦）
 FRAUD_DATA = {
     "u-zhaomin": {"blacklisted": True},
     "u-sunqiang": {"recent_claims": 2},
@@ -64,8 +64,8 @@ async def _policy_lookup(policy_no: str) -> dict[str, Any] | None:
     return POLICIES.get(policy_no)
 
 
-async def _fraud_lookup(user_id: str) -> dict[str, Any] | None:
-    return FRAUD_DATA.get(user_id)
+async def _fraud_lookup(state) -> dict[str, Any] | None:
+    return FRAUD_DATA.get(state.get("user_id"))
 
 
 def _graph() -> tuple[Any, ListRecorder]:

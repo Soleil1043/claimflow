@@ -1,0 +1,26 @@
+[
+  {
+    "claim_no": "CLM-2026-1001",
+    "policy_no": "POL-2026-0007",
+    "status": "approved",
+    "applied_amount": "4800.00",
+    "approved_amount": "3800.00",
+    "submitted_at": "2026-06-15 09:30:00"
+  },
+  {
+    "claim_no": "CLM-2026-1002",
+    "policy_no": "POL-2026-0007",
+    "status": "paid",
+    "applied_amount": "5400.00",
+    "approved_amount": "280.00",
+    "submitted_at": "2026-07-20 14:00:00"
+  },
+  {
+    "claim_no": "CLM-2025-0900",
+    "policy_no": "POL-2025-0001",
+    "status": "rejected",
+    "applied_amount": "3000.00",
+    "approved_amount": "0.00",
+    "submitted_at": "2025-11-02 10:00:00"
+  }
+]

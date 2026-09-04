@@ -27,21 +27,16 @@ import tempfile
 from decimal import Decimal
 from pathlib import Path
 
+from langgraph.checkpoint.memory import InMemorySaver
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import services.db.session as session_module
 from app.core.config import settings
-from services.db.models import Base, Case, Policy
+from services.db.models import Base, Case, ClaimRecord, Policy
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data" / "mock"
 REPORT_PATH = ROOT / "evals" / "reports" / "t081_orchestrator_routing.json"
-
-# T083 落地前临时内联的风控名单（与 cases.json fraud 期望对齐）
-FRAUD_DATA = {
-    "u-zhaomin": {"blacklisted": True},
-    "u-sunqiang": {"recent_claims": 2},
-}
 
 
 async def _setup(db_path: Path) -> None:
@@ -53,6 +48,9 @@ async def _setup(db_path: Path) -> None:
     session_module._session_factory = factory
 
     policies = json.loads((DATA_DIR / "policies.json").read_text(encoding="utf-8"))
+    claim_records = json.loads(
+        (DATA_DIR / "claim_records.json").read_text(encoding="utf-8")
+    )
     async with factory() as s:
         for p in policies:
             s.add(
@@ -68,6 +66,18 @@ async def _setup(db_path: Path) -> None:
                     effective_date=dt.date.fromisoformat(p["effective_date"]),
                     expiry_date=dt.date.fromisoformat(p["expiry_date"]),
                     status=p["status"],
+                )
+            )
+        for cr in claim_records:
+            s.add(
+                ClaimRecord(
+                    claim_no=cr["claim_no"],
+                    policy_no=cr["policy_no"],
+                    status=cr["status"],
+                    applied_amount=Decimal(cr["applied_amount"]),
+                    approved_amount=Decimal(cr["approved_amount"]),
+                    submitted_at=dt.datetime.fromisoformat(cr["submitted_at"]),
+                    updated_at=dt.datetime.fromisoformat(cr["submitted_at"]),
                 )
             )
         cases = json.loads((DATA_DIR / "cases.json").read_text(encoding="utf-8"))["cases"]
@@ -97,17 +107,16 @@ async def _main(limit: int | None) -> int:
 
         from nodes.orchestrator import make_llm_router
         from services.case_store import DbCaseRecorder
-        from workflows.case_graph import build_case_graph, db_policy_lookup
-
-        async def fraud_lookup(user_id: str):
-            return FRAUD_DATA.get(user_id)
-
-        from langgraph.checkpoint.memory import InMemorySaver
+        from workflows.case_graph import (
+            build_case_graph,
+            db_fraud_lookup,
+            db_policy_lookup,
+        )
 
         graph = build_case_graph(
             recorder=DbCaseRecorder(),
             policy_lookup=db_policy_lookup,
-            fraud_lookup=fraud_lookup,
+            fraud_lookup=db_fraud_lookup,
             checkpointer=InMemorySaver(),
             orchestrator_router=make_llm_router(),
         )
@@ -148,7 +157,8 @@ async def _main(limit: int | None) -> int:
                 )
                 print(f"[{case_id}] expected={expected['route']} observed={observed} "
                       f"matched={matched} amount_ok={amount_ok}")
-            except Exception as exc:  # noqa: BLE001——单案失败不中断评测
+            # 单案失败不中断评测
+            except Exception as exc:  # noqa: BLE001
                 results.append(
                     {
                         "case_id": case_id,
