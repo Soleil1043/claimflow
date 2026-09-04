@@ -147,7 +147,6 @@ async def _run_suite(limit: int | None, use_llm: bool) -> int:
             try:
                 result = await graph.ainvoke(body, config)
                 state = graph.get_state(config).values
-                error = None
             except Exception as exc:  # noqa: BLE001
                 results.append(_error_result(case, str(exc)[:300]))
                 continue
@@ -308,7 +307,6 @@ def _extract_outcome(
 def _flatten_events(graph, config) -> list[dict]:
     """从图 checkpoint 提取 task_plan 事件（轻量路径，不走 DB）。"""
     state = graph.get_state(config)
-    tasks = state.tasks or []
     # task_plan 是调度审计——但直接从 state 取
     return state.values.get("task_plan", []) if state.values else []
 

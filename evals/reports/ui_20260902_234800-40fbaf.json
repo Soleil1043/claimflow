@@ -1,0 +1,56 @@
+{
+  "dataset_version": "1.0.0",
+  "dataset": "main",
+  "category": null,
+  "variant": "baseline",
+  "git_sha": "7644047",
+  "generated_at": "2026-09-02 23:48:25",
+  "summary": {
+    "total": 2,
+    "passed": 2,
+    "task_completion_rate": 1.0,
+    "tool_accuracy": 1.0,
+    "tool_scored_passed": 2,
+    "tool_scored_total": 2,
+    "compliance_pass_rate": 1.0,
+    "human_precision": 0.0,
+    "avg_duration_s": 4.783,
+    "avg_vector_hits": 4.0,
+    "avg_graph_hits": 8.0,
+    "graph_coverage": 1.0,
+    "by_category": {
+      "simple_faq": {
+        "total": 2.0,
+        "passed": 2.0,
+        "rate": 1.0
+      }
+    },
+    "trajectory": {
+      "order": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "route": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "forbidden": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "args": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "limit": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "redundancy": {
+        "avg_redundant_calls": 0.0,
+        "cases_with_trace": 2.0
+      }
+    }
+  },
+  "failures": []
+}

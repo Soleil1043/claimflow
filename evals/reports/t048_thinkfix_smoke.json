@@ -1,0 +1,48 @@
+{
+  "dataset_version": "1.0.0",
+  "dataset": "main",
+  "category": "multi_step",
+  "variant": "baseline",
+  "generated_at": "2026-09-02 07:40:47",
+  "summary": {
+    "total": 2,
+    "passed": 1,
+    "task_completion_rate": 0.5,
+    "tool_accuracy": 0.5,
+    "tool_scored_passed": 1,
+    "tool_scored_total": 2,
+    "compliance_pass_rate": 1.0,
+    "human_precision": 0.0,
+    "avg_duration_s": 23.262,
+    "avg_vector_hits": 0.0,
+    "avg_graph_hits": 0.0,
+    "graph_coverage": 0.0,
+    "by_category": {
+      "multi_step": {
+        "total": 2.0,
+        "passed": 1.0,
+        "rate": 0.5
+      }
+    }
+  },
+  "failures": [
+    {
+      "case_id": "MS-001",
+      "category": "multi_step",
+      "answer": "",
+      "used_tools": [],
+      "compliance_status": null,
+      "need_human_intervention": false,
+      "duration_s": 25.683,
+      "error": "工具 diagnosis_matcher 执行失败: diagnosis_matcher 超时（>10.0s）",
+      "vector_hits": 0,
+      "graph_hits": 0,
+      "tool_match": false,
+      "must_include_hit": false,
+      "any_of_hit": true,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "passed": false
+    }
+  ]
+}

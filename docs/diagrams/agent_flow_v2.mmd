@@ -1,0 +1,35 @@
+graph TD
+    START([__start__]) --> intent["意图识别 intent<br/>with_structured_output（IntentType 枚举）<br/>失败→关键词规则兜底"]
+
+    %% ===== 意图分流（条件边） =====
+    intent -->|complex_consult| supervisor
+    intent -->|simple_faq| rag[RAG 检索<br/>知识库召回＋可选重排]
+    intent -->|single_domain・chitchat・other| react[react 子图<br/>create_agent 通用助手]
+
+    supervisor["调度 supervisor<br/>RoutingDecision（next・plan・reason）<br/>Command（goto）动态路由<br/>可执行中重规划・recursion_limit 防失控"]
+
+    %% ===== supervisor 动态路由（Command・goto） =====
+    supervisor -->|goto＝claim| claim[claim 子图<br/>create_agent・理赔核算]
+    supervisor -->|goto＝medical| medical[medical 子图<br/>create_agent・医疗审核]
+    supervisor -->|goto＝FINISH| synth[回答整合 synthesize<br/>汇总 shared_data・失败降级拼接]
+    claim -->|结论写入 shared_data| supervisor
+    medical -->|结论写入 shared_data| supervisor
+
+    rag --> synth
+    react -->|产出回答| compliance
+    synth --> compliance
+
+    %% ===== 合规门禁（三态条件边，F10 必经） =====
+    compliance{"合规门禁 compliance<br/>with_structured_output（PASS・MODIFY・REJECT）<br/>失败→确定性判决"}
+    compliance -->|PASS| END([__end__])
+    compliance -->|MODIFY・未达轮数上限| revise[回答修订 revise_answer] -->|复审| compliance
+    compliance -->|REJECT| human_review[人工介入 human_review<br/>interrupt・挂起等待坐席]
+    human_review -->|Command（resume＝坐席结论）→ 合规复审| compliance
+
+    %% ===== Worker 子图内部（claim／medical／react 同构） =====
+    subgraph worker_internal [Worker 子图内部 —— claim・medical・react 同构，create_agent 内置]
+        direction LR
+        llm[agent・LLM] -->|tool_calls| toolnode[ToolNode<br/>handle_tool_errors]
+        toolnode -->|tools_condition・继续| llm
+        llm -->|无 tool_calls・结构化终局| done[response_format<br/>→ structured_response]
+    end

@@ -1,0 +1,844 @@
+A/B 实验：['rerank_off', 'rerank_on'] × 30 条用例（dataset=main v1.0.0）
+
+===== 变体 rerank_off =====
+2026-08-27T13:50:24.228244 [info     ] variant_applied                [evals.variants] settings={'rerank_enabled': False} variant=rerank_off
+2026-08-27T13:50:28.165055 [info     ] checkpointer_initialized       [services.memory.short_term] mode=memory
+2026-08-27T13:50:28.977285 [info     ] chat_model_initialized         [services.llm.client] base_url=https://api.deepseek.com model=deepseek-v4-flash
+2026-08-27T13:50:29.213572 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:50:30.204948 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:50:30.312307 [info     ] qdrant_client_created          [services.rag.qdrant_client] mode=local path=./data/qdrant
+2026-08-27T13:50:41.134867 [info     ] Loading SentenceTransformer model from BAAI/bge-m3. [sentence_transformers.base.model]
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 56533.24it/s]
+2026-08-27T13:50:43.159208 [info     ] embedding_model_loaded         [services.rag.embedder] device=cpu model=BAAI/bge-m3
+2026-08-27T13:50:43.426926 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=阑尾炎手术有等待期吗 top_scores=[0.7576770697225073, 0.6775281609886571, 0.5913655840891828]
+2026-08-27T13:50:43.428920 [info     ] knowledge_graph_loaded         [services.rag.graph_retriever] entities=106
+2026-08-27T13:50:43.428920 [info     ] graph_search_done              [services.rag.graph_retriever] facts=4 matched=2 query=阑尾炎手术有等待期吗
+2026-08-27T13:50:43.428920 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=阑尾炎手术有等待期吗 reranked=False
+2026-08-27T13:50:43.431468 [info     ] chat_model_initialized         [services.llm.client] base_url=https://api.deepseek.com model=deepseek-v4-flash
+2026-08-27T13:50:43.553089 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:50:45.219634 [info     ] answer_synthesized             [nodes.generator] length=90 sources=['rag_context']
+2026-08-27T13:50:45.220635 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:50:45.221634 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:50:45.306835 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:50:48.253807 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:50:48.253807 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  1/30] PASS FAQ-001 阑尾炎手术有等待期吗
+2026-08-27T13:50:48.363573 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:50:49.771772 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:50:49.858025 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=医疗险的等待期一般是多久 top_scores=[0.7923635141427248, 0.753791341649344, 0.6879713644225737]
+2026-08-27T13:50:49.858025 [info     ] graph_search_done              [services.rag.graph_retriever] facts=12 matched=2 query=医疗险的等待期一般是多久
+2026-08-27T13:50:49.858025 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=医疗险的等待期一般是多久 reranked=False
+2026-08-27T13:50:49.946817 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:50:51.481000 [info     ] answer_synthesized             [nodes.generator] length=60 sources=['rag_context']
+2026-08-27T13:50:51.482004 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:50:51.482004 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:50:51.569514 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:50:53.408480 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:50:53.408480 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  2/30] PASS FAQ-002 医疗险的等待期一般是多久
+2026-08-27T13:50:53.491607 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:50:54.959159 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:50:55.030636 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=重疾险等待期和医疗险一样吗 top_scores=[0.7560911210773479, 0.6883735980193086, 0.6750983698195535]
+2026-08-27T13:50:55.030636 [info     ] graph_search_done              [services.rag.graph_retriever] facts=12 matched=3 query=重疾险等待期和医疗险一样吗
+2026-08-27T13:50:55.030636 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=重疾险等待期和医疗险一样吗 reranked=False
+2026-08-27T13:50:55.170202 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:50:56.630295 [info     ] answer_synthesized             [nodes.generator] length=147 sources=['rag_context']
+2026-08-27T13:50:56.631295 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:50:56.631295 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:50:56.719304 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:50:58.960989 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:50:58.960989 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  3/30] PASS FAQ-003 重疾险等待期和医疗险一样吗
+2026-08-27T13:50:59.058457 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:50:59.816250 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:50:59.899525 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=意外医疗有没有等待期 top_scores=[0.7420495802282536, 0.7381961520730242, 0.689628626432855]
+2026-08-27T13:50:59.899525 [info     ] graph_search_done              [services.rag.graph_retriever] facts=12 matched=5 query=意外医疗有没有等待期
+2026-08-27T13:50:59.900525 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=意外医疗有没有等待期 reranked=False
+2026-08-27T13:51:00.019046 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:01.234003 [info     ] answer_synthesized             [nodes.generator] length=72 sources=['rag_context']
+2026-08-27T13:51:01.234698 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:51:01.235206 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:51:01.336127 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:03.451701 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:51:03.451701 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  4/30] PASS FAQ-004 意外医疗有没有等待期
+2026-08-27T13:51:03.537663 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:04.631327 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:51:04.713576 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=等待期内确诊的疾病能赔吗 top_scores=[0.7467804342676642, 0.7305108266625937, 0.7286551082574797]
+2026-08-27T13:51:04.713576 [info     ] graph_search_done              [services.rag.graph_retriever] facts=1 matched=1 query=等待期内确诊的疾病能赔吗
+2026-08-27T13:51:04.713576 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=等待期内确诊的疾病能赔吗 reranked=False
+2026-08-27T13:51:04.801314 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:06.579150 [info     ] answer_synthesized             [nodes.generator] length=142 sources=['rag_context']
+2026-08-27T13:51:06.580149 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:51:06.580149 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:51:06.667090 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:09.184284 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:51:09.184284 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  5/30] PASS FAQ-005 等待期内确诊的疾病能赔吗
+2026-08-27T13:51:09.267051 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:09.979570 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:51:10.058591 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=续保的保单还要重新算等待期吗 top_scores=[0.7657653638980491, 0.7187151321953158, 0.7010662265070691]
+2026-08-27T13:51:10.060096 [info     ] graph_search_done              [services.rag.graph_retriever] facts=1 matched=1 query=续保的保单还要重新算等待期吗
+2026-08-27T13:51:10.060096 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=续保的保单还要重新算等待期吗 reranked=False
+2026-08-27T13:51:10.148190 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:11.538443 [info     ] answer_synthesized             [nodes.generator] length=81 sources=['rag_context']
+2026-08-27T13:51:11.538443 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:51:11.540434 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:51:11.625162 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:13.632957 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:51:13.632957 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  6/30] PASS FAQ-006 续保的保单还要重新算等待期吗
+2026-08-27T13:51:13.718243 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:14.669565 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:51:14.754105 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=免责条款都有哪些 top_scores=[0.6431753404537391, 0.6417897707405911, 0.633358249429476]
+2026-08-27T13:51:14.754105 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=免责条款都有哪些 reranked=False
+2026-08-27T13:51:14.846326 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:17.571151 [info     ] answer_synthesized             [nodes.generator] length=380 sources=['rag_context']
+2026-08-27T13:51:17.572150 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:51:17.572150 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:51:17.654744 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:19.715818 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:51:19.715818 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  7/30] PASS FAQ-007 免责条款都有哪些
+2026-08-27T13:51:19.803174 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:20.899535 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:51:20.971691 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=既往症是什么意思 top_scores=[0.6000010568626546, 0.5631468527749441, 0.4533202777173855]
+2026-08-27T13:51:20.971691 [info     ] graph_search_done              [services.rag.graph_retriever] facts=2 matched=1 query=既往症是什么意思
+2026-08-27T13:51:20.971691 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=既往症是什么意思 reranked=False
+2026-08-27T13:51:21.087326 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:23.238791 [info     ] answer_synthesized             [nodes.generator] length=185 sources=['rag_context']
+2026-08-27T13:51:23.239795 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:51:23.239795 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:51:23.327083 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:26.811868 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:51:26.811868 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  8/30] PASS FAQ-008 既往症是什么意思
+2026-08-27T13:51:26.908675 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:28.137032 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:51:28.233837 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=近视手术能报销吗 top_scores=[0.6094711016066527, 0.5919851504687778, 0.5791212451073593]
+2026-08-27T13:51:28.234842 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=近视手术能报销吗 reranked=False
+2026-08-27T13:51:28.315664 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:29.478831 [info     ] answer_synthesized             [nodes.generator] length=80 sources=['rag_context']
+2026-08-27T13:51:29.480333 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:51:29.480333 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:51:29.567872 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:32.259595 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:51:32.259595 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  9/30] PASS FAQ-009 近视手术能报销吗
+2026-08-27T13:51:32.358295 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:33.248947 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:51:33.342969 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=生孩子住院的费用能赔吗 top_scores=[0.6684957590166791, 0.6533035460738874, 0.6288836529016639]
+2026-08-27T13:51:33.342969 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=生孩子住院的费用能赔吗 reranked=False
+2026-08-27T13:51:33.428751 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:35.346657 [info     ] answer_synthesized             [nodes.generator] length=86 sources=['rag_context']
+2026-08-27T13:51:35.347656 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:51:35.347656 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:51:35.429004 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:37.946813 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:51:37.946813 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 10/30] PASS FAQ-010 生孩子住院的费用能赔吗
+2026-08-27T13:51:38.075885 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:39.203721 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:51:39.290683 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=体检费用你们报销吗 top_scores=[0.6539905040161382, 0.594661174884867, 0.5932240437379839]
+2026-08-27T13:51:39.291686 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=体检费用你们报销吗 reranked=False
+2026-08-27T13:51:39.372147 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:41.457333 [info     ] answer_synthesized             [nodes.generator] length=117 sources=['rag_context']
+2026-08-27T13:51:41.457333 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:51:41.457333 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:51:41.545640 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:44.309261 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:51:44.309261 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 11/30] PASS FAQ-011 体检费用你们报销吗
+2026-08-27T13:51:44.399917 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:45.583337 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:51:45.675397 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=潜水受伤能赔吗 top_scores=[0.6294871489971898, 0.6156893052829739, 0.596048053764693]
+2026-08-27T13:51:45.675905 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=潜水受伤能赔吗 reranked=False
+2026-08-27T13:51:45.762078 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:47.473159 [info     ] answer_synthesized             [nodes.generator] length=87 sources=['rag_context']
+2026-08-27T13:51:47.474181 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:51:47.474181 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:51:47.644458 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:51.238880 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:51:51.239880 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 12/30] PASS FAQ-012 潜水受伤能赔吗
+2026-08-27T13:51:51.373508 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:52.558233 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:51:52.638130 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=理赔需要准备什么材料 top_scores=[0.7475404060691703, 0.6538482018783182, 0.6474026974610249]
+2026-08-27T13:51:52.638130 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=理赔需要准备什么材料 reranked=False
+2026-08-27T13:51:52.781964 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:54.457669 [info     ] answer_synthesized             [nodes.generator] length=206 sources=['rag_context']
+2026-08-27T13:51:54.459175 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:51:54.459175 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:51:54.559912 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:58.668714 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:51:58.668714 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 13/30] PASS FAQ-013 理赔需要准备什么材料
+2026-08-27T13:51:58.798307 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:51:59.983100 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:52:00.053398 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=理赔审核要多久 top_scores=[0.8009487940566216, 0.7731232433109743, 0.7562278209515726]
+2026-08-27T13:52:00.054401 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=理赔审核要多久 reranked=False
+2026-08-27T13:52:00.167123 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:01.505617 [info     ] answer_synthesized             [nodes.generator] length=93 sources=['rag_context']
+2026-08-27T13:52:01.506621 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:52:01.506621 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:52:01.591348 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:07.263182 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:52:07.263182 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 14/30] PASS FAQ-014 理赔审核要多久
+2026-08-27T13:52:07.340936 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:08.281861 [info     ] intent_classified              [nodes.intent] fallback=False intent=single_domain
+2026-08-27T13:52:08.375105 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:09.837778 [info     ] tool_cache_initialized         [services.cache] backend=memory ttl_s=300
+2026-08-27T13:52:09.915172 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query='理赔款到账时间 多久到账' top_scores=[0.7190766245891458, 0.7140334767649698, 0.6930255049250693]
+2026-08-27T13:52:09.915172 [info     ] tool_executed                  [tools.base] duration_ms=77 success=True tool=claim_rule_rag
+2026-08-27T13:52:09.915172 [info     ] react_tool_executed            [nodes.generator] success=True tool=claim_rule_rag
+2026-08-27T13:52:10.006315 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:11.738765 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:52:11.738765 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:52:11.824890 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:15.495994 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:52:15.496997 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 15/30] PASS FAQ-015 赔款大概什么时候到账
+2026-08-27T13:52:15.590474 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:16.680290 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:52:16.761494 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=理赔被拒了怎么办 top_scores=[0.7449785952232012, 0.6686853481154907, 0.6264010949567006]
+2026-08-27T13:52:16.761494 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=理赔被拒了怎么办 reranked=False
+2026-08-27T13:52:16.885107 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:19.162545 [info     ] answer_synthesized             [nodes.generator] length=278 sources=['rag_context']
+2026-08-27T13:52:19.163548 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:52:19.163548 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:52:19.240386 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:27.814355 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=MODIFY
+2026-08-27T13:52:27.814355 [info     ] compliance_node_done           [nodes.compliance] risk_score=20 rounds=1 verdict=MODIFY
+2026-08-27T13:52:27.901023 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:30.179973 [info     ] answer_revised                 [nodes.compliance] length=325
+2026-08-27T13:52:30.181243 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:52:30.181243 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:52:30.272869 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:34.817899 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:52:34.817899 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=2 verdict=PASS
+  [ 16/30] PASS FAQ-016 理赔被拒了怎么办
+2026-08-27T13:52:34.915889 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:36.168048 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:52:36.260853 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=发票丢了还能申请理赔吗 top_scores=[0.7620552398140208, 0.6480519332676871, 0.6247197090882418]
+2026-08-27T13:52:36.260853 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=发票丢了还能申请理赔吗 reranked=False
+2026-08-27T13:52:36.412585 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:38.494387 [info     ] answer_synthesized             [nodes.generator] length=129 sources=['rag_context']
+2026-08-27T13:52:38.495890 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:52:38.495890 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:52:38.577194 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:40.082616 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:52:40.082616 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 17/30] PASS FAQ-017 发票丢了还能申请理赔吗
+2026-08-27T13:52:40.182136 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:41.377186 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:52:41.458560 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=电子发票你们认吗 top_scores=[0.6326806817897634, 0.4768224713944871, 0.4723967704677289]
+2026-08-27T13:52:41.459560 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=电子发票你们认吗 reranked=False
+2026-08-27T13:52:41.558710 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:43.201775 [info     ] answer_synthesized             [nodes.generator] length=73 sources=['rag_context']
+2026-08-27T13:52:43.202289 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:52:43.202289 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:52:43.288217 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:44.710016 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:52:44.710016 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 18/30] PASS FAQ-018 电子发票你们认吗
+2026-08-27T13:52:44.789635 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:45.569277 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:52:45.663530 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=报案时效是多久 top_scores=[0.7462488362491122, 0.6429092858679861, 0.6094258055054923]
+2026-08-27T13:52:45.664531 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=报案时效是多久 reranked=False
+2026-08-27T13:52:45.753057 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:47.255803 [info     ] answer_synthesized             [nodes.generator] length=86 sources=['rag_context']
+2026-08-27T13:52:47.257508 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:52:47.257508 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:52:47.351335 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:51.129779 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:52:51.129779 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 19/30] PASS FAQ-019 报案时效是多久
+2026-08-27T13:52:51.216575 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:52.223640 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:52:52.315857 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=住院后多久之内要报案 top_scores=[0.8223571652368966, 0.6332265237491056, 0.6292568405436508]
+2026-08-27T13:52:52.317397 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=住院后多久之内要报案 reranked=False
+2026-08-27T13:52:52.398720 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:54.201502 [info     ] answer_synthesized             [nodes.generator] length=79 sources=['rag_context']
+2026-08-27T13:52:54.202008 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:52:54.202008 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:52:54.370548 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:56.499949 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:52:56.499949 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 20/30] PASS FAQ-020 住院后多久之内要报案
+2026-08-27T13:52:56.590246 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:52:58.100914 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:52:58.192643 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=普通门诊的费用能报吗 top_scores=[0.6961048273340316, 0.6483891839491661, 0.6332610713074931]
+2026-08-27T13:52:58.192643 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=普通门诊的费用能报吗 reranked=False
+2026-08-27T13:52:58.288530 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:00.447885 [info     ] answer_synthesized             [nodes.generator] length=147 sources=['rag_context']
+2026-08-27T13:53:00.449395 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:53:00.450399 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:53:00.535955 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:04.078262 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:53:04.078262 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 21/30] FAIL FAQ-021 普通门诊的费用能报吗
+2026-08-27T13:53:04.165362 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:05.437784 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:53:05.526481 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=医保和商业险能重复报销吗 top_scores=[0.6191367255496026, 0.6017282217761215, 0.5960805005386719]
+2026-08-27T13:53:05.526481 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=医保和商业险能重复报销吗 reranked=False
+2026-08-27T13:53:05.619983 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:08.160455 [info     ] answer_synthesized             [nodes.generator] length=200 sources=['rag_context']
+2026-08-27T13:53:08.160455 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:53:08.161455 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:53:08.286666 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:12.206875 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:53:12.207878 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 22/30] PASS FAQ-022 医保和商业险能重复报销吗
+2026-08-27T13:53:12.287973 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:13.560579 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:53:13.636889 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=社保报过的部分有什么用 top_scores=[0.529695142464722, 0.5269339486558451, 0.5138356300160714]
+2026-08-27T13:53:13.636889 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=社保报过的部分有什么用 reranked=False
+2026-08-27T13:53:13.724448 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:15.830244 [info     ] answer_synthesized             [nodes.generator] length=147 sources=['rag_context']
+2026-08-27T13:53:15.830244 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:53:15.831247 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:53:15.916221 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:21.846300 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:53:21.846300 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 23/30] FAIL FAQ-023 社保报过的部分有什么用
+2026-08-27T13:53:21.934505 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:22.933221 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:53:23.015871 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=进口药自费药能计入报销吗 top_scores=[0.6393606336996196, 0.6389261964317045, 0.6337087507268229]
+2026-08-27T13:53:23.016876 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=进口药自费药能计入报销吗 reranked=False
+2026-08-27T13:53:23.108751 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:25.909891 [info     ] answer_synthesized             [nodes.generator] length=211 sources=['rag_context']
+2026-08-27T13:53:25.911403 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:53:25.911403 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:53:25.993733 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:27.706990 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:53:27.706990 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 24/30] PASS FAQ-024 进口药自费药能计入报销吗
+2026-08-27T13:53:27.798378 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:28.674123 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:53:28.764192 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=重疾险是怎么赔的 top_scores=[0.6527795604881748, 0.6513111824272183, 0.6437447037975457]
+2026-08-27T13:53:28.764192 [info     ] graph_search_done              [services.rag.graph_retriever] facts=5 matched=1 query=重疾险是怎么赔的
+2026-08-27T13:53:28.764192 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=重疾险是怎么赔的 reranked=False
+2026-08-27T13:53:28.866948 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:30.734652 [info     ] answer_synthesized             [nodes.generator] length=125 sources=['rag_context']
+2026-08-27T13:53:30.735654 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:53:30.735654 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:53:30.813654 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:32.898045 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:53:32.899048 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 25/30] PASS FAQ-025 重疾险是怎么赔的
+2026-08-27T13:53:33.010380 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:34.288837 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:53:34.380700 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=猝死属于意外险赔付范围吗 top_scores=[0.7346345072206537, 0.7060641877430043, 0.6347387647788684]
+2026-08-27T13:53:34.380700 [info     ] graph_search_done              [services.rag.graph_retriever] facts=3 matched=1 query=猝死属于意外险赔付范围吗
+2026-08-27T13:53:34.380700 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=猝死属于意外险赔付范围吗 reranked=False
+2026-08-27T13:53:34.463401 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:36.310591 [info     ] answer_synthesized             [nodes.generator] length=123 sources=['rag_context']
+2026-08-27T13:53:36.312100 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:53:36.312100 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:53:36.397679 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:40.685152 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:53:40.685152 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 26/30] PASS FAQ-026 猝死属于意外险赔付范围吗
+2026-08-27T13:53:40.770788 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:41.411373 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:53:41.496064 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=意外险有免赔额吗 top_scores=[0.7359359757385907, 0.7116000039219028, 0.7079571480293065]
+2026-08-27T13:53:41.496064 [info     ] graph_search_done              [services.rag.graph_retriever] facts=3 matched=1 query=意外险有免赔额吗
+2026-08-27T13:53:41.496064 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=意外险有免赔额吗 reranked=False
+2026-08-27T13:53:41.579924 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:53:43.107611 [info     ] answer_synthesized             [nodes.generator] length=67 sources=['rag_context']
+2026-08-27T13:53:43.109115 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:53:43.109115 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:53:43.209170 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:03.150924 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:54:03.150924 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 27/30] PASS FAQ-027 意外险有免赔额吗
+2026-08-27T13:54:03.254524 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:04.307419 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:54:04.402451 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=你们公司年金险收益怎么样 top_scores=[0.4778588947970104, 0.47394988502926444, 0.4696305411631443]
+2026-08-27T13:54:04.402451 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=你们公司年金险收益怎么样 reranked=False
+2026-08-27T13:54:04.487903 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:08.448466 [info     ] answer_synthesized             [nodes.generator] length=101 sources=['rag_context']
+2026-08-27T13:54:08.449466 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:54:08.449466 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:54:08.532829 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:10.572809 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:54:10.572809 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 28/30] PASS FAQ-028 你们公司年金险收益怎么样
+2026-08-27T13:54:10.671510 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:11.918881 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:54:11.999213 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=保证续保是什么意思 top_scores=[0.6752569532431905, 0.5717147555060307, 0.5524654094735693]
+2026-08-27T13:54:11.999213 [info     ] graph_search_done              [services.rag.graph_retriever] facts=1 matched=1 query=保证续保是什么意思
+2026-08-27T13:54:11.999213 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=保证续保是什么意思 reranked=False
+2026-08-27T13:54:12.097731 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:14.359284 [info     ] answer_synthesized             [nodes.generator] length=175 sources=['rag_context']
+2026-08-27T13:54:14.360283 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:54:14.360283 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:54:14.436312 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:16.464950 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:54:16.464950 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 29/30] PASS FAQ-029 保证续保是什么意思
+2026-08-27T13:54:16.579491 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:18.170963 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:54:18.256371 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query=什么是代位求偿 top_scores=[0.5426232547681353, 0.4076112809130251, 0.40701684097519114]
+2026-08-27T13:54:18.256371 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=什么是代位求偿 reranked=False
+2026-08-27T13:54:18.335660 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:20.977062 [info     ] answer_synthesized             [nodes.generator] length=83 sources=['rag_context']
+2026-08-27T13:54:20.978565 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:54:20.978565 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:54:21.065510 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:23.105272 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:54:23.105272 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 30/30] PASS FAQ-030 什么是代位求偿
+
+===== 变体 rerank_on =====
+2026-08-27T13:54:23.106275 [info     ] variant_applied                [evals.variants] settings={'rerank_enabled': True} variant=rerank_on
+2026-08-27T13:54:23.205863 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:24.082358 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:54:24.176516 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=阑尾炎手术有等待期吗 top_scores=[0.7576770697225074, 0.6775281609886571, 0.5913655840891828]
+2026-08-27T13:54:24.180866 [info     ] No modules.json found for BAAI/bge-reranker-v2-m3, initializing a new CrossEncoder model. [sentence_transformers.base.model]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 6550.71it/s]
+2026-08-27T13:54:25.748474 [info     ] reranker_loaded                [services.rag.reranker] backend=torch device=cpu model=BAAI/bge-reranker-v2-m3
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.08s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.08s/it]
+2026-08-27T13:54:26.829673 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=阑尾炎手术有等待期吗
+2026-08-27T13:54:26.829673 [info     ] graph_search_done              [services.rag.graph_retriever] facts=4 matched=2 query=阑尾炎手术有等待期吗
+2026-08-27T13:54:26.829673 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=阑尾炎手术有等待期吗 reranked=True
+2026-08-27T13:54:26.986270 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:29.128600 [info     ] answer_synthesized             [nodes.generator] length=152 sources=['rag_context']
+2026-08-27T13:54:29.129604 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:54:29.129604 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:54:29.208228 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:33.778858 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:54:33.778858 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  1/30] PASS FAQ-001 阑尾炎手术有等待期吗
+2026-08-27T13:54:33.855965 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:34.888740 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:54:34.975322 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=医疗险的等待期一般是多久 top_scores=[0.7923635141427248, 0.753791341649344, 0.6879713644225737]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.38s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.38s/it]
+2026-08-27T13:54:36.359598 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=医疗险的等待期一般是多久
+2026-08-27T13:54:36.359598 [info     ] graph_search_done              [services.rag.graph_retriever] facts=12 matched=2 query=医疗险的等待期一般是多久
+2026-08-27T13:54:36.359598 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=医疗险的等待期一般是多久 reranked=True
+2026-08-27T13:54:36.449025 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:38.216147 [info     ] answer_synthesized             [nodes.generator] length=45 sources=['rag_context']
+2026-08-27T13:54:38.217147 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:54:38.217147 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:54:38.298349 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:39.219574 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:54:39.219574 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  2/30] PASS FAQ-002 医疗险的等待期一般是多久
+2026-08-27T13:54:39.305536 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:40.692137 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:54:40.767423 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=重疾险等待期和医疗险一样吗 top_scores=[0.7560911210773479, 0.6883735980193086, 0.6750983698195535]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.13it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.13it/s]
+2026-08-27T13:54:41.653646 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=重疾险等待期和医疗险一样吗
+2026-08-27T13:54:41.655367 [info     ] graph_search_done              [services.rag.graph_retriever] facts=12 matched=3 query=重疾险等待期和医疗险一样吗
+2026-08-27T13:54:41.655367 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=重疾险等待期和医疗险一样吗 reranked=True
+2026-08-27T13:54:41.746621 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:43.228528 [info     ] answer_synthesized             [nodes.generator] length=178 sources=['rag_context']
+2026-08-27T13:54:43.229531 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:54:43.229531 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:54:43.320395 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:50.116433 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:54:50.116433 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  3/30] PASS FAQ-003 重疾险等待期和医疗险一样吗
+2026-08-27T13:54:50.242762 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:51.564737 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:54:51.636673 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=意外医疗有没有等待期 top_scores=[0.7420495802282536, 0.7381961520730242, 0.689628626432855]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.13it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.13it/s]
+2026-08-27T13:54:52.521568 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=意外医疗有没有等待期
+2026-08-27T13:54:52.522587 [info     ] graph_search_done              [services.rag.graph_retriever] facts=12 matched=5 query=意外医疗有没有等待期
+2026-08-27T13:54:52.522587 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=意外医疗有没有等待期 reranked=True
+2026-08-27T13:54:52.685234 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:54:54.921054 [info     ] answer_synthesized             [nodes.generator] length=139 sources=['rag_context']
+2026-08-27T13:54:54.922053 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:54:54.922053 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:54:55.001999 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:01.302200 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:55:01.302200 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  4/30] PASS FAQ-004 意外医疗有没有等待期
+2026-08-27T13:55:01.402882 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:02.375704 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:55:02.455741 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=等待期内确诊的疾病能赔吗 top_scores=[0.7467804342676642, 0.7305108266625937, 0.7286551082574797]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.64s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.64s/it]
+2026-08-27T13:55:04.096927 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=等待期内确诊的疾病能赔吗
+2026-08-27T13:55:04.097430 [info     ] graph_search_done              [services.rag.graph_retriever] facts=1 matched=1 query=等待期内确诊的疾病能赔吗
+2026-08-27T13:55:04.097430 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=等待期内确诊的疾病能赔吗 reranked=True
+2026-08-27T13:55:04.186672 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:05.646432 [info     ] answer_synthesized             [nodes.generator] length=125 sources=['rag_context']
+2026-08-27T13:55:05.647489 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:55:05.647489 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:55:05.729766 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:08.983462 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:55:08.983462 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  5/30] PASS FAQ-005 等待期内确诊的疾病能赔吗
+2026-08-27T13:55:09.105383 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:10.318930 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:55:10.387069 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=续保的保单还要重新算等待期吗 top_scores=[0.7657653638980491, 0.7187151321953158, 0.7010662265070691]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.20it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.20it/s]
+2026-08-27T13:55:11.227122 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=续保的保单还要重新算等待期吗
+2026-08-27T13:55:11.227122 [info     ] graph_search_done              [services.rag.graph_retriever] facts=1 matched=1 query=续保的保单还要重新算等待期吗
+2026-08-27T13:55:11.227122 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=续保的保单还要重新算等待期吗 reranked=True
+2026-08-27T13:55:11.309419 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:13.405029 [info     ] answer_synthesized             [nodes.generator] length=90 sources=['rag_context']
+2026-08-27T13:55:13.405540 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:55:13.405540 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:55:13.497760 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:16.885301 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:55:16.885301 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  6/30] PASS FAQ-006 续保的保单还要重新算等待期吗
+2026-08-27T13:55:16.969979 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:18.132867 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:55:18.211220 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=免责条款都有哪些 top_scores=[0.6431753404537391, 0.6417897707405911, 0.633358249429476]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.32it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.32it/s]
+2026-08-27T13:55:18.970223 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=免责条款都有哪些
+2026-08-27T13:55:18.971232 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=免责条款都有哪些 reranked=True
+2026-08-27T13:55:19.052960 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:22.403036 [info     ] answer_synthesized             [nodes.generator] length=371 sources=['rag_context']
+2026-08-27T13:55:22.404036 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:55:22.404036 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:55:22.531959 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:27.996980 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:55:27.996980 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  7/30] PASS FAQ-007 免责条款都有哪些
+2026-08-27T13:55:28.085580 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:29.455317 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:55:29.521117 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=既往症是什么意思 top_scores=[0.6000010568626546, 0.5631468527749441, 0.4533202777173855]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.56s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.56s/it]
+2026-08-27T13:55:31.082998 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=既往症是什么意思
+2026-08-27T13:55:31.082998 [info     ] graph_search_done              [services.rag.graph_retriever] facts=2 matched=1 query=既往症是什么意思
+2026-08-27T13:55:31.082998 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=既往症是什么意思 reranked=True
+2026-08-27T13:55:31.204985 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:32.640910 [info     ] answer_synthesized             [nodes.generator] length=155 sources=['rag_context']
+2026-08-27T13:55:32.640910 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:55:32.642436 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:55:32.737647 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:35.568720 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:55:35.568720 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  8/30] PASS FAQ-008 既往症是什么意思
+2026-08-27T13:55:35.650766 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:36.765441 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:55:36.839300 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=近视手术能报销吗 top_scores=[0.6094711016066527, 0.5919851504687778, 0.5791212451073593]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.60s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.60s/it]
+2026-08-27T13:55:38.444519 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=近视手术能报销吗
+2026-08-27T13:55:38.444519 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=近视手术能报销吗 reranked=True
+2026-08-27T13:55:38.533247 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:39.994677 [info     ] answer_synthesized             [nodes.generator] length=80 sources=['rag_context']
+2026-08-27T13:55:39.996180 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:55:39.996180 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:55:40.100723 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:41.805824 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:55:41.805824 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [  9/30] PASS FAQ-009 近视手术能报销吗
+2026-08-27T13:55:41.897717 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:43.148273 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:55:43.237378 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=生孩子住院的费用能赔吗 top_scores=[0.6684957590166791, 0.6533035460738874, 0.6288836529016639]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.06it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.06it/s]
+2026-08-27T13:55:44.187163 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=生孩子住院的费用能赔吗
+2026-08-27T13:55:44.187163 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=生孩子住院的费用能赔吗 reranked=True
+2026-08-27T13:55:44.270462 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:46.235587 [info     ] answer_synthesized             [nodes.generator] length=87 sources=['rag_context']
+2026-08-27T13:55:46.237091 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:55:46.237091 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:55:46.349060 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:48.298048 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:55:48.298048 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 10/30] PASS FAQ-010 生孩子住院的费用能赔吗
+2026-08-27T13:55:48.416403 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:49.526630 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:55:49.615678 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=体检费用你们报销吗 top_scores=[0.6539905040161382, 0.594661174884867, 0.5932240437379839]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.63s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.63s/it]
+2026-08-27T13:55:51.246434 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=体检费用你们报销吗
+2026-08-27T13:55:51.246937 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=体检费用你们报销吗 reranked=True
+2026-08-27T13:55:51.337565 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:53.272403 [info     ] answer_synthesized             [nodes.generator] length=123 sources=['rag_context']
+2026-08-27T13:55:53.273407 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:55:53.273407 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:55:53.438167 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:57.189606 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:55:57.189606 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 11/30] PASS FAQ-011 体检费用你们报销吗
+2026-08-27T13:55:57.288102 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:55:58.610439 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:55:58.699051 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=潜水受伤能赔吗 top_scores=[0.6294871489971898, 0.6156893052829739, 0.596048053764693]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.07it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.07it/s]
+2026-08-27T13:55:59.638348 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=潜水受伤能赔吗
+2026-08-27T13:55:59.638851 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=潜水受伤能赔吗 reranked=True
+2026-08-27T13:55:59.746003 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:01.222304 [info     ] answer_synthesized             [nodes.generator] length=95 sources=['rag_context']
+2026-08-27T13:56:01.222304 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:56:01.222304 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:56:01.312408 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:02.905953 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:56:02.906464 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 12/30] PASS FAQ-012 潜水受伤能赔吗
+2026-08-27T13:56:02.986411 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:03.811968 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:56:03.896932 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=理赔需要准备什么材料 top_scores=[0.7475404060691703, 0.6538482018783182, 0.6474026974610249]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.35s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.35s/it]
+2026-08-27T13:56:05.252577 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=理赔需要准备什么材料
+2026-08-27T13:56:05.252577 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=理赔需要准备什么材料 reranked=True
+2026-08-27T13:56:05.430159 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:09.726380 [info     ] answer_synthesized             [nodes.generator] length=305 sources=['rag_context']
+2026-08-27T13:56:09.727383 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:56:09.727383 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:56:09.814261 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:11.393449 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:56:11.393951 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 13/30] PASS FAQ-013 理赔需要准备什么材料
+2026-08-27T13:56:11.479340 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:12.121302 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:56:12.198224 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=理赔审核要多久 top_scores=[0.8009487940566216, 0.7731232433109743, 0.7562278209515726]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.35s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.35s/it]
+2026-08-27T13:56:13.556121 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=理赔审核要多久
+2026-08-27T13:56:13.556121 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=理赔审核要多久 reranked=True
+2026-08-27T13:56:13.646913 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:15.263737 [info     ] answer_synthesized             [nodes.generator] length=128 sources=['rag_context']
+2026-08-27T13:56:15.264741 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:56:15.264741 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:56:15.344518 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:17.899221 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:56:17.899221 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 14/30] PASS FAQ-014 理赔审核要多久
+2026-08-27T13:56:17.980165 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:19.231353 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:56:19.322136 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=赔款大概什么时候到账 top_scores=[0.6543407743039298, 0.6531412738774105, 0.6522029411338393]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.35s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.35s/it]
+2026-08-27T13:56:20.675695 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=赔款大概什么时候到账
+2026-08-27T13:56:20.676693 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=赔款大概什么时候到账 reranked=True
+2026-08-27T13:56:20.766476 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:22.597525 [info     ] answer_synthesized             [nodes.generator] length=114 sources=['rag_context']
+2026-08-27T13:56:22.598525 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:56:22.598525 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:56:22.689638 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:28.991069 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:56:28.991687 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 15/30] PASS FAQ-015 赔款大概什么时候到账
+2026-08-27T13:56:29.117822 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:30.322302 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:56:30.403340 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=理赔被拒了怎么办 top_scores=[0.7449785952232012, 0.6686853481154907, 0.6264010949567006]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.37s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.37s/it]
+2026-08-27T13:56:31.777730 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=理赔被拒了怎么办
+2026-08-27T13:56:31.777730 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=理赔被拒了怎么办 reranked=True
+2026-08-27T13:56:31.857500 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:34.136901 [info     ] answer_synthesized             [nodes.generator] length=222 sources=['rag_context']
+2026-08-27T13:56:34.136901 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:56:34.137901 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:56:34.458248 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:41.754661 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=MODIFY
+2026-08-27T13:56:41.754661 [info     ] compliance_node_done           [nodes.compliance] risk_score=30 rounds=1 verdict=MODIFY
+2026-08-27T13:56:41.840885 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:43.503488 [info     ] answer_revised                 [nodes.compliance] length=249
+2026-08-27T13:56:43.504489 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:56:43.504993 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:56:43.587429 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:56:58.970702 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:56:58.970702 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=2 verdict=PASS
+  [ 16/30] PASS FAQ-016 理赔被拒了怎么办
+2026-08-27T13:56:59.060965 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:00.090678 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:57:00.172437 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=发票丢了还能申请理赔吗 top_scores=[0.7620552398140208, 0.6480519332676871, 0.6247197090882418]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.36s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.36s/it]
+2026-08-27T13:57:01.542215 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=发票丢了还能申请理赔吗
+2026-08-27T13:57:01.542215 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=发票丢了还能申请理赔吗 reranked=True
+2026-08-27T13:57:01.622589 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:03.441433 [info     ] answer_synthesized             [nodes.generator] length=195 sources=['rag_context']
+2026-08-27T13:57:03.442471 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:57:03.442471 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:57:03.522352 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:05.446723 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:57:05.448319 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 17/30] PASS FAQ-017 发票丢了还能申请理赔吗
+2026-08-27T13:57:05.535760 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:06.631741 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:57:06.707847 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=电子发票你们认吗 top_scores=[0.6326806817897634, 0.4768224713944871, 0.4723967704677289]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.35s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.35s/it]
+2026-08-27T13:57:08.061364 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=电子发票你们认吗
+2026-08-27T13:57:08.062368 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=电子发票你们认吗 reranked=True
+2026-08-27T13:57:08.174716 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:09.685061 [info     ] answer_synthesized             [nodes.generator] length=76 sources=['rag_context']
+2026-08-27T13:57:09.685061 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:57:09.685061 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:57:09.773228 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:11.555512 [warning  ] compliance_llm_invalid_output  [nodes.compliance] raw='{{\n  "verdict": "PASS",\n  "violations": [],\n  "risk_score": 0,\n  "reason": "内容为理赔材料告知与有效性说明，未出现承诺赔付、'
+2026-08-27T13:57:11.555512 [info     ] compliance_reviewed            [nodes.compliance] fallback=True verdict=PASS
+2026-08-27T13:57:11.556518 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 18/30] PASS FAQ-018 电子发票你们认吗
+2026-08-27T13:57:11.640364 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:12.473060 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:57:12.554677 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=报案时效是多久 top_scores=[0.7462488362491122, 0.6429092858679861, 0.6094258055054923]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.34s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.34s/it]
+2026-08-27T13:57:13.897368 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=报案时效是多久
+2026-08-27T13:57:13.897368 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=报案时效是多久 reranked=True
+2026-08-27T13:57:13.987210 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:15.416662 [info     ] answer_synthesized             [nodes.generator] length=119 sources=['rag_context']
+2026-08-27T13:57:15.416662 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:57:15.416662 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:57:15.529247 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:19.582380 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:57:19.582380 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 19/30] PASS FAQ-019 报案时效是多久
+2026-08-27T13:57:19.663961 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:20.396901 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:57:20.488122 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=住院后多久之内要报案 top_scores=[0.8223571652368966, 0.6332265237491056, 0.6292568405436508]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.59s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.59s/it]
+2026-08-27T13:57:22.082580 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=住院后多久之内要报案
+2026-08-27T13:57:22.082580 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=住院后多久之内要报案 reranked=True
+2026-08-27T13:57:22.170351 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:24.124239 [info     ] answer_synthesized             [nodes.generator] length=72 sources=['rag_context']
+2026-08-27T13:57:24.124239 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:57:24.125747 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:57:24.205619 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:26.684319 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:57:26.684319 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 20/30] PASS FAQ-020 住院后多久之内要报案
+2026-08-27T13:57:26.768573 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:27.646948 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:57:27.732515 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=普通门诊的费用能报吗 top_scores=[0.6961048273340316, 0.6483891839491661, 0.6332610713074931]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.63s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.63s/it]
+2026-08-27T13:57:29.362412 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=普通门诊的费用能报吗
+2026-08-27T13:57:29.363417 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=普通门诊的费用能报吗 reranked=True
+2026-08-27T13:57:29.450134 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:31.226505 [info     ] answer_synthesized             [nodes.generator] length=132 sources=['rag_context']
+2026-08-27T13:57:31.227016 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:57:31.227016 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:57:31.315474 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:32.925863 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:57:32.925863 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 21/30] PASS FAQ-021 普通门诊的费用能报吗
+2026-08-27T13:57:33.020224 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:34.291449 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:57:34.370954 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=医保和商业险能重复报销吗 top_scores=[0.6191367255496026, 0.6017282217761215, 0.5960805005386719]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.36s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.36s/it]
+2026-08-27T13:57:35.737848 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=医保和商业险能重复报销吗
+2026-08-27T13:57:35.737848 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=医保和商业险能重复报销吗 reranked=True
+2026-08-27T13:57:35.824479 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:37.965372 [info     ] answer_synthesized             [nodes.generator] length=86 sources=['rag_context']
+2026-08-27T13:57:37.965372 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:57:37.965372 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:57:38.153151 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:40.083682 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:57:40.083682 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 22/30] PASS FAQ-022 医保和商业险能重复报销吗
+2026-08-27T13:57:40.200084 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:41.448721 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:57:41.530389 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=社保报过的部分有什么用 top_scores=[0.529695142464722, 0.5269339486558451, 0.5138356300160714]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.59s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.59s/it]
+2026-08-27T13:57:43.127935 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=社保报过的部分有什么用
+2026-08-27T13:57:43.127935 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=社保报过的部分有什么用 reranked=True
+2026-08-27T13:57:43.226702 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:45.347425 [info     ] answer_synthesized             [nodes.generator] length=99 sources=['rag_context']
+2026-08-27T13:57:45.347425 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:57:45.347425 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:57:45.442361 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:50.429872 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:57:50.429872 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 23/30] FAIL FAQ-023 社保报过的部分有什么用
+2026-08-27T13:57:50.558538 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:51.383108 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:57:51.464931 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=进口药自费药能计入报销吗 top_scores=[0.6393606336996196, 0.6389261964317045, 0.6337087507268229]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.65s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.65s/it]
+2026-08-27T13:57:53.122364 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=进口药自费药能计入报销吗
+2026-08-27T13:57:53.122364 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=进口药自费药能计入报销吗 reranked=True
+2026-08-27T13:57:53.222214 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:55.999753 [info     ] answer_synthesized             [nodes.generator] length=254 sources=['rag_context']
+2026-08-27T13:57:56.000756 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:57:56.000756 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:57:56.094231 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:57.819595 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:57:57.819595 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 24/30] PASS FAQ-024 进口药自费药能计入报销吗
+2026-08-27T13:57:57.904065 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:57:58.989332 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:57:59.077594 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=重疾险是怎么赔的 top_scores=[0.6527795604881748, 0.6513111824272183, 0.6437447037975457]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.06it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.06it/s]
+2026-08-27T13:58:00.025407 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=重疾险是怎么赔的
+2026-08-27T13:58:00.025407 [info     ] graph_search_done              [services.rag.graph_retriever] facts=5 matched=1 query=重疾险是怎么赔的
+2026-08-27T13:58:00.026924 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=重疾险是怎么赔的 reranked=True
+2026-08-27T13:58:00.113608 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:02.080452 [info     ] answer_synthesized             [nodes.generator] length=161 sources=['rag_context']
+2026-08-27T13:58:02.080961 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:58:02.080961 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:58:02.199580 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:05.545707 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:58:05.545707 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 25/30] PASS FAQ-025 重疾险是怎么赔的
+2026-08-27T13:58:05.630552 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:06.754952 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:58:06.836599 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=猝死属于意外险赔付范围吗 top_scores=[0.7346345072206537, 0.7060641877430043, 0.6347387647788684]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.62s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.62s/it]
+2026-08-27T13:58:08.458077 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=猝死属于意外险赔付范围吗
+2026-08-27T13:58:08.458077 [info     ] graph_search_done              [services.rag.graph_retriever] facts=3 matched=1 query=猝死属于意外险赔付范围吗
+2026-08-27T13:58:08.458077 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=猝死属于意外险赔付范围吗 reranked=True
+2026-08-27T13:58:08.549520 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:10.295549 [info     ] answer_synthesized             [nodes.generator] length=67 sources=['rag_context']
+2026-08-27T13:58:10.296549 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:58:10.296549 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:58:10.388388 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:13.445190 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:58:13.445190 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 26/30] PASS FAQ-026 猝死属于意外险赔付范围吗
+2026-08-27T13:58:13.530330 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:14.531955 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:58:14.608021 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=意外险有免赔额吗 top_scores=[0.7359359757385907, 0.7116000039219028, 0.7079571480293065]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.13it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.13it/s]
+2026-08-27T13:58:15.498165 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=意外险有免赔额吗
+2026-08-27T13:58:15.498165 [info     ] graph_search_done              [services.rag.graph_retriever] facts=3 matched=1 query=意外险有免赔额吗
+2026-08-27T13:58:15.498165 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=意外险有免赔额吗 reranked=True
+2026-08-27T13:58:15.587990 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:17.123351 [info     ] answer_synthesized             [nodes.generator] length=84 sources=['rag_context']
+2026-08-27T13:58:17.123853 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:58:17.123853 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:58:17.211889 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:19.682555 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:58:19.682555 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 27/30] PASS FAQ-027 意外险有免赔额吗
+2026-08-27T13:58:19.875130 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:21.704829 [info     ] intent_classified              [nodes.intent] fallback=False intent=other
+2026-08-27T13:58:21.821590 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:23.839829 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query='年金险 收益 返还 领取' top_scores=[0.5231792193112199, 0.5172316644063701, 0.516378632645363]
+2026-08-27T13:58:23.840832 [info     ] tool_executed                  [tools.base] duration_ms=70 success=True tool=claim_rule_rag
+2026-08-27T13:58:23.840832 [info     ] react_tool_executed            [nodes.generator] success=True tool=claim_rule_rag
+2026-08-27T13:58:23.923438 [info     ] kb_search_done                 [services.rag.retriever] hits=4 query='年金险 保障责任 领取方式 缴费' top_scores=[0.6113039748357332, 0.6060364410595793, 0.6024035239819764]
+2026-08-27T13:58:23.923438 [info     ] tool_executed                  [tools.base] duration_ms=82 success=True tool=claim_rule_rag
+2026-08-27T13:58:23.923438 [info     ] react_tool_executed            [nodes.generator] success=True tool=claim_rule_rag
+2026-08-27T13:58:24.024490 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:28.119138 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:58:28.119138 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:58:28.210108 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:30.443184 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:58:30.443184 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 28/30] PASS FAQ-028 你们公司年金险收益怎么样
+2026-08-27T13:58:30.931678 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:31.720873 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:58:31.812427 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=保证续保是什么意思 top_scores=[0.6752569532431905, 0.5717147555060307, 0.5524654094735693]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.57s/it]Batches: 100%|██████████| 1/1 [00:01<00:00,  1.57s/it]
+2026-08-27T13:58:33.383723 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=保证续保是什么意思
+2026-08-27T13:58:33.383723 [info     ] graph_search_done              [services.rag.graph_retriever] facts=1 matched=1 query=保证续保是什么意思
+2026-08-27T13:58:33.383723 [info     ] rag_node_done                  [nodes.rag] graph_facts=True hits=4 query=保证续保是什么意思 reranked=True
+2026-08-27T13:58:33.512469 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:36.858065 [info     ] answer_synthesized             [nodes.generator] length=125 sources=['rag_context']
+2026-08-27T13:58:36.859068 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:58:36.859068 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:58:37.313006 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:39.448374 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:58:39.448374 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 29/30] PASS FAQ-029 保证续保是什么意思
+2026-08-27T13:58:39.558150 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:40.686787 [info     ] intent_classified              [nodes.intent] fallback=False intent=simple_faq
+2026-08-27T13:58:40.757707 [info     ] kb_search_done                 [services.rag.retriever] hits=8 query=什么是代位求偿 top_scores=[0.5426232547681353, 0.4076112809130251, 0.40701684097519114]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.34it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.34it/s]
+2026-08-27T13:58:41.507444 [info     ] rerank_done                    [services.rag.reranker] candidates=8 kept=4 query=什么是代位求偿
+2026-08-27T13:58:41.507947 [info     ] rag_node_done                  [nodes.rag] graph_facts=False hits=4 query=什么是代位求偿 reranked=True
+2026-08-27T13:58:41.594390 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:42.975560 [info     ] answer_synthesized             [nodes.generator] length=107 sources=['rag_context']
+2026-08-27T13:58:42.977063 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=compliance_rule_check
+2026-08-27T13:58:42.977063 [info     ] tool_executed                  [tools.base] duration_ms=0 success=True tool=risk_scoring
+2026-08-27T13:58:43.066800 [info     ] HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK" [httpx2]
+2026-08-27T13:58:45.080635 [info     ] compliance_reviewed            [nodes.compliance] fallback=False verdict=PASS
+2026-08-27T13:58:45.080635 [info     ] compliance_node_done           [nodes.compliance] risk_score=0 rounds=1 verdict=PASS
+  [ 30/30] PASS FAQ-030 什么是代位求偿
+
+===== A/B 对比摘要 =====
+rerank_off → rerank_on: 完成率 93.3% → 96.7%（+3.3pp, 不显著 z=-0.592）
+  token: 79553 → 82208；耗时: 7.831s → 8.732s
+报告已写入: evals\reports\t043_rerank_20260827_135845.json / evals\reports\t043_rerank_20260827_135845.md

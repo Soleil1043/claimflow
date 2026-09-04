@@ -37,17 +37,17 @@ def make_intake_node(recorder: CaseRecorder, policy_lookup: PolicyLookup):
     """intake 节点工厂。policy_lookup(policy_no) -> {product_type, ...} | None。"""
 
     async def intake_node(state: ClaimCaseState) -> dict[str, Any]:
-        info = await policy_lookup(state["policy_id"])
-        declared = state.get("declared_case_type")
-        if info is not None:
+        info = await policy_lookup(state["policy_id"])  # 根据保单号查保单
+        declared = state.get("declared_case_type")  # 获取用户声明的险种
+        if info is not None:  # 保单存在
             case_type = POLICY_TYPE_TO_LINE.get(str(info.get("product_type", "")), "unknown")
-        elif declared is not None:
+        elif declared is not None:  # 保单不存在，但已声明险种
             case_type = declared
-        else:
+        else:  # 保单不存在，未声明险种
             case_type = "unknown"
 
-        update: dict[str, Any] = {"case_type": case_type}
-        if case_type not in ONLINE_LINES:
+        update: dict[str, Any] = {"case_type": case_type}  # 更新 case_type
+        if case_type not in ONLINE_LINES:  # 未上线险种，转人工受理
             update["human_request"] = {
                 "case_id": state["case_id"],
                 "kind": "escape",
@@ -55,7 +55,9 @@ def make_intake_node(recorder: CaseRecorder, policy_lookup: PolicyLookup):
             }
             log.info("intake_referred_offline", case_id=state["case_id"], case_type=case_type)
 
+        # 更新案件状态为 in_progress
         await recorder.update_case(state["case_id"], case_type=case_type, status="in_progress")
+        # 记录 intake 结果
         await recorder.event(
             state["case_id"],
             "stage_result",

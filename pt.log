@@ -1,0 +1,18 @@
+........................................................................ [ 18%]
+........................................................................ [ 36%]
+........................................................................ [ 54%]
+........................................................................ [ 72%]
+........................................................................ [ 90%]
+.......................................                                  [100%]
+============================== warnings summary ===============================
+tests/api/test_upload_materials.py::test_upload_doc_rejected_with_hint
+tests/api/test_upload_materials.py::test_upload_unsupported_type_rejected
+tests/api/test_upload_materials.py::test_upload_empty_file_rejected
+tests/api/test_upload_materials.py::test_upload_oversize_rejected
+tests/tools/medical/test_ocr_extract.py::test_a07_pdf_accepted_txt_rejected_422
+tests/tools/medical/test_ocr_extract.py::test_a07_empty_file_rejected
+  D:\Code\PythonProjects\claimflow\.venv\Lib\site-packages\fastapi\routing.py:352: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    return await dependant.call(**values)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+399 passed, 6 warnings in 15.66s

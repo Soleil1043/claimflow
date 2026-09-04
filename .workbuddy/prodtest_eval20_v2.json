@@ -1,0 +1,69 @@
+{
+  "dataset_version": "1.1.0",
+  "dataset": "main",
+  "category": null,
+  "variant": "baseline",
+  "git_sha": "9830854",
+  "generated_at": "2026-09-04 00:31:15",
+  "summary": {
+    "total": 20,
+    "passed": 20,
+    "task_completion_rate": 1.0,
+    "tool_accuracy": 1.0,
+    "tool_scored_passed": 20,
+    "tool_scored_total": 20,
+    "compliance_pass_rate": 1.0,
+    "avg_duration_s": 6.24,
+    "p95_duration_s": 11.046,
+    "tokens_per_case": 986.4,
+    "wilson_ci": [
+      0.8389,
+      1.0
+    ],
+    "human_precision": 0.0,
+    "human_recall": 0.0,
+    "human_scored": 0,
+    "human_intervened": 0,
+    "intent_accuracy": null,
+    "intent_scored": 0,
+    "judge_pass_rate": null,
+    "judge_scored": 0,
+    "avg_vector_hits": 3.8,
+    "avg_graph_hits": 2.2,
+    "graph_coverage": 0.35,
+    "by_category": {
+      "simple_faq": {
+        "total": 20.0,
+        "passed": 20.0,
+        "rate": 1.0
+      }
+    },
+    "trajectory": {
+      "order": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "route": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "forbidden": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "args": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "limit": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "redundancy": {
+        "avg_redundant_calls": 0.0,
+        "cases_with_trace": 20.0
+      }
+    }
+  },
+  "failures": []
+}

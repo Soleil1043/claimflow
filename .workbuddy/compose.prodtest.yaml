@@ -1,0 +1,10 @@
+# 生产测试临时 override：宿主机 5432/6379 被原生 postgres.exe/redis-server.exe 占用，
+# compose 端口发布静默失败，改映射 15432/16379 供宿主机进程（评测等）直连。
+# 用法：docker compose -f docker-compose.yml -f .workbuddy/compose.prodtest.yaml up -d postgres redis
+services:
+  postgres:
+    ports: !override
+      - "15432:5432"
+  redis:
+    ports: !override
+      - "16379:6379"

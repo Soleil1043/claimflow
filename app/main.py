@@ -11,14 +11,11 @@ from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
 from prometheus_client import generate_latest
 
-from app.api.v1 import cases, conversations, evals, health, interventions
+from app.api.v1 import cases, evals, health, interventions
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
 from services.db.session import dispose_engine, init_db
 from services.memory.short_term import get_checkpoint_manager
-from tools.executor import ToolExecutor
-from tools.registry import get_default_registry
-from workflows.main_graph import build_main_graph
 
 log = get_logger(__name__)
 
@@ -28,11 +25,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """应用生命周期：初始化日志 / 数据库 / checkpointer / 主图，关停时逆序释放。"""
     configure_logging()
 
-    import tools.claim  # noqa: F401 注册理赔工具
-    import tools.compliance  # noqa: F401 注册合规工具
-    import tools.medical  # noqa: F401 注册医疗工具
-
-    registry = get_default_registry()
     checkpointer = await get_checkpoint_manager().start()
 
     # BUG-003 配套：prod 长期记忆 Store 启动期预建（开池 + 建表）。不能懒加载到首个
@@ -56,16 +48,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     await asyncio.to_thread(preload_embedding_model)
 
-    app.state.graph: Any = build_main_graph(
-        executor=ToolExecutor(registry),
-        checkpointer=checkpointer,
-    )
-
-    # Phase 8 T080：核赔案件主图（与 v1 主图共用 checkpointer；thread_id = case_id）
+    # Phase 8 T080/T093：核赔案件主图（v1 主图已删除）
     from workflows.case_graph import create_default_case_graph
 
     app.state.case_graph: Any = create_default_case_graph(checkpointer=checkpointer)
-    log.info("app_started", profile=str(settings.app_profile), tools=registry.list_names())
+    log.info("app_started", profile=str(settings.app_profile))
     yield
 
     from services.cache import get_tool_cache
@@ -86,7 +73,6 @@ app = FastAPI(
 )
 
 app.include_router(health.router)
-app.include_router(conversations.router)
 app.include_router(interventions.router)
 app.include_router(evals.router)
 app.include_router(cases.router)

@@ -1,0 +1,29 @@
+{
+  "dataset_version": "1.0.0",
+  "dataset": "main",
+  "category": "multi_step",
+  "variant": "baseline",
+  "generated_at": "2026-09-02 08:41:27",
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "task_completion_rate": 1.0,
+    "tool_accuracy": 1.0,
+    "tool_scored_passed": 12,
+    "tool_scored_total": 12,
+    "compliance_pass_rate": 0.9166666666666666,
+    "human_precision": 0.0,
+    "avg_duration_s": 21.757,
+    "avg_vector_hits": 0.0,
+    "avg_graph_hits": 0.0,
+    "graph_coverage": 0.0,
+    "by_category": {
+      "multi_step": {
+        "total": 12.0,
+        "passed": 12.0,
+        "rate": 1.0
+      }
+    }
+  },
+  "failures": []
+}

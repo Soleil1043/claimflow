@@ -1,0 +1,1330 @@
+[
+ {
+  "id": "MS-001",
+  "input": "我做了阑尾炎手术花了15800元，保单POL-2025-0001能赔多少",
+  "tools": [],
+  "route": [],
+  "passed": false,
+  "error": "工具 diagnosis_matcher 执行失败: diagnosis_matcher 超时（>10.0s）"
+ },
+ {
+  "id": "MS-002",
+  "input": "我做了肾结石手术花了12600元，保单POL-2026-0005能赔多少",
+  "tools": [
+   "claim_rule_rag",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "record_query",
+   "record_query",
+   "record_query",
+   "record_query",
+   "record_query",
+   "record_query",
+   "record_query",
+   "policy_query",
+   "claim_calculator",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-003",
+  "input": "我做了胆石症手术花了9800元，保单POL-2025-0001能赔多少",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_calculator",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-004",
+  "input": "我做了肺炎手术花了7600元，保单POL-2025-0001能赔多少",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_calculator",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-005",
+  "input": "保单POL-2025-0001，阑尾炎住院花了15800元，帮我算算能报销多少",
+  "tools": [
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_calculator",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-006",
+  "input": "保单POL-2026-0005，肾结石住院花了12600元，帮我算算能报销多少",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "record_query",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_calculator",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-007",
+  "input": "保单POL-2025-0001，胆石症住院花了9800元，帮我算算能报销多少",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-008",
+  "input": "保单POL-2025-0001，肺炎住院花了7600元，帮我算算能报销多少",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "record_query",
+   "diagnosis_matcher",
+   "policy_query",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": false,
+  "error": ""
+ },
+ {
+  "id": "MS-009",
+  "input": "帮我查下POL-2025-0001的保障，我阑尾炎手术总费用15800元，最终能拿到多少钱",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "diagnosis_matcher",
+   "policy_query",
+   "claim_calculator",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-010",
+  "input": "帮我查下POL-2026-0005的保障，我肾结石手术总费用12600元，最终能拿到多少钱",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-011",
+  "input": "帮我查下POL-2025-0001的保障，我胆石症手术总费用9800元，最终能拿到多少钱",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-012",
+  "input": "帮我查下POL-2025-0001的保障，我肺炎手术总费用7600元，最终能拿到多少钱",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-013",
+  "input": "我做了阑尾炎手术，能赔吗，顺便算算能赔多少钱",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-014",
+  "input": "我做了急性阑尾炎手术，能赔吗，顺便算算能赔多少钱",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-015",
+  "input": "我做了肾结石手术，能赔吗，顺便算算能赔多少钱",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "policy_query",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-016",
+  "input": "我做了胆石症手术，能赔吗，顺便算算能赔多少钱",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-017",
+  "input": "我做了胆石症胆囊切除手术，能赔吗，顺便算算能赔多少钱",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "policy_query",
+   "policy_query",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-018",
+  "input": "我做了肺炎手术，能赔吗，顺便算算能赔多少钱",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "policy_query",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-019",
+  "input": "我做了急性支气管炎手术，能赔吗，顺便算算能赔多少钱",
+  "tools": [
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-020",
+  "input": "我做了支气管哮喘手术，能赔吗，顺便算算能赔多少钱",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "policy_query"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-021",
+  "input": "帮我核对一下阑尾炎是否在保障范围内，并计算大概赔付金额",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "policy_query",
+   "policy_query",
+   "policy_query",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-022",
+  "input": "帮我核对一下急性阑尾炎是否在保障范围内，并计算大概赔付金额",
+  "tools": [
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-023",
+  "input": "帮我核对一下肾结石是否在保障范围内，并计算大概赔付金额",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "policy_query",
+   "policy_query",
+   "policy_query",
+   "policy_query",
+   "policy_query",
+   "policy_query",
+   "policy_query",
+   "policy_query"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": false,
+  "error": ""
+ },
+ {
+  "id": "MS-024",
+  "input": "帮我核对一下胆石症是否在保障范围内，并计算大概赔付金额",
+  "tools": [
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-025",
+  "input": "帮我核对一下胆石症胆囊切除是否在保障范围内，并计算大概赔付金额",
+  "tools": [
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": false,
+  "error": ""
+ },
+ {
+  "id": "MS-026",
+  "input": "帮我核对一下肺炎是否在保障范围内，并计算大概赔付金额",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-027",
+  "input": "帮我核对一下急性支气管炎是否在保障范围内，并计算大概赔付金额",
+  "tools": [
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "policy_query",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-028",
+  "input": "帮我核对一下支气管哮喘是否在保障范围内，并计算大概赔付金额",
+  "tools": [
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-029",
+  "input": "我想申请阑尾炎的理赔，需要什么流程和材料",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-030",
+  "input": "我想申请急性阑尾炎的理赔，需要什么流程和材料",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-031",
+  "input": "我想申请肾结石的理赔，需要什么流程和材料",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-032",
+  "input": "我想申请胆石症的理赔，需要什么流程和材料",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-033",
+  "input": "我想申请胆石症胆囊切除的理赔，需要什么流程和材料",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-034",
+  "input": "我想申请肺炎的理赔，需要什么流程和材料",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-035",
+  "input": "我想申请急性支气管炎的理赔，需要什么流程和材料",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-036",
+  "input": "我想申请支气管哮喘的理赔，需要什么流程和材料",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-037",
+  "input": "阑尾炎住院理赔的完整流程是什么，材料要准备哪些",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-038",
+  "input": "急性阑尾炎住院理赔的完整流程是什么，材料要准备哪些",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-039",
+  "input": "肾结石住院理赔的完整流程是什么，材料要准备哪些",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-040",
+  "input": "胆石症住院理赔的完整流程是什么，材料要准备哪些",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-041",
+  "input": "胆石症胆囊切除住院理赔的完整流程是什么，材料要准备哪些",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-042",
+  "input": "肺炎住院理赔的完整流程是什么，材料要准备哪些",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-043",
+  "input": "急性支气管炎住院理赔的完整流程是什么，材料要准备哪些",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-044",
+  "input": "支气管哮喘住院理赔的完整流程是什么，材料要准备哪些",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-045",
+  "input": "我家人得了阑尾炎要做手术，保单POL-2025-0001能覆盖吗，自费大概多少",
+  "tools": [
+   "claim_rule_rag",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-046",
+  "input": "我家人得了急性阑尾炎要做手术，保单POL-2025-0001能覆盖吗，自费大概多少",
+  "tools": [
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "diagnosis_matcher",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-047",
+  "input": "我家人得了肾结石要做手术，保单POL-2026-0005能覆盖吗，自费大概多少",
+  "tools": [
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-048",
+  "input": "我家人得了胆石症要做手术，保单POL-2025-0001能覆盖吗，自费大概多少",
+  "tools": [
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-049",
+  "input": "我家人得了胆石症胆囊切除要做手术，保单POL-2025-0001能覆盖吗，自费大概多少",
+  "tools": [
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-050",
+  "input": "我家人得了肺炎要做手术，保单POL-2025-0001能覆盖吗，自费大概多少",
+  "tools": [
+   "claim_rule_rag",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-051",
+  "input": "我家人得了急性支气管炎要做手术，保单POL-2024-0003能覆盖吗，自费大概多少",
+  "tools": [
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-052",
+  "input": "我家人得了支气管哮喘要做手术，保单POL-2025-0001能覆盖吗，自费大概多少",
+  "tools": [
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "record_query",
+   "record_query",
+   "record_query",
+   "record_query",
+   "record_query",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-053",
+  "input": "我上周住院做了手术，费用一万多，保单是 POL-2025-0001，帮我看看能赔多少、要什么材料、多久到账",
+  "tools": [
+   "record_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-054",
+  "input": "我爸用 POL-2025-0002 这张重疾保单，确诊了恶性肿瘤，怎么申请、赔多少、要什么证明",
+  "tools": [
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "diagnosis_matcher",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-055",
+  "input": "POL-2026-0005 的被保险人肾结石住院了，请核实保障范围、计算预估赔付并列出所需材料",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-056",
+  "input": "对比一下 POL-2025-0001 和 POL-2024-0003 两张保单，哪张报得多",
+  "tools": [
+   "policy_query",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "claim"
+  ],
+  "passed": false,
+  "error": ""
+ },
+ {
+  "id": "MS-057",
+  "input": "我既有医疗险又有重疾险，阑尾炎手术两边都能报吗",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": false,
+  "error": ""
+ },
+ {
+  "id": "MS-058",
+  "input": "慢性胃炎好几年了最近加重住院，POL-2025-0001 能赔吗",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-059",
+  "input": "刚投保半个月就查出肾结石，POL-2026-0005 能赔吗",
+  "tools": [
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-060",
+  "input": "帮我算下 POL-2025-0001 住院花了 30000 元、社保报了 12000 元，自费部分能赔多少",
+  "tools": [
+   "record_query",
+   "claim_rule_rag",
+   "record_query",
+   "record_query",
+   "record_query",
+   "record_query",
+   "record_query",
+   "record_query",
+   "record_query",
+   "record_query",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-061",
+  "input": "阑尾炎手术商业保险报完，单位补充医疗还能再报吗",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": false,
+  "error": ""
+ },
+ {
+  "id": "MS-062",
+  "input": "我想给刚出生的宝宝也买一份这个保险，怎么办理",
+  "tools": [],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-063",
+  "input": "我同时有阑尾炎和肾结石两个病，先后住院两次，POL-2025-0001 怎么算免赔",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": false,
+  "error": ""
+ },
+ {
+  "id": "MS-064",
+  "input": "住院期间用了进口抗生素，费用能计入 POL-2025-0001 的报销基数吗",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-065",
+  "input": "异地就医没备案，社保没报，POL-2025-0001 还能赔多少",
+  "tools": [
+   "record_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": false,
+  "error": ""
+ },
+ {
+  "id": "MS-066",
+  "input": "我父亲七十岁了，还能用 POL-2025-0002 申请重疾理赔吗",
+  "tools": [
+   "policy_query"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-067",
+  "input": "先门诊检查后住院，检查费和住院费能一起报吗",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-068",
+  "input": "出院后复查的费用算在这次理赔里吗",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-069",
+  "input": "事故认定书写的对方全责，我的意外险和对方车险怎么赔",
+  "tools": [
+   "policy_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": false,
+  "error": ""
+ },
+ {
+  "id": "MS-070",
+  "input": "我想撤销已经提交的理赔申请可以吗",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-071",
+  "input": "理赔款打到别人账户可以吗",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-072",
+  "input": "补交材料有截止时间吗",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-073",
+  "input": "claim 到 paid 状态一般要几天",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-074",
+  "input": "我肾结石手术还没做，能预先知道能赔多少吗",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "record_query",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "policy_query",
+   "policy_query",
+   "policy_query",
+   "policy_query",
+   "policy_query",
+   "policy_query",
+   "policy_query",
+   "policy_query"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-075",
+  "input": "出院小结还没拿到，先用诊断证明能立案吗",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-076",
+  "input": "POL-2025-0001 去年已经理赔过一次，今年还有免赔额吗",
+  "tools": [
+   "policy_query",
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-077",
+  "input": "网上说阑尾炎手术最多赔 2 万是真的吗",
+  "tools": [
+   "claim_rule_rag"
+  ],
+  "route": [],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-078",
+  "input": "帮我看看按 POL-2026-0005 的条款，肾结石 12600 元费用赔付明细怎么算的",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_calculator",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": true,
+  "error": ""
+ },
+ {
+  "id": "MS-079",
+  "input": "住院 15 天花了 21000 元，其中床位费超标准 2000 元，POL-2025-0001 实际能赔多少",
+  "tools": [
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag",
+   "claim_rule_rag"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": false,
+  "error": ""
+ },
+ {
+  "id": "MS-080",
+  "input": "我已经社保报销 6000 元，阑尾炎总费用 15800 元，保单 POL-2025-0001 最终到手多少",
+  "tools": [
+   "record_query",
+   "diagnosis_matcher",
+   "claim_rule_rag",
+   "policy_query",
+   "claim_rule_rag",
+   "claim_calculator"
+  ],
+  "route": [
+   "medical",
+   "claim"
+  ],
+  "passed": false,
+  "error": ""
+ }
+]

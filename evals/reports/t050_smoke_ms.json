@@ -1,0 +1,55 @@
+{
+  "dataset_version": "1.0.0",
+  "dataset": "main",
+  "category": "multi_step",
+  "variant": "baseline",
+  "generated_at": "2026-09-02 19:52:02",
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "task_completion_rate": 1.0,
+    "tool_accuracy": 1.0,
+    "tool_scored_passed": 1,
+    "tool_scored_total": 1,
+    "compliance_pass_rate": 1.0,
+    "human_precision": 0.0,
+    "avg_duration_s": 21.024,
+    "avg_vector_hits": 0.0,
+    "avg_graph_hits": 0.0,
+    "graph_coverage": 0.0,
+    "by_category": {
+      "multi_step": {
+        "total": 1.0,
+        "passed": 1.0,
+        "rate": 1.0
+      }
+    },
+    "trajectory": {
+      "order": {
+        "rate": 1.0,
+        "scored": 1.0
+      },
+      "route": {
+        "rate": 1.0,
+        "scored": 1.0
+      },
+      "forbidden": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "args": {
+        "rate": 1.0,
+        "scored": 1.0
+      },
+      "limit": {
+        "rate": 0.0,
+        "scored": 1.0
+      },
+      "redundancy": {
+        "avg_redundant_calls": 1.0,
+        "cases_with_trace": 1.0
+      }
+    }
+  },
+  "failures": []
+}

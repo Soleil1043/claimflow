@@ -1,0 +1,103 @@
+{
+  "dataset_version": "1.1.0",
+  "dataset": "main",
+  "category": null,
+  "variant": "baseline",
+  "git_sha": "bd92f21",
+  "generated_at": "2026-09-03 18:12:05",
+  "summary": {
+    "total": 20,
+    "passed": 19,
+    "task_completion_rate": 0.95,
+    "tool_accuracy": 0.95,
+    "tool_scored_passed": 19,
+    "tool_scored_total": 20,
+    "compliance_pass_rate": 1.0,
+    "avg_duration_s": 4.791,
+    "p95_duration_s": 7.176,
+    "tokens_per_case": 957.6,
+    "wilson_ci": [
+      0.7639,
+      0.9911
+    ],
+    "human_precision": 0.0,
+    "human_recall": 0.0,
+    "human_scored": 0,
+    "human_intervened": 0,
+    "intent_accuracy": null,
+    "intent_scored": 0,
+    "judge_pass_rate": null,
+    "judge_scored": 0,
+    "avg_vector_hits": 3.8,
+    "avg_graph_hits": 2.2,
+    "graph_coverage": 0.35,
+    "by_category": {
+      "simple_faq": {
+        "total": 20.0,
+        "passed": 19.0,
+        "rate": 0.95
+      }
+    },
+    "trajectory": {
+      "order": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "route": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "forbidden": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "args": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "limit": {
+        "rate": 1.0,
+        "scored": 0.0
+      },
+      "redundancy": {
+        "avg_redundant_calls": 0.0,
+        "cases_with_trace": 19.0
+      }
+    }
+  },
+  "failures": [
+    {
+      "case_id": "FAQ-015",
+      "category": "simple_faq",
+      "answer": "您好，理赔款到账时间需要结合您的具体理赔进度来判断。为了给您准确答复，我需要先了解一些信息。\n\n请问您方便提供以下任一信息吗？\n1. 您的**保单号**或**理赔申请编号**（用于查询保单和理赔状态）\n2. 或者您是否已经提交了理赔申请？\n\n另外，理赔款到账时间通常取决于案件审核进度和银行处理时效，不同情况会有差异。您能提供更多信息，我才能帮您进一步核实。若需身份核验，建议您通过官方认证渠道（如APP实名认证）完成，以确保信息安全。",
+      "used_tools": [],
+      "compliance_status": "PASS",
+      "need_human_intervention": false,
+      "duration_s": 7.176,
+      "error": "",
+      "vector_hits": 0,
+      "graph_hits": 0,
+      "tool_trace": [],
+      "agent_route": [],
+      "trajectory_expectations": {},
+      "order_ratio": 1.0,
+      "order_match": true,
+      "forbidden_clean": true,
+      "route_match": true,
+      "calls_within_limit": true,
+      "args_match": true,
+      "redundant_calls": 0,
+      "tool_match": false,
+      "must_include_hit": true,
+      "any_of_hit": false,
+      "must_not_include_clean": true,
+      "human_match": true,
+      "numbers_hit": true,
+      "expect_human": false,
+      "actual_intent": "single_domain",
+      "intent_match": null,
+      "judge": null,
+      "passed": false
+    }
+  ]
+}

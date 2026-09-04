@@ -1,0 +1,95 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "多智能体保险理赔对话系统 · 主流程",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "output": "docs/diagrams/claimflow-main-workflow.html",
+    "views": [
+      {
+        "id": "main-path",
+        "label": "多步主路径",
+        "focus": ["question", "intent", "planner", "step_exec", "synthesize", "compliance", "final"],
+        "note": "复杂理赔咨询从意图识别到合规放行的完整链路。"
+      },
+      {
+        "id": "gate-three-verdicts",
+        "label": "合规三态",
+        "focus": ["compliance", "revise", "human", "final"],
+        "note": "PASS 放行、MODIFY 修订复审、REJECT 拦截转人工。"
+      },
+      {
+        "id": "intent-branches",
+        "label": "意图分流",
+        "focus": ["intent", "planner", "step_exec", "rag", "react"],
+        "note": "多步任务 / 简单 FAQ / 单域与闲聊三条执行路径。"
+      }
+    ]
+  },
+  "lanes": [
+    { "id": "user", "label": "用户交互" },
+    { "id": "orch", "label": "调度层 · Orchestrator" },
+    { "id": "exec", "label": "执行层" },
+    { "id": "gate", "label": "合规与人工" }
+  ],
+  "groups": [
+    { "id": "g_gate", "label": "合规门禁", "lane": "gate", "fromCol": 3, "toCol": 5, "variant": "security" }
+  ],
+  "mainPath": ["question", "intent", "planner", "step_exec", "synthesize", "compliance", "final"],
+  "nodes": [
+    { "id": "question", "lane": "user", "col": 0, "type": "external", "label": "用户提问", "sublabel": "理赔咨询", "width": 132 },
+    { "id": "intent", "lane": "orch", "col": 1, "type": "backend", "label": "意图识别", "sublabel": "intent_node", "width": 132 },
+    { "id": "planner", "lane": "orch", "col": 2, "type": "backend", "label": "任务规划", "sublabel": "planner_node", "width": 132 },
+    { "id": "react", "lane": "exec", "col": 2, "type": "backend", "label": "ReAct 应答", "sublabel": "react_agent", "tag": "工具循环", "width": 132 },
+    { "id": "step_exec", "lane": "exec", "col": 3, "type": "backend", "label": "步骤执行", "sublabel": "step_executor", "tag": "Worker 调度", "width": 132 },
+    { "id": "rag", "lane": "exec", "col": 4, "type": "backend", "label": "规则检索", "sublabel": "rag_node", "width": 132 },
+    { "id": "synthesize", "lane": "orch", "col": 4, "type": "backend", "label": "整合回答", "sublabel": "synthesize", "width": 132 },
+    { "id": "compliance", "lane": "gate", "col": 4, "type": "security", "label": "合规审查", "sublabel": "compliance", "tag": "一票否决", "width": 132 },
+    { "id": "revise", "lane": "gate", "col": 3, "type": "security", "label": "修订回答", "sublabel": "revise_answer", "width": 132 },
+    { "id": "human", "lane": "gate", "col": 5, "type": "external", "label": "人工介入", "sublabel": "interrupt 挂起", "width": 132 },
+    { "id": "final", "lane": "user", "col": 5, "type": "frontend", "label": "返回回答", "sublabel": "final_answer", "width": 132 }
+  ],
+  "edges": [
+    { "id": "e_ask", "from": "question", "to": "intent", "variant": "emphasis" },
+    { "id": "e_to_planner", "from": "intent", "to": "planner", "label": "multi_step", "variant": "emphasis" },
+    { "id": "e_to_react", "from": "intent", "to": "react", "label": "单域 / 闲聊", "role": "branch" },
+    { "id": "e_to_rag", "from": "intent", "to": "rag", "label": "simple_faq", "role": "branch" },
+    { "id": "e_plan_step", "from": "planner", "to": "step_exec", "variant": "emphasis" },
+    { "id": "e_step_synth", "from": "step_exec", "to": "synthesize", "label": "步骤完成", "variant": "emphasis" },
+    { "id": "e_rag_synth", "from": "rag", "to": "synthesize" },
+    { "id": "e_react_gate", "from": "react", "to": "compliance", "label": "回答就绪" },
+    { "id": "e_synth_gate", "from": "synthesize", "to": "compliance", "variant": "emphasis" },
+    { "id": "e_pass", "from": "compliance", "to": "final", "label": "PASS", "variant": "emphasis" },
+    { "id": "e_modify", "from": "compliance", "to": "revise", "label": "MODIFY", "variant": "security", "role": "branch" },
+    { "id": "e_revise_recheck", "from": "revise", "to": "compliance", "label": "复审", "variant": "security", "role": "return" },
+    { "id": "e_reject", "from": "compliance", "to": "human", "label": "REJECT", "variant": "security", "role": "error" },
+    { "id": "e_human_final", "from": "human", "to": "final", "label": "复核结论", "role": "return" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "三条执行路径",
+      "items": [
+        "意图识别分流：多步任务 / 简单 FAQ / 单域与闲聊",
+        "多步路径由 planner 规划，step_executor 循环调度 Worker Agent"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "合规一票否决",
+      "items": [
+        "所有输出路径必经 compliance 审查，条件边保证无旁路出口",
+        "MODIFY 自动修订并复审（上限 2 轮），REJECT 直接拦截"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "人工介入闭环",
+      "items": [
+        "REJECT 触发 interrupt 挂起，坐席结论回写后仍需合规复审",
+        "挂起状态随 checkpoint 持久化，服务重启后可恢复"
+      ]
+    }
+  ]
+}

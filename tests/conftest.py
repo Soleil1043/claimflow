@@ -21,12 +21,9 @@ def _reset_graph_caches():
     各测试文件 patch 的 get_chat_model 不同——不重置会串用上一测试的假模型。
     """
     import agents.runner as runner_module
-    import nodes.generator as generator_module
 
-    generator_module._react_agent = None
     runner_module._worker_cache.clear()
     yield
-    generator_module._react_agent = None
     runner_module._worker_cache.clear()
 
 

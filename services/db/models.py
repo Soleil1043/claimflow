@@ -277,6 +277,7 @@ class CaseEvent(Base):
     - routing：orchestrator 路由决策（payload=原始决策+守卫修正+reason，D039 决策审计）
     - guard_correction：守卫纠错（payload=违规路由与改投结果）
     - human：人工动作（补件/签批/升级）
+    - material_upload：材料上传（API B03，T080）
     - status_change：案件状态流转
     """
 
