@@ -24,6 +24,7 @@ from typing import Any
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 
+from app.core.config import settings
 from nodes.amount_calc import make_amount_calc_node
 from nodes.auto_adjudicate import adjudication_route, make_auto_adjudicate_node
 from nodes.compliance_gate import (
@@ -52,6 +53,7 @@ def build_case_graph(
     checkpointer: BaseCheckpointSaver | None = None,
     orchestrator_router: Any = None,
     material_reviewer: Any = None,
+    liability_invoker: Any = "__keyword__",
 ) -> Any:
     """编译核赔案件主图（依赖注入版——测试注入内存实现）。
 
@@ -70,7 +72,10 @@ def build_case_graph(
     )
     builder.add_node("policy_verify", make_policy_verify_node(recorder, policy_lookup))
     builder.add_node("fraud_check", make_fraud_check_node(recorder, fraud_lookup))
-    builder.add_node("liability_judge", make_liability_judge_node(recorder))
+    builder.add_node(
+        "liability_judge",
+        make_liability_judge_node(recorder, invoker=liability_invoker),
+    )
     builder.add_node("amount_calc", make_amount_calc_node(recorder))
     builder.add_node("decision_generate", make_decision_generate_node(recorder))
     builder.add_node("compliance_gate", make_compliance_gate_node(recorder))
@@ -179,6 +184,7 @@ def create_default_case_graph(
     """
     from langgraph.checkpoint.memory import InMemorySaver
 
+    from nodes.liability_judge import keyword_only_invoker
     from nodes.material_review import make_material_ai_reviewer
     from nodes.orchestrator import make_llm_router
 
@@ -189,4 +195,7 @@ def create_default_case_graph(
         checkpointer=checkpointer if checkpointer is not None else InMemorySaver(),
         orchestrator_router=make_llm_router(),
         material_reviewer=make_material_ai_reviewer(),
+        liability_invoker=(
+            None if settings.liability_llm_enabled else keyword_only_invoker
+        ),
     )

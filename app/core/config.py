@@ -114,6 +114,8 @@ class Settings(BaseSettings):
     orchestrator_llm_enabled: bool = True
     # 材料审核 AI 一致性审查（skill 装配；False=仅规则层，测试/降级用）
     material_review_llm_enabled: bool = True
+    # 责任认定 ReAct Agent（False=关键词规则兜底，测试/降级用）
+    liability_llm_enabled: bool = True
     # 案件材料上传落盘目录（B03；storage_path 供材料审核真实提取）
     case_materials_dir: str = "./data/uploads"
 
