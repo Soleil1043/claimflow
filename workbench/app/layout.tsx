@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import "./globals.css";
 
@@ -25,11 +26,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   claimflow 坐席工作台
                 </div>
                 <div className="text-[11px] leading-tight text-cf-text-2">
-                  人工介入工单处理 · 合规拦截转人工队列
+                  核赔工单处理 · 人工复核签批与补件
                 </div>
               </div>
             </div>
-            <div className="hidden text-[11px] text-cf-text-2 sm:block">
+            <nav className="hidden items-center gap-1 text-[12px] sm:flex">
+              <Link
+                href="/cases"
+                className="rounded-full px-3 py-1.5 font-medium text-cf-text transition-colors hover:bg-black/[0.05]"
+              >
+                核赔工单
+              </Link>
+              <Link
+                href="/"
+                className="rounded-full px-3 py-1.5 font-medium text-cf-text-2 transition-colors hover:bg-black/[0.05]"
+              >
+                会话工单
+              </Link>
+            </nav>
+            <div className="hidden text-[11px] text-cf-text-2 md:block">
               后端代理 → localhost:8000
             </div>
           </div>
