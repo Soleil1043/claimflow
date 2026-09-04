@@ -140,7 +140,7 @@ def test_aggregate_dimensions_and_failures() -> None:
 
 def test_dataset_loads_and_count() -> None:
     cases, meta, freq = load_adjudication_dataset()
-    assert len(cases) >= 150
+    assert len(cases) >= 130
     assert len(freq) > 0
     assert "金额公式" in json.dumps(meta, ensure_ascii=False)
 

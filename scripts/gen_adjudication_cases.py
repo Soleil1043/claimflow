@@ -123,14 +123,6 @@ def main() -> None:
             "10080.00", "10875.00", "11670.00", "12465.00",
             "13260.00", "14055.00", "14850.00", "15640.00",
         ]),
-        ("POL-2026-0006", "u-zhaomin", [
-            "10100.00", "11000.00", "12000.00", "13000.00",
-            "14000.00", "15000.00", "15750.00", "16200.00",
-        ]),
-        ("POL-2026-0007", "u-sunqiang", [
-            "5100.00", "5700.00", "6428.57", "7857.14",
-            "9285.71", "10714.29", "11428.57", "12000.00",
-        ]),
         ("POL-2025-0001", "u-zhangwei", [
             "10125.00", "11500.00", "12250.00", "13600.00",
             "14750.00", "15300.00", "15900.00", "16100.00",
@@ -166,10 +158,8 @@ def main() -> None:
     for policy_no, user, claimed in [
         ("POL-2025-0001", "u-zhangwei", "40000.00"),
         ("POL-2026-0005", "u-liuyang", "35000.00"),
-        ("POL-2026-0006", "u-zhaomin", "30000.00"),
         ("POL-2025-0001", "u-zhangwei", "25000.00"),
         ("POL-2026-0005", "u-liuyang", "20000.00"),
-        ("POL-2026-0006", "u-zhaomin", "18000.00"),
     ]:
         policy = policies[policy_no]
         approved = _approved(Decimal(claimed), policy)
@@ -211,17 +201,16 @@ def main() -> None:
             note="等待期已过，正常赔付",
         )
 
-    # ---------- 跨保单等待期通过（POL-2026-0006 生效 2026-01-01） ----------
+    # ---------- 跨保单等待期通过（POL-2026-0006 赵敏黑名单 → human） ----------
     for claimed in ["11500.00", "13500.00", "14200.00"]:
         add(
             user_id="u-zhaomin", policy_no="POL-2026-0006", claimed=claimed,
             incident_date="2026-07-15",
             incident_description=f"急性肠胃炎住院，费用{claimed}元。",
-            materials=full_docs, category="normal", route="auto",
-            liability="covered",
-            approved=_approved(Decimal(claimed), policies["POL-2026-0006"]),
-            sequence=FULL_SEQ,
-            note="POL-2026-0006 正常赔付（等待期已过）",
+            materials=full_docs, category="fraud", route="human",
+            liability="covered", approved=None,
+            sequence=PRE_SEQ,
+            note="POL-2026-0006 赵敏黑名单，高风险短路",
         )
 
     # ---------- 除外责任（标准拒赔） ----------

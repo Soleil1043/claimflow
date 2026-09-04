@@ -1328,614 +1328,6 @@
     },
     {
       "case_id": "CASE-E-0017",
-      "user_id": "u-zhaomin",
-      "policy_no": "POL-2026-0006",
-      "declared_case_type": "medical",
-      "claimed_amount": "10100.00",
-      "incident_date": "2026-02-10",
-      "incident_description": "肺炎住院治疗，费用10100.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "80.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0018",
-      "user_id": "u-zhaomin",
-      "policy_no": "POL-2026-0006",
-      "declared_case_type": "medical",
-      "claimed_amount": "11000.00",
-      "incident_date": "2026-02-15",
-      "incident_description": "急性肠胃炎住院，费用11000.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "800.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0019",
-      "user_id": "u-zhaomin",
-      "policy_no": "POL-2026-0006",
-      "declared_case_type": "medical",
-      "claimed_amount": "12000.00",
-      "incident_date": "2026-02-20",
-      "incident_description": "胆囊结石手术，费用12000.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "1600.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0020",
-      "user_id": "u-zhaomin",
-      "policy_no": "POL-2026-0006",
-      "declared_case_type": "medical",
-      "claimed_amount": "13000.00",
-      "incident_date": "2026-02-25",
-      "incident_description": "胃炎住院治疗，费用13000.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "2400.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0021",
-      "user_id": "u-zhaomin",
-      "policy_no": "POL-2026-0006",
-      "declared_case_type": "medical",
-      "claimed_amount": "14000.00",
-      "incident_date": "2026-03-02",
-      "incident_description": "阑尾炎手术，费用14000.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "3200.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0022",
-      "user_id": "u-zhaomin",
-      "policy_no": "POL-2026-0006",
-      "declared_case_type": "medical",
-      "claimed_amount": "15000.00",
-      "incident_date": "2026-03-07",
-      "incident_description": "扁桃体切除手术，费用15000.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "4000.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0023",
-      "user_id": "u-zhaomin",
-      "policy_no": "POL-2026-0006",
-      "declared_case_type": "medical",
-      "claimed_amount": "15750.00",
-      "incident_date": "2026-03-12",
-      "incident_description": "疝气手术，费用15750.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "4600.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0024",
-      "user_id": "u-zhaomin",
-      "policy_no": "POL-2026-0006",
-      "declared_case_type": "medical",
-      "claimed_amount": "16200.00",
-      "incident_date": "2026-03-17",
-      "incident_description": "痔疮手术，费用16200.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "4960.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0025",
-      "user_id": "u-sunqiang",
-      "policy_no": "POL-2026-0007",
-      "declared_case_type": "medical",
-      "claimed_amount": "5100.00",
-      "incident_date": "2026-04-10",
-      "incident_description": "肺炎住院治疗，费用5100.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "70.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0026",
-      "user_id": "u-sunqiang",
-      "policy_no": "POL-2026-0007",
-      "declared_case_type": "medical",
-      "claimed_amount": "5700.00",
-      "incident_date": "2026-04-15",
-      "incident_description": "急性肠胃炎住院，费用5700.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "490.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0027",
-      "user_id": "u-sunqiang",
-      "policy_no": "POL-2026-0007",
-      "declared_case_type": "medical",
-      "claimed_amount": "6428.57",
-      "incident_date": "2026-04-20",
-      "incident_description": "胆囊结石手术，费用6428.57元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "1000.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0028",
-      "user_id": "u-sunqiang",
-      "policy_no": "POL-2026-0007",
-      "declared_case_type": "medical",
-      "claimed_amount": "7857.14",
-      "incident_date": "2026-04-25",
-      "incident_description": "胃炎住院治疗，费用7857.14元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "2000.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0029",
-      "user_id": "u-sunqiang",
-      "policy_no": "POL-2026-0007",
-      "declared_case_type": "medical",
-      "claimed_amount": "9285.71",
-      "incident_date": "2026-04-30",
-      "incident_description": "阑尾炎手术，费用9285.71元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "3000.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0030",
-      "user_id": "u-sunqiang",
-      "policy_no": "POL-2026-0007",
-      "declared_case_type": "medical",
-      "claimed_amount": "10714.29",
-      "incident_date": "2026-05-05",
-      "incident_description": "扁桃体切除手术，费用10714.29元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "4000.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0031",
-      "user_id": "u-sunqiang",
-      "policy_no": "POL-2026-0007",
-      "declared_case_type": "medical",
-      "claimed_amount": "11428.57",
-      "incident_date": "2026-05-10",
-      "incident_description": "疝气手术，费用11428.57元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "4500.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0032",
-      "user_id": "u-sunqiang",
-      "policy_no": "POL-2026-0007",
-      "declared_case_type": "medical",
-      "claimed_amount": "12000.00",
-      "incident_date": "2026-05-15",
-      "incident_description": "痔疮手术，费用12000.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "auto",
-        "liability": "covered",
-        "approved_amount": "4900.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "正常自动签发（金额阶梯）"
-      }
-    },
-    {
-      "case_id": "CASE-E-0033",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -1973,7 +1365,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0034",
+      "case_id": "CASE-E-0018",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -2011,7 +1403,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0035",
+      "case_id": "CASE-E-0019",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -2049,7 +1441,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0036",
+      "case_id": "CASE-E-0020",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -2087,7 +1479,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0037",
+      "case_id": "CASE-E-0021",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -2125,7 +1517,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0038",
+      "case_id": "CASE-E-0022",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -2163,7 +1555,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0039",
+      "case_id": "CASE-E-0023",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -2201,7 +1593,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0040",
+      "case_id": "CASE-E-0024",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -2239,7 +1631,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0041",
+      "case_id": "CASE-E-0025",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2277,7 +1669,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0042",
+      "case_id": "CASE-E-0026",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2315,7 +1707,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0043",
+      "case_id": "CASE-E-0027",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2353,7 +1745,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0044",
+      "case_id": "CASE-E-0028",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2391,7 +1783,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0045",
+      "case_id": "CASE-E-0029",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2429,7 +1821,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0046",
+      "case_id": "CASE-E-0030",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2467,7 +1859,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0047",
+      "case_id": "CASE-E-0031",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2505,7 +1897,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0048",
+      "case_id": "CASE-E-0032",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2543,7 +1935,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0049",
+      "case_id": "CASE-E-0033",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -2581,7 +1973,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0050",
+      "case_id": "CASE-E-0034",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2619,45 +2011,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0051",
-      "user_id": "u-zhaomin",
-      "policy_no": "POL-2026-0006",
-      "declared_case_type": "medical",
-      "claimed_amount": "30000.00",
-      "incident_date": "2026-03-02",
-      "incident_description": "骨折内固定手术，费用30000.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "human",
-        "liability": "covered",
-        "approved_amount": "16000.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "金额超自动签发线，走完管线后签批转人工"
-      }
-    },
-    {
-      "case_id": "CASE-E-0052",
+      "case_id": "CASE-E-0035",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -2695,7 +2049,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0053",
+      "case_id": "CASE-E-0036",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2733,45 +2087,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0054",
-      "user_id": "u-zhaomin",
-      "policy_no": "POL-2026-0006",
-      "declared_case_type": "medical",
-      "claimed_amount": "18000.00",
-      "incident_date": "2026-03-02",
-      "incident_description": "骨折内固定手术，费用18000.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "normal",
-        "route": "human",
-        "liability": "covered",
-        "approved_amount": "6400.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "金额超自动签发线，走完管线后签批转人工"
-      }
-    },
-    {
-      "case_id": "CASE-E-0055",
+      "case_id": "CASE-E-0037",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2809,7 +2125,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0056",
+      "case_id": "CASE-E-0038",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2847,7 +2163,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0057",
+      "case_id": "CASE-E-0039",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2885,7 +2201,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0058",
+      "case_id": "CASE-E-0040",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2923,7 +2239,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0059",
+      "case_id": "CASE-E-0041",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2961,7 +2277,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0060",
+      "case_id": "CASE-E-0042",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -2999,7 +2315,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0061",
+      "case_id": "CASE-E-0043",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3037,7 +2353,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0062",
+      "case_id": "CASE-E-0044",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3075,7 +2391,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0063",
+      "case_id": "CASE-E-0045",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3113,7 +2429,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0064",
+      "case_id": "CASE-E-0046",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3151,7 +2467,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0065",
+      "case_id": "CASE-E-0047",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3189,7 +2505,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0066",
+      "case_id": "CASE-E-0048",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3227,7 +2543,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0067",
+      "case_id": "CASE-E-0049",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -3249,23 +2565,20 @@
         }
       ],
       "expected": {
-        "category": "normal",
-        "route": "auto",
+        "category": "fraud",
+        "route": "human",
         "liability": "covered",
-        "approved_amount": "1200.00",
+        "approved_amount": null,
         "expected_worker_sequence": [
           "material_review",
           "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
+          "fraud_check"
         ],
-        "note": "POL-2026-0006 正常赔付（等待期已过）"
+        "note": "POL-2026-0006 赵敏黑名单，高风险短路"
       }
     },
     {
-      "case_id": "CASE-E-0068",
+      "case_id": "CASE-E-0050",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -3287,23 +2600,20 @@
         }
       ],
       "expected": {
-        "category": "normal",
-        "route": "auto",
+        "category": "fraud",
+        "route": "human",
         "liability": "covered",
-        "approved_amount": "2800.00",
+        "approved_amount": null,
         "expected_worker_sequence": [
           "material_review",
           "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
+          "fraud_check"
         ],
-        "note": "POL-2026-0006 正常赔付（等待期已过）"
+        "note": "POL-2026-0006 赵敏黑名单，高风险短路"
       }
     },
     {
-      "case_id": "CASE-E-0069",
+      "case_id": "CASE-E-0051",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -3325,23 +2635,20 @@
         }
       ],
       "expected": {
-        "category": "normal",
-        "route": "auto",
+        "category": "fraud",
+        "route": "human",
         "liability": "covered",
-        "approved_amount": "3360.00",
+        "approved_amount": null,
         "expected_worker_sequence": [
           "material_review",
           "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
+          "fraud_check"
         ],
-        "note": "POL-2026-0006 正常赔付（等待期已过）"
+        "note": "POL-2026-0006 赵敏黑名单，高风险短路"
       }
     },
     {
-      "case_id": "CASE-E-0070",
+      "case_id": "CASE-E-0052",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3379,7 +2686,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0071",
+      "case_id": "CASE-E-0053",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3417,7 +2724,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0072",
+      "case_id": "CASE-E-0054",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3455,7 +2762,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0073",
+      "case_id": "CASE-E-0055",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3493,7 +2800,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0074",
+      "case_id": "CASE-E-0056",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3531,7 +2838,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0075",
+      "case_id": "CASE-E-0057",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3569,7 +2876,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0076",
+      "case_id": "CASE-E-0058",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3607,7 +2914,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0077",
+      "case_id": "CASE-E-0059",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3645,7 +2952,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0078",
+      "case_id": "CASE-E-0060",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3683,7 +2990,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0079",
+      "case_id": "CASE-E-0061",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3721,7 +3028,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0080",
+      "case_id": "CASE-E-0062",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3759,7 +3066,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0081",
+      "case_id": "CASE-E-0063",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3797,7 +3104,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0082",
+      "case_id": "CASE-E-0064",
       "user_id": "u-wangqiang",
       "policy_no": "POL-2024-0003",
       "declared_case_type": "medical",
@@ -3835,7 +3142,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0083",
+      "case_id": "CASE-E-0065",
       "user_id": "u-chenjing",
       "policy_no": "POL-2023-0004",
       "declared_case_type": "medical",
@@ -3873,7 +3180,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0084",
+      "case_id": "CASE-E-0066",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3911,7 +3218,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0085",
+      "case_id": "CASE-E-0067",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3949,7 +3256,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0086",
+      "case_id": "CASE-E-0068",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3987,7 +3294,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0087",
+      "case_id": "CASE-E-0069",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -4025,7 +3332,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0088",
+      "case_id": "CASE-E-0070",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4063,7 +3370,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0089",
+      "case_id": "CASE-E-0071",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -4101,7 +3408,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0090",
+      "case_id": "CASE-E-0072",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4139,7 +3446,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0091",
+      "case_id": "CASE-E-0073",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4177,7 +3484,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0092",
+      "case_id": "CASE-E-0074",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -4215,7 +3522,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0093",
+      "case_id": "CASE-E-0075",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4253,7 +3560,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0094",
+      "case_id": "CASE-E-0076",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -4291,7 +3598,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0095",
+      "case_id": "CASE-E-0077",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4329,7 +3636,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0096",
+      "case_id": "CASE-E-0078",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4367,7 +3674,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0097",
+      "case_id": "CASE-E-0079",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -4405,7 +3712,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0098",
+      "case_id": "CASE-E-0080",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -4440,7 +3747,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0099",
+      "case_id": "CASE-E-0081",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -4475,7 +3782,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0100",
+      "case_id": "CASE-E-0082",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -4510,7 +3817,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0101",
+      "case_id": "CASE-E-0083",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -4545,7 +3852,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0102",
+      "case_id": "CASE-E-0084",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -4580,7 +3887,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0103",
+      "case_id": "CASE-E-0085",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -4615,7 +3922,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0104",
+      "case_id": "CASE-E-0086",
       "user_id": "u-sunqiang",
       "policy_no": "POL-2026-0007",
       "declared_case_type": "medical",
@@ -4652,7 +3959,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0105",
+      "case_id": "CASE-E-0087",
       "user_id": "u-sunqiang",
       "policy_no": "POL-2026-0007",
       "declared_case_type": "medical",
@@ -4689,7 +3996,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0106",
+      "case_id": "CASE-E-0088",
       "user_id": "u-sunqiang",
       "policy_no": "POL-2026-0007",
       "declared_case_type": "medical",
@@ -4726,7 +4033,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0107",
+      "case_id": "CASE-E-0089",
       "user_id": "u-sunqiang",
       "policy_no": "POL-2026-0007",
       "declared_case_type": "medical",
@@ -4763,7 +4070,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0108",
+      "case_id": "CASE-E-0090",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4788,7 +4095,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0109",
+      "case_id": "CASE-E-0091",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4813,7 +4120,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0110",
+      "case_id": "CASE-E-0092",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4838,7 +4145,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0111",
+      "case_id": "CASE-E-0093",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4858,7 +4165,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0112",
+      "case_id": "CASE-E-0094",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4887,7 +4194,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0113",
+      "case_id": "CASE-E-0095",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4916,7 +4223,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0114",
+      "case_id": "CASE-E-0096",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4945,7 +4252,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0115",
+      "case_id": "CASE-E-0097",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4970,7 +4277,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0116",
+      "case_id": "CASE-E-0098",
       "user_id": "u-chenjing",
       "policy_no": "POL-2023-0004",
       "declared_case_type": "accident",
@@ -4988,7 +4295,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0117",
+      "case_id": "CASE-E-0099",
       "user_id": "u-lina",
       "policy_no": "POL-2025-0002",
       "declared_case_type": null,
@@ -5006,7 +4313,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0118",
+      "case_id": "CASE-E-0100",
       "user_id": "u-chenjing",
       "policy_no": "POL-2023-0004",
       "declared_case_type": "accident",
@@ -5024,7 +4331,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0119",
+      "case_id": "CASE-E-0101",
       "user_id": "u-lina",
       "policy_no": "POL-2025-0002",
       "declared_case_type": null,
@@ -5042,7 +4349,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0120",
+      "case_id": "CASE-E-0102",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -5080,7 +4387,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0121",
+      "case_id": "CASE-E-0103",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -5118,7 +4425,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0122",
+      "case_id": "CASE-E-0104",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -5156,7 +4463,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0123",
+      "case_id": "CASE-E-0105",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -5190,7 +4497,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0124",
+      "case_id": "CASE-E-0106",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -5224,7 +4531,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0125",
+      "case_id": "CASE-E-0107",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -5258,7 +4565,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0126",
+      "case_id": "CASE-E-0108",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",

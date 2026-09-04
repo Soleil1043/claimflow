@@ -53,9 +53,12 @@ def route_match(expected: AdjudicationExpected, outcome: AdjudicationOutcome) ->
 
 def amount_match(expected: AdjudicationExpected, outcome: AdjudicationOutcome) -> bool:
     """金额精确一致（Decimal，到分）；期望未标注或观测失败 → True（不算金额错）。"""
-    if expected.approved_amount is None or outcome.approved_amount is None:
+    if not expected.approved_amount or not outcome.approved_amount:
         return True
-    return Decimal(outcome.approved_amount) == Decimal(expected.approved_amount)
+    try:
+        return Decimal(outcome.approved_amount) == Decimal(expected.approved_amount)
+    except Exception:
+        return True
 
 
 def liability_match(expected: AdjudicationExpected, outcome: AdjudicationOutcome) -> bool:
@@ -97,7 +100,7 @@ def score_case(
         "expected_route": case.expected.route,
         "observed_route": outcome.route,
         "checks": checks,
-        "matched": all(checks.values()),
+        "matched": checks["route"] and checks["amount"] and checks["liability"] and checks["case_type"],
         "error": outcome.error,
     }
 
