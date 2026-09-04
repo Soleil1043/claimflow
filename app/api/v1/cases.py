@@ -26,6 +26,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from langgraph.types import Command
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -251,8 +252,13 @@ async def upload_case_material(
         description="材料类型：invoice/diagnosis/cost_list/medical_record（可空）",
     ),
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
+    case_graph=Depends(get_case_graph),  # noqa: B008
 ) -> CaseMaterialUploadResponse:
-    """B03 上传材料：复用 T049 两段式提取（图片/PDF/Word），提取结果落案件档案与审计。"""
+    """B03 上传材料：复用 T049 两段式提取（图片/PDF/Word），提取结果落案件档案与审计。
+
+    补件闭环（T086）：案件处于补件挂起时，上传新材料后自动 Command(resume) 恢复
+    核赔流程（材料审核重跑 → 回 orchestrator 重规划）。
+    """
     case = await _get_case_or_404(case_id, session)
 
     filename = file.filename or ""
@@ -323,7 +329,22 @@ async def upload_case_material(
             },
         )
     )
-    await session.flush()
+    await session.commit()  # 先落库材料/审计，避免 resume 期间并发写锁（SQLite）
+
+    # 补件闭环（T086）：挂起案件 + 新材料 → 自动恢复核赔流程
+    resume_status: str | None = None
+    if case.status == "supplement_pending":
+        try:
+            await case_graph.ainvoke(
+                Command(resume={"kind": "supplement",
+                                "added_materials": [materials[-1]],
+                                "resolved_by": "customer_upload"}),
+                config={"configurable": {"thread_id": case.id}, "recursion_limit": 60},
+            )
+            await session.refresh(case)
+            resume_status = case.status
+        except Exception as exc:  # noqa: BLE001——恢复失败不阻塞上传（可经工单重试）
+            log.warning("supplement_resume_failed", case_id=case.id, error=str(exc)[:200])
 
     return CaseMaterialUploadResponse(
         case_id=case.id,
@@ -336,6 +357,7 @@ async def upload_case_material(
         amount=result.amount,
         date=result.date,
         materials_count=len(materials),
+        case_status=resume_status,
     )
 
 

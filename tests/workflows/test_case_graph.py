@@ -189,18 +189,25 @@ async def test_supplement_resume_completes_e2e() -> None:
     assert len(material_events) == 2
 
 
-async def test_review_resume_minimal_closure() -> None:
-    """签批类挂起（T079 最小闭环）：恢复即转人工终态（T086 接坐席结论 + 合规复审）。"""
+async def test_review_resume_confirm_issues_decision() -> None:
+    """T086 签批闭环：坐席 confirm → 签发既有结论（issued_by=agent）。"""
     case = _case_by_id("CASE-2026-0007")
-    graph, _ = _graph()
+    graph, recorder = _graph()
     config = {"configurable": {"thread_id": "CASE-2026-0007"}}
 
     interrupted = await graph.ainvoke(_input(case), config)
     assert interrupted.get("__interrupt__")
     resumed = await graph.ainvoke(
-        Command(resume={"kind": "review", "resolved_by": "agent-01"}), config
+        Command(resume={"kind": "review", "action": "confirm",
+                        "note": "超阈值复核通过", "resolved_by": "agent-01"}),
+        config,
     )
-    assert resumed["final_decision"] == "referred"
+    assert resumed["final_decision"] == "approved"
+    doc = resumed["decision_document"]
+    assert doc["issued_by"] == "agent:agent-01"
+    # 签发落库：坐席版决定书 + 案件关闭
+    assert any(d.get("issued_by") == "agent:agent-01" for d in recorder.decisions)
+    assert any(u.get("status") == "closed" for u in recorder.updates)
 
 
 def test_static_compliance_gate_not_bypassable() -> None:

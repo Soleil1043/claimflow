@@ -429,3 +429,63 @@ class CaseMaterialUploadResponse(BaseModel):
     amount: float | None = None
     date: str | None = None
     materials_count: int
+    # 补件挂起案件上传后自动恢复的流程状态（T086；非挂起案件为 None）
+    case_status: str | None = None
+
+
+# ---------- T086 案件人工介入（核赔工单） ----------
+
+
+class CaseInterventionHuman(BaseModel):
+    """挂起案件的人工介入信息。"""
+
+    kind: str
+    reason: str | None = None
+    missing: list[str] = Field(default_factory=list)
+
+
+class CaseInterventionItem(BaseModel):
+    """待处理核赔工单（interrupt 挂起的案件）。"""
+
+    case_id: str
+    case_type: str
+    status: str
+    claimed_amount: Decimal
+    human: CaseInterventionHuman
+    created_at: dt.datetime
+
+
+class CaseInterventionListResponse(BaseModel):
+    """GET /api/v1/interventions/cases 响应。"""
+
+    total: int
+    items: list[CaseInterventionItem]
+
+
+class CaseResolveRequest(BaseModel):
+    """POST /api/v1/interventions/cases/{case_id}/resolve 请求体。
+
+    - supplement 工单：added_materials 传补传材料（或经 B03 上传自动恢复）
+    - review 工单：action=confirm（签发既有结论）/ rewrite（改判，带 decision/
+      approved_amount/body）；note/resolved_by 必填，坐席文本过红线复审
+    - escape 工单：仅 note/resolved_by（转专家线下）
+    """
+
+    action: Literal["confirm", "rewrite"] | None = None
+    decision: Literal["approved", "rejected", "partial"] | None = None
+    approved_amount: Decimal | None = None
+    reason: str | None = Field(default=None, max_length=500)
+    body: str | None = Field(default=None, max_length=4000)
+    note: str = Field(default="", max_length=1000)
+    resolved_by: str = Field(default="agent", max_length=64)
+    added_materials: list[CaseMaterialRefIn] = Field(default_factory=list)
+
+
+class CaseResolveResponse(BaseModel):
+    """工单处理响应：恢复后的案件终态。"""
+
+    case_id: str
+    status: str
+    final_decision: str | None = None
+    approved_amount: Decimal | None = None
+    decision_document: CaseDecisionDocumentOut | None = None
