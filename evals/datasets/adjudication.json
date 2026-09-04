@@ -1,0 +1,5307 @@
+{
+  "_meta": {
+    "task": "T088 核赔金样本评测集",
+    "base_cases": "data/mock/cases.json（CASE-2026-0001..0024 原样收录）",
+    "金额公式": "approved = min(max(claimed − selfpay − deductible, 0) × ratio, coverage)；等待期 30 天（生效日+offset 计数，第 31 天起可赔）；自动签发线 5000 元（低风险+责任明确前置）",
+    "frequency_signals": [
+      {
+        "id_card": "330103198805126778",
+        "holder_name": "孙强",
+        "claims_days_ago": [
+          10,
+          30
+        ],
+        "policy_no": "POL-2026-0007"
+      }
+    ],
+    "说明": "frequency_signals 由评测运行器按相对天数换算绝对日期入库（T089），使高频期望不随评测执行时间漂移；黑名单走 data/mock/blacklist.json"
+  },
+  "cases": [
+    {
+      "case_id": "CASE-2026-0001",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎住院手术，共花费15800元，申请理赔。",
+      "materials": [
+        {
+          "file_name": "invoice_15800.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_appendicitis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4640.00",
+        "note": "(15800-10000)*0.8=4640，项目经典锚点"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0002",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "13500.00",
+      "incident_date": "2026-07-05",
+      "incident_description": "肺炎住院治疗7天，总费用13500元。",
+      "materials": [
+        {
+          "file_name": "invoice_13500.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_pneumonia.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2800.00",
+        "note": "(13500-10000)*0.8=2800"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0003",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "11875.00",
+      "incident_date": "2026-09-01",
+      "incident_description": "胆囊结石腹腔镜手术，费用11875元。保单2026-08-01生效，出险为第32天（已过等待期）。",
+      "materials": [
+        {
+          "file_name": "invoice_11875.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_gallstone.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1500.00",
+        "note": "(11875-10000)*0.8=1500；等待期边界（第32天）"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0004",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-06-20",
+      "incident_description": "急性胃炎住院治疗5天，费用12000元。",
+      "materials": [
+        {
+          "file_name": "invoice_12000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_gastritis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1600.00",
+        "note": "(12000-10000)*0.8=1600"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0005",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "11250.00",
+      "incident_date": "2026-05-12",
+      "incident_description": "急性肠胃炎住院3天，费用11250元。",
+      "materials": [
+        {
+          "file_name": "invoice_11250.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_gastroenteritis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1000.00",
+        "note": "(11250-10000)*0.8=1000"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0006",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "10062.50",
+      "incident_date": "2026-09-02",
+      "incident_description": "肺炎住院4天，费用10062.50元，略超免赔额。",
+      "materials": [
+        {
+          "file_name": "invoice_10062_50.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_pneumonia2.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "50.00",
+        "note": "(10062.50-10000)*0.8=50，免赔临界小额"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0007",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "62000.00",
+      "incident_date": "2026-06-18",
+      "incident_description": "骑车摔伤致腿骨骨折，内固定手术费用62000元。",
+      "materials": [
+        {
+          "file_name": "invoice_62000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_fracture.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": "41600.00",
+        "note": "(62000-10000)*0.8=41600，超过自动签发线转人工（责任明确、金额超线）"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0008",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "20000.00",
+      "incident_date": "2026-08-01",
+      "incident_description": "肺炎住院治疗，费用20000元。",
+      "materials": [
+        {
+          "file_name": "invoice_20000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_pneumonia3.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": "8000.00",
+        "note": "(20000-10000)*0.8=8000，超线转人工"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0009",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "9500.00",
+      "incident_date": "2026-08-15",
+      "incident_description": "急性阑尾炎手术，费用9500元。保单2026-08-01生效，出险为第15天（等待期内）。",
+      "materials": [
+        {
+          "file_name": "invoice_9500.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_appendicitis2.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "note": "等待期内出险（30天等待期），拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0010",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "23000.00",
+      "incident_date": "2026-07-08",
+      "incident_description": "鼻综合整形手术，费用23000元。",
+      "materials": [
+        {
+          "file_name": "invoice_23000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_rhinoplasty.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "note": "整形美容属除外责任，拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0011",
+      "user_id": "u-wangqiang",
+      "policy_no": "POL-2024-0003",
+      "declared_case_type": "medical",
+      "claimed_amount": "8800.00",
+      "incident_date": "2026-06-30",
+      "incident_description": "肺炎住院治疗，费用8800元。保单2025-02-28已到期。",
+      "materials": [
+        {
+          "file_name": "invoice_8800.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_pneumonia4.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "note": "保单过期（coverage_valid=false），拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0012",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "6600.00",
+      "incident_date": "2026-04-18",
+      "incident_description": "牙科种植牙两颗，费用6600元。",
+      "materials": [
+        {
+          "file_name": "invoice_6600.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_dental.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "note": "牙科属除外责任，拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0013",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "17500.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料2500元（清单单列），总费用17500元。",
+      "materials": [
+        {
+          "file_name": "invoice_17500.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_orthopedic.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_selfpay.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "4000.00",
+        "note": "(17500-2500自费-10000免赔)*0.8=4000，部分责任"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0014",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "16000.00",
+      "incident_date": "2026-09-02",
+      "incident_description": "腹腔镜胆囊切除术，含乙类药自付3000元（清单单列），总费用16000元。",
+      "materials": [
+        {
+          "file_name": "invoice_16000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_cholecystectomy.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_b.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "2400.00",
+        "note": "(16000-3000自付-10000免赔)*0.8=2400，部分责任"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0015",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-08",
+      "incident_description": "急性阑尾炎手术，费用15800元。",
+      "materials": [
+        {
+          "file_name": "invoice_15800_b.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_appendicitis_b.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_b2.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "fraud",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": null,
+        "note": "黑名单命中——高风险短路转人工（T083 黑名单 mock 承载赵敏证件号），不产出金额"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0016",
+      "user_id": "u-sunqiang",
+      "policy_no": "POL-2026-0007",
+      "declared_case_type": "medical",
+      "claimed_amount": "12800.00",
+      "incident_date": "2026-08-20",
+      "incident_description": "肺炎住院治疗，费用12800元。近90天第3次申请理赔。",
+      "materials": [
+        {
+          "file_name": "invoice_12800.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_pneumonia_b.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_c.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "fraud",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": null,
+        "note": "90天3次高频理赔——中高风险转人工（T083 频率规则 mock 承载）"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0017",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "9800.00",
+      "incident_date": "2026-07-15",
+      "incident_description": "急性肠胃炎住院，费用9800元。材料与此前被拒案件高度相似。",
+      "materials": [
+        {
+          "file_name": "invoice_9800.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_gastroenteritis_b.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_d.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "fraud",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": null,
+        "note": "金额/材料模式异常——风控指标命中转人工"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0018",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "10000.00",
+      "incident_date": "2026-08-22",
+      "incident_description": "肺炎住院治疗，费用10000元整，恰等于免赔额。",
+      "materials": [
+        {
+          "file_name": "invoice_10000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_pneumonia_c.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_e.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "edge",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "0.00",
+        "note": "(10000-10000)*0.8=0，免赔临界核定0元；final 口径（approved-with-0 或 partial）由 T085 定稿，评测按金额断言"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0019",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "1300000.00",
+      "incident_date": "2026-07-01",
+      "incident_description": "重大疾病境外治疗转回住院手术，费用130万元。",
+      "materials": [
+        {
+          "file_name": "invoice_1300000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_major.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_f.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "edge",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": "1000000.00",
+        "note": "(1300000-10000)*0.8=1032000 超保额封顶100万；且超自动签发线转人工——封顶公式与路由双断言"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0020",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎手术申请理赔。发票金额15800元与费用清单12800元不一致。",
+      "materials": [
+        {
+          "file_name": "invoice_15800_c.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_appendicitis_c.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_mismatch.pdf",
+          "doc_type": "cost_list",
+          "note": "清单金额12800，与发票矛盾"
+        }
+      ],
+      "expected": {
+        "category": "edge",
+        "route": "human",
+        "liability": null,
+        "approved_amount": null,
+        "note": "材料自相矛盾→抽取置信度低于 material_confidence_floor→orchestrator 裁量转人工；不出理算结论"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0021",
+      "user_id": "u-chenjing",
+      "policy_no": "POL-2023-0004",
+      "declared_case_type": "accident",
+      "claimed_amount": "8600.00",
+      "incident_date": "2026-08-25",
+      "incident_description": "雨天摔倒致手腕骨折，门诊+住院费用8600元。",
+      "materials": [
+        {
+          "file_name": "invoice_8600.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_fracture_b.jpg",
+          "doc_type": "diagnosis"
+        }
+      ],
+      "expected": {
+        "category": "edge",
+        "route": "human",
+        "liability": null,
+        "approved_amount": null,
+        "note": "意外险 pack 未上线——intake 险种分类后受理期转人工（F01 未上线险种转人工）"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0022",
+      "user_id": "u-lina",
+      "policy_no": "POL-2025-0002",
+      "declared_case_type": null,
+      "claimed_amount": "500000.00",
+      "incident_date": "2026-08-28",
+      "incident_description": "确诊乳腺癌（重疾），申请重大疾病理赔。",
+      "materials": [
+        {
+          "file_name": "diagnosis_cancer.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "pathology_report.pdf",
+          "doc_type": "medical_record"
+        }
+      ],
+      "expected": {
+        "category": "edge",
+        "route": "human",
+        "liability": null,
+        "approved_amount": null,
+        "note": "客户未自报险种，intake 应分类为重疾险（不在 medical pack 范围）→ 受理期转人工"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0023",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎住院手术，费用15800元。未上传费用清单。",
+      "materials": [
+        {
+          "file_name": "invoice_15800_d.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_appendicitis_d.jpg",
+          "doc_type": "diagnosis"
+        }
+      ],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "note": "缺费用清单→补件挂起（SUPPLEMENT 工单），补齐后重跑"
+      }
+    },
+    {
+      "case_id": "CASE-2026-0024",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "12300.00",
+      "incident_date": "2026-09-02",
+      "incident_description": "肺炎住院治疗，费用12300元。仅上传费用清单。",
+      "materials": [
+        {
+          "file_name": "cost_list_g.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "note": "缺医疗发票+诊断证明→补件挂起"
+      }
+    },
+    {
+      "case_id": "CASE-E-0001",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "10050.00",
+      "incident_date": "2025-02-10",
+      "incident_description": "肺炎住院治疗，费用10050.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "40.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0002",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "10625.00",
+      "incident_date": "2025-02-15",
+      "incident_description": "急性肠胃炎住院，费用10625.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "500.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0003",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "11250.00",
+      "incident_date": "2025-02-20",
+      "incident_description": "胆囊结石手术，费用11250.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0004",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "11875.00",
+      "incident_date": "2025-02-25",
+      "incident_description": "胃炎住院治疗，费用11875.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1500.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0005",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "12500.00",
+      "incident_date": "2025-03-02",
+      "incident_description": "阑尾炎手术，费用12500.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0006",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "13125.00",
+      "incident_date": "2025-03-07",
+      "incident_description": "扁桃体切除手术，费用13125.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2500.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0007",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "14375.00",
+      "incident_date": "2025-03-12",
+      "incident_description": "疝气手术，费用14375.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "3500.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0008",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15625.00",
+      "incident_date": "2025-03-17",
+      "incident_description": "痔疮手术，费用15625.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4500.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0009",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "10080.00",
+      "incident_date": "2026-09-10",
+      "incident_description": "肺炎住院治疗，费用10080.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "64.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0010",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "10875.00",
+      "incident_date": "2026-09-15",
+      "incident_description": "急性肠胃炎住院，费用10875.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "700.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0011",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "11670.00",
+      "incident_date": "2026-09-20",
+      "incident_description": "胆囊结石手术，费用11670.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1336.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0012",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "12465.00",
+      "incident_date": "2026-09-25",
+      "incident_description": "胃炎住院治疗，费用12465.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1972.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0013",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "13260.00",
+      "incident_date": "2026-09-30",
+      "incident_description": "阑尾炎手术，费用13260.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2608.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0014",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "14055.00",
+      "incident_date": "2026-10-05",
+      "incident_description": "扁桃体切除手术，费用14055.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "3244.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0015",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "14850.00",
+      "incident_date": "2026-10-10",
+      "incident_description": "疝气手术，费用14850.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "3880.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0016",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "15640.00",
+      "incident_date": "2026-10-15",
+      "incident_description": "痔疮手术，费用15640.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4512.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0017",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "10100.00",
+      "incident_date": "2026-02-10",
+      "incident_description": "肺炎住院治疗，费用10100.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "80.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0018",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "11000.00",
+      "incident_date": "2026-02-15",
+      "incident_description": "急性肠胃炎住院，费用11000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "800.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0019",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-02-20",
+      "incident_description": "胆囊结石手术，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1600.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0020",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "13000.00",
+      "incident_date": "2026-02-25",
+      "incident_description": "胃炎住院治疗，费用13000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2400.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0021",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "14000.00",
+      "incident_date": "2026-03-02",
+      "incident_description": "阑尾炎手术，费用14000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "3200.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0022",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "15000.00",
+      "incident_date": "2026-03-07",
+      "incident_description": "扁桃体切除手术，费用15000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0023",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "15750.00",
+      "incident_date": "2026-03-12",
+      "incident_description": "疝气手术，费用15750.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4600.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0024",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "16200.00",
+      "incident_date": "2026-03-17",
+      "incident_description": "痔疮手术，费用16200.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4960.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0025",
+      "user_id": "u-sunqiang",
+      "policy_no": "POL-2026-0007",
+      "declared_case_type": "medical",
+      "claimed_amount": "5100.00",
+      "incident_date": "2026-04-10",
+      "incident_description": "肺炎住院治疗，费用5100.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "70.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0026",
+      "user_id": "u-sunqiang",
+      "policy_no": "POL-2026-0007",
+      "declared_case_type": "medical",
+      "claimed_amount": "5700.00",
+      "incident_date": "2026-04-15",
+      "incident_description": "急性肠胃炎住院，费用5700.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "490.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0027",
+      "user_id": "u-sunqiang",
+      "policy_no": "POL-2026-0007",
+      "declared_case_type": "medical",
+      "claimed_amount": "6428.57",
+      "incident_date": "2026-04-20",
+      "incident_description": "胆囊结石手术，费用6428.57元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0028",
+      "user_id": "u-sunqiang",
+      "policy_no": "POL-2026-0007",
+      "declared_case_type": "medical",
+      "claimed_amount": "7857.14",
+      "incident_date": "2026-04-25",
+      "incident_description": "胃炎住院治疗，费用7857.14元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0029",
+      "user_id": "u-sunqiang",
+      "policy_no": "POL-2026-0007",
+      "declared_case_type": "medical",
+      "claimed_amount": "9285.71",
+      "incident_date": "2026-04-30",
+      "incident_description": "阑尾炎手术，费用9285.71元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "3000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0030",
+      "user_id": "u-sunqiang",
+      "policy_no": "POL-2026-0007",
+      "declared_case_type": "medical",
+      "claimed_amount": "10714.29",
+      "incident_date": "2026-05-05",
+      "incident_description": "扁桃体切除手术，费用10714.29元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0031",
+      "user_id": "u-sunqiang",
+      "policy_no": "POL-2026-0007",
+      "declared_case_type": "medical",
+      "claimed_amount": "11428.57",
+      "incident_date": "2026-05-10",
+      "incident_description": "疝气手术，费用11428.57元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4500.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0032",
+      "user_id": "u-sunqiang",
+      "policy_no": "POL-2026-0007",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-05-15",
+      "incident_description": "痔疮手术，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4900.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0033",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "10125.00",
+      "incident_date": "2025-02-10",
+      "incident_description": "肺炎住院治疗，费用10125.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "100.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0034",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "11500.00",
+      "incident_date": "2025-02-15",
+      "incident_description": "急性肠胃炎住院，费用11500.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1200.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0035",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "12250.00",
+      "incident_date": "2025-02-20",
+      "incident_description": "胆囊结石手术，费用12250.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1800.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0036",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "13600.00",
+      "incident_date": "2025-02-25",
+      "incident_description": "胃炎住院治疗，费用13600.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2880.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0037",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "14750.00",
+      "incident_date": "2025-03-02",
+      "incident_description": "阑尾炎手术，费用14750.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "3800.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0038",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15300.00",
+      "incident_date": "2025-03-07",
+      "incident_description": "扁桃体切除手术，费用15300.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4240.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0039",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15900.00",
+      "incident_date": "2025-03-12",
+      "incident_description": "疝气手术，费用15900.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4720.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0040",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "16100.00",
+      "incident_date": "2025-03-17",
+      "incident_description": "痔疮手术，费用16100.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4880.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0041",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "10200.00",
+      "incident_date": "2026-09-10",
+      "incident_description": "肺炎住院治疗，费用10200.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "160.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0042",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "11400.00",
+      "incident_date": "2026-09-15",
+      "incident_description": "急性肠胃炎住院，费用11400.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1120.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0043",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "12800.00",
+      "incident_date": "2026-09-20",
+      "incident_description": "胆囊结石手术，费用12800.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2240.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0044",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "13900.00",
+      "incident_date": "2026-09-25",
+      "incident_description": "胃炎住院治疗，费用13900.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "3120.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0045",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "14400.00",
+      "incident_date": "2026-09-30",
+      "incident_description": "阑尾炎手术，费用14400.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "3520.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0046",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "15200.00",
+      "incident_date": "2026-10-05",
+      "incident_description": "扁桃体切除手术，费用15200.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4160.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0047",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "15900.00",
+      "incident_date": "2026-10-10",
+      "incident_description": "疝气手术，费用15900.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4720.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0048",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "16000.00",
+      "incident_date": "2026-10-15",
+      "incident_description": "痔疮手术，费用16000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4800.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "正常自动签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0049",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "40000.00",
+      "incident_date": "2025-03-02",
+      "incident_description": "骨折内固定手术，费用40000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": "24000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "金额超自动签发线，走完管线后签批转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0050",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "35000.00",
+      "incident_date": "2026-09-30",
+      "incident_description": "骨折内固定手术，费用35000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": "20000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "金额超自动签发线，走完管线后签批转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0051",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "30000.00",
+      "incident_date": "2026-03-02",
+      "incident_description": "骨折内固定手术，费用30000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": "16000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "金额超自动签发线，走完管线后签批转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0052",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "25000.00",
+      "incident_date": "2025-03-02",
+      "incident_description": "骨折内固定手术，费用25000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": "12000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "金额超自动签发线，走完管线后签批转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0053",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "20000.00",
+      "incident_date": "2026-09-30",
+      "incident_description": "骨折内固定手术，费用20000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": "8000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "金额超自动签发线，走完管线后签批转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0054",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "18000.00",
+      "incident_date": "2026-03-02",
+      "incident_description": "骨折内固定手术，费用18000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": "6400.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "金额超自动签发线，走完管线后签批转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0055",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "9000.00",
+      "incident_date": "2026-08-02",
+      "incident_description": "急性阑尾炎手术，费用9000元。保单生效第 1 天出险。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "等待期内出险（第 1 天），标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0056",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "9000.00",
+      "incident_date": "2026-08-06",
+      "incident_description": "急性阑尾炎手术，费用9000元。保单生效第 5 天出险。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "等待期内出险（第 5 天），标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0057",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "9000.00",
+      "incident_date": "2026-08-11",
+      "incident_description": "急性阑尾炎手术，费用9000元。保单生效第 10 天出险。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "等待期内出险（第 10 天），标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0058",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "9000.00",
+      "incident_date": "2026-08-16",
+      "incident_description": "急性阑尾炎手术，费用9000元。保单生效第 15 天出险。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "等待期内出险（第 15 天），标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0059",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "9000.00",
+      "incident_date": "2026-08-21",
+      "incident_description": "急性阑尾炎手术，费用9000元。保单生效第 20 天出险。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "等待期内出险（第 20 天），标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0060",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "9000.00",
+      "incident_date": "2026-08-26",
+      "incident_description": "急性阑尾炎手术，费用9000元。保单生效第 25 天出险。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "等待期内出险（第 25 天），标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0061",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "9000.00",
+      "incident_date": "2026-08-30",
+      "incident_description": "急性阑尾炎手术，费用9000元。保单生效第 29 天出险。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "等待期内出险（第 29 天），标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0062",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "9000.00",
+      "incident_date": "2026-08-31",
+      "incident_description": "急性阑尾炎手术，费用9000元。保单生效第 30 天出险。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "等待期内出险（第 30 天），标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0063",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "13000.00",
+      "incident_date": "2026-09-01",
+      "incident_description": "急性阑尾炎手术，费用13000.00元。生效第 31 天出险。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2400.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "等待期已过，正常赔付"
+      }
+    },
+    {
+      "case_id": "CASE-E-0064",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "13000.00",
+      "incident_date": "2026-09-05",
+      "incident_description": "急性阑尾炎手术，费用13000.00元。生效第 35 天出险。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2400.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "等待期已过，正常赔付"
+      }
+    },
+    {
+      "case_id": "CASE-E-0065",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "13000.00",
+      "incident_date": "2026-09-15",
+      "incident_description": "急性阑尾炎手术，费用13000.00元。生效第 45 天出险。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2400.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "等待期已过，正常赔付"
+      }
+    },
+    {
+      "case_id": "CASE-E-0066",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "13000.00",
+      "incident_date": "2026-09-30",
+      "incident_description": "急性阑尾炎手术，费用13000.00元。生效第 60 天出险。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2400.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "等待期已过，正常赔付"
+      }
+    },
+    {
+      "case_id": "CASE-E-0067",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "11500.00",
+      "incident_date": "2026-07-15",
+      "incident_description": "急性肠胃炎住院，费用11500.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1200.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "POL-2026-0006 正常赔付（等待期已过）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0068",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "13500.00",
+      "incident_date": "2026-07-15",
+      "incident_description": "急性肠胃炎住院，费用13500.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2800.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "POL-2026-0006 正常赔付（等待期已过）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0069",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "14200.00",
+      "incident_date": "2026-07-15",
+      "incident_description": "急性肠胃炎住院，费用14200.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "3360.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "POL-2026-0006 正常赔付（等待期已过）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0070",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-07-08",
+      "incident_description": "鼻综合整形手术，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0071",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-07-08",
+      "incident_description": "种植牙两颗，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0072",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-07-08",
+      "incident_description": "牙齿正畸矫正，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0073",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-07-08",
+      "incident_description": "眼部美容手术，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0074",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-07-08",
+      "incident_description": "牙齿美白修复，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0075",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-07-08",
+      "incident_description": "脊柱侧弯矫正手术，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0076",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-07-08",
+      "incident_description": "注射美容针，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0077",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-07-08",
+      "incident_description": "牙齿矫正器，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0078",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-07-08",
+      "incident_description": "面部激光美容，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0079",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-07-08",
+      "incident_description": "口腔正畸治疗，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0080",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-07-08",
+      "incident_description": "牙齿种植手术，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0081",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-07-08",
+      "incident_description": "视力矫正激光手术，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0082",
+      "user_id": "u-wangqiang",
+      "policy_no": "POL-2024-0003",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-06-30",
+      "incident_description": "肺炎住院治疗，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "保单过期/退保，保障终止，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0083",
+      "user_id": "u-chenjing",
+      "policy_no": "POL-2023-0004",
+      "declared_case_type": "medical",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-06-30",
+      "incident_description": "意外跌倒骨折治疗，费用12000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "保单过期/退保，保障终止，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0084",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "17500.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料2500.00元（清单单列），总费用17500.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "4000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0085",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "16000.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料1000.00元（清单单列），总费用16000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "4000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0086",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "15000.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料2000.00元（清单单列），总费用15000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "2400.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0087",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "18000.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料3000.00元（清单单列），总费用18000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "4000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0088",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "19000.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料4000.00元（清单单列），总费用19000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "4000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0089",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "16500.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料1500.00元（清单单列），总费用16500.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "4000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0090",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "18000.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料5000.00元（清单单列），总费用18000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "2400.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0091",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "14500.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料500.00元（清单单列），总费用14500.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "3200.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0092",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "17000.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料2500.00元（清单单列），总费用17000.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "3600.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0093",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "18500.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料3500.00元（清单单列），总费用18500.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "4000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0094",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "15500.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料1200.00元（清单单列），总费用15500.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "3440.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0095",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "16800.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料2800.00元（清单单列），总费用16800.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "3200.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0096",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "17800.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料4500.00元（清单单列），总费用17800.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "2640.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0097",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "17500.00",
+      "incident_date": "2026-06-05",
+      "incident_description": "骨科手术，含自费内固定材料3800.00元（清单单列），总费用17500.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "2960.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0098",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-08",
+      "incident_description": "急性阑尾炎手术申请理赔。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "fraud",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check"
+        ],
+        "note": "黑名单命中，高风险短路转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0099",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "9800.00",
+      "incident_date": "2026-08-08",
+      "incident_description": "急性阑尾炎手术申请理赔。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "fraud",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check"
+        ],
+        "note": "黑名单命中，高风险短路转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0100",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "22000.00",
+      "incident_date": "2026-08-08",
+      "incident_description": "急性阑尾炎手术申请理赔。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "fraud",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check"
+        ],
+        "note": "黑名单命中，高风险短路转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0101",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "8800.00",
+      "incident_date": "2026-08-08",
+      "incident_description": "急性阑尾炎手术申请理赔。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "fraud",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check"
+        ],
+        "note": "黑名单命中，高风险短路转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0102",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "11500.00",
+      "incident_date": "2026-08-08",
+      "incident_description": "急性阑尾炎手术申请理赔。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "fraud",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check"
+        ],
+        "note": "黑名单命中，高风险短路转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0103",
+      "user_id": "u-zhaomin",
+      "policy_no": "POL-2026-0006",
+      "declared_case_type": "medical",
+      "claimed_amount": "45000.00",
+      "incident_date": "2026-08-08",
+      "incident_description": "急性阑尾炎手术申请理赔。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "fraud",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check"
+        ],
+        "note": "黑名单命中，高风险短路转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0104",
+      "user_id": "u-sunqiang",
+      "policy_no": "POL-2026-0007",
+      "declared_case_type": "medical",
+      "claimed_amount": "12800.00",
+      "incident_date": "2026-08-20",
+      "incident_description": "肺炎住院治疗申请理赔，近期多次申请。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "fraud",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc"
+        ],
+        "note": "高频理赔（medium），分级签发转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0105",
+      "user_id": "u-sunqiang",
+      "policy_no": "POL-2026-0007",
+      "declared_case_type": "medical",
+      "claimed_amount": "9000.00",
+      "incident_date": "2026-08-20",
+      "incident_description": "肺炎住院治疗申请理赔，近期多次申请。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "fraud",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc"
+        ],
+        "note": "高频理赔（medium），分级签发转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0106",
+      "user_id": "u-sunqiang",
+      "policy_no": "POL-2026-0007",
+      "declared_case_type": "medical",
+      "claimed_amount": "13800.00",
+      "incident_date": "2026-08-20",
+      "incident_description": "肺炎住院治疗申请理赔，近期多次申请。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "fraud",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc"
+        ],
+        "note": "高频理赔（medium），分级签发转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0107",
+      "user_id": "u-sunqiang",
+      "policy_no": "POL-2026-0007",
+      "declared_case_type": "medical",
+      "claimed_amount": "10500.00",
+      "incident_date": "2026-08-20",
+      "incident_description": "肺炎住院治疗申请理赔，近期多次申请。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "fraud",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc"
+        ],
+        "note": "高频理赔（medium），分级签发转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0108",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎住院手术，费用15800元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        }
+      ],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "缺件：诊断证明、费用清单"
+      }
+    },
+    {
+      "case_id": "CASE-E-0109",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎住院手术，费用15800元。",
+      "materials": [
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        }
+      ],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "缺件：医疗发票"
+      }
+    },
+    {
+      "case_id": "CASE-E-0110",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎住院手术，费用15800元。",
+      "materials": [
+        {
+          "file_name": "cost_list.jpg",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "缺件：医疗发票、诊断证明"
+      }
+    },
+    {
+      "case_id": "CASE-E-0111",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎住院手术，费用15800元。",
+      "materials": [],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "缺件：医疗发票、诊断证明、费用清单"
+      }
+    },
+    {
+      "case_id": "CASE-E-0112",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎住院手术，费用15800元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        }
+      ],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "缺件：费用清单"
+      }
+    },
+    {
+      "case_id": "CASE-E-0113",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎住院手术，费用15800元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "cost_list.jpg",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "缺件：诊断证明"
+      }
+    },
+    {
+      "case_id": "CASE-E-0114",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎住院手术，费用15800元。",
+      "materials": [
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.jpg",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "缺件：医疗发票"
+      }
+    },
+    {
+      "case_id": "CASE-E-0115",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎住院手术，费用15800元。",
+      "materials": [
+        {
+          "file_name": "medical_record.jpg",
+          "doc_type": "medical_record"
+        }
+      ],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "缺件：医疗发票、诊断证明、费用清单"
+      }
+    },
+    {
+      "case_id": "CASE-E-0116",
+      "user_id": "u-chenjing",
+      "policy_no": "POL-2023-0004",
+      "declared_case_type": "accident",
+      "claimed_amount": "8600.00",
+      "incident_date": "2026-08-25",
+      "incident_description": "雨天摔倒骨折，费用8600元。",
+      "materials": [],
+      "expected": {
+        "category": "intake",
+        "route": "human",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [],
+        "note": "未上线险种受理转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0117",
+      "user_id": "u-lina",
+      "policy_no": "POL-2025-0002",
+      "declared_case_type": null,
+      "claimed_amount": "8600.00",
+      "incident_date": "2026-08-25",
+      "incident_description": "确诊重大疾病，申请理赔。",
+      "materials": [],
+      "expected": {
+        "category": "intake",
+        "route": "human",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [],
+        "note": "未上线险种受理转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0118",
+      "user_id": "u-chenjing",
+      "policy_no": "POL-2023-0004",
+      "declared_case_type": "accident",
+      "claimed_amount": "8600.00",
+      "incident_date": "2026-08-25",
+      "incident_description": "交通事故软组织损伤，费用5200元。",
+      "materials": [],
+      "expected": {
+        "category": "intake",
+        "route": "human",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [],
+        "note": "未上线险种受理转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0119",
+      "user_id": "u-lina",
+      "policy_no": "POL-2025-0002",
+      "declared_case_type": null,
+      "claimed_amount": "8600.00",
+      "incident_date": "2026-08-25",
+      "incident_description": "轻度脑中风后遗症理赔申请。",
+      "materials": [],
+      "expected": {
+        "category": "intake",
+        "route": "human",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [],
+        "note": "未上线险种受理转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0120",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "10001.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "肺炎住院治疗，费用10001.00元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "edge",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "0.80",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "免赔额临界 +1 元"
+      }
+    },
+    {
+      "case_id": "CASE-E-0121",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "9999.99",
+      "incident_date": "2026-08-10",
+      "incident_description": "肺炎住院治疗，费用9999.99元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "edge",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "免赔额以下"
+      }
+    },
+    {
+      "case_id": "CASE-E-0122",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "10002.50",
+      "incident_date": "2026-08-10",
+      "incident_description": "肺炎住院治疗，费用10002.50元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "edge",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "免赔额临界小额"
+      }
+    },
+    {
+      "case_id": "CASE-E-0123",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "15800.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎手术申请理赔。发票金额15800.00元与费用清单12800.00元不一致。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list",
+          "note": "清单金额12800.00，与发票矛盾"
+        }
+      ],
+      "expected": {
+        "category": "edge",
+        "route": "human",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "材料矛盾（发票15800.00 vs 清单12800.00）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0124",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "8800.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎手术申请理赔。发票金额8800.00元与费用清单6600.00元不一致。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list",
+          "note": "清单金额6600.00，与发票矛盾"
+        }
+      ],
+      "expected": {
+        "category": "edge",
+        "route": "human",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "材料矛盾（发票8800.00 vs 清单6600.00）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0125",
+      "user_id": "u-zhangwei",
+      "policy_no": "POL-2025-0001",
+      "declared_case_type": "medical",
+      "claimed_amount": "20000.00",
+      "incident_date": "2026-08-10",
+      "incident_description": "急性阑尾炎手术申请理赔。发票金额20000.00元与费用清单15500.00元不一致。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list",
+          "note": "清单金额15500.00，与发票矛盾"
+        }
+      ],
+      "expected": {
+        "category": "edge",
+        "route": "human",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "材料矛盾（发票20000.00 vs 清单15500.00）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0126",
+      "user_id": "u-liuyang",
+      "policy_no": "POL-2026-0005",
+      "declared_case_type": "medical",
+      "claimed_amount": "16000.00",
+      "incident_date": "2026-09-02",
+      "incident_description": "腹腔镜胆囊切除，含乙类药自付3000元。",
+      "materials": [
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_b.pdf",
+          "doc_type": "cost_list"
+        }
+      ],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "缺医疗发票，先补件；补齐后走 partial 路径"
+      },
+      "added_materials": [
+        {
+          "file_name": "invoice_16000.jpg",
+          "doc_type": "invoice"
+        }
+      ]
+    }
+  ],
+  "frequency_signals": [
+    {
+      "id_card": "330103198805126778",
+      "holder_name": "孙强",
+      "claims_days_ago": [
+        10,
+        30
+      ],
+      "policy_no": "POL-2026-0007"
+    }
+  ]
+}
