@@ -42,7 +42,7 @@ from nodes.orchestrator import make_orchestrator_node, route_dispatch
 from nodes.policy_verify import make_policy_verify_node
 from schemas.case import CaseInputState, CaseOutput
 from schemas.stages import STAGE_SPECS
-from services.case_store import CaseRecorder, DbCaseRecorder
+from services.case_store import CaseRecorder
 from state import ClaimCaseState
 
 
@@ -189,9 +189,10 @@ def create_default_case_graph(
     from nodes.liability_judge import keyword_only_invoker
     from nodes.material_review import make_material_ai_reviewer
     from nodes.orchestrator import make_llm_router
+    from services.case_store import get_default_recorder
 
     return build_case_graph(
-        recorder=DbCaseRecorder(),
+        recorder=get_default_recorder(),  # 共享单例：API 路由同实例，seq 缓存一致（T095）
         policy_lookup=db_policy_lookup,
         fraud_lookup=db_fraud_lookup,
         checkpointer=checkpointer if checkpointer is not None else InMemorySaver(),

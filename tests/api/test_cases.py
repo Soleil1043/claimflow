@@ -235,6 +235,10 @@ async def test_upload_material_appends_to_case(client: AsyncClient) -> None:
     assert added["extraction"]["diagnosis"] == "急性阑尾炎"
     assert any(e["kind"] == "material_upload" for e in detail["timeline"])
 
+    # T095 seq 单一分配器回归：API 直写事件后图内继续追加，seq 不得重号
+    seqs = [e["seq"] for e in detail["timeline"]]
+    assert seqs == sorted(seqs) and len(seqs) == len(set(seqs)), f"seq 重号/乱序: {seqs}"
+
 
 async def test_upload_material_invalid_type_422(client: AsyncClient) -> None:
     submitted = await client.post("/api/v1/cases", json=_body())

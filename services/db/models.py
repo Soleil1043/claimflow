@@ -292,6 +292,9 @@ class CaseEvent(Base):
     payload: Mapped[dict[str, Any] | None] = mapped_column(_jsonb_or_json(), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
 
+    # seq 分配唯一写者约束（T095）：并发/跨实例写入重号在 DB 层兜底，写入侧冲突重试
+    __table_args__ = (UniqueConstraint("case_id", "seq", name="uq_case_event_case_seq"),)
+
     def __repr__(self) -> str:
         return f"<CaseEvent {self.id} case={self.case_id} kind={self.kind} seq={self.seq}>"
 

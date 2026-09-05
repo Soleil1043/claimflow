@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -15,11 +16,26 @@ from typing_extensions import TypedDict
 
 from schemas.stages import DecisionDocOutput, FinalDecision, InsuranceLine
 
-# 案件状态机（cases.status）：
-# received → in_progress →（supplement_pending 补件挂起）→ auto_issued / referred / closed
-CaseStatus = Literal[
-    "received", "in_progress", "supplement_pending", "auto_issued", "referred", "closed"
-]
+
+class CaseStatus(StrEnum):
+    """案件状态机（cases.status，T095 归一：写入点全部引用枚举成员）。
+
+    received → in_progress →（supplement_pending 补件挂起）→ auto_issued / referred / closed
+    """
+
+    RECEIVED = "received"
+    IN_PROGRESS = "in_progress"
+    SUPPLEMENT_PENDING = "supplement_pending"
+    AUTO_ISSUED = "auto_issued"
+    REFERRED = "referred"
+    CLOSED = "closed"
+
+
+# 工单挂起态（interventions 工单列表/处理守卫口径）
+PENDING_CASE_STATUSES: tuple[CaseStatus, ...] = (
+    CaseStatus.SUPPLEMENT_PENDING,
+    CaseStatus.REFERRED,
+)
 
 
 class CaseMaterialRef(BaseModel):

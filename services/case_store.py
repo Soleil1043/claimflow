@@ -1,11 +1,12 @@
-"""案件审计与状态落库（Phase 8 T079，D006/D028 原则延续）。
+"""案件审计与状态落库（Phase 8 T079，D006/D028 原则延续；T095 seq 单一分配器）。
 
 CaseRecorder 协议解耦图节点与数据库：节点只依赖协议，测试注入内存实现，
 运行时用 DbCaseRecorder（fail-open——审计/状态写入失败只告警，绝不阻塞核赔主流程）。
 
-并发说明：并行 worker（policy_verify ∥ fraud_check）会在同一超步并发调用写入；
-DbCaseRecorder 用实例级 asyncio.Lock 串行化——SQLite 单连接下并行事务会互相冲突
-（实测丢审计事件），PostgreSQL 下串行化微小写入也无碍。
+并发说明（T095 修订）：seq 分配以共享单例（get_default_recorder）保证图内节点与
+API 路由持同一实例——实例级 asyncio.Lock 串行化 + 进程内缓存单调递增；DB 层
+(case_id, seq) 唯一约束兜底跨实例写入，冲突时失效缓存按 DB 现值重试。
+fail-open：审计/状态写入失败只告警，绝不阻塞核赔主流程。
 """
 
 from __future__ import annotations
@@ -74,6 +75,28 @@ class DbCaseRecorder:
         stage: str | None = None,
         payload: dict[str, Any] | None = None,
     ) -> None:
+        for attempt in (1, 2, 3):
+            try:
+                await self._append_event(case_id, kind, stage, payload)
+                return
+            except Exception as exc:  # noqa: BLE001
+                # (case_id, seq) 唯一约束冲突 = 存在跨实例写入者，缓存过期——
+                # 失效后按 DB 现值重试；其余异常 fail-open 直接告警
+                if "uq_case_event_case_seq" in str(exc) and attempt < 3:
+                    self._seq_cache.pop(case_id, None)
+                    continue
+                log.warning(
+                    "case_event_write_failed", case_id=case_id, kind=kind, error=str(exc)
+                )
+                return
+
+    async def _append_event(
+        self,
+        case_id: str,
+        kind: str,
+        stage: str | None,
+        payload: dict[str, Any] | None,
+    ) -> None:
         try:
             async with self._lock:
                 from sqlalchemy import select
@@ -102,8 +125,8 @@ class DbCaseRecorder:
                         )
                     )
                     await session.commit()
-        except Exception as exc:  # noqa: BLE001 —— fail-open：审计失败不阻塞核赔
-            log.warning("case_event_write_failed", case_id=case_id, kind=kind, error=str(exc))
+        except Exception:  # noqa: BLE001 —— 向上抛给 event() 做约束冲突重试/fail-open
+            raise
 
     async def update_case(
         self,
@@ -184,6 +207,13 @@ class DbCaseRecorder:
             log.warning("decision_save_failed", case_id=case_id, error=str(exc))
 
 
-def get_default_recorder() -> CaseRecorder:
-    """运行时默认记录器（DB）。"""
-    return DbCaseRecorder()
+_default_recorder: DbCaseRecorder | None = None
+
+
+def get_default_recorder() -> DbCaseRecorder:
+    """运行时默认记录器单例（T095）：图内节点与 API 路由必须持同一实例，
+    进程内 seq 缓存才对全部写入者一致。测试注入替身时不经此函数。"""
+    global _default_recorder
+    if _default_recorder is None:
+        _default_recorder = DbCaseRecorder()
+    return _default_recorder

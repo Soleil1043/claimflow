@@ -10,6 +10,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from app.core.logging import get_logger
+from schemas.case import CaseStatus
 from services.case_store import CaseRecorder
 from state import ClaimCaseState
 
@@ -56,7 +57,9 @@ def make_intake_node(recorder: CaseRecorder, policy_lookup: PolicyLookup):
             log.info("intake_referred_offline", case_id=state["case_id"], case_type=case_type)
 
         # 更新案件状态为 in_progress
-        await recorder.update_case(state["case_id"], case_type=case_type, status="in_progress")
+        await recorder.update_case(
+            state["case_id"], case_type=case_type, status=CaseStatus.IN_PROGRESS
+        )
         # 记录 intake 结果
         await recorder.event(
             state["case_id"],

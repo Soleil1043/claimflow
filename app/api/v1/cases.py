@@ -43,6 +43,8 @@ from schemas.api import (
     CaseSubmitResponse,
     CaseTimelineEvent,
 )
+from schemas.case import CaseStatus
+from services.case_store import get_default_recorder
 from services.db.models import Case, CaseEvent, DecisionDocument
 from services.materials import detect_material_type, extract_material
 from services.observability import metrics as obs
@@ -150,7 +152,7 @@ async def submit_case(
         user_id=body.user_id,
         policy_no=body.policy_no,
         case_type="unknown",  # intake 分类写入
-        status="received",
+        status=CaseStatus.RECEIVED,
         claimed_amount=body.claimed_amount,
         incident_date=body.incident_date,
         incident_description=body.incident_description,
@@ -320,25 +322,22 @@ async def upload_case_material(
     )
     case.materials = materials
     case.updated_at = func.now()
-    session.add(
-        CaseEvent(
-            case_id=case.id,
-            kind="material_upload",
-            stage=None,
-            seq=await _next_event_seq(session, case.id),
-            payload={
-                "file_name": filename,
-                "file_type": result.file_type,
-                "doc_type": doc_type,
-                "source": result.source,
-            },
-        )
+    # 审计事件经共享 recorder 单例（T095）：与图内节点同一 seq 分配器，杜绝重号
+    await get_default_recorder().event(
+        case.id,
+        "material_upload",
+        payload={
+            "file_name": filename,
+            "file_type": result.file_type,
+            "doc_type": doc_type,
+            "source": result.source,
+        },
     )
     await session.commit()  # 先落库材料/审计，避免 resume 期间并发写锁（SQLite）
 
     # 补件闭环（T086）：挂起案件 + 新材料 → 自动恢复核赔流程
     resume_status: str | None = None
-    if case.status == "supplement_pending":
+    if case.status == CaseStatus.SUPPLEMENT_PENDING:
         try:
             await case_graph.ainvoke(
                 Command(resume={"kind": "supplement",
@@ -364,12 +363,3 @@ async def upload_case_material(
         materials_count=len(materials),
         case_status=resume_status,
     )
-
-
-async def _next_event_seq(session: AsyncSession, case_id: str) -> int:
-    current = (
-        await session.execute(
-            select(func.max(CaseEvent.seq)).where(CaseEvent.case_id == case_id)
-        )
-    ).scalar_one_or_none()
-    return (current or 0) + 1

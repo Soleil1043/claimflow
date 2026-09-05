@@ -27,13 +27,12 @@ from schemas.api import (
     CaseResolveRequest,
     CaseResolveResponse,
 )
+from schemas.case import PENDING_CASE_STATUSES, CaseStatus
 from services.db.models import Case
 
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/interventions", tags=["interventions"])
-
-_PENDING_CASE_STATUSES = ("supplement_pending", "referred")
 
 
 @router.get("/cases", response_model=CaseInterventionListResponse)
@@ -46,7 +45,7 @@ async def list_case_interventions(
     """核赔工单列表：interrupt 挂起的案件（补件/复核签批/受理升级）。"""
     stmt = (
         select(Case)
-        .where(Case.status.in_(_PENDING_CASE_STATUSES))
+        .where(Case.status.in_(PENDING_CASE_STATUSES))
         .order_by(Case.updated_at.desc())
         .limit(limit)
     )
@@ -100,7 +99,7 @@ async def resolve_case_intervention(
     ).scalar_one_or_none()
     if case is None:
         raise HTTPException(status_code=404, detail="案件不存在")
-    if case.status not in _PENDING_CASE_STATUSES:
+    if case.status not in PENDING_CASE_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"案件状态为 {case.status}，无待处理工单",
@@ -110,7 +109,7 @@ async def resolve_case_intervention(
         {"configurable": {"thread_id": case_id}}
     ).values
     kind = str((state_values.get("human_request") or {}).get("kind")
-               or ("supplement" if case.status == "supplement_pending" else "review"))
+               or ("supplement" if case.status == CaseStatus.SUPPLEMENT_PENDING else "review"))
 
     resolution: dict[str, Any] = {
         "kind": kind,

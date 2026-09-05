@@ -18,6 +18,7 @@ from typing import Any
 from langgraph.types import interrupt
 
 from app.core.logging import get_logger
+from schemas.case import CaseStatus
 from services.case_store import CaseRecorder
 from services.decision_doc import render_decision_document
 from state import ClaimCaseState
@@ -127,7 +128,9 @@ def make_human_gate_node(recorder: CaseRecorder):
     async def human_gate_node(state: ClaimCaseState) -> dict[str, Any]:
         request = state.get("human_request") or {}
         kind = str(request.get("kind", "review"))
-        status = "supplement_pending" if kind == "supplement" else "referred"
+        status = (
+            CaseStatus.SUPPLEMENT_PENDING if kind == "supplement" else CaseStatus.REFERRED
+        )
         await recorder.update_case(state["case_id"], status=status)
 
         resolution: Any = interrupt(
@@ -155,7 +158,7 @@ def make_human_gate_node(recorder: CaseRecorder):
         if kind == "escape":
             update["final_decision"] = "referred"
             await recorder.update_case(
-                state["case_id"], status="referred", final_decision="referred"
+                state["case_id"], status=CaseStatus.REFERRED, final_decision="referred"
             )
             return update
 
@@ -165,7 +168,7 @@ def make_human_gate_node(recorder: CaseRecorder):
         if review_update.get("decision_document") is None:
             # 红线拦截安全兜底：不签发文书，终态转人工
             await recorder.update_case(
-                state["case_id"], status="referred", final_decision="referred"
+                state["case_id"], status=CaseStatus.REFERRED, final_decision="referred"
             )
         issued = review_update.get("decision_document")
         if issued is not None:
@@ -181,7 +184,7 @@ def make_human_gate_node(recorder: CaseRecorder):
                 issued_by=str(issued.get("issued_by", "agent")),
             )
             await recorder.update_case(
-                state["case_id"], status="closed",
+                state["case_id"], status=CaseStatus.CLOSED,
                 final_decision=str(issued.get("conclusion", "")),
                 approved_amount=Decimal(str(issued.get("approved_amount") or "0")),
             )

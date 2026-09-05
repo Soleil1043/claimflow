@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Any
 
 from app.core.config import settings
+from schemas.case import CaseStatus
 from services.case_store import CaseRecorder
 from services.observability import metrics
 from state import ClaimCaseState
@@ -47,11 +48,11 @@ def make_auto_adjudicate_node(recorder: CaseRecorder):
             refer_reasons.append(f"链路置信度 {min_confidence:.2f} 低于门槛")
 
         if refer_reasons:
-            await recorder.update_case(state["case_id"], status="referred")
+            await recorder.update_case(state["case_id"], status=CaseStatus.REFERRED)
             await recorder.event(
                 state["case_id"],
                 "status_change",
-                payload={"status": "referred", "reasons": refer_reasons},
+                payload={"status": CaseStatus.REFERRED, "reasons": refer_reasons},
             )
             return {
                 "human_request": {
@@ -72,19 +73,19 @@ def make_auto_adjudicate_node(recorder: CaseRecorder):
 
         metrics.record_case_closed(
             case_type=str(state.get("case_type") or "unknown"),
-            final_status="auto_issued",
+            final_status=CaseStatus.AUTO_ISSUED,
         )
         metrics.record_decision_amount(float(approved))
         await recorder.update_case(
             state["case_id"],
-            status="auto_issued",
+            status=CaseStatus.AUTO_ISSUED,
             final_decision=final_decision,
             approved_amount=approved,
         )
         await recorder.event(
             state["case_id"],
             "status_change",
-            payload={"status": "auto_issued", "final_decision": final_decision},
+            payload={"status": CaseStatus.AUTO_ISSUED, "final_decision": final_decision},
         )
         return {
             "final_decision": final_decision,
