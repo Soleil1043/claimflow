@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { resolveCaseIntervention, type CaseResolveBody } from "@/lib/api";
+import { getCaseDetail, resolveCaseIntervention, type CaseResolveBody } from "@/lib/api";
 
 /**
  * 核赔工单处理表单（T087，kind-aware）：
@@ -54,6 +54,20 @@ export default function CaseResolveForm({
     }
     try {
       await resolveCaseIntervention(caseId, payload);
+      // T103 异步交付：resolve 受理即返回，轮询详情至状态离开挂起态（≤20s）
+      for (let i = 0; i < 20; i++) {
+        const detail = await getCaseDetail(caseId);
+        const active =
+          detail.job?.status === "queued" || detail.job?.status === "running";
+        if (!active && detail.status !== "supplement_pending" && detail.status !== "referred") break;
+        if (active || detail.status === "supplement_pending" || detail.status === "referred") {
+          if (i < 19) {
+            await new Promise((r) => setTimeout(r, 1000));
+            continue;
+          }
+        }
+        break;
+      }
       setDone(true);
       router.refresh();
     } catch (e) {

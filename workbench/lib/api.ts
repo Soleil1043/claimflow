@@ -191,7 +191,18 @@ export interface CaseDecisionDocument {
   body: string;
 }
 
+export interface CaseJobInfo {
+  job_id: number;
+  action: string;
+  status: string;
+  outcome: string | null;
+  attempt: number;
+  max_attempts: number;
+  error: string | null;
+}
+
 export interface CaseDetail {
+  job?: CaseJobInfo | null;
   case_id: string;
   user_id: string;
   policy_no: string;

@@ -992,3 +992,51 @@ schemas/api.py、scripts/rebuild_memories.py（新）、settings.memory_in_routi
 **决策**：开关**保持默认关**。验证回答的是"开会不会坏"（不会）；但"为什么开"未被证成——金样本集不存在需要历史才能正确路由的场景（重复索赔信号已由风控 claim_records 结构化覆盖）。开启条件：出现真实业务场景（如同案重复提交处置、VIP 路径），届时重跑本实验脚本（scripts/compare_memory_experiment.py + suite 四 flags）即可复验。
 
 **附带发现**：前 66 案（24 手工底座 + 42 生成案）LLM route 恒 1.0；路由噪声全部集中在后半段生成案件（E-0065 抢先转人工类，T081 已知噪声类）。LLM 模式的 liability 软门缺口（0.947）集中在 partial 案件的裁量差异——这两项是将来 skill 迭代的靶点，非记忆相关。
+
+---
+
+## D044：管线异步化——case_jobs 交付队列（混合方案，T103，2026-09-06）
+
+**设计过程**：design-it-twice 两子代理出极简进程内执行器（方案甲）与完整任务表
+job-queue（方案乙）两份 interface 设计，对比后用户拍板**混合方案：乙的骨架砍掉装甲**。
+
+**采纳（乙保留项）**：
+- case_jobs 表 = 唯一交付凭证（transactional outbox：任务行与建档同事务，
+  "提交成功但任务丢失"构造上不可能）；同案件活跃唯一（partial unique index）
+- interrupt 挂起 = 交付任务的**成功终态**（outcome=interrupted + 回执快照），
+  恢复 = 插入新 resume 任务行——两张表各答各的问题，互不对账
+- 常驻单消费者循环（CAS 认领，SQLite/PG 通吃）+ 退避重试（base·2^(n-1)）+
+  耗尽 dead + job_failed 审计事件
+- 执行观测（CASE_DURATION/CASE_TOKENS/阶段计时）随执行体迁入，路由不再感知
+- 派发 seam 两真 adapter：Inline（测试/兼容档，19 个 API 用例同步语义零改动）
+  / Background（生产默认，POST 受理即返回）
+
+**砍掉（相对乙完整版）**：租约/心跳/locked_by 列（崩溃恢复靠启动期把 running
+孤儿回收回 queued）、SKIP LOCKED 认领、并发闸门、queue_position。**单实例契约
+（replicas=1）写入 README 已知限制**；多实例/容量触发时按乙设计的升级位补租约列。
+
+**实现要点与执行中发现**：
+- payload 在 enqueue 边界 JSON 安全化（Decimal→str/date→ISO，图节点对两者均有
+  显式收敛——T079 坑位记录的回报）
+- upload 的材料落库与 resume 入队拆两个事务：enqueue 撞活跃唯一会毒化会话，
+  材料事实先行持久化，冲突仅回滚任务行（恢复语义本幂等）
+- resolve 并发双击 → 409（活跃唯一约束，顺带修掉旧并发双跑缺陷）
+- 评测套件直调图不经 API，零波及
+- **附带修复 ①**：metrics._safe_observe 对无标签直方图错误调用 .labels() 被
+  裸 except 吞掉——CASE_DURATION/ROUTING_CALLS 自 T090 起从未记录过数据
+  （TDD 测试逮到）
+- **附带修复 ②**：chatui/app/layout.tsx 引用未提交的 HealthPill 组件，
+  chatui 构建在 HEAD 上本已损坏（T091 遗留），摘除引用
+- **附带修复 ③**：interventions 两处同步 get_state → aget_state（prod
+  AsyncPostgresSaver 兼容隐患，设计简报点名的相邻存量问题）
+- 迁移 c8e4f2a6b1d9 经 scratch 副本执行验证（upgrade 建表+四索引 / downgrade
+  干净移除）；验证过程踩坑：alembic env.py 用 settings.database_url 强制覆盖
+  URL，CLI 误操作把 alembic_version 戳进了 dev 库（已清理，无 schema 改动）
+
+**消费方适配**：verify_adjudication 增 wait_terminal 轮询（三处断言改终态轮询）；
+chatui 详情页 AutoRefresh 客户端组件（非终态或任务在飞时 2s router.refresh）；
+workbench resolve 表单轮询详情至离开挂起态（≤20s）。
+
+验证：13 单元（outbox/冲突/CAS/退避/死信/孤儿回收/循环回路）+ 20 API
+（19 既有 inline 零断言改动 + background 全回路新用例）+ 445 全量 passed +
+ruff 绿 + 双前端 build 绿。

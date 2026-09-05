@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AutoRefresh from "@/components/AutoRefresh";
 import MaterialUpload from "@/components/MaterialUpload";
 import { CONCLUSION_LABEL, formatTime, getCaseDetail, STATUS_LABEL } from "@/lib/case-api";
 import { notFound } from "next/navigation";
@@ -47,6 +48,8 @@ export default async function CaseDetailPage({
   return (
     <main className="mx-auto max-w-3xl px-6 py-8 space-y-5">
       <Link href="/" className="text-[13px] text-cf-text-2 hover:text-cf-text">← 返回首页</Link>
+
+      <AutoRefresh status={detail.status} jobStatus={detail.job?.status} />
 
       <header className="space-y-1">
         <h1 className="font-mono text-[22px] font-bold tracking-tight">{detail.case_id}</h1>

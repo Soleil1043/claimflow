@@ -12,11 +12,10 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from langgraph.types import Command
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_case_graph, get_db_session
+from app.api.dependencies import get_case_dispatcher, get_case_graph, get_db_session
 from app.core.logging import get_logger
 from schemas.api import (
     CaseInterventionHuman,
@@ -26,13 +25,13 @@ from schemas.api import (
     CaseResolveResponse,
 )
 from schemas.case import PENDING_CASE_STATUSES, CaseStatus
+from services.case_jobs import CaseJobConflictError, JobAction, enqueue_case_job, job_envelope
 from services.case_service import (
     build_agent_resolution,
     build_supplement_resolution,
     decision_doc_payload,
 )
 from services.db.models import Case
-from services.observability.token_tracker import track_case
 
 log = get_logger(__name__)
 
@@ -61,8 +60,8 @@ async def list_case_interventions(
     for case in rows:
         human = CaseInterventionHuman(kind="review")
         try:
-            state = case_graph.get_state(
-                {"configurable": {"thread_id": case.id}}
+            state = (
+                await case_graph.aget_state({"configurable": {"thread_id": case.id}})
             ).values
             request = state.get("human_request") or {}
             human = CaseInterventionHuman(
@@ -91,6 +90,7 @@ async def resolve_case_intervention(
     body: CaseResolveRequest,
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
     case_graph=Depends(get_case_graph),  # noqa: B008
+    dispatcher=Depends(get_case_dispatcher),  # noqa: B008
 ) -> CaseResolveResponse:
     """处理核赔工单：以 Command(resume=...) 恢复挂起的核赔流程。
 
@@ -109,8 +109,8 @@ async def resolve_case_intervention(
             detail=f"案件状态为 {case.status}，无待处理工单",
         )
 
-    state_values = case_graph.get_state(
-        {"configurable": {"thread_id": case_id}}
+    state_values = (
+        await case_graph.aget_state({"configurable": {"thread_id": case_id}})
     ).values
     kind = str((state_values.get("human_request") or {}).get("kind")
                or ("supplement" if case.status == CaseStatus.SUPPLEMENT_PENDING else "review"))
@@ -132,18 +132,32 @@ async def resolve_case_intervention(
             resolved_by=body.resolved_by,
         )
 
-    with track_case(case_id):  # 案件维度 token 归集（T099 CASE_TOKENS）
-        result = await case_graph.ainvoke(
-            Command(resume=resolution),
-            config={"configurable": {"thread_id": case_id}, "recursion_limit": 60},
+    # 交付任务行（T103）：恢复与裁决载荷同事务落库；在飞冲突 → 409（防并发双签）
+    try:
+        job = await enqueue_case_job(
+            session, case_id=case_id, action=JobAction.RESUME, payload=resolution
         )
-    await session.refresh(case)
+    except CaseJobConflictError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="该案件已有处理中的交付任务，请稍候",
+        ) from None
+    await session.commit()
 
-    doc = result.get("decision_document") if isinstance(result, dict) else None
+    await dispatcher.dispatch(job.id)
+
+    await session.refresh(case)
+    await session.refresh(job)
+    # 决定书取图 state 投影（与旧 ainvoke 语义一致：仅真签发/更新时存在——
+    # DB 里的 decision_generate 草稿版本不代表已签发）
+    doc = (
+        await case_graph.aget_state({"configurable": {"thread_id": case_id}})
+    ).values.get("decision_document")
     return CaseResolveResponse(
         case_id=case.id,
         status=case.status,
         final_decision=case.final_decision,
         approved_amount=case.approved_amount,
         decision_document=decision_doc_payload(doc if isinstance(doc, dict) else None),
+        job=job_envelope(job),
     )

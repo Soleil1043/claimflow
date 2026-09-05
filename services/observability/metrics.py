@@ -180,7 +180,9 @@ def _safe_observe(histogram: Histogram | None, value: float, **labels: str) -> N
     if histogram is None:
         return
     try:
-        histogram.labels(**labels).observe(value)
+        # 无标签直方图调用 .labels() 会抛 ValueError 被吞——观测静默丢失
+        # （T103 测试逮到：CASE_DURATION/ROUTING_CALLS 自 T090 起从未记过数）
+        (histogram.labels(**labels) if labels else histogram).observe(value)
     except Exception:  # noqa: BLE001 埋点容错
         pass
 

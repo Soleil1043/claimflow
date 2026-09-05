@@ -78,6 +78,17 @@ async def client(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(
         app.state, "case_graph", create_default_case_graph(), raising=False
     )
+    # T103 交付队列：inline 派发器（dispatch 同步执行，保留 19 用例的同步终态语义）
+    from services.case_jobs import InlineDispatcher
+    from services.case_store import DbCaseRecorder
+
+    monkeypatch.setattr(
+        app.state,
+        "case_dispatcher",
+        InlineDispatcher(app.state.case_graph, DbCaseRecorder()),
+        raising=False,
+    )
+    monkeypatch.setattr(session_module.settings, "case_jobs_execution", "inline")
 
     async def fake_extract(filename: str, mime: str, content: bytes) -> MaterialExtraction:
         return MaterialExtraction(
@@ -256,3 +267,39 @@ async def test_upload_material_unknown_case_404(client: AsyncClient) -> None:
         files={"file": ("x.pdf", b"%PDF-1.4", "application/pdf")},
     )
     assert resp.status_code == 404
+
+
+async def test_submit_background_mode_reaches_terminal(client, monkeypatch) -> None:
+    """T103 background 档（生产默认）全回路：受理即返回 + 常驻循环消费 + 轮询终态。"""
+    import asyncio
+
+    from services.case_jobs import BackgroundDispatcher, JobLoop
+    from services.case_store import DbCaseRecorder
+
+    loop = JobLoop(app.state.case_graph, DbCaseRecorder(), poll_interval_s=0.05)
+    await loop.start()
+    monkeypatch.setattr(
+        app.state, "case_dispatcher", BackgroundDispatcher(), raising=False
+    )
+    try:
+        resp = await client.post("/api/v1/cases", json=_body())
+        assert resp.status_code == 201
+        body = resp.json()
+        # 受理快照：非终态 + 交付凭证（不再同步返回结论）
+        assert body["status"] in {"received", "in_progress", "auto_issued"}
+        assert body["job"] is not None and body["job"]["action"] == "run"
+        case_id = body["case_id"]
+
+        detail: dict = {}
+        for _ in range(400):  # ≤20s
+            detail = (await client.get(f"/api/v1/cases/{case_id}")).json()
+            if detail.get("status") == "auto_issued":
+                break
+            await asyncio.sleep(0.05)
+        assert detail["status"] == "auto_issued"
+        assert detail["job"]["status"] == "succeeded"
+        assert detail["job"]["outcome"] == "completed"
+        assert Decimal(str(detail["approved_amount"])) == Decimal("4640.00")
+        assert detail["decision_document"] is not None
+    finally:
+        await loop.stop(timeout_s=5)

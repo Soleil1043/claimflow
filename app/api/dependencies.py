@@ -39,3 +39,12 @@ def get_case_graph(request: Request) -> Any:
         msg = "核赔主图未初始化（lifespan 未启动？）"
         raise RuntimeError(msg)
     return graph
+
+
+def get_case_dispatcher(request: Request) -> Any:
+    """应用级案件交付派发器（lifespan 初始化到 app.state.case_dispatcher，T103）。"""
+    dispatcher = getattr(request.app.state, "case_dispatcher", None)
+    if dispatcher is None:
+        msg = "案件派发器未初始化（lifespan 未启动？）"
+        raise RuntimeError(msg)
+    return dispatcher

@@ -124,6 +124,19 @@ class Settings(BaseSettings):
     liability_llm_enabled: bool = True
     # 决定书叙述 LLM 撰写（False=纯代码模板叙述，测试/降级用）
     decision_writer_llm_enabled: bool = True
+
+    # ===== 案件交付队列（T103，D044 混合方案：任务表凭证 + 常驻单消费者） =====
+    # 执行档位：background=常驻循环异步执行（生产默认，POST 受理即返回）；
+    # inline=请求内同步执行（测试/兼容档，响应保留同步终态语义）
+    case_jobs_execution: str = "background"
+    # 认领轮询间隔（秒）——受理到开跑的最大额外延迟
+    case_jobs_poll_interval_s: float = 0.5
+    # 单任务最大尝试次数（1=不重试）
+    case_jobs_max_attempts: int = 3
+    # 退避基数（秒）：第 n 次失败后延迟 base * 2^(n-1)
+    case_jobs_backoff_base_s: float = 2.0
+    # 关停排水超时（秒）：超时放弃在飞任务（行留 running，下次启动回收）
+    case_jobs_drain_timeout_s: float = 30.0
     # 案件材料上传落盘目录（B03；storage_path 供材料审核真实提取）
     case_materials_dir: str = "./data/uploads"
 

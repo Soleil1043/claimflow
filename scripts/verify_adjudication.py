@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import sys
 import urllib.request
 from decimal import Decimal
@@ -22,6 +23,20 @@ import httpx
 
 passed = 0
 failed = 0
+
+
+NON_TERMINAL = {"received", "in_progress"}
+
+
+async def wait_terminal(ac: httpx.AsyncClient, case_id: str, timeout_s: float = 120) -> dict:
+    """轮询案件详情至终态（T103 异步交付：POST 受理即返回，终态经轮询）。"""
+    detail: dict = {}
+    for _ in range(int(timeout_s / 0.5)):
+        detail = (await ac.get(f"/api/v1/cases/{case_id}")).json()
+        if detail.get("status") not in NON_TERMINAL:
+            return detail
+        await asyncio.sleep(0.5)
+    return detail
 
 
 def check(name: str, condition: bool, detail: str = "") -> None:
@@ -54,6 +69,8 @@ async def verify(base_url: str) -> None:
         check("提交返回 201", resp.status_code == 201, f"got {resp.status_code}")
         data = resp.json()
         case_id = data.get("case_id", "")
+        check("交付凭证存在", data.get("job") is not None)
+        data = await wait_terminal(ac, case_id)
         check("案件状态 auto_issued", data.get("status") == "auto_issued")
         check("final_decision approved", data.get("final_decision") == "approved")
         approved = str(data.get("approved_amount") or "")
@@ -83,7 +100,8 @@ async def verify(base_url: str) -> None:
         }
         resp = await ac.post("/api/v1/cases", json=supp)
         supp_id = resp.json().get("case_id", "")
-        check("缺件案补件挂起", resp.json().get("status") == "supplement_pending")
+        supp_detail = await wait_terminal(ac, supp_id)
+        check("缺件案补件挂起", supp_detail.get("status") == "supplement_pending")
 
         # 上传缺失材料
         resp = await ac.post(
@@ -92,10 +110,8 @@ async def verify(base_url: str) -> None:
             data={"doc_type": "cost_list"},
         )
         check("上传 200", resp.status_code == 200)
-        check("自动恢复 auto_issued",
-              resp.json().get("case_status") == "auto_issued")
-
-        detail = (await ac.get(f"/api/v1/cases/{supp_id}")).json()
+        detail = await wait_terminal(ac, supp_id)
+        check("自动恢复 auto_issued", detail.get("status") == "auto_issued")
         check("补件后核定 4640.00",
               Decimal(str(detail.get("approved_amount") or "0")) == Decimal("4640.00"))
 
@@ -111,7 +127,8 @@ async def verify(base_url: str) -> None:
             "materials": [],
         }
         resp = await ac.post("/api/v1/cases", json=offline)
-        check("受理转人工", resp.json().get("human", {}).get("kind") == "escape")
+        offline_detail = await wait_terminal(ac, resp.json().get("case_id", ""))
+        check("受理转人工", offline_detail.get("human", {}).get("kind") == "escape")
 
         # ===== 5. 工单列表 =====
         print("\n--- 5. 工单列表 ---")
@@ -142,7 +159,6 @@ def main() -> None:
     asyncio.run(verify(args.base_url))
 
 
-import asyncio  # noqa: E402
 
 if __name__ == "__main__":
     main()

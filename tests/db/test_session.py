@@ -92,6 +92,7 @@ async def test_init_db_creates_all_tables(tmp_path, monkeypatch) -> None:
         "cases",
         "case_events",
         "decision_documents",
+        "case_jobs",
     }
     await session_module.dispose_engine()
     assert session_module._engine is None

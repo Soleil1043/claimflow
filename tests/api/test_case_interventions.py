@@ -69,6 +69,17 @@ async def env(monkeypatch, tmp_path: Path):
         )
 
     monkeypatch.setattr(app.state, "case_graph", build(), raising=False)
+    # T103：inline 派发器（同步终态语义；跨重启测试换图后需重挂）
+    from services.case_jobs import InlineDispatcher
+
+    def _mount_dispatcher() -> None:
+        monkeypatch.setattr(
+            app.state, "case_dispatcher",
+            InlineDispatcher(app.state.case_graph, DbCaseRecorder()), raising=False,
+        )
+
+    _mount_dispatcher()
+    monkeypatch.setattr(session_module.settings, "case_jobs_execution", "inline")
 
     async def fake_extract(filename: str, mime: str, content: bytes):
         return MaterialExtraction(
@@ -233,7 +244,12 @@ async def test_cross_restart_resume(env) -> None:
     assert high["human"]["kind"] == "review"
 
     # 模拟服务重启：替换为新建的图实例（同一持久化 checkpointer，挂起态存活）
+    import services.case_jobs as case_jobs_module
+
     app.state.case_graph = build()
+    app.state.case_dispatcher = case_jobs_module.InlineDispatcher(
+        app.state.case_graph, DbCaseRecorder()
+    )
     resolved = await ac.post(
         f"/api/v1/interventions/cases/{case_id}/resolve",
         json={"action": "confirm", "note": "重启后恢复复核", "resolved_by": "agent-09"},

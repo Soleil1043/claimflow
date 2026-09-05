@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { HealthPill } from "@/components/HealthPill";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -30,7 +29,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </div>
             </div>
-            <HealthPill />
           </div>
         </header>
         {children}

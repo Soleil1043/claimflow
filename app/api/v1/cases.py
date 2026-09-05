@@ -1,18 +1,18 @@
 """核赔案件路由（B01-B03，Phase 8 T080）。
 
-- B01 POST /api/v1/cases                      提交案件（同步驱动核赔主图；自然键幂等）
+- B01 POST /api/v1/cases                      提交案件（交付队列异步执行，T103；自然键幂等）
 - B02 GET  /api/v1/cases/{case_id}            案件详情（进度/结论/决定书/审计时间线）
 - B03 POST /api/v1/cases/{case_id}/materials  上传材料（复用 T049 提取服务，落案件档案）
 
 幂等口径（F01）：自然键 = (user_id, policy_no, claimed_amount, incident_date)——
 重复提交返回既有案件（200 + idempotent=true），不重复执行核赔。
-转人工挂起（interrupt）：图返回 __interrupt__ 时案件已由节点落库为
-supplement_pending / referred，响应携带 human 信息；恢复通道见 T086（interventions）。
+转人工挂起（interrupt）：任务成功终态（outcome=interrupted + 回执快照，T103），
+human 字段来自回执而非 checkpoint；恢复通道见 T086（interventions）。
+background 档（默认）：POST 受理即返回，终态经 GET /cases/{id} 轮询（job 字段跟踪交付）。
 """
 
 from __future__ import annotations
 
-import time
 import uuid
 from pathlib import Path
 
@@ -26,11 +26,10 @@ from fastapi import (
     UploadFile,
     status,
 )
-from langgraph.types import Command
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_case_graph, get_db_session
+from app.api.dependencies import get_case_dispatcher, get_db_session
 from app.core.config import settings
 from app.core.logging import get_logger
 from schemas.api import (
@@ -43,6 +42,13 @@ from schemas.api import (
 )
 from schemas.case import CaseStatus
 from schemas.lines import all_doc_types
+from services.case_jobs import (
+    CaseJobConflictError,
+    JobAction,
+    enqueue_case_job,
+    job_envelope,
+    latest_job,
+)
 from services.case_service import (
     build_supplement_resolution,
     decision_doc_payload,
@@ -51,15 +57,27 @@ from services.case_service import (
     new_case,
 )
 from services.case_store import get_default_recorder
-from services.db.models import Case, CaseEvent, DecisionDocument
+from services.db.models import Case, CaseEvent, CaseJob, DecisionDocument
 from services.materials import detect_material_type, extract_material
 from services.memory.case_memory import search_case_memories
-from services.observability import metrics as obs
-from services.observability.token_tracker import track_case
+
+# 指标与 token 归集已随交付执行体迁 services.case_jobs（T103）
 
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/cases", tags=["cases"])
+
+
+def _human_from_job(job: CaseJob | None) -> CaseHumanInfo | None:
+    """任务回执 → 挂起信息（免读 checkpoint 的投影，T103）。"""
+    if job is None or job.outcome != "interrupted":
+        return None
+    payload = job.interrupt_payload or {}
+    return CaseHumanInfo(
+        kind=str(payload.get("kind", "review")),
+        reason=payload.get("reason"),
+        missing=list(payload.get("missing", []) or []),
+    )
 
 
 async def _get_case_or_404(case_id: str, session: AsyncSession) -> Case:
@@ -89,12 +107,11 @@ async def submit_case(
     body: CaseCreateRequest,
     response: Response,
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
-    case_graph=Depends(get_case_graph),  # noqa: B008
+    dispatcher=Depends(get_case_dispatcher),  # noqa: B008
 ) -> CaseSubmitResponse:
-    """B01 提交案件：自然键幂等 → 建档 → 同步驱动核赔主图。
+    """B01 提交案件：自然键幂等 → 建档 → 任务行同事务落库 → 派发执行（T103）。
 
-    新建 201；幂等命中 200。自动签发：终态结论/决定书；转人工/补件：挂起状态与
-    human 信息（恢复经 interventions，T086）。
+    新建 201（受理快照 + job 交付凭证）；幂等命中 200（既有终态）。
     """
     # 自然键幂等（F01，service 收口）：重复提交返回既有案件，不重复执行
     existing = await find_idempotent_case(
@@ -130,39 +147,30 @@ async def submit_case(
         materials=[m.model_dump() for m in body.materials],
     )
     session.add(case)
+    # 交付任务行与建档同事务（outbox，T103）：提交成功但任务丢失在设计上不可能
+    job = await enqueue_case_job(
+        session,
+        case_id=case.id,
+        action=JobAction.RUN,
+        payload={
+            "case_id": case.id,
+            "user_id": body.user_id,
+            "policy_id": body.policy_no,
+            "claimed_amount": body.claimed_amount,
+            "incident_date": body.incident_date,
+            "incident_description": body.incident_description,
+            "declared_case_type": body.declared_case_type,
+            "materials": [m.model_dump() for m in body.materials],
+        },
+    )
     # 显式提交：图内节点经独立会话（CaseRecorder）更新本行，先落基线避免锁等待
     await session.commit()
 
-    started = time.monotonic()
-    with track_case(case.id):  # 案件维度 token 归集（T099 CASE_TOKENS）
-        result = await case_graph.ainvoke(
-            {
-                "case_id": case.id,
-                "user_id": body.user_id,
-                "policy_id": body.policy_no,
-                "claimed_amount": body.claimed_amount,
-                "incident_date": body.incident_date,
-                "incident_description": body.incident_description,
-                "declared_case_type": body.declared_case_type,
-                "materials": [m.model_dump() for m in body.materials],
-            },
-            config={"configurable": {"thread_id": case.id}, "recursion_limit": 60},
-        )
+    await dispatcher.dispatch(job.id)
 
-    obs.record_case_duration(time.monotonic() - started)
-
-    # 图内节点经独立会话更新了状态——重读权威行
+    # 执行体（inline 同请求 / background 循环）经独立会话更新行——重读权威快照
     await session.refresh(case)
-
-    human: CaseHumanInfo | None = None
-    interrupt_payloads = result.get("__interrupt__") if isinstance(result, dict) else None
-    if interrupt_payloads:
-        payload = interrupt_payloads[0].value
-        human = CaseHumanInfo(
-            kind=str(payload.get("kind", "review")),
-            reason=payload.get("reason"),
-            missing=list(payload.get("missing", []) or []),
-        )
+    await session.refresh(job)
 
     return CaseSubmitResponse(
         case_id=case.id,
@@ -173,7 +181,8 @@ async def submit_case(
         decision_document=decision_doc_payload(
             await _latest_decision_doc(case.id, session)
         ),
-        human=human,
+        human=_human_from_job(job),
+        job=job_envelope(job),
     )
 
 
@@ -199,6 +208,7 @@ async def get_case(
         .scalars()
         .all()
     )
+    job = await latest_job(case_id)
     return CaseDetailResponse(
         case_id=case.id,
         user_id=case.user_id,
@@ -223,6 +233,8 @@ async def get_case(
             for e in events
         ],
         applicant_memories=[m.model_dump() for m in memories],
+        job=job_envelope(job) if job is not None else None,
+        human=_human_from_job(job),
         created_at=case.created_at,
         updated_at=case.updated_at,
     )
@@ -237,7 +249,7 @@ async def upload_case_material(
         description="材料类型：invoice/diagnosis/cost_list/medical_record（可空）",
     ),
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
-    case_graph=Depends(get_case_graph),  # noqa: B008
+    dispatcher=Depends(get_case_dispatcher),  # noqa: B008
 ) -> CaseMaterialUploadResponse:
     """B03 上传材料：复用 T049 两段式提取（图片/PDF/Word），提取结果落案件档案与审计。
 
@@ -306,22 +318,33 @@ async def upload_case_material(
             "source": result.source,
         },
     )
-    await session.commit()  # 先落库材料/审计，避免 resume 期间并发写锁（SQLite）
+    await session.commit()  # 材料/审计先原子落库（上传事实不因恢复状态丢失）
 
-    # 补件闭环（T086）：挂起案件 + 新材料 → 自动恢复核赔流程
-    resume_status: str | None = None
+    # 补件闭环（T086/T103）：挂起案件 + 新材料 → resume 任务行（独立事务——
+    # enqueue 撞活跃唯一约束会毒化会话，材料已在前一事务持久化，仅回滚任务行）；
+    # 上一次恢复仍在飞是唯一冲突源，恢复语义本就幂等
+    resume_job = None
     if case.status == CaseStatus.SUPPLEMENT_PENDING:
         try:
-            with track_case(case.id):
-                await case_graph.ainvoke(
-                    Command(resume=build_supplement_resolution(
-                        [materials[-1]], resolved_by="customer_upload"
-                    )),
-                    config={"configurable": {"thread_id": case.id}, "recursion_limit": 60},
-                )
+            resume_job = await enqueue_case_job(
+                session,
+                case_id=case.id,
+                action=JobAction.RESUME,
+                payload=build_supplement_resolution(
+                    [materials[-1]], resolved_by="customer_upload"
+                ),
+            )
+            await session.commit()
+        except CaseJobConflictError:
+            await session.rollback()
+            log.info("supplement_resume_inflight", case_id=case.id)
+
+    if resume_job is not None:
+        try:
+            await dispatcher.dispatch(resume_job.id)
             await session.refresh(case)
-            resume_status = case.status
-        except Exception as exc:  # noqa: BLE001——恢复失败不阻塞上传（可经工单重试）
+            await session.refresh(resume_job)
+        except Exception as exc:  # noqa: BLE001——恢复失败不阻塞上传（任务行有重试）
             log.warning("supplement_resume_failed", case_id=case.id, error=str(exc)[:200])
 
     return CaseMaterialUploadResponse(
@@ -335,5 +358,6 @@ async def upload_case_material(
         amount=result.amount,
         date=result.date,
         materials_count=len(materials),
-        case_status=resume_status,
+        case_status=case.status if resume_job is not None else None,
+        job=job_envelope(resume_job) if resume_job is not None else None,
     )

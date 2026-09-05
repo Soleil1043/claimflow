@@ -252,8 +252,25 @@ class CaseHumanInfo(BaseModel):
     missing: list[str] = Field(default_factory=list)
 
 
+class CaseJobOut(BaseModel):
+    """案件交付任务投影（T103：POST/详情/工单响应的 job 字段，轮询进度口径）。"""
+
+    job_id: int
+    action: str  # run | resume
+    status: str  # queued | running | succeeded | dead
+    outcome: str | None = None  # completed | interrupted（仅 succeeded）
+    attempt: int
+    max_attempts: int
+    error: str | None = None
+
+
 class CaseSubmitResponse(BaseModel):
-    """POST /api/v1/cases 响应（201 新建 / 200 幂等命中）。"""
+    """POST /api/v1/cases 响应（201 新建 / 200 幂等命中）。
+
+    201 为受理快照：background 档 status=received、结论字段为空，终态经
+    GET /cases/{id} 轮询（job 字段跟踪交付进度）；inline 档（测试/兼容）
+    dispatch 同步执行，快照即终态。幂等命中（200）恒为既有终态。
+    """
 
     case_id: str
     case_type: str
@@ -263,6 +280,7 @@ class CaseSubmitResponse(BaseModel):
     decision_document: CaseDecisionDocumentOut | None = None
     human: CaseHumanInfo | None = None
     idempotent: bool = False
+    job: CaseJobOut | None = None
 
 
 class CaseTimelineEvent(BaseModel):
@@ -293,6 +311,10 @@ class CaseDetailResponse(BaseModel):
     updated_at: dt.datetime | None = None
     # 申请人历史核赔档案（T100：终态记忆检索，排除本案件；记忆关闭时为空）
     applicant_memories: list[dict[str, Any]] = Field(default_factory=list)
+    # 交付任务与挂起信息（T103：轮询进度 / 补件与转人工的回执，免读 checkpoint）
+    job: CaseJobOut | None = None
+    human: CaseHumanInfo | None = None
+
 
 class CaseMaterialUploadResponse(BaseModel):
     """POST /api/v1/cases/{case_id}/materials 响应。"""
@@ -307,8 +329,10 @@ class CaseMaterialUploadResponse(BaseModel):
     amount: float | None = None
     date: str | None = None
     materials_count: int
-    # 补件挂起案件上传后自动恢复的流程状态（T086；非挂起案件为 None）
+    # 补件挂起案件上传后自动恢复的流程状态（T086；非挂起案件为 None）。
+    # background 档为恢复发起时的挂起态快照，终态经详情轮询
     case_status: str | None = None
+    job: CaseJobOut | None = None
 
 
 # ---------- T086 案件人工介入（核赔工单） ----------
@@ -360,10 +384,11 @@ class CaseResolveRequest(BaseModel):
 
 
 class CaseResolveResponse(BaseModel):
-    """工单处理响应：恢复后的案件终态。"""
+    """工单处理响应（T103：受理快照 + 交付任务；终态经详情轮询，inline 档即终态）。"""
 
     case_id: str
     status: str
     final_decision: str | None = None
     approved_amount: Decimal | None = None
     decision_document: CaseDecisionDocumentOut | None = None
+    job: CaseJobOut | None = None

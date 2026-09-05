@@ -41,7 +41,7 @@ async def db_session():
 
 
 async def test_all_tables_created(db_session) -> None:
-    """11 张业务表全部可建、可查（T078 新增核赔域 cases/case_events/decision_documents）。"""
+    """12 张业务表全部可建、可查（核赔域 cases/case_events/decision_documents/case_jobs）。"""
     tables = {t for t in Base.metadata.tables}
     assert tables == {
         "conversations",
@@ -55,6 +55,7 @@ async def test_all_tables_created(db_session) -> None:
         "cases",
         "case_events",
         "decision_documents",
+        "case_jobs",
     }
     for table in Base.metadata.tables.values():
         # 每张表均可查询（空表 select 即验证表结构已创建）

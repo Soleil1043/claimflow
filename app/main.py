@@ -52,11 +52,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from workflows.case_graph import create_default_case_graph
 
     app.state.case_graph: Any = create_default_case_graph(checkpointer=checkpointer)
-    log.info("app_started", profile=str(settings.app_profile))
+
+    # T103 案件交付队列（D044 混合方案）：派发器 + 常驻单消费者（background 档）
+    from services.case_jobs import JobLoop, make_case_dispatcher
+    from services.case_store import get_default_recorder
+
+    app.state.case_dispatcher: Any = make_case_dispatcher(
+        app.state.case_graph, get_default_recorder()
+    )
+    job_loop: Any = None
+    if settings.case_jobs_execution == "background":
+        job_loop = JobLoop(app.state.case_graph, get_default_recorder())
+        await job_loop.start()  # 含启动期孤儿回收
+    log.info("app_started", profile=str(settings.app_profile),
+             case_jobs=str(settings.case_jobs_execution))
     yield
 
     from services.cache import get_tool_cache
 
+    if job_loop is not None:
+        await job_loop.stop()  # 排水必须最先：在飞 ainvoke 依赖存活的 saver/engine
     await (await get_tool_cache()).close()
     await get_checkpoint_manager().close()
     await dispose_engine()

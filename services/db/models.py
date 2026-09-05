@@ -1,6 +1,6 @@
 """数据库 ORM 模型（SQLAlchemy 2.0 声明式）。
 
-业务表共 11 张（Phase 8 T078 新增核赔域 3 张）：
+业务表共 12 张（Phase 8 核赔域 4 张：cases/case_events/decision_documents/case_jobs）：
 conversations / messages / policies / medical_records / claim_records / kb_documents /
 human_tickets / eval_runs / cases / case_events / decision_documents。
 LangGraph checkpoint 表由 PostgreSQLSaver 自管，不在此建模（D006）。
@@ -21,6 +21,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -28,6 +29,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -325,3 +327,54 @@ class DecisionDocument(Base):
             f"<DecisionDocument {self.id} case={self.case_id} "
             f"v{self.version} conclusion={self.conclusion}>"
         )
+
+
+class CaseJob(Base):
+    """案件交付任务（T103，D044：transactional outbox 混合方案）。
+
+    一行 = 一次逻辑交付（run 全新核赔 / resume 恢复），与案件建档/材料写入
+    同事务插入——"提交成功但任务丢失"在构造上不可能。
+
+    职责边界：本表只承载交付生命周期（queued→running→succeeded|dead，机械语义），
+    不镜像案件状态机（received→…→closed，业务语义，权威在 cases 表）。
+    唯一交点是 outcome/interrupt_payload 交付回执快照（HTTP 响应与轮询免读
+    checkpoint 的投影，永远不是权威事实）。
+
+    砍掉的装甲（D044）：无租约/心跳/locked_by 列——崩溃恢复靠启动期把 running
+    孤儿回收回 queued（单实例契约，replicas=1）；多实例需求出现时再补租约列。
+    """
+
+    __tablename__ = "case_jobs"
+
+    id: Mapped[int] = mapped_column(_autoincrement_id(), primary_key=True, autoincrement=True)
+    case_id: Mapped[str] = mapped_column(String(64), ForeignKey("cases.id"), index=True)
+    # run（全新核赔，payload=图 input）| resume（恢复，payload=Command(resume) 载荷）
+    action: Mapped[str] = mapped_column(String(16))
+    payload: Mapped[dict[str, Any]] = mapped_column(_jsonb_or_json())
+    # queued → running →（成功）succeeded ｜（重试耗尽）dead；崩溃孤儿启动期回收回 queued
+    status: Mapped[str] = mapped_column(String(16), default="queued", index=True)
+    # 仅 succeeded 有值：completed（跑完无挂起）| interrupted（图 interrupt 挂起=成功）
+    outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    interrupt_payload: Mapped[dict[str, Any] | None] = mapped_column(_jsonb_or_json(), nullable=True)
+    attempt: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3)
+    # 退避后的最早可认领时间
+    run_after: Mapped[dt.datetime] = mapped_column(DateTime, index=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    started_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # 同一案件至多一行活跃任务（防双跑）：PG 与 SQLite 均支持 partial index
+    __table_args__ = (
+        Index(
+            "uq_case_jobs_active",
+            "case_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued', 'running')"),
+            sqlite_where=text("status IN ('queued', 'running')"),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<CaseJob {self.id} case={self.case_id} {self.action} {self.status}>"
