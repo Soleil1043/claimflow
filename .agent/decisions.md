@@ -982,3 +982,13 @@ T089 挂账存量 known issue，非本轮回归）。
 公共门面、nodes/{auto_adjudicate,human_gate,orchestrator}.py、app/api/v1/cases.py、
 schemas/api.py、scripts/rebuild_memories.py（新）、settings.memory_in_routing。
 验证：8 新测试 + 全量 419 passed + ruff 绿。
+
+---
+
+## D043：memory_in_routing 验证安全、默认保持关（T102，2026-09-06）
+
+**实验**：全 132 金样本 × LLM 模式，A（基线）/ B（--memory-routing + --seed-memories 满载荷预置）各一轮。结果逐位全等：route 0.9924、liability 0.9470、amount 1.0、调度预算 5，失败集相同（8 案），恢复 0 / 退化 0。**结论：申请人记忆注入对路由质量零扰动。**
+
+**决策**：开关**保持默认关**。验证回答的是"开会不会坏"（不会）；但"为什么开"未被证成——金样本集不存在需要历史才能正确路由的场景（重复索赔信号已由风控 claim_records 结构化覆盖）。开启条件：出现真实业务场景（如同案重复提交处置、VIP 路径），届时重跑本实验脚本（scripts/compare_memory_experiment.py + suite 四 flags）即可复验。
+
+**附带发现**：前 66 案（24 手工底座 + 42 生成案）LLM route 恒 1.0；路由噪声全部集中在后半段生成案件（E-0065 抢先转人工类，T081 已知噪声类）。LLM 模式的 liability 软门缺口（0.947）集中在 partial 案件的裁量差异——这两项是将来 skill 迭代的靶点，非记忆相关。

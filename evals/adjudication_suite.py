@@ -109,10 +109,64 @@ async def _setup_db(db_path: Path) -> None:
         await s.commit()
 
 
-async def _run_suite(limit: int | None, use_llm: bool) -> int:
+async def _seed_memories(cases: list[Any]) -> None:
+    """预置申请人记忆（T100 实验口径）：从数据集期望值渲染每用户至多 4 条终态档案。
+
+    分块评测时每进程独立 InMemoryStore——种子让记忆注入在每个分块都满载荷生效。
+    """
+    from services.memory.case_memory import put_case_memory, render_case_memory
+
+    per_user: dict[str, list[Any]] = {}
+    for c in cases:
+        seen = per_user.setdefault(c.user_id, [])
+        if len(seen) >= 4:
+            continue
+        seen.append(c)
+    for user_id, user_cases in per_user.items():
+        for c in user_cases:
+            exp = c.expected
+            outcome = "auto_issued" if exp.route == "auto" else "referred"
+            category = exp.category
+            if category == "rejected":
+                decision = "rejected"
+            elif category == "partial":
+                decision = "partial"
+            elif category in ("缺件", "intake"):
+                decision = "referred"
+            else:
+                decision = "approved"
+            record, embed_text = render_case_memory(
+                case_id=c.case_id,
+                user_id=user_id,
+                case_type=c.declared_case_type or "medical",
+                outcome=outcome,
+                final_decision=decision,
+                approved_amount=exp.approved_amount,
+                reason=exp.note or category,
+                incident_date=c.incident_date,
+            )
+            await put_case_memory(record, embed_text)
+    print(f"  已预置申请人记忆：{len(per_user)} 用户 × ≤4 条")
+
+
+async def _run_suite(
+    limit: int | None,
+    use_llm: bool,
+    *,
+    offset: int = 0,
+    memory_routing: bool = False,
+    seed_memories: bool = False,
+    out_path: str | None = None,
+) -> int:
     cases, meta, freq_signals = load_adjudication_dataset()
+    if offset:
+        cases = cases[offset:]
     if limit:
         cases = cases[:limit]
+
+    settings.memory_in_routing = memory_routing
+    if seed_memories:
+        await _seed_memories(cases)
 
     engine = None
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
@@ -257,7 +311,8 @@ async def _run_suite(limit: int | None, use_llm: bool) -> int:
     }
 
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
-    report_path = REPORT_DIR / "t089_adjudication_gate.json"
+    report_path = Path(out_path) if out_path else REPORT_DIR / "t089_adjudication_gate.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # 摘要
@@ -342,7 +397,13 @@ def _has_guard_bypass(state: dict) -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser(description="核赔评测上线门")
     parser.add_argument("--limit", type=int, default=None, help="只跑前 N 个案件")
+    parser.add_argument("--offset", type=int, default=0, help="跳过前 N 个案件（分块评测）")
     parser.add_argument("--llm", action="store_true", help="启用 LLM Orchestrator")
+    parser.add_argument("--memory-routing", action="store_true",
+                        help="路由快照注入申请人历史（memory_in_routing，T100 实验口径）")
+    parser.add_argument("--seed-memories", action="store_true",
+                        help="预置申请人记忆档案（配合 --memory-routing 满载荷验证）")
+    parser.add_argument("--out", default=None, help="报告输出路径（默认 evals/reports/t089_adjudication_gate.json）")
     args = parser.parse_args()
 
     from app.core.config import settings
@@ -351,7 +412,16 @@ def main() -> None:
         print("LLM_API_KEY 未配置，无法启用 LLM Orchestrator")
         sys.exit(1)
 
-    sys.exit(asyncio.run(_run_suite(args.limit, args.llm)))
+    sys.exit(asyncio.run(
+        _run_suite(
+            args.limit,
+            args.llm,
+            offset=args.offset,
+            memory_routing=args.memory_routing,
+            seed_memories=args.seed_memories,
+            out_path=args.out,
+        )
+    ))
 
 
 if __name__ == "__main__":

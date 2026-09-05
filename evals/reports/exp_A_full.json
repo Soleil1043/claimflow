@@ -1,8 +1,8 @@
 {
   "task": "T089 核赔评测上线门",
-  "generated_at": "2026-09-06T01:11:46",
-  "mode": "deterministic",
-  "model": null,
+  "generated_at": "2026-09-06T00:51:38",
+  "mode": "llm",
+  "model": "deepseek-v4-flash",
   "total_cases": 132,
   "matched": 124,
   "consistency": 0.9394,
@@ -86,7 +86,7 @@
         "amount": true,
         "liability": false,
         "case_type": true,
-        "sequence": true
+        "sequence": false
       },
       "error": null
     },
