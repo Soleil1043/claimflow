@@ -30,12 +30,16 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
+from schemas import contract
+from services.amounts import approved_amount
+
 ROOT = Path(__file__).resolve().parent.parent
 MOCK_DIR = ROOT / "data" / "mock"
 OUT_PATH = ROOT / "evals" / "datasets" / "adjudication.json"
 
-AUTO_APPROVE_LIMIT = Decimal("5000.00")
-WAITING_DAYS = 30
+# 规格常量与金额公式引用契约模块（T097）——运行时/生成器/评测门同一数值来源
+AUTO_APPROVE_LIMIT = contract.AUTO_APPROVE_LIMIT
+WAITING_DAYS = contract.WAITING_PERIOD_DAYS
 
 
 def _money(value: Decimal) -> str:
@@ -43,12 +47,14 @@ def _money(value: Decimal) -> str:
 
 
 def _approved(claimed: Decimal, policy: dict, selfpay: Decimal = Decimal("0")) -> Decimal:
-    """规格公式：min(max(claimed − selfpay − deductible, 0) × ratio, coverage)。"""
-    deductible = Decimal(policy["deductible"])
-    ratio = Decimal(policy["payout_ratio"])
-    coverage = Decimal(policy["coverage_amount"])
-    raw = (claimed - selfpay - deductible) * ratio
-    return min(max(raw, Decimal("0")), coverage).quantize(Decimal("0.01"))
+    """规格公式（services.amounts.approved_amount 同源，T097）。"""
+    return approved_amount(
+        claimed,
+        selfpay,
+        Decimal(policy["deductible"]),
+        Decimal(policy["payout_ratio"]),
+        Decimal(policy["coverage_amount"]),
+    )
 
 
 def main() -> None:

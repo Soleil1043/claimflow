@@ -11,12 +11,13 @@ import datetime as dt
 from decimal import Decimal
 from typing import Any
 
+from schemas.contract import WAITING_PERIOD_DAYS
 from schemas.stages import PolicyVerifyOutput
 from services.case_store import CaseRecorder
 from state import ClaimCaseState
 
-# 默认等待期（条款要素缺失时的兜底，与条款库口径一致）
-DEFAULT_WAITING_PERIOD_DAYS = 30
+# 默认等待期（条款要素缺失时的兜底；规范值由 schemas.contract 承载，T097）
+DEFAULT_WAITING_PERIOD_DAYS = WAITING_PERIOD_DAYS
 
 PolicyLookup = Any  # async (policy_no) -> dict | None
 

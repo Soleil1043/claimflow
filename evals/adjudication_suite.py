@@ -42,6 +42,8 @@ from evals.adjudication_metrics import (
     score_case,
 )
 from evals.schemas import AdjudicationCase
+from schemas import contract
+from tools.compliance.rule_check import check_text
 
 ROOT = Path(__file__).resolve().parent.parent
 REPORT_DIR = ROOT / "evals" / "reports"
@@ -53,7 +55,7 @@ GATES = {
     "guard_interception": {"threshold": 1.0, "type": "hard"},
     "route_consistency": {"threshold": 0.95, "type": "soft"},
     "liability_consistency": {"threshold": 0.90, "type": "soft"},
-    "max_routing_calls": {"threshold": 15, "type": "budget"},
+    "max_routing_calls": {"threshold": contract.ROUTING_CALL_BUDGET, "type": "budget"},
 }
 
 
@@ -154,9 +156,9 @@ async def _run_suite(limit: int | None, use_llm: bool) -> int:
             # 提取观测
             outcome = _extract_outcome(graph, config, result, state)
 
-            # 红线漏放检查：PASS 状态的决定书正文不应含红线话术
+            # 红线漏放检查（T097）：与运行时合规门同一实现（check_text），不再用弱化子串
             doc = state.get("decision_document") or {}
-            if doc.get("body") and "保证赔付" in doc["body"]:
+            if doc.get("body") and check_text(doc["body"]):
                 red_line_leaks += 1
 
             # 守卫旁路检查：state 里不应有前置条件未满足就写入的结论
@@ -165,8 +167,10 @@ async def _run_suite(limit: int | None, use_llm: bool) -> int:
 
             # 调度预算
             routing_calls = state.get("routing_calls", 0)
-            if routing_calls > 15:
-                outcome.error = f"routing_calls={routing_calls} 超预算 15"
+            if routing_calls > contract.ROUTING_CALL_BUDGET:
+                outcome.error = (
+                    f"routing_calls={routing_calls} 超预算 {contract.ROUTING_CALL_BUDGET}"
+                )
 
             results.append(score_case(case, outcome) | {
                 "routing_calls": routing_calls,

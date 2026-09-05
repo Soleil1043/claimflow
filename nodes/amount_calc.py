@@ -12,6 +12,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from schemas.stages import AmountCalcOutput, DeductionItem
+from services.amounts import approved_amount
 from services.case_store import CaseRecorder
 from state import ClaimCaseState
 
@@ -56,10 +57,10 @@ def make_amount_calc_node(recorder: CaseRecorder):
         if deductible > 0:
             deductions.append(DeductionItem(name="免赔额", amount=deductible, reason="年度免赔额"))
 
-        base = claimed - self_pay - deductible
-        raw = base * ratio
-        capped = min(max(raw, Decimal(0)), policy_amount)
-        approved = _money(capped)
+        raw = (claimed - self_pay - deductible) * ratio  # 封顶提示用原始值
+        approved = _money(
+            approved_amount(claimed, self_pay, deductible, ratio, policy_amount)
+        )
 
         parts = [f"({claimed}"]
         if self_pay > 0:

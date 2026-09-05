@@ -13,6 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from schemas.contract import WAITING_PERIOD_DAYS
+
 
 @dataclass(frozen=True)
 class InsuranceLinePack:
@@ -51,7 +53,7 @@ MEDICAL_PACK = InsuranceLinePack(
     ),
     doc_types=("invoice", "diagnosis", "cost_list", "medical_record"),
     policy_terms={
-        "waiting_period_days": 30,
+        "waiting_period_days": WAITING_PERIOD_DAYS,
         "exclusions": ["整形美容", "牙科", "矫正", "先天性疾病", "既往症"],
         "coverage_scope": ["疾病住院医疗", "住院手术"],
         "limit_notes": "累计赔付不超过保额",

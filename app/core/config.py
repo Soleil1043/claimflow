@@ -11,6 +11,8 @@ from enum import StrEnum
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from schemas import contract
+
 
 class Profile(StrEnum):
     """运行 profile：dev=本地降级开发模式，prod=全量真实依赖。"""
@@ -99,15 +101,16 @@ class Settings(BaseSettings):
 
     # ===== 核赔分级自动阈值（Phase 8，D037/D039） =====
     # 自动签发金额上限：核定金额 ≤ 该值且低风险才允许自动出《理赔决定书》
-    auto_approve_limit: Decimal = Decimal("5000.00")
+    # （规范值由 schemas.contract 承载，T097；此处默认引用契约，可经环境变量覆盖）
+    auto_approve_limit: Decimal = contract.AUTO_APPROVE_LIMIT
     # 自动签发要求的全链路最低置信度（各阶段结论置信度门槛）
     auto_approve_confidence_floor: float = 0.8
     # 材料抽取置信度下限：低于该值转 orchestrator 异常裁量（而非直接补件）
     material_confidence_floor: float = 0.6
     # 合规 MODIFY 修订闭环轮数上限（防死循环，v1 D012 语义延续）
     compliance_max_rounds: int = 2
-    # orchestrator 每案件调度调用预算（超限告警并强制收敛；D039 防绕圈）
-    routing_call_budget: int = 15
+    # orchestrator 每案件调度调用预算（超限告警并强制收敛；D039 防绕圈；规范值 schemas.contract）
+    routing_call_budget: int = contract.ROUTING_CALL_BUDGET
     # 自动签发案件人工抽检比例（试点期质量兜底，0=关闭）
     manual_review_sample_rate: float = 0.05
     # orchestrator 路由是否启用 LLM 决策（False=纯确定性兜底编排；测试/降级用）
