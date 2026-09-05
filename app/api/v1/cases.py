@@ -53,6 +53,7 @@ from services.case_service import (
 from services.case_store import get_default_recorder
 from services.db.models import Case, CaseEvent, DecisionDocument
 from services.materials import detect_material_type, extract_material
+from services.memory.case_memory import search_case_memories
 from services.observability import metrics as obs
 from services.observability.token_tracker import track_case
 
@@ -184,6 +185,9 @@ async def get_case(
     """B02 案件详情：进度（状态）/ 结论 / 决定书 / 审计时间线（seq 升序）。"""
     case = await _get_case_or_404(case_id, session)
 
+    # 申请人历史核赔档案（T100）：终态记忆语义检索，排除本案件；fail-open 空列表兜底
+    memories = await search_case_memories(str(case.user_id), exclude_case_id=case.id)
+
     events = (
         (
             await session.execute(
@@ -218,6 +222,7 @@ async def get_case(
             )
             for e in events
         ],
+        applicant_memories=[m.model_dump() for m in memories],
         created_at=case.created_at,
         updated_at=case.updated_at,
     )

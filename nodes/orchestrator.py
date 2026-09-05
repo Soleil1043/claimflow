@@ -232,11 +232,22 @@ def make_llm_router():
         return None
 
     async def llm_router(state: ClaimCaseState) -> RoutingDecision:
+        snapshot_data = _stage_snapshot(state)
+        if settings.memory_in_routing:
+            # 申请人历史档案注入（T100，默认关）：LLM 模式增强，确定性评测不受影响
+            from services.memory.case_memory import (
+                format_case_memories,
+                search_case_memories,
+            )
+
+            records = await search_case_memories(str(state.get("user_id") or ""))
+            if records:
+                snapshot_data["applicant_history"] = format_case_memories(records)
         system = build_system_prompt(
             CASE_ORCHESTRATOR_ROUTING_PROMPT,
             "orchestrator",
             state.get("case_type") or "_shared",
-            snapshot=json.dumps(_stage_snapshot(state), ensure_ascii=False, default=str)[:3000],
+            snapshot=json.dumps(snapshot_data, ensure_ascii=False, default=str)[:3000],
         )
         model = get_chat_model(temperature=0.0)
         structured = model.with_structured_output(RoutingDecision, method="function_calling")

@@ -342,6 +342,21 @@ async def maybe_write_memory(
         return False
 
 
+async def search_store_items(user_id: str, query: str, limit: int) -> list[Any]:
+    """Store 原始条目检索（T100 门面：调用方自行按 value.kind 过滤记忆种类）。
+
+    BUG-003 口径：asearch 优先，AsyncPostgresStore 只能走异步接口。
+    异常向上抛——调用方决定旁路语义。
+    """
+    store = get_memory_store()
+    await _ensure_pg_setup(store)
+    asearch = getattr(store, "asearch", None)
+    if asearch is not None:
+        return list(await asearch((_MEMORY_NAMESPACE, user_id), query=query, limit=limit))
+    result = store.search((_MEMORY_NAMESPACE, user_id), query=query, limit=limit)
+    return list(await result) if inspect.isawaitable(result) else list(result)
+
+
 # ===== 读注入路径（T035） =====
 
 

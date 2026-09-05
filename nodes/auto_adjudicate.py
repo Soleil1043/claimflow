@@ -13,6 +13,7 @@ from typing import Any
 from app.core.config import settings
 from schemas.case import CaseStatus
 from services.case_store import CaseRecorder
+from services.memory.case_memory import write_case_memory
 from services.observability import metrics
 from state import ClaimCaseState
 
@@ -86,6 +87,13 @@ def make_auto_adjudicate_node(recorder: CaseRecorder):
             state["case_id"],
             "status_change",
             payload={"status": CaseStatus.AUTO_ISSUED, "final_decision": final_decision},
+        )
+        # 申请人记忆（T100）：签发终态档案
+        await write_case_memory(
+            state,
+            outcome=CaseStatus.AUTO_ISSUED,
+            final_decision=final_decision,
+            approved_amount=approved,
         )
         return {
             "final_decision": final_decision,

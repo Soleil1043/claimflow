@@ -953,3 +953,32 @@ case_graph 回边元组、state.py、路由 prompt、测试元组、评测集）
 验证基线：全量 411 passed + ruff 全绿；评测门确定性模式改动前后指标逐位相同
 （amount 0.9773 / route 0.9924 / liability 0.9318 / 总一致率 92.4%——失败项为
 T089 挂账存量 known issue，非本轮回归）。
+
+---
+
+## D042：长期记忆接入核赔——申请人记忆（T100，2026-09-05）
+
+**背景**：评审确认 ④ 语义记忆层悬空（v1 会话记忆写入者已删，核赔管线零消费）。
+用户拍板"需要长期记忆"，经 Q1-Q3 磨清口径（Q1/Q2 按推荐，Q3 经生产问题对比分析后选 A）。
+
+**决策**：
+1. **内容口径**：申请人记忆 = 案件终态结构化档案（结论/核定金额/原因/日期），
+   **确定性渲染零 LLM**（案件事实本就是结构化数据，区别于 v1 会话记忆的 LLM 摘要）
+2. **写入时机**：仅终态一次性写入——4 条终态路径（auto 签发 / 坐席签发 / escape 转人工 /
+   REJECT 安全兜底）。明确排除每次状态变化写入：中间态噪音淹没语义检索窗口、
+   与 case_events 审计层制造第二事实源、7 写入点一致性风险、重跑重复记录。
+   注意 auto_adjudicate 转人工分支不是终态（案件继续走 human_gate 签批）
+3. **消费方**：工单/案件详情 API 返回申请人历史档案（排除本案件防回声，坐席消费）；
+   orchestrator 路由快照注入 history 段（memory_in_routing 开关**默认关**——
+   LLM 路由口径与金样本评测一致性优先，观察后再开）
+4. **三支柱**：终态判定收敛（4 路径各一行钩子）/ 记忆=cases 事实派生视图
+   （key=case_id 幂等 upsert + scripts/rebuild_memories.py 离线重建安全网）/
+   检索口径即终态口径（Store 里只有结局档案，过程看审计时间线）
+5. **边界**：claim_records（90 天频率，风控评分公式消费）与申请人记忆（语义档案，
+   人/LLM 消费）并存不重复；核赔知识库（RAG/KG）是知识不是记忆，正交
+6. **长尾记账**：单用户记忆无界增长（远期按用户压缩归档）；档案渲染不含 PII 字段
+
+**实现落点**：services/memory/case_memory.py（新）、long_term.py 增 search_store_items
+公共门面、nodes/{auto_adjudicate,human_gate,orchestrator}.py、app/api/v1/cases.py、
+schemas/api.py、scripts/rebuild_memories.py（新）、settings.memory_in_routing。
+验证：8 新测试 + 全量 419 passed + ruff 绿。

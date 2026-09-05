@@ -276,7 +276,7 @@ class CaseTimelineEvent(BaseModel):
 
 
 class CaseDetailResponse(BaseModel):
-    """GET /api/v1/cases/{case_id} 响应：进度/结论/决定书/审计时间线。"""
+    """GET /api/v1/cases/{case_id} 响应：进度/结论/决定书/审计时间线/申请人历史。"""
 
     case_id: str
     user_id: str
@@ -291,7 +291,8 @@ class CaseDetailResponse(BaseModel):
     timeline: list[CaseTimelineEvent] = Field(default_factory=list)
     created_at: dt.datetime
     updated_at: dt.datetime | None = None
-
+    # 申请人历史核赔档案（T100：终态记忆检索，排除本案件；记忆关闭时为空）
+    applicant_memories: list[dict[str, Any]] = Field(default_factory=list)
 
 class CaseMaterialUploadResponse(BaseModel):
     """POST /api/v1/cases/{case_id}/materials 响应。"""

@@ -81,6 +81,9 @@ class Settings(BaseSettings):
     # ===== 长期记忆（T034/T035，architecture.md 6.3） =====
     # 会话摘要写入记忆 collection 的开关；每 N 轮（用户消息数）触发一次摘要更新
     memory_enabled: bool = True
+    # 申请人记忆注入 orchestrator 路由快照（T100）：默认关——LLM 路由口径与金样本
+    # 评测保持一致，观察检索质量后再开启
+    memory_in_routing: bool = False
     memory_summary_every_n_turns: int = 3
     # 读注入（T035）：首轮检索条数与相似度下限（低于 min_score 视为噪声不注入）
     memory_top_k: int = 2

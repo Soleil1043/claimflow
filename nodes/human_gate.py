@@ -21,6 +21,7 @@ from app.core.logging import get_logger
 from schemas.case import CaseStatus
 from services.case_store import CaseRecorder
 from services.decision_doc import render_decision_document
+from services.memory.case_memory import write_case_memory
 from services.observability import metrics
 from state import ClaimCaseState
 from tools.compliance.rule_check import check_text
@@ -164,6 +165,12 @@ def make_human_gate_node(recorder: CaseRecorder):
             await recorder.update_case(
                 state["case_id"], status=CaseStatus.REFERRED, final_decision="referred"
             )
+            # 申请人记忆（T100）：升级线下处理终态
+            await write_case_memory(
+                state,
+                outcome=CaseStatus.REFERRED,
+                reason=str(request.get("reason") or "升级线下处理"),
+            )
             return update
 
         # review：坐席复核（红线复审 → 签发/改判/安全兜底）
@@ -173,6 +180,12 @@ def make_human_gate_node(recorder: CaseRecorder):
             # 红线拦截安全兜底：不签发文书，终态转人工
             await recorder.update_case(
                 state["case_id"], status=CaseStatus.REFERRED, final_decision="referred"
+            )
+            # 申请人记忆（T100）：REJECT 终态档案
+            await write_case_memory(
+                state,
+                outcome=CaseStatus.REFERRED,
+                reason="人工结论未过合规复审，安全兜底转人工",
             )
         issued = review_update.get("decision_document")
         if issued is not None:
@@ -189,6 +202,13 @@ def make_human_gate_node(recorder: CaseRecorder):
             )
             await recorder.update_case(
                 state["case_id"], status=CaseStatus.CLOSED,
+                final_decision=str(issued.get("conclusion", "")),
+                approved_amount=Decimal(str(issued.get("approved_amount") or "0")),
+            )
+            # 申请人记忆（T100）：坐席签发终态档案
+            await write_case_memory(
+                state,
+                outcome=CaseStatus.CLOSED,
                 final_decision=str(issued.get("conclusion", "")),
                 approved_amount=Decimal(str(issued.get("approved_amount") or "0")),
             )
