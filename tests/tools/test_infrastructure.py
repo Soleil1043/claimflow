@@ -1,13 +1,12 @@
-"""工具层基础设施测试（T044 重写）：ClaimflowTool / ToolRegistry / 工厂装配守卫。
+"""工具层基础设施测试（T044 重写；T094 删 registry/executor 段）：ClaimflowTool / 工厂装配守卫。
 
 用 EchoTool / 可控故障工具验证：
 - ainvoke 入参校验（ValidationError）与业务 dict 返回
 - to_openai_tool 生成 function calling 定义
-- 注册 / 发现 / 重名拒绝 / 默认注册中心工厂填充
+- 默认工具图工厂装配
 - 守卫层（tools/guards.py，经 factory 装配）：
   超时（总预算）、官方 .with_retry 重试（≤2 次）、
   熔断（5 失败 → open → half-open 探测 → 恢复/复开）、计数清零
-- 兼容壳 ToolExecutor：dict→ToolOutput 适配、入参校验降级、per-call fallback、未知工具
 """
 
 from __future__ import annotations
@@ -18,12 +17,10 @@ import pytest
 from pydantic import PrivateAttr, ValidationError
 
 from app.core.exceptions import ToolExecutionError
-from schemas.tools import ToolInput, ToolOutput
+from schemas.tools import ToolInput
 from tools.base import ClaimflowTool
-from tools.executor import ToolExecutor
 from tools.factory import assemble_tool, get_default_tool_map
 from tools.guards import GuardedTool, _BreakerState
-from tools.registry import ToolNotFoundError, ToolRegistry
 
 # ---------- 测试用工具（新基类） ----------
 
@@ -119,33 +116,7 @@ def test_to_openai_tool_schema() -> None:
     assert fn["parameters"]["required"] == ["text"]
 
 
-# ---------- ToolRegistry（过渡容器） ----------
-
-
-@pytest.fixture()
-def registry() -> ToolRegistry:
-    reg = ToolRegistry()
-    reg.register(EchoTool())
-    reg.register(FlakyTool())
-    return reg
-
-
-def test_registry_register_and_get(registry: ToolRegistry) -> None:
-    """注册后可按名获取，list_names 排序输出。"""
-    assert registry.get("echo").name == "echo"
-    assert registry.list_names() == ["echo", "flaky"]
-
-
-def test_registry_rejects_duplicate(registry: ToolRegistry) -> None:
-    """重复注册同名工具直接抛错。"""
-    with pytest.raises(ValueError, match="重复注册"):
-        registry.register(EchoTool())
-
-
-def test_registry_unknown_tool(registry: ToolRegistry) -> None:
-    """未注册工具抛 ToolNotFoundError。"""
-    with pytest.raises(ToolNotFoundError):
-        registry.get("no_such_tool")
+# ---------- 默认工具图 ----------
 
 
 def test_default_tool_map_factory_assembly() -> None:
@@ -289,45 +260,3 @@ async def test_breaker_failure_counter_resets_on_success() -> None:
         with pytest.raises(ToolExecutionError):
             await guarded.ainvoke({"fail_times": 99})
     assert guarded.breaker_state == _BreakerState.CLOSED
-
-
-# ---------- 兼容壳 ToolExecutor ----------
-
-
-@pytest.fixture()
-def executor(registry: ToolRegistry) -> ToolExecutor:
-    return ToolExecutor(registry)
-
-
-async def test_executor_adapts_dict_to_envelope(executor: ToolExecutor) -> None:
-    """兼容壳：工具 dict 返回适配 v1 ToolOutput 信封（消费端零改动）。"""
-    result = await executor.execute("echo", {"text": "你好"})
-    assert result.success is True
-    assert result.data == {"text": "你好"}
-
-
-async def test_executor_invalid_input_returns_failure(executor: ToolExecutor) -> None:
-    """兼容壳：非法入参返回 success=False，不抛异常（v1 语义）。"""
-    result = await executor.execute("echo", {"wrong_field": 1})
-    assert result.success is False
-    assert "入参校验失败" in (result.error_message or "")
-
-
-async def test_executor_per_call_fallback(executor: ToolExecutor) -> None:
-    """兼容壳 per-call fallback：裸工具异常时返回降级结果（测试专用路径）。"""
-    fallback = ToolOutput(success=False, error_message="服务暂不可用")
-    result = await executor.execute("flaky", {"fail_times": 99}, fallback=fallback)
-    assert result.success is False
-    assert result.error_message == "服务暂不可用"
-
-
-async def test_executor_wraps_raw_tool_error(executor: ToolExecutor) -> None:
-    """兼容壳：未守卫的裸工具异常包装为 ToolExecutionError。"""
-    with pytest.raises(ToolExecutionError, match="模拟故障"):
-        await executor.execute("flaky", {"fail_times": 99})
-
-
-async def test_executor_unknown_tool_raises(executor: ToolExecutor) -> None:
-    """未注册工具：执行器直接抛 ToolNotFoundError。"""
-    with pytest.raises(ToolNotFoundError):
-        await executor.execute("no_such_tool", {})

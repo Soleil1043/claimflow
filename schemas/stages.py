@@ -8,8 +8,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -134,3 +136,114 @@ class ComplianceOutput(BaseModel):
     # 决定书正文金额 == calc.approved_amount 的机器断言结果（不依赖 LLM）
     amount_consistent: bool = True
     round: int = 1
+
+
+# ===== 阶段注册表（T094，D040）：阶段知识的唯一权威定义 =====
+# 加阶段/改调度知识只动这里；orchestrator 守卫查表、图回边、路由快照、
+# 路由 prompt 清单全部从 STAGE_SPECS 派生。compliance_gate 不进注册表——
+# 它不是可调度阶段，是静态合规边（D039 铁律）。
+
+
+class DispatchTarget(StrEnum):
+    """orchestrator 可派发目标：六个 worker 阶段 + human（转人工）。"""
+
+    MATERIAL_REVIEW = "material_review"
+    POLICY_VERIFY = "policy_verify"
+    FRAUD_CHECK = "fraud_check"
+    LIABILITY_JUDGE = "liability_judge"
+    AMOUNT_CALC = "amount_calc"
+    DECISION_GENERATE = "decision_generate"
+    HUMAN = "human"
+
+
+WORKER_TARGETS: tuple[DispatchTarget, ...] = tuple(
+    t for t in DispatchTarget if t is not DispatchTarget.HUMAN
+)
+
+
+@dataclass(frozen=True)
+class StageSpec:
+    """单个阶段的权威定义。
+
+    - requires：前置 worker，缺失时守卫改投第一个未完成项（按声明顺序）
+    - snapshot_keys：路由快照摘要字段；空 = 快照仅显示 done/None
+    - back_to_orchestrator：worker 完成后是否静态回边 orchestrator
+      （decision_generate 例外——静态进合规链，D039）
+    - in_must_complete：是否属于 decision_generate 的必做集
+    """
+
+    name: DispatchTarget
+    channel: str
+    output_model: type[BaseModel]
+    requires: tuple[DispatchTarget, ...] = ()
+    snapshot_keys: tuple[str, ...] = ()
+    in_must_complete: bool = True
+    back_to_orchestrator: bool = True
+    description: str = ""
+
+
+STAGE_SPECS: tuple[StageSpec, ...] = (
+    StageSpec(
+        name=DispatchTarget.MATERIAL_REVIEW,
+        channel="material",
+        output_model=MaterialReviewOutput,
+        snapshot_keys=("completeness", "missing", "confidence"),
+        description="材料审核（OCR/解析、完整性校验）——案件起点",
+    ),
+    StageSpec(
+        name=DispatchTarget.POLICY_VERIFY,
+        channel="policy",
+        output_model=PolicyVerifyOutput,
+        requires=(DispatchTarget.MATERIAL_REVIEW,),
+        snapshot_keys=("coverage_valid", "waiting_period_passed", "invalid_reason"),
+        description="保单核验（有效性/等待期/除外/限额）——需材料完整",
+    ),
+    StageSpec(
+        name=DispatchTarget.FRAUD_CHECK,
+        channel="risk",
+        output_model=FraudCheckOutput,
+        requires=(DispatchTarget.MATERIAL_REVIEW,),
+        snapshot_keys=("risk_level", "risk_score"),
+        description="风控筛查（黑名单/理赔频率/可疑模式）——需材料完整，可与 policy_verify 同轮并行",
+    ),
+    StageSpec(
+        name=DispatchTarget.LIABILITY_JUDGE,
+        channel="liability",
+        output_model=LiabilityOutput,
+        requires=(DispatchTarget.POLICY_VERIFY, DispatchTarget.FRAUD_CHECK),
+        snapshot_keys=("verdict", "confidence"),
+        description="责任认定（条款匹配/除外排查/置信度）——需保单与风控结论",
+    ),
+    StageSpec(
+        name=DispatchTarget.AMOUNT_CALC,
+        channel="calc",
+        output_model=AmountCalcOutput,
+        requires=(DispatchTarget.LIABILITY_JUDGE,),
+        snapshot_keys=("approved_amount",),
+        description="金额理算（确定性计算）——需责任认定结论",
+    ),
+    StageSpec(
+        name=DispatchTarget.DECISION_GENERATE,
+        channel="decision",
+        output_model=DecisionDocOutput,
+        in_must_complete=False,
+        back_to_orchestrator=False,
+        description="决定书生成——需理算结论，且必须单独派发",
+    ),
+)
+
+STAGE_CHANNELS: dict[DispatchTarget, str] = {s.name: s.channel for s in STAGE_SPECS}
+STAGE_SPECS_BY_NAME: dict[DispatchTarget, StageSpec] = {s.name: s for s in STAGE_SPECS}
+# decision_generate（终局派发）的必做集：所有 in_must_complete 阶段
+MUST_COMPLETE: tuple[DispatchTarget, ...] = tuple(
+    s.name for s in STAGE_SPECS if s.in_must_complete
+)
+
+HUMAN_TARGET_DESCRIPTION = "转人工（缺件补件 / 高风险 / 置信度低 / 材料矛盾 / 规则未覆盖）"
+
+
+def render_dispatch_catalog() -> str:
+    """路由 prompt 的可派发目标清单（注册表派生，prompt 与运行时不漂移）。"""
+    lines = [f"- {s.name}：{s.description}" for s in STAGE_SPECS]
+    lines.append(f"- {DispatchTarget.HUMAN}：{HUMAN_TARGET_DESCRIPTION}")
+    return "\n".join(lines)

@@ -15,7 +15,6 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-import nodes.material_review as mr_module
 import app.api.v1.cases as cases_module
 import services.db.session as session_module
 from app.main import app

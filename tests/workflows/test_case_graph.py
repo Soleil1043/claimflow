@@ -225,11 +225,11 @@ def test_static_compliance_gate_not_bypassable() -> None:
         "orchestrator 不得有静态出边（派发必须走守卫）"
     )
     assert ("revise_decision", "compliance_gate") in edges
-    for worker in (
-        "material_review",
-        "policy_verify",
-        "fraud_check",
-        "liability_judge",
-        "amount_calc",
-    ):
-        assert (worker, "orchestrator") in edges
+    # 回边集合从 StageSpec 派生（D040）：back_to_orchestrator 的阶段必有静态回边
+    from schemas.stages import STAGE_SPECS
+
+    for spec in STAGE_SPECS:
+        if spec.back_to_orchestrator:
+            assert (spec.name, "orchestrator") in edges
+        else:
+            assert (spec.name, "orchestrator") not in edges

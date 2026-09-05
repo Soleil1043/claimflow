@@ -16,7 +16,6 @@ from tools.compliance.sensitive_filter import (
     find_sensitive,
     mask_sensitive,
 )
-from tools.registry import ToolRegistry
 
 # ---------- 身份证（18 位，验收格式 3301**********1234） ----------
 
@@ -141,15 +140,6 @@ async def test_tool_execute() -> None:
     assert result["findings"][0]["type"] == "phone"
 
 
-async def test_tool_registered() -> None:
-    """import tools.compliance 后 sensitive_filter 可被发现。"""
-    import tools.compliance  # noqa: F401
-    from tools.registry import get_default_registry
-
-    registry = get_default_registry()
-    assert "sensitive_filter" in registry.list_names()
-
-
 def test_tool_schema_export() -> None:
     spec = SensitiveFilterTool().to_openai_tool()
     assert spec["function"]["name"] == "sensitive_filter"
@@ -161,13 +151,6 @@ async def test_tool_rejects_empty_input() -> None:
     tool = SensitiveFilterTool()
     with pytest.raises(ValidationError):
         await tool.ainvoke({"text": ""})
-
-
-def test_registry_registration_isolated() -> None:
-    """独立注册中心也可注册使用（测试友好性）。"""
-    registry = ToolRegistry()
-    registry.register(SensitiveFilterTool())
-    assert registry.get("sensitive_filter") is not None
 
 
 @pytest.mark.parametrize(

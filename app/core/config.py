@@ -185,7 +185,7 @@ settings = Settings()
 if settings.hf_offline:
     # huggingface_hub 在 import 时即读取 HF_HUB_OFFLINE（constants 模块级求值），
     # 必须在任何模型加载前导出；config 是全项目最早被 import 的模块，
-    # 由此覆盖 API（uvicorn）/ evals（test_suite 子进程）/ 脚本全部入口。
+    # 由此覆盖 API（uvicorn）/ evals（评测套件）/ 脚本全部入口。
     # setdefault：显式 shell 环境变量优先。
     import os
 

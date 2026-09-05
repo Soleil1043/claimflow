@@ -830,3 +830,68 @@ worker 与 orchestrator 激活时装载进 system prompt；准确率迭代改文
 - .agent/spec.md / plan.md 重写、tasks.md 追加 Phase 8（T077-T093）
 - nodes/supervisor.py（T047）从"参考后删"升级为"改造复用"——orchestrator 基于该模式扩展
 - 责任认定/材料审核等 worker 仍为 ReAct agent + skill；triage 不再单列（异常裁量并入 orchestrator + 兜底）
+
+---
+
+## D040：阶段知识归一 StageSpec registry + 死代码清理（T094，2026-09-05）
+
+**背景**：Phase 8 收官后的架构评审（improve-codebase-architecture）发现：六阶段流水线的
+名字/顺序/前置/快照知识被手抄 8 处（orchestrator 五处——含同文件两份相同 Literal、
+case_graph 回边元组、state.py、路由 prompt、测试元组、评测集），加一个阶段要改 8 个文件。
+另有 T093 漏网死代码与断链评测链。经 grilling 六轮十问（Q1-Q10），用户逐项拍板如下。
+
+**深化决策（重构部分）**：
+1. StageSpec registry 落地 `schemas/stages.py`（与阶段产出模型同住，阶段知识单文件可见）：
+   `DispatchTarget` StrEnum（6 worker + human）+ `StageSpec{name, channel, output_model,
+   requires, snapshot_keys, in_must_complete, description}` 按管线序排列
+2. 前置条件**数据化**（requires 声明），守卫**算法保持代码**（改投/去重/solo 派发/
+   材料残缺 drop/rerun 放行——D039 安全设计的代码形态利于审计）；"材料残缺→drop"
+   三分支语义不做成规则引擎
+3. compliance_gate **不进** registry——它是静态边非可调度阶段，进清单会模糊 D039 调度空间概念
+4. 阶段名 StrEnum 归一两份 Literal（pydantic function_calling 对 enum 同路径；
+   StrEnum 为 str 子类，state/checkpoint/case_events 序列化无感）；另加派生一致性测试双保险
+5. case_graph worker 回边从 registry 派生；节点注册保持显式（工厂签名异构）
+6. 路由 prompt 的可派发目标清单段由 registry 生成（spec.description 承载人话描述）
+7. `skills/orchestrator/_shared.md` 保持手写不生成——D039"改文本不改代码"的调优面，
+   漂移由金样本路由一致率 ≥95% 软门兜住
+8. 评测生成器（gen_adjudication_cases.py 的 expected_worker_sequence + 抄写的阈值）
+   留给后续阈值契约任务（评审候选 5），本次不动
+
+**清理决策（Q1=B，Q7-Q10）**：
+9. 断链评测链四件全删：evals/test_suite.py（388 行，import 已删的 workflows.main_graph
+   运行必崩）、services/eval_runner.py（240 行）、app/api/v1/evals.py（301 行）、
+   ui/eval_app.py（后端死则空壳）+ app/main.py shutdown 钩子与路由注册。
+   **对 D038 的修订**：D038"eval_app.py 评测台保留"指演示界面选型语境（评测台不必搬
+   Next.js），其后端链路已随 main_graph 删除而断；将来核赔评测 UI 对
+   adjudication_suite 报告格式重建
+10. v1 判分五件套保留：evals/{metrics,judge,trajectory,variants,ab_test}.py（约 1400 行，
+    现零调用零测试）——D039 明确"接既有 A/B 框架做 skill 对比实验"，为后续基建。
+    本条记录防止下轮评审再当垃圾提出
+11. 死文件全删：state.py::AgentState（v1 漏网）、schemas/agent_outputs.py（零 import）、
+    tools/registry.py + tools/executor.py（AGENTS.md 早挂账"T046/T047 后删除"）+
+    受影响测试修复
+12. v1 会话指标组删除（CONVERSATION_TURNS/TURN_LATENCY/TURN_TOKENS + token_tracker.py，
+    调用方已随 v1 图删除）；T090 三个零调用指标（record_case_stage/record_supplement_rounds/
+    record_case_tokens）**保留不接线**——接线需节点计时埋点属新行为，另立任务
+13. case_store.py L106 debug print 删除
+
+**影响**：
+- T094 单任务执行：行为零变化（金样本断言/守卫拦截测试不动），清理不掺行为改动
+- 新增 CONTEXT.md 领域术语表（StageSpec/DispatchTarget/结论 channel/守卫/静态合规门等）
+- 加阶段/改调度知识的维护成本从 8 文件降为 1 文件（registry）+ 行为代码（守卫/兜底）
+
+**D040 补记（T094 执行中发现，同日）**：
+- Q8 修正：evals/{ab_test,variants}.py 与 scripts/collect_traces.py 的执行半边
+  （build_eval_graph/load_cases/run_case）绑定 evals.test_suite 的 v1 主图运行器，
+  test_suite 删除后它们 import 即断——一并删除。metrics/judge/trajectory 三件可独立
+  导入，按 Q8 保留。D039 的"接既有 A/B 框架做 skill 对比实验"落点修正为：
+  skill 实验立项时对 adjudication_suite（双模式）重建 A/B 壳，判分复用 metrics 思路
+- scripts/check_eval_gate.py + tests/evals/test_eval_gate.py 删除：其完成的率基线
+  对比（baseline.json）是 test_suite 报告口径，生产者已不存在；CI eval-gate 改造为
+  跑 evals.adjudication_suite 确定性全量（六门即门禁，零 LLM 零外部依赖）
+- services/db/models.py 的 EvalRunRecord 表模型保留（alembic 迁移链完整性，
+  eval_history 删除后无代码写入，表为惰性）
+- services/observability/token_tracker.py 保留：phase_ainvoke 被 materials/
+  long_term/ocr_extract 等活跃模块调用（评审报告此处有误，按 grep 实证修正）；
+  仅删 record_turn/CONVERSATION_TURNS/TURN_LATENCY/HUMAN_INTERVENTIONS/
+  COMPLIANCE_VERDICTS（唯一调用方 record_turn 属 v1 会话链）

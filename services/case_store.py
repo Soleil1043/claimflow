@@ -103,7 +103,6 @@ class DbCaseRecorder:
                     )
                     await session.commit()
         except Exception as exc:  # noqa: BLE001 —— fail-open：审计失败不阻塞核赔
-            print(f"DBG-RECORDER-FAIL kind={kind} stage={stage} error={exc!r}")
             log.warning("case_event_write_failed", case_id=case_id, kind=kind, error=str(exc))
 
     async def update_case(

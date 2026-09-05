@@ -1,8 +1,7 @@
 """LangGraph 状态定义。
 
-v1（咨询产品，冻结于 tag v1-consultation）：AgentState——main_graph.py 仍在使用，
-T093 删旧代码时随主图一并移除。
-v2（核赔平台，Phase 8 T079）：ClaimCaseState——案件主图共享状态（v2 架构文档 5.1）。
+核赔案件主图共享状态（T079，v2 架构文档 5.1）。
+v1（咨询产品）AgentState 已随 T093/T094 删除，历史见 tag v1-consultation。
 """
 
 from __future__ import annotations
@@ -15,35 +14,6 @@ from typing import Annotated, Any
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
-
-
-class AgentState(TypedDict, total=False):
-    """主图状态。total=False：各节点局部更新，无需全量初始化。"""
-
-    # ===== 对话基础 =====
-    conversation_id: str                     # 对话 ID
-    messages: Annotated[list[AnyMessage], add_messages]  # 消息累积（含 Worker/React 工具轨迹）
-
-    # ===== 意图与调度 =====
-    intent: str | None                       # IntentType 枚举值
-    task_plan: list[dict[str, Any]]          # supervisor 计划（{agent, description, status, ...}）
-
-    # ===== 共享数据池（Worker 结论 / RAG 上下文） =====
-    shared_data: dict[str, Any]
-
-    # ===== 输出与介入 =====
-    final_answer: str                       # 最终回答
-    need_human_intervention: bool           # 是否需要人工介入
-    intervention_reason: str | None         # 人工介入原因
-
-    # ===== 合规审查 =====
-    compliance_result: dict[str, Any] | None  # ComplianceAgentOutput dump（verdict/violations/...）
-    compliance_rounds: int                    # 审查轮数（MODIFY 修订闭环上限防死循环）
-
-    # ===== 长期记忆（T035） =====
-    # 新会话首轮按 user_id 检索的历史会话摘要（已拼装文本）；
-    # 由 A06 入口写入、回答节点注入提示词，空串 = 无历史不注入
-    memory_context: str
 
 
 class ClaimCaseState(TypedDict, total=False):

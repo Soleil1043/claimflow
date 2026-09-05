@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 
 from langchain_core.messages import HumanMessage
 from langgraph.graph import END
@@ -23,6 +23,13 @@ from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from schemas.stages import (
+    MUST_COMPLETE,
+    STAGE_CHANNELS,
+    STAGE_SPECS,
+    STAGE_SPECS_BY_NAME,
+    DispatchTarget,
+)
 from services.case_store import CaseRecorder
 from services.llm.client import get_chat_model
 from services.llm.prompts import CASE_ORCHESTRATOR_ROUTING_PROMPT
@@ -32,55 +39,25 @@ from state import ClaimCaseState
 
 log = get_logger(__name__)
 
-# 阶段 worker 与其结论字段的映射（字段所有权表，v2 架构文档 5.3）
-WORKER_STAGES: dict[str, str] = {
-    "material_review": "material",
-    "policy_verify": "policy",
-    "fraud_check": "risk",
-    "liability_judge": "liability",
-    "amount_calc": "calc",
-    "decision_generate": "decision",
-}
-# decision_generate（终局派发）的必做集
-MUST_COMPLETE: tuple[str, ...] = (
-    "material_review",
-    "policy_verify",
-    "fraud_check",
-    "liability_judge",
-    "amount_calc",
+# 材料完整性强制的查询类 worker：材料存在但残缺时无前置可补 → 丢弃（等补件走 human 通道）。
+# 这是守卫行为数据（D040：算法保持代码），不进 StageSpec。
+_COMPLETION_GATED: tuple[DispatchTarget, ...] = (
+    DispatchTarget.POLICY_VERIFY,
+    DispatchTarget.FRAUD_CHECK,
 )
-
-# LLM 可派发目标（"human" 转人工；其余为 worker 阶段）
-RoutingTarget = Literal[
-    "material_review",
-    "policy_verify",
-    "fraud_check",
-    "liability_judge",
-    "amount_calc",
-    "decision_generate",
-    "human",
-]
 
 
 class OrchestratorPlanStep(BaseModel):
     """LLM 计划单步（human 允许出现——转人工也是计划的一步）。"""
 
-    stage: Literal[
-        "material_review",
-        "policy_verify",
-        "fraud_check",
-        "liability_judge",
-        "amount_calc",
-        "decision_generate",
-        "human",
-    ]
+    stage: DispatchTarget
     description: str = ""
 
 
 class RoutingDecision(BaseModel):
     """LLM orchestrator 结构化输出：本轮派发目标（可多个=并行）+ 计划 + 理由。"""
 
-    next: list[RoutingTarget]
+    next: list[DispatchTarget]
     plan: list[OrchestratorPlanStep] = Field(default_factory=list)
     reason: str = ""
 
@@ -96,7 +73,7 @@ class GuardVerdict:
 
 def stage_done(state: ClaimCaseState, worker: str) -> bool:
     """该 worker 的阶段结论是否已产出。"""
-    return state.get(WORKER_STAGES[worker]) is not None
+    return state.get(STAGE_CHANNELS[worker]) is not None
 
 
 def _material_complete(state: ClaimCaseState) -> bool:
@@ -105,30 +82,23 @@ def _material_complete(state: ClaimCaseState) -> bool:
 
 
 def _missing_prerequisite(worker: str, state: ClaimCaseState) -> str | None:
-    """返回该 worker 缺失的前置 worker（应改投目标）；None=可派发；"__drop__"=无前置可补（丢弃）。"""
-    if worker == "material_review":
+    """返回该 worker 缺失的前置 worker（应改投目标）；None=可派发；"__drop__"=无前置可补（丢弃）。
+
+    前置清单来自 StageSpec.requires（D040）；材料完整性与必做集语义保持代码。
+    """
+    spec = STAGE_SPECS_BY_NAME[worker]
+    if spec.name is DispatchTarget.MATERIAL_REVIEW:
         return None
-    if worker in ("policy_verify", "fraud_check"):
-        if state.get("material") is None:
-            return "material_review"
-        if not _material_complete(state):
-            return "__drop__"  # 材料残缺需人工补件，重跑材料审核无意义
-        return None
-    if worker == "liability_judge":
-        if state.get("policy") is None:
-            return "policy_verify"
-        if state.get("risk") is None:
-            return "fraud_check"
-        return None
-    if worker == "amount_calc":
-        if state.get("liability") is None:
-            return "liability_judge"
-        return None
-    if worker == "decision_generate":
+    for req in spec.requires:
+        if not stage_done(state, req):
+            return req
+    if spec.name in _COMPLETION_GATED and not _material_complete(state):
+        return "__drop__"  # 材料残缺需人工补件，重跑材料审核无意义
+    if spec.name is DispatchTarget.DECISION_GENERATE:
         for must in MUST_COMPLETE:
             if not stage_done(state, must):
                 return must
-        return None
+    return None
     return None
 
 
@@ -148,7 +118,7 @@ def enforce_guards(targets: list[str], state: ClaimCaseState) -> GuardVerdict:
     rerun_allowed = state.get("human_resolution") is not None
 
     for target in targets:
-        if target not in WORKER_STAGES:
+        if target not in STAGE_CHANNELS:
             result.append(target)  # human_gate 等非 worker 目标透传
             continue
         if stage_done(state, target) and not (target == "material_review" and rerun_allowed):
@@ -185,7 +155,7 @@ def default_route(state: ClaimCaseState) -> tuple[list[str], dict[str, Any] | No
     """
     material = state.get("material")
     if material is None:
-        return ["material_review"], None
+        return [DispatchTarget.MATERIAL_REVIEW], None
     if material.get("completeness") == "partial":
         return ["human_gate"], {
             "kind": "supplement",
@@ -201,51 +171,49 @@ def default_route(state: ClaimCaseState) -> tuple[list[str], dict[str, Any] | No
     policy = state.get("policy")
     risk = state.get("risk")
     if policy is None and risk is None:
-        return ["policy_verify", "fraud_check"], None  # 相互独立，同超步并行
+        # 相互独立，同超步并行
+        return [DispatchTarget.POLICY_VERIFY, DispatchTarget.FRAUD_CHECK], None
     if policy is None:
-        return ["policy_verify"], None
+        return [DispatchTarget.POLICY_VERIFY], None
     if risk is None:
-        return ["fraud_check"], None
+        return [DispatchTarget.FRAUD_CHECK], None
     if risk.get("risk_level") == "high":
         return ["human_gate"], {"kind": "review", "reason": "高风险短路，转人工核赔"}
 
     if state.get("liability") is None:
-        return ["liability_judge"], None
+        return [DispatchTarget.LIABILITY_JUDGE], None
     if state.get("calc") is None:
-        return ["amount_calc"], None
+        return [DispatchTarget.AMOUNT_CALC], None
     if state.get("decision") is None:
-        return ["decision_generate"], None
+        return [DispatchTarget.DECISION_GENERATE], None
 
     # 决定书之后由静态合规链接管，正常不会到达；防御性转人工
     return ["human_gate"], {"kind": "review", "reason": "流程未收敛，转人工核查"}
 
 
 def _stage_snapshot(state: ClaimCaseState) -> dict[str, Any]:
-    """案件快照（LLM 路由的观察输入）：各阶段执行状态 + 关键事实摘要。"""
+    """案件快照（LLM 路由的观察输入）：各阶段执行状态 + 关键事实摘要。
 
-    def fact(channel: str, keys: tuple[str, ...]) -> dict[str, Any] | None:
-        data = state.get(channel)
-        if not isinstance(data, dict):
-            return None
-        return {k: data.get(k) for k in keys}
-
+    阶段条目由 StageSpec.snapshot_keys 派生（D040）；无 snapshot_keys 的阶段
+    （decision_generate）仅显示 done/None。
+    """
     errors = state.get("errors") or []
+    stages: dict[str, Any] = {}
+    for spec in STAGE_SPECS:
+        data = state.get(spec.channel)
+        if not spec.snapshot_keys:
+            stages[spec.name] = "done" if data is not None else None
+        elif isinstance(data, dict):
+            stages[spec.name] = {k: data.get(k) for k in spec.snapshot_keys}
+        else:
+            stages[spec.name] = None
     return {
         "case": {
             "case_type": state.get("case_type"),
             "claimed_amount": str(state.get("claimed_amount", "")),
             "incident_description": str(state.get("incident_description", ""))[:200],
         },
-        "stages": {
-            "material_review": fact("material", ("completeness", "missing", "confidence")),
-            "policy_verify": fact(
-                "policy", ("coverage_valid", "waiting_period_passed", "invalid_reason")
-            ),
-            "fraud_check": fact("risk", ("risk_level", "risk_score")),
-            "liability_judge": fact("liability", ("verdict", "confidence")),
-            "amount_calc": fact("calc", ("approved_amount",)),
-            "decision_generate": "done" if state.get("decision") is not None else None,
-        },
+        "stages": stages,
         "recent_errors": [
             str(e.get("message", e))[:120] for e in errors[-3:] if isinstance(e, dict)
         ],

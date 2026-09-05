@@ -12,8 +12,8 @@ from httpx import ASGITransport, AsyncClient
 from langgraph.checkpoint.memory import InMemorySaver
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-import nodes.material_review as mr_module
 import app.api.v1.cases as cases_module
+import nodes.material_review as mr_module
 import services.db.session as session_module
 from app.main import app
 from services.case_store import DbCaseRecorder
@@ -78,7 +78,6 @@ async def env(monkeypatch, tmp_path: Path):
         )
 
     monkeypatch.setattr(cases_module, "extract_material", fake_extract)
-    import nodes.material_review as mr_module
     monkeypatch.setattr(mr_module, "extract_material", fake_extract)
 
     transport = ASGITransport(app=app)

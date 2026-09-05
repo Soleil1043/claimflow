@@ -147,3 +147,50 @@ def test_all_seven_stage_models_declared() -> None:
     }
     for stage_name, model in expected_stages.items():
         assert model.model_fields["stage"].default == stage_name
+
+
+# ===== 阶段注册表派生一致性（T094，D040）=====
+
+
+def test_dispatch_target_members_match_registry() -> None:
+    """DispatchTarget 非 human 成员 == 注册表阶段集合（类型即派生物）。"""
+    from schemas.stages import STAGE_SPECS, DispatchTarget
+
+    assert {t for t in DispatchTarget if t is not DispatchTarget.HUMAN} == {
+        s.name for s in STAGE_SPECS
+    }
+
+
+def test_registry_channels_exist_in_claim_state() -> None:
+    """每个 StageSpec.channel 都是 ClaimCaseState 的真实字段。"""
+    from schemas.stages import STAGE_SPECS
+    from state import ClaimCaseState
+
+    for spec in STAGE_SPECS:
+        assert spec.channel in ClaimCaseState.__annotations__
+
+
+def test_requires_reference_known_targets() -> None:
+    """requires 引用的都是注册表内阶段（防手滑写错名）。"""
+    from schemas.stages import STAGE_SPECS_BY_NAME
+
+    for spec in STAGE_SPECS_BY_NAME.values():
+        for req in spec.requires:
+            assert req in STAGE_SPECS_BY_NAME
+
+
+def test_must_complete_excludes_decision_generate() -> None:
+    """必做集 = in_must_complete 阶段；decision_generate 是终局派发不在其中。"""
+    from schemas.stages import MUST_COMPLETE, DispatchTarget
+
+    assert DispatchTarget.DECISION_GENERATE not in MUST_COMPLETE
+    assert len(MUST_COMPLETE) == 5
+
+
+def test_render_dispatch_catalog_lists_all_targets() -> None:
+    """路由 prompt 目标清单覆盖全部派发目标（含 human）。"""
+    from schemas.stages import DispatchTarget, render_dispatch_catalog
+
+    catalog = render_dispatch_catalog()
+    for t in DispatchTarget:
+        assert t.value in catalog

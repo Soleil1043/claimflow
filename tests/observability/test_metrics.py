@@ -12,9 +12,7 @@ from pydantic import BaseModel
 from services.observability import metrics
 from services.observability.llm_metrics import observed_ainvoke
 from tools.base import ClaimflowTool
-from tools.executor import ToolExecutor
 from tools.factory import assemble_tool
-from tools.registry import ToolRegistry
 
 
 def _counter_value(name: str, **labels: str) -> float:
@@ -31,7 +29,6 @@ def test_metrics_registered() -> None:
     metrics.record_tool_call("policy_query", "success", 0.1)
     metrics.record_breaker_rejected("ocr_extract")
     metrics.record_llm_call("deepseek-v4-flash", "success", 0.5, prompt_tokens=10, completion_tokens=5)
-    metrics.record_turn("single_domain", 1.2, "PASS", False)
 
     assert _counter_value(
         "claimflow_tool_calls_total", tool="policy_query", status="success"
@@ -46,9 +43,6 @@ def test_metrics_registered() -> None:
     assert _counter_value(
         "claimflow_llm_tokens_total", model="deepseek-v4-flash", kind="completion"
     ) >= 5.0
-    assert _counter_value("claimflow_conversation_turns_total", intent="single_domain") >= 1.0
-    assert _counter_value("claimflow_compliance_verdicts_total", verdict="PASS") >= 1.0
-    assert _counter_value("claimflow_human_interventions_total") >= 0.0
 
 
 def test_record_llm_call_without_tokens() -> None:
@@ -61,13 +55,6 @@ def test_record_llm_call_without_tokens() -> None:
         _counter_value("claimflow_llm_tokens_total", model="no-usage-model", kind="prompt")
         == before
     )
-
-
-def test_record_turn_human_intervention() -> None:
-    """need_human=True 时转人工计数递增。"""
-    before = _counter_value("claimflow_human_interventions_total")
-    metrics.record_turn("complex_consult", 5.0, "REJECTED", True)
-    assert _counter_value("claimflow_human_interventions_total") == before + 1.0
 
 
 # ===== 守卫层集成（T044）：工具三态 + 熔断埋点（metrics 经 GuardedTool 打点） =====
@@ -102,11 +89,11 @@ class _FailTool(ClaimflowTool):
         raise RuntimeError("boom")
 
 
-def _executor_with(
+def _guarded_with(
     tool: ClaimflowTool, *, timeout_s: float = 2.0, fallback: dict | None = None
-) -> ToolExecutor:
-    """守卫装配（快速失败参数：无重试、1 次失败即熔断、短冷却）+ 兼容壳。"""
-    guarded = assemble_tool(
+) -> ClaimflowTool:
+    """守卫装配（快速失败参数：无重试、1 次失败即熔断、短冷却）。"""
+    return assemble_tool(
         tool,
         timeout_s=timeout_s,
         max_retries=0,
@@ -116,23 +103,20 @@ def _executor_with(
         fallback=fallback,
         enable_cache=False,
     )
-    registry = ToolRegistry()
-    registry.register(guarded)
-    return ToolExecutor(registry)
 
 
 async def test_guard_success_metrics() -> None:
-    executor = _executor_with(_OkTool(), timeout_s=2.0)
-    await executor.execute("metrics_ok_tool", {"x": 1})
+    guarded = _guarded_with(_OkTool(), timeout_s=2.0)
+    await guarded.ainvoke({"x": 1})
     assert _counter_value(
         "claimflow_tool_calls_total", tool="metrics_ok_tool", status="success"
     ) >= 1.0
 
 
 async def test_guard_error_metrics() -> None:
-    executor = _executor_with(_FailTool(), timeout_s=0.05)
+    guarded = _guarded_with(_FailTool(), timeout_s=0.05)
     try:
-        await executor.execute("metrics_fail_tool", {"x": 1})
+        await guarded.ainvoke({"x": 1})
     except Exception:  # noqa: BLE001 预期抛 ToolExecutionError
         pass
     assert _counter_value(
@@ -142,18 +126,18 @@ async def test_guard_error_metrics() -> None:
 
 async def test_guard_breaker_rejected_metrics() -> None:
     """熔断打开后：拒绝计数 + fallback 状态计数。"""
-    executor = _executor_with(
+    guarded = _guarded_with(
         _FailTool(), timeout_s=0.05, fallback={"success": False, "error_message": "降级"}
     )
     # 第一次失败（超时）→ 返回降级结果，熔断打开（threshold=1）
-    r1 = await executor.execute("metrics_fail_tool", {"x": 1})
-    assert r1.success is False and r1.error_message == "降级"
+    r1 = await guarded.ainvoke({"x": 1})
+    assert r1["success"] is False and r1["error_message"] == "降级"
     assert _counter_value(
         "claimflow_tool_calls_total", tool="metrics_fail_tool", status="fallback"
     ) >= 1.0
     # 第二次被熔断器直接拒绝（同样降级）
-    r2 = await executor.execute("metrics_fail_tool", {"x": 1})
-    assert r2.success is False
+    r2 = await guarded.ainvoke({"x": 1})
+    assert r2["success"] is False
     assert _counter_value("claimflow_tool_breaker_rejected_total", tool="metrics_fail_tool") >= 1.0
 
 
@@ -215,6 +199,4 @@ def test_metrics_endpoint() -> None:
     body = resp.text
     assert "claimflow_tool_calls_total" in body
     assert "claimflow_llm_calls_total" in body
-    assert "claimflow_conversation_turns_total" in body
-    assert "claimflow_compliance_verdicts_total" in body
     assert resp.headers["content-type"].startswith("text/plain")

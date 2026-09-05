@@ -41,6 +41,7 @@ from nodes.material_review import make_material_review_node
 from nodes.orchestrator import make_orchestrator_node, route_dispatch
 from nodes.policy_verify import make_policy_verify_node
 from schemas.case import CaseInputState, CaseOutput
+from schemas.stages import STAGE_SPECS
 from services.case_store import CaseRecorder, DbCaseRecorder
 from state import ClaimCaseState
 
@@ -97,15 +98,11 @@ def build_case_graph(
     # orchestrator 条件边：消费 pending_dispatch → Send 并行派发（文档化 fan-out 范式）；
     # human_request 置位 → human_gate
     builder.add_conditional_edges("orchestrator", route_dispatch)
-    # 工作层：worker 完成 → 回 orchestrator（decision_generate 例外，静态进合规链）
-    for worker in (
-        "material_review",
-        "policy_verify",
-        "fraud_check",
-        "liability_judge",
-        "amount_calc",
-    ):
-        builder.add_edge(worker, "orchestrator")
+    # 工作层回边：worker 完成 → 回 orchestrator，由 StageSpec.back_to_orchestrator 派生
+    # （decision_generate 例外——静态进合规链，D039）
+    for spec in STAGE_SPECS:
+        if spec.back_to_orchestrator:
+            builder.add_edge(spec.name, "orchestrator")
     builder.add_edge("decision_generate", "compliance_gate")
     builder.add_conditional_edges(
         "compliance_gate",

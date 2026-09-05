@@ -88,33 +88,8 @@ TURN_TOKENS = Counter(
 )
 
 # ===== 业务指标 =====
-
-CONVERSATION_TURNS = Counter(
-    "claimflow_conversation_turns_total",
-    "对话轮次总数",
-    labelnames=["intent"],
-    registry=registry,
-)
-
-HUMAN_INTERVENTIONS = Counter(
-    "claimflow_human_interventions_total",
-    "转人工轮次数",
-    registry=registry,
-)
-
-COMPLIANCE_VERDICTS = Counter(
-    "claimflow_compliance_verdicts_total",
-    "合规审查三态计数",
-    labelnames=["verdict"],  # PASS | MODIFIED | REJECTED | NONE
-    registry=registry,
-)
-
-TURN_LATENCY = Histogram(
-    "claimflow_turn_latency_seconds",
-    "单轮对话端到端处理时长（秒，A06 收到请求 → 返回回答）",
-    buckets=(0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0, 120.0),
-    registry=registry,
-)
+# （v1 会话指标组 CONVERSATION_TURNS/TURN_LATENCY/HUMAN_INTERVENTIONS/COMPLIANCE_VERDICTS
+#   已随 T094 删除——调用方为 T093 移除的 v1 对话图；TURN_TOKENS 经 token_tracker 存活）
 
 MEMORY_WRITES = Counter(
     "claimflow_memory_writes_total",
@@ -247,20 +222,6 @@ def record_llm_call(
         _safe_inc(LLM_TOKENS, model=model, kind="completion", amount=float(completion_tokens))
 
 
-def record_turn(
-    intent: str,
-    duration_s: float,
-    compliance_verdict: str,
-    need_human: bool,
-) -> None:
-    """一轮对话结束埋点：意图、端到端耗时、合规三态、转人工。"""
-    _safe_inc(CONVERSATION_TURNS, intent=intent)
-    _safe_observe(TURN_LATENCY, duration_s)
-    _safe_inc(COMPLIANCE_VERDICTS, verdict=compliance_verdict)
-    if need_human:
-        _safe_inc(HUMAN_INTERVENTIONS)
-
-
 def record_memory_write(result: str) -> None:
     """长期记忆写入结果埋点（T034 旁路路径，失败静默只计数）。"""
     _safe_inc(MEMORY_WRITES, result=result)
@@ -319,11 +280,8 @@ __all__ = [
     "CASE_DURATION",
     "CASE_STAGE_LATENCY",
     "CASE_TOKENS",
-    "COMPLIANCE_VERDICTS",
-    "CONVERSATION_TURNS",
     "DECISION_AMOUNT",
     "GUARD_CORRECTIONS",
-    "HUMAN_INTERVENTIONS",
     "LLM_CALLS",
     "LLM_LATENCY",
     "LLM_TOKENS",
@@ -336,7 +294,6 @@ __all__ = [
     "TOOL_CACHE_HITS",
     "TOOL_CALLS",
     "TOOL_LATENCY",
-    "TURN_LATENCY",
     "TURN_TOKENS",
     "record_breaker_rejected",
     "record_case_closed",
@@ -352,6 +309,5 @@ __all__ = [
     "record_supplement_rounds",
     "record_tool_cache",
     "record_tool_call",
-    "record_turn",
     "record_turn_tokens",
 ]

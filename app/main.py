@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.responses import PlainTextResponse
 from prometheus_client import generate_latest
 
-from app.api.v1 import cases, evals, health, interventions
+from app.api.v1 import cases, health, interventions
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
 from services.db.session import dispose_engine, init_db
@@ -56,9 +56,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
     from services.cache import get_tool_cache
-    from services.eval_runner import get_eval_runner
 
-    await get_eval_runner().shutdown()  # T051：终止活跃评测子进程（防孤儿进程）
     await (await get_tool_cache()).close()
     await get_checkpoint_manager().close()
     await dispose_engine()
@@ -74,7 +72,6 @@ app = FastAPI(
 
 app.include_router(health.router)
 app.include_router(interventions.router)
-app.include_router(evals.router)
 app.include_router(cases.router)
 
 # T039：OTel 追踪——必须在模块级（应用启动前）instrument：Starlette 的 middleware

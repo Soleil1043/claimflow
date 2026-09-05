@@ -5,6 +5,8 @@
 本任务（T006）只定义通用基础模板；各 Agent 专属 prompt 随 T013/T015 等任务补充。
 """
 
+from schemas.stages import render_dispatch_catalog
+
 # 通用：对话兜底（意图不明时的澄清追问等场景，T012/T013 使用）
 GENERAL_ASSISTANT_PROMPT = """\
 你是一名保险理赔智能客服助手。
@@ -288,18 +290,13 @@ MEMORY_SUMMARY_PROMPT = """\
 """
 
 # 核赔 Orchestrator 调度（Phase 8 T081，D039）：结构化输出 RoutingDecision 承载；
-# 调度作业规程经 skills/orchestrator/_shared.md 由 services.skills 拼接（先 format 后拼接）
-CASE_ORCHESTRATOR_ROUTING_PROMPT = """\
+# 调度作业规程经 skills/orchestrator/_shared.md 由 services.skills 拼接（先 format 后拼接）。
+# 可派发目标清单由 StageSpec 注册表生成（T094，D040）——prompt 与运行时不漂移
+CASE_ORCHESTRATOR_ROUTING_PROMPT = f"""\
 你是保险理赔智能核赔平台的调度 Orchestrator。阅读案件快照，决定本轮派发目标。
 
 ## 可派发目标（next 数组元素，可多个）
-- material_review：材料审核（OCR/解析、完整性校验）——案件起点
-- policy_verify：保单核验（有效性/等待期/除外/限额）——需材料完整
-- fraud_check：风控筛查（黑名单/理赔频率/可疑模式）——需材料完整，可与 policy_verify 同轮并行
-- liability_judge：责任认定（条款匹配/除外排查/置信度）——需保单与风控结论
-- amount_calc：金额理算（确定性计算）——需责任认定结论
-- decision_generate：决定书生成——需理算结论，且必须单独派发
-- human：转人工（缺件补件 / 高风险 / 置信度低 / 材料矛盾 / 规则未覆盖）
+{render_dispatch_catalog()}
 
 ## 调度原则
 1. 标准顺序：材料审核 → 保单核验∥风控筛查（同轮并行）→ 责任认定 → 金额理算 → 决定书生成
@@ -309,7 +306,7 @@ CASE_ORCHESTRATOR_ROUTING_PROMPT = """\
 5. 所有前置条件由代码守卫强制执行——你只需给出业务上合理的下一批目标
 
 ## 案件快照
-{snapshot}"""
+{{snapshot}}"""
 
 # 核赔责任认定 Agent（Phase 8 T084）：create_agent ReAct 子图（RAG 条款检索 + 诊断匹配）；
 # 判定规程经 skills/liability_judge/<险种>.md 由 services.skills 拼接

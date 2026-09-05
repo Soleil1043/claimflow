@@ -13,9 +13,7 @@ from services.cache import (
     reset_tool_cache,
 )
 from tools.base import ClaimflowTool
-from tools.executor import ToolExecutor
 from tools.factory import assemble_tool
-from tools.registry import ToolRegistry
 
 
 def _counter(name: str, **labels: str) -> float:
@@ -131,25 +129,22 @@ class _CalcTool(ClaimflowTool):
         return {"success": True, "n": self._calls}
 
 
-def _executor_with(raw: ClaimflowTool) -> tuple[ToolExecutor, ClaimflowTool]:
-    """守卫装配（含缓存白名单逻辑）+ 兼容壳，返回（executor, 原工具）。"""
-    guarded = assemble_tool(raw, backoff_initial=0.001)
-    registry = ToolRegistry()
-    registry.register(guarded)
-    return ToolExecutor(registry), raw
+def _guarded_with(raw: ClaimflowTool) -> tuple[ClaimflowTool, ClaimflowTool]:
+    """守卫装配（含缓存白名单逻辑），返回（guarded, 原工具）。"""
+    return assemble_tool(raw, backoff_initial=0.001), raw
 
 
 async def test_guard_cache_hit_second_call() -> None:
     """白名单工具相同入参：第二次走缓存（真实执行只发生一次）。"""
     reset_tool_cache()
-    executor, slow = _executor_with(_SlowQueryTool())
+    guarded, slow = _guarded_with(_SlowQueryTool())
 
-    r1 = await executor.execute("policy_query", {"policy_no": "POL-2025-0001"})
-    r2 = await executor.execute("policy_query", {"policy_no": "POL-2025-0001"})
+    r1 = await guarded.ainvoke({"policy_no": "POL-2025-0001"})
+    r2 = await guarded.ainvoke({"policy_no": "POL-2025-0001"})
 
     assert slow.calls == 1, "第二次应命中缓存，不再真实执行"
-    assert r1.success and r2.success
-    assert r2.data == r1.data  # 返回的是缓存的首个结果
+    assert r1["success"] and r2["success"]
+    assert r2 == r1  # 返回的是缓存的首个结果
     hit = _counter("claimflow_tool_cache_hits_total", tool="policy_query", result="hit")
     assert hit >= 1.0
 
@@ -157,10 +152,10 @@ async def test_guard_cache_hit_second_call() -> None:
 async def test_guard_cache_not_for_uncached_tools() -> None:
     """非白名单工具：每次真实执行，无缓存指标。"""
     reset_tool_cache()
-    executor, calc = _executor_with(_CalcTool())
+    guarded, calc = _guarded_with(_CalcTool())
 
-    await executor.execute("claim_calculator", {"policy_no": "A"})
-    await executor.execute("claim_calculator", {"policy_no": "A"})
+    await guarded.ainvoke({"policy_no": "A"})
+    await guarded.ainvoke({"policy_no": "A"})
 
     assert calc.calls == 2, "非白名单工具不缓存"
     assert _counter("claimflow_tool_cache_hits_total", tool="claim_calculator", result="hit") == 0.0
@@ -169,11 +164,11 @@ async def test_guard_cache_not_for_uncached_tools() -> None:
 async def test_guard_cache_metrics_miss_then_hit() -> None:
     """指标三态：miss（首次）→ hit（二次）。"""
     reset_tool_cache()
-    executor, _slow = _executor_with(_SlowQueryTool())
+    guarded, _slow = _guarded_with(_SlowQueryTool())
 
-    await executor.execute("policy_query", {"policy_no": "X-1"})
+    await guarded.ainvoke({"policy_no": "X-1"})
     miss = _counter("claimflow_tool_cache_hits_total", tool="policy_query", result="miss")
-    await executor.execute("policy_query", {"policy_no": "X-1"})
+    await guarded.ainvoke({"policy_no": "X-1"})
     hit = _counter("claimflow_tool_cache_hits_total", tool="policy_query", result="hit")
     assert miss >= 1.0 and hit >= 1.0
 
@@ -203,8 +198,8 @@ async def test_guard_failed_result_not_cached() -> None:
             return {"success": ok} if ok else {"success": False, "error_message": "检索无结果"}
 
     reset_tool_cache()
-    executor, flaky = _executor_with(_FlakyTool())
-    r1 = await executor.execute("claim_rule_rag", {"q": "x"})
-    r2 = await executor.execute("claim_rule_rag", {"q": "x"})
-    assert not r1.success and r2.success
+    guarded, flaky = _guarded_with(_FlakyTool())
+    r1 = await guarded.ainvoke({"q": "x"})
+    r2 = await guarded.ainvoke({"q": "x"})
+    assert not r1["success"] and r2["success"]
     assert flaky.calls == 2, "失败结果不应被缓存"

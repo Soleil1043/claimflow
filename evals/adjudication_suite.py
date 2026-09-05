@@ -288,11 +288,11 @@ def _extract_outcome(
         return AdjudicationOutcome(route=route, kind=kind)
 
     route = "auto"
-    # worker 序列从已完成的阶段 channel 推导（WORKER_STAGES 顺序 = 标准管线序）
-    from nodes.orchestrator import WORKER_STAGES
+    # worker 序列从已完成的阶段 channel 推导（STAGE_SPECS 顺序 = 标准管线序）
+    from schemas.stages import STAGE_CHANNELS, WORKER_TARGETS
 
     worker_sequence = [
-        w for w in WORKER_STAGES if state.get(WORKER_STAGES[w]) is not None
+        str(w) for w in WORKER_TARGETS if state.get(STAGE_CHANNELS[w]) is not None
     ]
     return AdjudicationOutcome(
         route=route,

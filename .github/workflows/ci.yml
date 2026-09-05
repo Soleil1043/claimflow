@@ -54,7 +54,7 @@ jobs:
           docker compose down -v
 
   eval-gate:
-    name: 评测回归门禁（smoke 20 条）
+    name: 核赔评测门禁（金样本确定性回归，T094 改造）
     runs-on: ubuntu-latest
     steps:
       - name: 拉取项目代码到ubuntu
@@ -69,34 +69,13 @@ jobs:
       - name: 安装依赖
         run: uv sync --frozen
 
-      # BGE-M3 嵌入模型 ~2GB：按模型目录缓存，避免每次 CI 全量下载
-      - name: 缓存 HuggingFace 嵌入模型
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/huggingface/hub
-          key: hf-bge-m3-${{ runner.os }}
-
-      # LLM_API_KEY secret 缺失（fork PR / 未配置）时跳过而非失败（D033）
-      - name: 检测评测密钥
-        run: echo "HAS_KEY=${{ secrets.LLM_API_KEY != '' }}" >> "$GITHUB_ENV"
-
-      - name: 重建知识库向量索引
-        if: env.HAS_KEY == 'true'
-        run: uv run python -m services.rag.ingest
-
-      - name: 运行 smoke 评测（20 条）
-        if: env.HAS_KEY == 'true'
-        env:
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-        run: uv run python -m evals.test_suite --limit 20 --out ci_report.json
-
-      - name: 门禁判定（完成率降幅 >5pp 拦截）
-        if: env.HAS_KEY == 'true'
-        run: uv run python scripts/check_eval_gate.py ci_report.json
+      # 确定性模式零 LLM、零向量库（mock 种子 + 临时文件库自包含），
+      # 六门检查（金额 100%/红线 0/守卫拦截 100% 等）不过即退出码非 0
+      - name: 运行核赔金样本评测（确定性全量）
+        run: uv run python -m evals.adjudication_suite
 
       - name: 上传评测报告产物
-        if: env.HAS_KEY == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: eval-ci-report
-          path: ci_report.json
+          path: evals/reports/t089_adjudication_gate.json
