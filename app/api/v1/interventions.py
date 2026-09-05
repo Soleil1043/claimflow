@@ -11,8 +11,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from langgraph.types import Command
 from sqlalchemy import select
@@ -28,6 +26,11 @@ from schemas.api import (
     CaseResolveResponse,
 )
 from schemas.case import PENDING_CASE_STATUSES, CaseStatus
+from services.case_service import (
+    build_agent_resolution,
+    build_supplement_resolution,
+    decision_doc_payload,
+)
 from services.db.models import Case
 
 log = get_logger(__name__)
@@ -111,18 +114,22 @@ async def resolve_case_intervention(
     kind = str((state_values.get("human_request") or {}).get("kind")
                or ("supplement" if case.status == CaseStatus.SUPPLEMENT_PENDING else "review"))
 
-    resolution: dict[str, Any] = {
-        "kind": kind,
-        "action": body.action,
-        "decision": body.decision,
-        "approved_amount": str(body.approved_amount) if body.approved_amount else None,
-        "reason": body.reason,
-        "body": body.body,
-        "note": body.note,
-        "resolved_by": body.resolved_by,
-    }
-    if kind == "supplement" and body.added_materials:
-        resolution["added_materials"] = [m.model_dump() for m in body.added_materials]
+    if kind == "supplement":
+        resolution = build_supplement_resolution(
+            [m.model_dump() for m in body.added_materials or []],
+            resolved_by=body.resolved_by,
+        )
+    else:
+        resolution = build_agent_resolution(
+            kind=kind,
+            action=body.action,
+            decision=body.decision,
+            approved_amount=body.approved_amount,
+            reason=body.reason,
+            body=body.body,
+            note=body.note,
+            resolved_by=body.resolved_by,
+        )
 
     result = await case_graph.ainvoke(
         Command(resume=resolution),
@@ -136,12 +143,5 @@ async def resolve_case_intervention(
         status=case.status,
         final_decision=case.final_decision,
         approved_amount=case.approved_amount,
-        decision_document=(
-            {"version": doc.get("version", 1), "title": doc.get("title", ""),
-             "conclusion": doc.get("conclusion", ""),
-             "approved_amount": doc.get("approved_amount"),
-             "issued_by": doc.get("issued_by", "agent"), "body": doc.get("body", "")}
-            if isinstance(doc, dict)
-            else None
-        ),
+        decision_document=decision_doc_payload(doc if isinstance(doc, dict) else None),
     )

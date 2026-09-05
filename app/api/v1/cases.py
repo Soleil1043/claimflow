@@ -12,7 +12,6 @@ supplement_pending / referred，响应携带 human 信息；恢复通道见 T086
 
 from __future__ import annotations
 
-import datetime as dt
 import time
 import uuid
 from pathlib import Path
@@ -36,7 +35,6 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from schemas.api import (
     CaseCreateRequest,
-    CaseDecisionDocumentOut,
     CaseDetailResponse,
     CaseHumanInfo,
     CaseMaterialUploadResponse,
@@ -45,6 +43,13 @@ from schemas.api import (
 )
 from schemas.case import CaseStatus
 from schemas.lines import all_doc_types
+from services.case_service import (
+    build_supplement_resolution,
+    decision_doc_payload,
+    find_idempotent_case,
+    generate_case_id,
+    new_case,
+)
 from services.case_store import get_default_recorder
 from services.db.models import Case, CaseEvent, DecisionDocument
 from services.materials import detect_material_type, extract_material
@@ -62,38 +67,6 @@ async def _get_case_or_404(case_id: str, session: AsyncSession) -> Case:
     if case is None:
         raise HTTPException(status_code=404, detail="案件不存在")
     return case
-
-
-async def _next_case_id(session: AsyncSession) -> str:
-    """按年生成业务案件号 CASE-YYYY-NNNN（PoC 口径：当年计数 + 1，撞号重试）。"""
-    year = dt.date.today().year
-    for _ in range(5):
-        count = (
-            await session.execute(
-                select(func.count(Case.id)).where(Case.id.like(f"CASE-{year}-%"))
-            )
-        ).scalar_one()
-        candidate = f"CASE-{year}-{count + 1:04d}"
-        exists = (
-            await session.execute(select(Case.id).where(Case.id == candidate))
-        ).scalar_one_or_none()
-        if exists is None:
-            return candidate
-    msg = "案件号生成失败"
-    raise RuntimeError(msg)
-
-
-def _decision_doc_out(doc: DecisionDocument | None) -> CaseDecisionDocumentOut | None:
-    if doc is None:
-        return None
-    return CaseDecisionDocumentOut(
-        version=doc.version,
-        title=doc.title,
-        conclusion=doc.conclusion,
-        approved_amount=doc.approved_amount,
-        issued_by=doc.issued_by,
-        body=doc.body,
-    )
 
 
 async def _latest_decision_doc(
@@ -121,17 +94,14 @@ async def submit_case(
     新建 201；幂等命中 200。自动签发：终态结论/决定书；转人工/补件：挂起状态与
     human 信息（恢复经 interventions，T086）。
     """
-    # 自然键幂等（F01）：重复提交返回既有案件，不重复执行
-    existing = (
-        await session.execute(
-            select(Case).where(
-                Case.user_id == body.user_id,
-                Case.policy_no == body.policy_no,
-                Case.claimed_amount == body.claimed_amount,
-                Case.incident_date == body.incident_date,
-            )
-        )
-    ).scalars().first()
+    # 自然键幂等（F01，service 收口）：重复提交返回既有案件，不重复执行
+    existing = await find_idempotent_case(
+        session,
+        user_id=body.user_id,
+        policy_no=body.policy_no,
+        claimed_amount=body.claimed_amount,
+        incident_date=body.incident_date,
+    )
     if existing is not None:
         log.info("case_submit_idempotent_hit", case_id=existing.id)
         response.status_code = status.HTTP_200_OK
@@ -141,19 +111,17 @@ async def submit_case(
             status=existing.status,
             final_decision=existing.final_decision,
             approved_amount=existing.approved_amount,
-            decision_document=_decision_doc_out(
+            decision_document=decision_doc_payload(
                 await _latest_decision_doc(existing.id, session)
             ),
             human=None,
             idempotent=True,
         )
 
-    case = Case(
-        id=await _next_case_id(session),
+    case = new_case(
+        case_id=await generate_case_id(session),
         user_id=body.user_id,
         policy_no=body.policy_no,
-        case_type="unknown",  # intake 分类写入
-        status=CaseStatus.RECEIVED,
         claimed_amount=body.claimed_amount,
         incident_date=body.incident_date,
         incident_description=body.incident_description,
@@ -199,7 +167,9 @@ async def submit_case(
         status=case.status,
         final_decision=case.final_decision,
         approved_amount=case.approved_amount,
-        decision_document=_decision_doc_out(await _latest_decision_doc(case.id, session)),
+        decision_document=decision_doc_payload(
+            await _latest_decision_doc(case.id, session)
+        ),
         human=human,
     )
 
@@ -233,7 +203,7 @@ async def get_case(
         approved_amount=case.approved_amount,
         final_decision=case.final_decision,
         materials=list(case.materials or []),
-        decision_document=_decision_doc_out(
+        decision_document=decision_doc_payload(
             await _latest_decision_doc(case_id, session)
         ),
         timeline=[
@@ -336,9 +306,9 @@ async def upload_case_material(
     if case.status == CaseStatus.SUPPLEMENT_PENDING:
         try:
             await case_graph.ainvoke(
-                Command(resume={"kind": "supplement",
-                                "added_materials": [materials[-1]],
-                                "resolved_by": "customer_upload"}),
+                Command(resume=build_supplement_resolution(
+                    [materials[-1]], resolved_by="customer_upload"
+                )),
                 config={"configurable": {"thread_id": case.id}, "recursion_limit": 60},
             )
             await session.refresh(case)
