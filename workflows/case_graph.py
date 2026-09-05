@@ -54,14 +54,15 @@ def build_case_graph(
     checkpointer: BaseCheckpointSaver | None = None,
     orchestrator_router: Any = None,
     material_reviewer: Any = None,
-    liability_invoker: Any = "__keyword__",
-    decision_writer: Any = "__fallback__",
+    liability_llm: Any = None,
+    decision_writer: Any = None,
 ) -> Any:
     """编译核赔案件主图（依赖注入版——测试注入内存实现）。
 
-    orchestrator_router：LLM 路由器（async state→RoutingDecision）；None = 纯确定性
-    兜底编排（测试零 LLM）。material_reviewer：材料 AI 一致性审查器；None = 仅规则层。
-    运行时经 create_default_case_graph 注入两者。
+    LLM 注入统一约定（T096）：参数 None = 确定性路径（测试零 LLM / 降级形态）——
+    orchestrator_router=None 纯确定性兜底编排；material_reviewer=None 仅规则层；
+    liability_llm=None 关键词兜底；decision_writer=None 纯代码叙述。
+    运行时经 create_default_case_graph 按配置注入真实实现。
     """
     builder = StateGraph(ClaimCaseState, input_schema=CaseInputState, output_schema=CaseOutput)
 
@@ -76,7 +77,7 @@ def build_case_graph(
     builder.add_node("fraud_check", make_fraud_check_node(recorder, fraud_lookup))
     builder.add_node(
         "liability_judge",
-        make_liability_judge_node(recorder, invoker=liability_invoker),
+        make_liability_judge_node(recorder, llm=liability_llm),
     )
     builder.add_node("amount_calc", make_amount_calc_node(recorder))
     builder.add_node(
@@ -186,10 +187,11 @@ def create_default_case_graph(
     """
     from langgraph.checkpoint.memory import InMemorySaver
 
-    from nodes.liability_judge import keyword_only_invoker
+    from nodes.decision_generate import make_decision_writer
     from nodes.material_review import make_material_ai_reviewer
     from nodes.orchestrator import make_llm_router
     from services.case_store import get_default_recorder
+    from services.worker_agent import invoke_worker
 
     return build_case_graph(
         recorder=get_default_recorder(),  # 共享单例：API 路由同实例，seq 缓存一致（T095）
@@ -198,10 +200,6 @@ def create_default_case_graph(
         checkpointer=checkpointer if checkpointer is not None else InMemorySaver(),
         orchestrator_router=make_llm_router(),
         material_reviewer=make_material_ai_reviewer(),
-        liability_invoker=(
-            None if settings.liability_llm_enabled else keyword_only_invoker
-        ),
-        decision_writer=(
-            None if settings.decision_writer_llm_enabled else "__fallback__"
-        ),
+        liability_llm=invoke_worker if settings.liability_llm_enabled else None,
+        decision_writer=make_decision_writer(),
     )

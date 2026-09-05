@@ -157,7 +157,7 @@ def make_material_review_node(recorder: CaseRecorder, ai_reviewer=None):
     """材料审核节点工厂。ai_reviewer=None 时仅规则层（测试零 LLM）。"""
 
     async def material_review_node(state: ClaimCaseState) -> dict[str, Any]:
-        line = state.get("case_type") or "medical"
+        line = str(state.get("case_type") or "unknown")  # 未上线险种不经此处（intake 守卫）
         entries = state.get("materials") or []
 
         documents: list[ExtractedDocument] = []

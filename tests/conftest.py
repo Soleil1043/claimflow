@@ -20,11 +20,11 @@ def _reset_graph_caches():
     create_agent 子图编译一次即缓存（generator._react_agent / runner._worker_cache），
     各测试文件 patch 的 get_chat_model 不同——不重置会串用上一测试的假模型。
     """
-    import agents.runner as runner_module
+    import services.worker_agent as worker_agent_module
 
-    runner_module._worker_cache.clear()
+    worker_agent_module._worker_cache.clear()
     yield
-    runner_module._worker_cache.clear()
+    worker_agent_module._worker_cache.clear()
 
 
 @pytest.fixture(autouse=True)

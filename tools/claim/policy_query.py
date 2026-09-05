@@ -103,17 +103,12 @@ class PolicyQueryTool(ClaimflowTool):
         }
 
 
-# 险种条款要素（Phase 8 T083；核赔保单核验节点消费）——新险种 pack 在此扩展
-POLICY_TERMS_BY_TYPE: dict[str, dict[str, Any]] = {
-    "医疗险": {
-        "waiting_period_days": 30,
-        "exclusions": ["整形美容", "牙科", "矫正", "先天性疾病", "既往症"],
-        "coverage_scope": ["疾病住院医疗", "住院手术"],
-        "limit_notes": "累计赔付不超过保额",
-    },
-}
-
-
 def get_policy_terms(product_type: str) -> dict[str, Any]:
-    """按产品类型返回条款要素（等待期/除外/保障范围/限额）；未上线险种返回空 dict。"""
-    return POLICY_TERMS_BY_TYPE.get(product_type, {})
+    """按产品类型返回条款要素（等待期/除外/保障范围/限额）。
+
+    条款知识由险种 pack 承载（schemas.lines，T096）；未上线险种返回空 dict。
+    """
+    from schemas.lines import pack_for_product_type
+
+    pack = pack_for_product_type(product_type)
+    return dict(pack.policy_terms) if pack is not None else {}

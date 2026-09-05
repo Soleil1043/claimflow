@@ -5,8 +5,11 @@
    （保单事实是确定性数据，D039：判断交给数据，不交给概率）
 2. LLM 裁定（AgentDefinition + create_agent：claim_rule_rag 条款检索 +
    diagnosis_matcher 诊断匹配，response_format = LiabilityOutput）
-3. 关键词兜底（LLM 失败/解析失败 → T079 规则：除外关键词 + 自费金额识别，
-   D012 兜底判定思想）
+3. 关键词兜底（LLM 不可用/失败 → T079 规则：除外关键词 + 自费金额识别，
+   D012 兜底判定思想；规则数据由险种 pack 承载，T096）
+
+LLM 注入约定（T096 统一，四节点一致）：llm=None = 确定性路径（零 LLM），
+callable = async (agent_def, instruction) -> (result, new_messages)。
 
 工具轨迹随 worker 新增消息并入主图 messages（derive_tool_trace 可派生），
 并摘要写入 stage_result 审计事件。
@@ -19,28 +22,16 @@ import re
 from decimal import Decimal
 from typing import Any
 
-from agents.base import AgentDefinition
-from agents.runner import derive_tool_trace, invoke_worker
 from app.core.logging import get_logger
+from schemas.lines import get_line_pack
 from schemas.stages import LiabilityOutput
 from services.case_store import CaseRecorder
 from services.llm.prompts import CASE_LIABILITY_AGENT_PROMPT
 from services.skills import build_system_prompt
+from services.worker_agent import AgentDefinition, derive_tool_trace
 from state import ClaimCaseState
 
 log = get_logger(__name__)
-
-# 除外责任关键词 → 除外项名称（兜底规则 + 前置判定不可用时的最后防线）
-EXCLUSION_KEYWORDS: tuple[tuple[str, str], ...] = (
-    ("整形", "整形美容"),
-    ("美容", "整形美容"),
-    ("种植牙", "牙科"),
-    ("正畸", "牙科"),
-    ("牙科", "牙科"),
-    ("矫正", "矫正"),
-)
-# 自费/乙类自付金额识别（如"自费内固定材料2500元"）
-_SELF_PAY_RE = re.compile(r"(?:自费|自付)[^0-9]{0,12}([0-9]+(?:\.[0-9]+)?)\s*元")
 
 _EXCLUSION_CLAUSE = "第五条 责任免除"
 _COVERED_CLAUSE = "第三条 保险责任"
@@ -48,19 +39,29 @@ _COVERED_CLAUSE = "第三条 保险责任"
 # 责任认定 Agent 工具集（默认工具图中的守卫工具名）
 LABILITY_TOOL_NAMES = ["claim_rule_rag", "diagnosis_matcher"]
 
+# Agent 定义按险种线缓存（skill 装载随线别；子图编译本身在 worker_agent 层缓存）
+_agent_defs: dict[str, AgentDefinition] = {}
 
-def _build_agent_def() -> AgentDefinition:
-    """责任认定 Agent 静态定义（医疗险 pack；多险种时按 case_type 分定义）。"""
-    return AgentDefinition(
-        name="liability_judge",
-        display_name="责任认定专员",
-        system_prompt=build_system_prompt(
-            CASE_LIABILITY_AGENT_PROMPT, "liability_judge", "medical"
-        ),
-        tool_names=list(LABILITY_TOOL_NAMES),
-        output_schema=LiabilityOutput,
-        description="判定出险是否属于保险责任范围，输出结论/条款引用/置信度",
-    )
+
+def _agent_def_for(line: str) -> AgentDefinition:
+    """按险种线装配责任认定 Agent 定义（多险种 pack 上线时按 case_type 分定义）。"""
+    if line not in _agent_defs:
+        _agent_defs[line] = AgentDefinition(
+            name="liability_judge",
+            display_name="责任认定专员",
+            system_prompt=build_system_prompt(
+                CASE_LIABILITY_AGENT_PROMPT, "liability_judge", line
+            ),
+            tool_names=list(LABILITY_TOOL_NAMES),
+            output_schema=LiabilityOutput,
+            description="判定出险是否属于保险责任范围，输出结论/条款引用/置信度",
+        )
+    return _agent_defs[line]
+
+
+def reset_agent_defs() -> None:
+    """清空 Agent 定义缓存（测试用：skill 文本变更后重建）。"""
+    _agent_defs.clear()
 
 
 def _case_facts(state: ClaimCaseState) -> str:
@@ -90,9 +91,14 @@ def _case_facts(state: ClaimCaseState) -> str:
 
 
 def _keyword_fallback(state: ClaimCaseState) -> LiabilityOutput:
-    """关键词规则兜底（T079 规则保留：LLM 不可用时的最后防线）。"""
+    """关键词规则兜底（T079 规则保留：LLM 不可用时的最后防线）。
+
+    除外关键词/自费识别正则由案件险种的 pack 承载（T096）；
+    无 pack（unknown，正常不会到达）→ 仅按保单事实判定。
+    """
     description = str(state.get("incident_description", ""))
     policy_out = state.get("policy") or {}
+    pack = get_line_pack(state.get("case_type"))
 
     verdict = "covered"
     reason = "出险事件属于保险责任范围"
@@ -105,7 +111,7 @@ def _keyword_fallback(state: ClaimCaseState) -> LiabilityOutput:
         reason = str(policy_out.get("invalid_reason") or "保单保障无效")
         clauses = [_EXCLUSION_CLAUSE]
     else:
-        for keyword, exclusion in EXCLUSION_KEYWORDS:
+        for keyword, exclusion in (pack.exclusion_keywords if pack else ()):
             if keyword in description:
                 verdict = "not_covered"
                 reason = f"「{exclusion}」属于责任免除范围"
@@ -113,8 +119,8 @@ def _keyword_fallback(state: ClaimCaseState) -> LiabilityOutput:
                 clauses = [_EXCLUSION_CLAUSE]
                 break
 
-    if verdict == "covered":
-        match = _SELF_PAY_RE.search(description)
+    if verdict == "covered" and pack is not None and pack.self_pay_pattern:
+        match = re.search(pack.self_pay_pattern, description)
         if match is not None:
             self_pay = Decimal(match.group(1))
             verdict = "partial"
@@ -126,7 +132,7 @@ def _keyword_fallback(state: ClaimCaseState) -> LiabilityOutput:
         clause_references=clauses,
         exclusions_triggered=exclusions,
         self_pay_amount=self_pay,
-        confidence=0.9,  # 规则判定可靠；须过自动签发置信度门槛（0.8）
+        confidence=0.9,  # 规则判定可靠；须过自动签发置信度门槛（auto_approve_confidence_floor）
     )
 
 
@@ -150,13 +156,13 @@ def _policy_precheck(state: ClaimCaseState) -> LiabilityOutput | None:
     return None
 
 
-def make_liability_judge_node(recorder: CaseRecorder, invoker=None, agent_def=None):
+def make_liability_judge_node(recorder: CaseRecorder, llm=None, agent_def=None):
     """责任认定节点工厂。
 
-    invoker：async (agent_def, instruction, shared_data) -> (result, new_messages)；
-    None 用真实 invoke_worker（测试注入脚本化结果）。agent_def 测试可注入替身。
+    llm：async (agent_def, instruction) -> (result, new_messages)；
+    None = 确定性关键词兜底（T096 统一约定，测试/降级零 LLM）。
+    agent_def 测试可注入替身；生产按案件险种线懒装配（_agent_def_for）。
     """
-    agent_def = agent_def or _build_agent_def()
 
     async def liability_judge_node(state: ClaimCaseState) -> dict[str, Any]:
         # 1) 确定性前置：保单事实不经 LLM
@@ -165,13 +171,14 @@ def make_liability_judge_node(recorder: CaseRecorder, invoker=None, agent_def=No
         tools_used: list[str] = []
         if precheck is not None:
             output = precheck
+        elif llm is None:
+            # 2') 确定性路径：关键词兜底（T096 统一 None 语义，非异常驱动）
+            output = _keyword_fallback(state)
         else:
             # 2) LLM 裁定（ReAct：条款检索 + 诊断匹配）
+            agent = agent_def or _agent_def_for(str(state.get("case_type") or "unknown"))
             try:
-                invoker_fn = invoker or invoke_worker
-                result, new_messages = await invoker_fn(
-                    agent_def, _case_facts(state), {}
-                )
+                result, new_messages = await llm(agent, _case_facts(state))
                 output = LiabilityOutput.model_validate(
                     {k: v for k, v in result.items()
                      if k in LiabilityOutput.model_fields}
@@ -196,8 +203,3 @@ def make_liability_judge_node(recorder: CaseRecorder, invoker=None, agent_def=No
         return updates
 
     return liability_judge_node
-
-
-async def keyword_only_invoker(agent_def, instruction, shared_data):
-    """确定性 invoker：直接抛错使节点走关键词兜底（build_case_graph 默认，零 LLM）。"""
-    raise RuntimeError("liability_keyword_mode")

@@ -1,30 +1,34 @@
-"""Worker Agent 执行器（T046，F08）。
+"""Worker Agent 装配与执行（T046 引入；T096 自 agents/ 迁入并去 v1 死重）。
 
-以 AgentDefinition 为蓝本，用官方 `langchain.agents.create_agent` 装配 Worker 子图
-（替代 v1 手写 ReAct 循环，D021/D022）：
+以 AgentDefinition 为蓝本，用官方 `langchain.agents.create_agent` 装配 Worker 子图：
 
 - system_prompt（静态）/ tools（从默认工具图解析的守卫工具）/ response_format（结构化终局输出
   → result["structured_response"]，ToolStrategy：模型终局调用以 schema 命名的隐藏工具）
-- 动态任务指令 + shared_data 上下文经输入 messages 注入（调用侧构造）
+- 任务指令经输入 messages 注入（调用侧构造）
 - tool_trace 由子图返回的 messages 派生（AIMessage.tool_calls ↔ ToolMessage 配对；
-  排除结构化输出工具），A06 used_tools 口径不变
-- 降级语义（v1 对齐）：子图异常向上抛（step_executor 捕获记 failed）；
+  排除结构化输出工具）
+- 降级语义：子图异常向上抛（调用方节点走确定性兜底，D039）；
   模型未产出结构化结论 → 最后一条 AIMessage 原文降级为 {"summary": ...}
-- 防失控：recursion_limit 承载 v1 MAX_TOOL_ROUNDS（每轮 = 模型 + 工具两节点）
+- 防失控：ModelCallLimitMiddleware 硬截断（run_limit=9 ≈ 8 轮工具循环 + 终局）
+
+v1 死重（run_worker_agent 兼容入口、_derive_tool_trace、shared_data 共享数据池）
+已随 T096 删除——唯一消费者 liability_judge 以两参 invoker 调用。
 """
 
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass, field
 from typing import Any
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.tools import BaseTool
 from langgraph.errors import GraphRecursionError
+from pydantic import BaseModel
 
-from agents.base import AgentDefinition
 from app.core.logging import get_logger
 from services.llm.client import get_chat_model
 from services.observability.token_tracker import (
@@ -34,6 +38,33 @@ from services.observability.token_tracker import (
 from tools.factory import get_default_tool_map
 
 log = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class AgentDefinition:
+    """Agent 静态定义（create_agent 三要素：system_prompt / tools / response_format）。
+
+    Attributes:
+        name: Agent 标识（图节点 / 计划步骤引用）
+        display_name: 展示名（日志 / 演示）
+        system_prompt: 系统提示词（来自 services/llm/prompts.py 常量）
+        tool_names: 可用工具名列表（执行时从工具工厂的默认工具图解析）
+        output_schema: 结构化终局输出 schema（response_format，Pydantic 模型）
+        description: Agent 职责一句话描述
+    """
+
+    name: str
+    display_name: str
+    system_prompt: str
+    tool_names: list[str]
+    output_schema: type[BaseModel]
+    description: str
+    # Agent 专属运行参数（预留）
+    extra: dict[str, Any] = field(default_factory=dict)
+
+    def resolve_tool_objects(self, tool_map: dict[str, BaseTool]) -> list[BaseTool]:
+        """从工具图解析本 Agent 可用的工具对象（跳过未装配的）。"""
+        return [tool_map[name] for name in self.tool_names if name in tool_map]
 
 
 class _WorkerTokenHandler(BaseCallbackHandler):
@@ -59,8 +90,8 @@ class _WorkerTokenHandler(BaseCallbackHandler):
 
 # 单个 Worker 步骤内的工具循环预算（v1 MAX_TOOL_ROUNDS=8）。
 # 硬截断由官方 ModelCallLimitMiddleware 承载（run_limit=9 ≈ 8 轮工具循环 + 终局），
-# 超限 exit_behavior="end" 强制收口（与 v1 轮数到顶语义一致，T048 回归实测：
-# "对比两张保单"类多查询任务模型会连续调工具不收口，仅靠 recursion_limit 会爆异常）。
+# 超限 exit_behavior="end" 强制收口（多查询任务模型会连续调工具不收口，仅靠
+# recursion_limit 会爆异常——T048 回归实测）。
 MAX_TOOL_ROUNDS = 8
 _RUN_MODEL_CALL_LIMIT = 9
 _RECURSION_LIMIT = 50
@@ -90,48 +121,15 @@ def reset_worker_cache() -> None:
     _worker_cache.clear()
 
 
-def _build_task_message(instruction: str, shared_data: dict[str, Any]) -> HumanMessage:
-    """构造任务指令：用户诉求 + 前序步骤产出（共享数据池）。"""
-    parts = [f"任务：{instruction}"]
-    if shared_data:
-        context = json.dumps(shared_data, ensure_ascii=False, default=str)
-        # 截断超长上下文（防 Token 失控，shared_data 只保留关键结论）
-        if len(context) > 3000:
-            context = context[:3000] + "…（截断）"
-        parts.append(f"\n前序步骤已获取的数据（可直接引用，勿重复查询）：\n{context}")
-    parts.append("\n请按输出格式要求给出 JSON 结论。")
-    return HumanMessage(content="\n".join(parts))
-
-
-def _derive_tool_trace(
-    agent_name: str, messages: list[Any], known_tools: set[str]
-) -> list[dict[str, Any]]:
-    """从 Worker 子图 messages 派生工具轨迹（按本 Agent 工具白名单过滤）。"""
-    known = known_tools
-    calls: dict[str, dict[str, Any]] = {}
-    for m in messages:
-        for tc in getattr(m, "tool_calls", None) or []:
-            calls[tc["id"]] = tc
-
-    trace: list[dict[str, Any]] = []
-    for m in messages:
-        if not isinstance(m, ToolMessage) or m.name not in known:
-            continue
-        tc = calls.get(m.tool_call_id, {})
-        try:
-            output = json.loads(m.content) if isinstance(m.content, str) else m.content
-        except (json.JSONDecodeError, TypeError):
-            output = {"raw": str(m.content)[:500]}
-        trace.append(
-            {"agent": agent_name, "tool": m.name, "input": tc.get("args", {}), "output": output}
-        )
-    return trace
+def _build_task_message(instruction: str) -> HumanMessage:
+    """构造任务指令消息。"""
+    return HumanMessage(content=f"任务：{instruction}\n\n请按输出格式要求给出 JSON 结论。")
 
 
 def derive_tool_trace(
     messages: list[Any], exclude: set[str] | None = None
 ) -> list[dict[str, Any]]:
-    """任意消息列表 → 工具轨迹（A06 used_tools / 评测口径）。
+    """任意消息列表 → 工具轨迹（审计 / 评测口径）。
 
     AIMessage.tool_calls（id→name/args，AIMessage.name 为产出 Agent）与
     ToolMessage（tool_call_id→output）跨消息配对；exclude 用于剔除
@@ -158,16 +156,16 @@ def derive_tool_trace(
 
 
 async def invoke_worker(
-    agent_def: AgentDefinition, instruction: str, shared_data: dict[str, Any]
+    agent_def: AgentDefinition, instruction: str
 ) -> tuple[dict[str, Any], list[Any]]:
     """执行一个 Worker 子图，返回（结构化结论 dict, 新增消息列表）。
 
     新增消息 = 子图 messages 中除注入任务消息外的全部（工具调用轨迹随之
-    可被上层节点并入主图 messages，A06/评测从 messages 派生 used_tools）。
+    可被上层节点并入主图 messages）。
     结构化失败降级 {"summary": 原文}（不抛错）；子图执行异常向上抛。
     """
     worker = get_worker_subgraph(agent_def)
-    input_messages = [_build_task_message(instruction, shared_data)]
+    input_messages = [_build_task_message(instruction)]
 
     try:
         with track_phase("executor"):
@@ -180,7 +178,7 @@ async def invoke_worker(
             )
     except GraphRecursionError:
         # 防御性兜底（正常由 ModelCallLimitMiddleware 硬截断收口）：
-        # 循环超限 → 按已获信息收口，不炸上层（v1 轮数到顶语义）
+        # 循环超限 → 按已获信息收口，不炸上层
         log.warning("worker_recursion_limit_hit", agent=agent_def.name)
         return {"summary": "（已获取部分信息，未能完成全部查询，请基于现有结论回答或建议用户补充材料。）"}, []
 
@@ -191,27 +189,8 @@ async def invoke_worker(
         log.info("worker_agent_done", agent=agent_def.name, structured=True)
         return structured.model_dump(), new_messages
 
-    # 降级：模型未调用结构化输出工具 → 最后一条有内容的 AIMessage 原文（v1 语义）
+    # 降级：模型未调用结构化输出工具 → 最后一条有内容的 AIMessage 原文
     ai_messages = [m for m in new_messages if isinstance(m, AIMessage) and m.content]
     raw = str(ai_messages[-1].content)[:500] if ai_messages else ""
     log.warning("worker_output_unstructured", agent=agent_def.name, raw=raw[:100])
     return {"summary": raw}, new_messages
-
-
-async def run_worker_agent(
-    agent_def: AgentDefinition,
-    instruction: str,
-    shared_data: dict[str, Any],
-    tool_trace: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
-    """执行一个 Worker Agent 任务，返回结构化结论 dict（兼容入口，T046 测试口径）。
-
-    Args:
-        tool_trace: 可选轨迹列表（就地追加）：本步骤内每次工具调用记录
-            {agent, tool, input, output}，供 A06 used_tools / F08 执行追溯。
-    """
-    result, new_messages = await invoke_worker(agent_def, instruction, shared_data)
-    if tool_trace is not None:
-        known = set(agent_def.tool_names)
-        tool_trace.extend(_derive_tool_trace(agent_def.name, new_messages, known))
-    return result

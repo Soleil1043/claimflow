@@ -65,7 +65,7 @@ def resolve_review(state: ClaimCaseState, resolution: dict[str, Any]) -> dict[st
             # 无既有决定书（高风险短路等未走完管线的案件）：按坐席决议渲染人工核定版
             doc = render_decision_document(
                 case_id=str(state["case_id"]),
-                case_type=str(state.get("case_type") or "medical"),
+                case_type=str(state.get("case_type") or "unknown"),
                 liability={
                     "verdict": str(resolution.get("decision") or "approved"),
                     "reason": note or "人工核定",
@@ -90,7 +90,7 @@ def resolve_review(state: ClaimCaseState, resolution: dict[str, Any]) -> dict[st
     new_version = int(base_decision.get("version") or 0) + 1
     doc = render_decision_document(
         case_id=str(state["case_id"]),
-        case_type=str(state.get("case_type") or "medical"),
+        case_type=str(state.get("case_type") or "unknown"),
         liability={
             "verdict": str(resolution.get("decision") or base_decision.get("conclusion") or "approved"),
             "reason": note or base_decision.get("reason") or "人工改判",

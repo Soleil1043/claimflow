@@ -57,8 +57,8 @@ def _state(**overrides) -> dict:
 
 
 async def test_fallback_writer_deterministic() -> None:
-    """默认 "__fallback__" 哨兵 → 纯代码叙述（零 LLM，确定性）。"""
-    node = make_decision_generate_node(MiniRecorder(), writer="__fallback__")
+    """默认 writer=None → 纯代码叙述（零 LLM，确定性，T096 统一 None 语义）。"""
+    node = make_decision_generate_node(MiniRecorder(), writer=None)
     update = await node(_state())
     doc = update["decision"]
     assert doc["conclusion"] == "approved"

@@ -80,7 +80,7 @@ def make_revise_decision_node(recorder: CaseRecorder):
 
         doc = render_decision_document(
             case_id=state["case_id"],
-            case_type=str(state.get("case_type") or "medical"),
+            case_type=str(state.get("case_type") or "unknown"),
             liability=state.get("liability") or {},
             calc=state.get("calc") or {},
             narrative=None,  # 丢弃叙述——规则版重渲染，确定性修复

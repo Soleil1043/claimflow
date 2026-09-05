@@ -44,6 +44,7 @@ from schemas.api import (
     CaseTimelineEvent,
 )
 from schemas.case import CaseStatus
+from schemas.lines import all_doc_types
 from services.case_store import get_default_recorder
 from services.db.models import Case, CaseEvent, DecisionDocument
 from services.materials import detect_material_type, extract_material
@@ -293,12 +294,7 @@ async def upload_case_material(
 
     result = await extract_material(filename, file.content_type or "", content)
 
-    if doc_type is not None and doc_type not in {
-        "invoice",
-        "diagnosis",
-        "cost_list",
-        "medical_record",
-    }:
+    if doc_type is not None and doc_type not in all_doc_types():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="doc_type 取值非法"
         )

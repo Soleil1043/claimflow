@@ -4,10 +4,10 @@
 结构化数据注入；本节点只负责撰写"核定依据叙述段"（LLM + skill 装配，叙述不含
 金额），LLM 失败回退规则版叙述（fail-open）。决定书版本化落库（save_decision）。
 
-writer 注入三态（与 orchestrator/material 模式一致）：
-- "__fallback__" → 纯代码叙述（build_case_graph 默认，工作流测试零 LLM）
-- None → 真实 LLM 撰写（make_decision_writer，受 decision_writer_llm_enabled 开关）
-- callable → 注入撰写器（测试脚本化）
+writer 注入两态（T096 统一约定：None = 确定性，四节点一致）：
+- None → 纯代码叙述（build_case_graph 默认，工作流测试零 LLM）
+- callable → 注入撰写器 async (state) -> str | None（运行时经 make_decision_writer
+  受 decision_writer_llm_enabled 开关；测试脚本化）
 """
 
 from __future__ import annotations
@@ -28,8 +28,6 @@ from services.skills import build_system_prompt
 from state import ClaimCaseState
 
 log = get_logger(__name__)
-
-FALLBACK_WRITER = "__fallback__"
 
 
 def _narrative_facts(state: ClaimCaseState) -> str:
@@ -70,27 +68,25 @@ def make_decision_writer():
     return writer
 
 
-def make_decision_generate_node(recorder: CaseRecorder, writer: Any = FALLBACK_WRITER):
-    """决定书生成节点工厂（writer 三态见模块 docstring）。"""
+def make_decision_generate_node(recorder: CaseRecorder, writer: Any = None):
+    """决定书生成节点工厂（writer 两态见模块 docstring）。"""
 
     async def decision_generate_node(state: ClaimCaseState) -> dict[str, Any]:
         liability = state.get("liability") or {}
         calc = state.get("calc") or {}
 
         narrative: str | None = None
-        if writer != FALLBACK_WRITER:
-            writer_fn = writer if callable(writer) else make_decision_writer()
-            if writer_fn is not None:
-                try:
-                    narrative = await writer_fn(state)
-                except Exception as exc:  # noqa: BLE001——叙述失败回退规则版（fail-open）
-                    log.warning("decision_narrative_failed",
-                                case_id=state["case_id"], error=str(exc)[:200])
-                    narrative = None
+        if writer is not None:
+            try:
+                narrative = await writer(state)
+            except Exception as exc:  # noqa: BLE001——叙述失败回退规则版（fail-open）
+                log.warning("decision_narrative_failed",
+                            case_id=state["case_id"], error=str(exc)[:200])
+                narrative = None
 
         doc = render_decision_document(
             case_id=state["case_id"],
-            case_type=str(state.get("case_type") or "medical"),
+            case_type=str(state.get("case_type") or "unknown"),
             liability=liability,
             calc=calc,
             narrative=narrative,
