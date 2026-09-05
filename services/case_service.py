@@ -19,7 +19,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas.case import CaseStatus
-from services.db.models import Case, DecisionDocument
+from services.db.models import Case, CaseJob, DecisionDocument
+from services.db.session import get_session_factory
 
 # 已签发状态：案件事实态推导（D046）——auto_issued 时最新版即签发物（auto 签发
 # 不另落版本），closed 时最新版为坐席签发版；其余状态的决定书行均为草稿
@@ -178,3 +179,47 @@ def decision_doc_payload(doc: DecisionDocument | dict[str, Any] | None) -> dict[
         "issued_by": doc.get("issued_by", "agent"),
         "body": doc.get("body", ""),
     }
+
+
+# ===== 挂起信息读模型（T106，D047：job 回执单源） =====
+
+
+def human_info_from_job(job: CaseJob | None) -> dict[str, Any]:
+    """交付回执 → 挂起信息 dict（kind/reason/missing）。
+
+    无回执行的保守默认 = 后端单点收编前端的状态猜测（supplement_pending→
+    supplement，其余→review）；正常流程每个挂起案必有回执（interrupt 即
+    交付任务的成功终态，D044）。
+    """
+    if job is not None and job.outcome == "interrupted":
+        payload = job.interrupt_payload or {}
+        return {
+            "kind": str(payload.get("kind", "review")),
+            "reason": payload.get("reason"),
+            "missing": list(payload.get("missing", []) or []),
+        }
+    return {"kind": "review", "reason": None, "missing": []}
+
+
+def conservative_kind(case_status: str) -> str:
+    """无回执时的保守 kind（supplement_pending→supplement，其余→review）。"""
+    return "supplement" if case_status == CaseStatus.SUPPLEMENT_PENDING else "review"
+
+
+async def latest_jobs_for_cases(case_ids: list[str]) -> dict[str, CaseJob]:
+    """批量取每案件的最新交付任务（工单列表单 SQL，消 N+1）。"""
+    if not case_ids:
+        return {}
+    factory = get_session_factory()
+    async with factory() as session:
+        rows = (
+            await session.execute(
+                select(CaseJob)
+                .where(CaseJob.case_id.in_(case_ids))
+                .order_by(CaseJob.case_id, CaseJob.id.desc())
+            )
+        ).scalars().all()
+    latest: dict[str, CaseJob] = {}
+    for row in rows:
+        latest.setdefault(row.case_id, row)  # id 降序 → 首见即最新
+    return latest

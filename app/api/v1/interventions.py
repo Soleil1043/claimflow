@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_case_dispatcher, get_case_graph, get_db_session
+from app.api.dependencies import get_case_dispatcher, get_db_session
 from app.core.logging import get_logger
 from schemas.api import (
     CaseInterventionHuman,
@@ -24,13 +24,22 @@ from schemas.api import (
     CaseResolveRequest,
     CaseResolveResponse,
 )
-from schemas.case import PENDING_CASE_STATUSES, CaseStatus
-from services.case_jobs import CaseJobConflictError, JobAction, enqueue_case_job, job_envelope
+from schemas.case import PENDING_CASE_STATUSES
+from services.case_jobs import (
+    CaseJobConflictError,
+    JobAction,
+    enqueue_case_job,
+    job_envelope,
+    latest_job,
+)
 from services.case_service import (
     build_agent_resolution,
     build_supplement_resolution,
+    conservative_kind,
     decision_doc_payload,
     decision_doc_view,
+    human_info_from_job,
+    latest_jobs_for_cases,
 )
 from services.db.models import Case
 
@@ -44,9 +53,12 @@ async def list_case_interventions(
     status: str | None = Query(default=None, description="按案件状态筛选"),
     limit: int = Query(default=50, ge=1, le=200),
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
-    case_graph=Depends(get_case_graph),  # noqa: B008
 ) -> CaseInterventionListResponse:
-    """核赔工单列表：interrupt 挂起的案件（补件/复核签批/受理升级）。"""
+    """核赔工单列表：interrupt 挂起的案件（补件/复核签批/受理升级）。
+
+    挂起信息单源 = 交付回执（D047）：单 SQL 批量取最新任务行，不再逐案
+    读 checkpoint（N+1 网络往返消失）。
+    """
     stmt = (
         select(Case)
         .where(Case.status.in_(PENDING_CASE_STATUSES))
@@ -56,22 +68,14 @@ async def list_case_interventions(
     if status:
         stmt = stmt.where(Case.status == status)
     rows = (await session.execute(stmt)).scalars().all()
+    jobs = await latest_jobs_for_cases([c.id for c in rows])
 
     items: list[CaseInterventionItem] = []
     for case in rows:
-        human = CaseInterventionHuman(kind="review")
-        try:
-            state = (
-                await case_graph.aget_state({"configurable": {"thread_id": case.id}})
-            ).values
-            request = state.get("human_request") or {}
-            human = CaseInterventionHuman(
-                kind=str(request.get("kind", "review")),
-                reason=request.get("reason"),
-                missing=list(request.get("missing", []) or []),
-            )
-        except Exception as exc:  # noqa: BLE001——checkpoint 不可读时降级展示
-            log.warning("case_state_read_failed", case_id=case.id, error=str(exc)[:120])
+        info = human_info_from_job(jobs.get(case.id))
+        human = CaseInterventionHuman(
+            kind=info["kind"], reason=info["reason"], missing=info["missing"]
+        )
         items.append(
             CaseInterventionItem(
                 case_id=case.id,
@@ -90,7 +94,6 @@ async def resolve_case_intervention(
     case_id: str,
     body: CaseResolveRequest,
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
-    case_graph=Depends(get_case_graph),  # noqa: B008
     dispatcher=Depends(get_case_dispatcher),  # noqa: B008
 ) -> CaseResolveResponse:
     """处理核赔工单：以 Command(resume=...) 恢复挂起的核赔流程。
@@ -110,11 +113,8 @@ async def resolve_case_intervention(
             detail=f"案件状态为 {case.status}，无待处理工单",
         )
 
-    state_values = (
-        await case_graph.aget_state({"configurable": {"thread_id": case_id}})
-    ).values
-    kind = str((state_values.get("human_request") or {}).get("kind")
-               or ("supplement" if case.status == CaseStatus.SUPPLEMENT_PENDING else "review"))
+    # kind 单源 = 交付回执（D047）；无回执时保守默认收编原状态猜测
+    kind = str(human_info_from_job(await latest_job(case_id))["kind"]) or conservative_kind(case.status)
 
     if kind == "supplement":
         resolution = build_supplement_resolution(

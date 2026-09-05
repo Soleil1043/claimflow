@@ -259,3 +259,34 @@ async def test_cross_restart_resume(env) -> None:
     body = resolved.json()
     assert body["status"] == "closed"
     assert body["final_decision"] == "approved"
+
+
+async def test_intervention_kind_single_source_from_receipt(env) -> None:
+    """D047 挂起信息单源：kind 从交付回执读，不再猜状态。
+
+    - escape 案（未上线险种受理转人工）：kind=escape（旧状态猜测会误标 review）
+    - 列表与 resolve 读同一回执；补件上传恢复后 kind 随新回执更新
+    """
+    ac, _ = env
+    offline = {
+        "user_id": "u-kind-source",
+        "policy_no": "POL-2023-0004",
+        "claimed_amount": "8600.00",
+        "incident_date": "2026-08-25",
+        "incident_description": "雨天摔倒骨折，费用8600元。",
+        "declared_case_type": "accident",
+        "materials": [],
+    }
+    resp = await ac.post("/api/v1/cases", json=offline)
+    case_id = resp.json()["case_id"]
+
+    listing = (await ac.get("/api/v1/interventions/cases")).json()
+    item = next(i for i in listing["items"] if i["case_id"] == case_id)
+    assert item["human"]["kind"] == "escape", "回执单源：escape 不应被状态猜测误标 review"
+
+    resolved = await ac.post(
+        f"/api/v1/interventions/cases/{case_id}/resolve",
+        json={"note": "转专家线下", "resolved_by": "agent-09"},
+    )
+    assert resolved.status_code == 200
+    assert resolved.json()["status"] == "referred"

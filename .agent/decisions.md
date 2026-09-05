@@ -1094,3 +1094,29 @@ agent 新版本。故 issued_by 单列不能判别签发。
 是坐席视图的有意变更）；新增读模型回归用例（挂起案草稿+False /
 auto_issued 签发物+True）。CONTEXT.md"决定书"词条本就定义为签发物，
 机器口径现已对齐。
+
+---
+
+## D047：挂起信息单源——交付回执（T106，2026-09-06，评审二候选 2）
+
+**背景**：同一份挂起信息（kind/reason/missing）有 checkpoint 与 job.interrupt_payload
+两个真相源、三个后端读取口径（工单列表逐案 aget_state N+1 / resolve aget_state /
+详情 _human_from_job）+ 两个前端按 status 猜 kind（escape 案被误标 review——bug 级，
+且 workbench 的猜测喂给处理表单决定形态）。
+
+**决策（grilling 四问，用户 A/A/A/A）**：
+1. **纯 job 回执单源**：latest_job.interrupt_payload 是唯一真相源（interrupt 即交付
+   任务的成功终态，D044——含 escape，intake 转人工作也经 human_gate interrupt）。
+   无回执行的保守默认（supplement_pending→supplement，其余→review）收编进后端
+   单点 human_info_from_job——即原前端猜测逻辑的后端化。不保留 checkpoint 回落
+   （生产全走不到的死路径，且 N+1 代码会被"兼容"理由保下来；PoC 无 T103 前存量）
+2. **列表单 SQL**：latest_jobs_for_cases 批量取每案最新任务行，N+1 checkpoint
+   网络往返消失
+3. **resolve 同切回执**：kind 判定不再 aget_state——interventions 从此完全不依赖
+   case_graph（图交互只剩 case_jobs 执行体一处，依赖瘦身完成）
+4. **前端捆绑**：两详情页删状态猜测行（kind = detail.human?.kind），escape 表单
+   形态 bug 顺带修死；保守默认留在后端单点
+
+**影响**：评审二候选 2 闭环。与候选 3（D046）同主题——读模型口径归一：
+决定书签发物（decision_doc_view）+ 挂起信息（human_info_from_job）两大读模型
+均收口 case_service，前端全部消费 API 投影字段，不再有任何 checkpoint 读取。
