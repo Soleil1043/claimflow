@@ -76,8 +76,8 @@ export default async function CaseDetailPage({
         </div>
       )}
 
-      {/* 决定书 */}
-      {doc && (
+      {/* 决定书（仅签发物；草稿不进客户视图，D046） */}
+      {doc && detail.decision_issued && (
         <div className="cf-card px-5 py-4">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-[15px] font-semibold">{doc.title}</h2>

@@ -30,6 +30,7 @@ from services.case_service import (
     build_agent_resolution,
     build_supplement_resolution,
     decision_doc_payload,
+    decision_doc_view,
 )
 from services.db.models import Case
 
@@ -148,16 +149,14 @@ async def resolve_case_intervention(
 
     await session.refresh(case)
     await session.refresh(job)
-    # 决定书取图 state 投影（与旧 ainvoke 语义一致：仅真签发/更新时存在——
-    # DB 里的 decision_generate 草稿版本不代表已签发）
-    doc = (
-        await case_graph.aget_state({"configurable": {"thread_id": case_id}})
-    ).values.get("decision_document")
+    # 决定书读模型（D046 单源，与 cases 端点同口径）：(最新版, 是否已签发)
+    doc, doc_issued = await decision_doc_view(session, case)
     return CaseResolveResponse(
         case_id=case.id,
         status=case.status,
         final_decision=case.final_decision,
         approved_amount=case.approved_amount,
-        decision_document=decision_doc_payload(doc if isinstance(doc, dict) else None),
+        decision_document=decision_doc_payload(doc),
+        decision_issued=doc_issued,
         job=job_envelope(job),
     )

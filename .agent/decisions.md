@@ -1064,3 +1064,33 @@ request/formatTime 两个活 helper 保留（v2 在用）；layout 删"会话工
 测试：test_conversation_with_messages 随表删（-1），test_session 两用例改用
 Policy 行承载会话提交/回滚语义。全量 444 passed + ruff + 双 build + 迁移
 scratch 验证（升级后恰 9 张业务表）。
+
+---
+
+## D046：决定书读模型归一——签发物由案件状态推导（T105，2026-09-06，评审二候选 3 / Top）
+
+**背景**：decision_generate 在合规审查前落草稿 v1（revise 也落修订版），
+详情端点取最新版不过滤——REJECT/待复核案把未签发草稿当《理赔决定书》
+展示给客户（客户可见错误，对外文书零容忍语义被违反）；resolve 端点则
+读图 state 独走一路。三端点两口径。
+
+**关键事实（设计前提）**：auto 签发路径不另落版本——auto_adjudicate 签发的
+就是最新草稿/修订版行（issued_by="auto" 但它就是签发物）；仅坐席签发落
+agent 新版本。故 issued_by 单列不能判别签发。
+
+**决策（grilling 三问，用户 A/A/A）**：
+1. **读侧规则**（不加列不迁移）：签发物 = 案件终态（auto_issued/closed）时的
+   最新版——是否签发由案件状态推导，完全符合 D006"事实态以 cases 表为准"，
+   不引入第二份事实（否决 issued_at 标记列：状态+标记双事实会漂移）
+2. **响应形状**：decision_document 恒返回最新版（草稿也在，供坐席复核视图）
+   + decision_issued 标志——一个响应形状，两种前端策略：chatui（客户）
+   `issued=false` 不渲染决定书卡；workbench（坐席）渲染但标"草稿·未签发"
+3. **三端点统一**：case_service.decision_doc_view(session, case) → (最新版,
+   是否已签发) 唯一读函数；提交/幂等/详情/resolve 全切换，resolve 的
+   图 state 投影删除
+
+**影响**：评审二候选 3 闭环；测试 test_review_rewrite_red_line 断言从
+"decision_document is None"改为"decision_issued is False"（草稿可见性
+是坐席视图的有意变更）；新增读模型回归用例（挂起案草稿+False /
+auto_issued 签发物+True）。CONTEXT.md"决定书"词条本就定义为签发物，
+机器口径现已对齐。

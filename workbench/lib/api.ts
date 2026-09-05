@@ -81,6 +81,7 @@ export interface CaseJobInfo {
 
 export interface CaseDetail {
   job?: CaseJobInfo | null;
+  decision_issued?: boolean;
   case_id: string;
   user_id: string;
   policy_no: string;

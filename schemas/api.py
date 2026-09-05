@@ -98,6 +98,8 @@ class CaseSubmitResponse(BaseModel):
     human: CaseHumanInfo | None = None
     idempotent: bool = False
     job: CaseJobOut | None = None
+    # 决定书是否已签发（D046：由案件状态推导；False 时 decision_document 为草稿）
+    decision_issued: bool = False
 
 
 class CaseTimelineEvent(BaseModel):
@@ -131,6 +133,7 @@ class CaseDetailResponse(BaseModel):
     # 交付任务与挂起信息（T103：轮询进度 / 补件与转人工的回执，免读 checkpoint）
     job: CaseJobOut | None = None
     human: CaseHumanInfo | None = None
+    decision_issued: bool = False
 
 
 class CaseMaterialUploadResponse(BaseModel):
@@ -209,3 +212,4 @@ class CaseResolveResponse(BaseModel):
     approved_amount: Decimal | None = None
     decision_document: CaseDecisionDocumentOut | None = None
     job: CaseJobOut | None = None
+    decision_issued: bool = False

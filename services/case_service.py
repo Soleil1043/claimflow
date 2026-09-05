@@ -21,6 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from schemas.case import CaseStatus
 from services.db.models import Case, DecisionDocument
 
+# 已签发状态：案件事实态推导（D046）——auto_issued 时最新版即签发物（auto 签发
+# 不另落版本），closed 时最新版为坐席签发版；其余状态的决定书行均为草稿
+ISSUED_CASE_STATUSES = (CaseStatus.AUTO_ISSUED, CaseStatus.CLOSED)
+
 # 自然键幂等（F01）：重复提交返回既有案件，不重复执行核赔
 NATURAL_KEY_FIELDS = ("user_id", "policy_no", "claimed_amount", "incident_date")
 
@@ -126,6 +130,28 @@ def build_agent_resolution(
         "note": note,
         "resolved_by": resolved_by,
     }
+
+
+async def decision_doc_view(
+    session: AsyncSession, case: Case
+) -> tuple[DecisionDocument | None, bool]:
+    """决定书读模型（D046 单源）：返回 (最新版, 是否已签发)。
+
+    签发物 = 案件终态（auto_issued/closed）时的最新版——是否签发由案件状态
+    推导（D006：事实态以 cases 表为准，不另立标记）。
+    未签发时 doc 仍返回（草稿，供坐席复核视图），issued=False；客户视图
+    由前端按 issued 决定渲染。
+    """
+    doc = (
+        await session.execute(
+            select(DecisionDocument)
+            .where(DecisionDocument.case_id == case.id)
+            .order_by(DecisionDocument.version.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    issued = case.status in ISSUED_CASE_STATUSES
+    return doc, issued
 
 
 def decision_doc_payload(doc: DecisionDocument | dict[str, Any] | None) -> dict[str, Any] | None:

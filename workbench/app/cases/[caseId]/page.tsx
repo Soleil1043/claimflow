@@ -112,7 +112,12 @@ export default async function CaseDetailPage({
           <section className="cf-card px-5 py-4">
             <h2 className="cf-kicker mb-3">
               决定书（v{detail.decision_document.version} ·{" "}
-              {detail.decision_document.issued_by}）
+              {detail.decision_document.issued_by}
+              {!detail.decision_issued && (
+                <span className="ml-1 rounded bg-[#FF9500]/[0.15] px-1.5 py-0.5 text-[10px] text-[#8a5300]">
+                  草稿 · 未签发
+                </span>
+              )}）
             </h2>
             <div className="mb-2 flex flex-wrap items-center gap-2 text-[12px] text-cf-text-2">
               <span>{detail.decision_document.title}</span>

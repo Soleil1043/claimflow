@@ -303,3 +303,30 @@ async def test_submit_background_mode_reaches_terminal(client, monkeypatch) -> N
         assert detail["decision_document"] is not None
     finally:
         await loop.stop(timeout_s=5)
+
+
+async def test_decision_doc_view_issued_vs_draft(client: AsyncClient) -> None:
+    """D046 决定书读模型：签发与否由案件状态推导。
+
+    - 挂起复核案（超阈值转人工）：详情返回草稿（decision_document 非空）
+      但 decision_issued=False——客户视图不渲染，坐席视图标注草稿
+    - auto_issued 案：decision_issued=True，文档即签发物
+    """
+    # 超阈值 → review 挂起（走完决定书阶段，草稿已落库）
+    referred = await client.post(
+        "/api/v1/cases", json=_body(claimed_amount="62000.00")
+    )
+    assert referred.status_code == 201
+    rid = referred.json()["case_id"]
+    detail = (await client.get(f"/api/v1/cases/{rid}")).json()
+    assert detail["status"] == "referred"
+    assert detail["decision_document"] is not None, "草稿应在库（坐席复核用）"
+    assert detail["decision_issued"] is False
+
+    # 正常签发
+    issued = await client.post("/api/v1/cases", json=_body())
+    iid = issued.json()["case_id"]
+    detail2 = (await client.get(f"/api/v1/cases/{iid}")).json()
+    assert detail2["status"] == "auto_issued"
+    assert detail2["decision_issued"] is True
+    assert detail2["decision_document"]["version"] == 1

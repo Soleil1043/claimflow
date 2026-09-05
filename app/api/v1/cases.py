@@ -52,12 +52,13 @@ from services.case_jobs import (
 from services.case_service import (
     build_supplement_resolution,
     decision_doc_payload,
+    decision_doc_view,
     find_idempotent_case,
     generate_case_id,
     new_case,
 )
 from services.case_store import get_default_recorder
-from services.db.models import Case, CaseEvent, CaseJob, DecisionDocument
+from services.db.models import Case, CaseEvent, CaseJob
 from services.materials import detect_material_type, extract_material
 from services.memory.case_memory import search_case_memories
 
@@ -89,19 +90,6 @@ async def _get_case_or_404(case_id: str, session: AsyncSession) -> Case:
     return case
 
 
-async def _latest_decision_doc(
-    case_id: str, session: AsyncSession
-) -> DecisionDocument | None:
-    return (
-        await session.execute(
-            select(DecisionDocument)
-            .where(DecisionDocument.case_id == case_id)
-            .order_by(DecisionDocument.version.desc())
-            .limit(1)
-        )
-    ).scalar_one_or_none()
-
-
 @router.post("", response_model=CaseSubmitResponse, status_code=status.HTTP_201_CREATED)
 async def submit_case(
     body: CaseCreateRequest,
@@ -124,15 +112,15 @@ async def submit_case(
     if existing is not None:
         log.info("case_submit_idempotent_hit", case_id=existing.id)
         response.status_code = status.HTTP_200_OK
+        existing_doc, existing_issued = await decision_doc_view(session, existing)
         return CaseSubmitResponse(
             case_id=existing.id,
             case_type=existing.case_type,
             status=existing.status,
             final_decision=existing.final_decision,
             approved_amount=existing.approved_amount,
-            decision_document=decision_doc_payload(
-                await _latest_decision_doc(existing.id, session)
-            ),
+            decision_document=decision_doc_payload(existing_doc),
+            decision_issued=existing_issued,
             human=None,
             idempotent=True,
         )
@@ -171,6 +159,7 @@ async def submit_case(
     # 执行体（inline 同请求 / background 循环）经独立会话更新行——重读权威快照
     await session.refresh(case)
     await session.refresh(job)
+    doc, doc_issued = await decision_doc_view(session, case)
 
     return CaseSubmitResponse(
         case_id=case.id,
@@ -178,9 +167,8 @@ async def submit_case(
         status=case.status,
         final_decision=case.final_decision,
         approved_amount=case.approved_amount,
-        decision_document=decision_doc_payload(
-            await _latest_decision_doc(case.id, session)
-        ),
+        decision_document=decision_doc_payload(doc),
+        decision_issued=doc_issued,
         human=_human_from_job(job),
         job=job_envelope(job),
     )
@@ -209,6 +197,7 @@ async def get_case(
         .all()
     )
     job = await latest_job(case_id)
+    doc, doc_issued = await decision_doc_view(session, case)
     return CaseDetailResponse(
         case_id=case.id,
         user_id=case.user_id,
@@ -219,9 +208,8 @@ async def get_case(
         approved_amount=case.approved_amount,
         final_decision=case.final_decision,
         materials=list(case.materials or []),
-        decision_document=decision_doc_payload(
-            await _latest_decision_doc(case_id, session)
-        ),
+        decision_document=decision_doc_payload(doc),
+        decision_issued=doc_issued,
         timeline=[
             CaseTimelineEvent(
                 seq=e.seq,

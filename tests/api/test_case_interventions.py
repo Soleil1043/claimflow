@@ -164,7 +164,8 @@ async def test_review_rewrite_red_line_safe_referred(env) -> None:
     assert resolved.status_code == 200
     body = resolved.json()
     assert body["final_decision"] == "referred"  # 红线拦截，安全兜底
-    assert body["decision_document"] is None  # 未签发文书
+    # D046：未签发——草稿可见（坐席复核视图）但 decision_issued=False
+    assert body["decision_issued"] is False
 
 
 async def test_review_rewrite_override_issues_agent_doc(env) -> None:
