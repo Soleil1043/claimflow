@@ -31,6 +31,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from schemas import contract
+from schemas.lines import MEDICAL_PACK
 from services.amounts import approved_amount
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -220,6 +221,9 @@ def main() -> None:
         )
 
     # ---------- 除外责任（标准拒赔） ----------
+    # 覆盖性契约（T101）：每条排除描述必须含险种包的至少一个排除关键词——
+    # 描述词表与包关键词从此单一来源对齐，漂移在生成时即报错而非评测时静默漏判
+    exclusion_keywords = [kw for kw, _ in MEDICAL_PACK.exclusion_keywords]
     for user, policy_no, desc in [
         ("u-zhangwei", "POL-2025-0001", "鼻综合整形手术"),
         ("u-zhangwei", "POL-2025-0001", "种植牙两颗"),
@@ -234,6 +238,10 @@ def main() -> None:
         ("u-zhangwei", "POL-2025-0001", "牙齿种植手术"),
         ("u-liuyang", "POL-2026-0005", "视力矫正激光手术"),
     ]:
+        assert any(kw in desc for kw in exclusion_keywords), (
+            f"排除描述「{desc}」不含险种包任何排除关键词 {exclusion_keywords}——"
+            "确定性兜底将漏判，请改写描述或补包关键词"
+        )
         claimed = "12000.00"
         add(
             user_id=user, policy_no=policy_no, claimed=claimed,

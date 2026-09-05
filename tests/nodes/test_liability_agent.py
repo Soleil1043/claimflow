@@ -9,6 +9,7 @@ import pytest
 from nodes.liability_judge import (
     LiabilityOutput,
     _agent_def_for,
+    _keyword_fallback,
     make_liability_judge_node,
 )
 
@@ -175,3 +176,31 @@ async def test_fallback_matrix(description: str, expected: str) -> None:
     node = make_liability_judge_node(MiniRecorder(), llm=None)
     update = await node(_state(incident_description=description))
     assert update["liability"]["verdict"] == expected
+
+
+# ===== 契约测试（T101）：金样本排除案必须被确定性兜底判 not_covered =====
+# 这次契约曾在 T089 评测门上静默漂移（E-0056/E-0062 词序/词表缺口 → 金额硬门 97.73%）——
+# 本测试把「生成器排除描述 ⊆ 险种包关键词覆盖」钉进测试面，漂移从此在单测暴露。
+
+
+def _dataset_exclusion_cases() -> list[tuple[str, str]]:
+    import json
+    from pathlib import Path
+
+    dataset = json.loads(
+        (Path(__file__).resolve().parents[2] / "evals/datasets/adjudication.json")
+        .read_text(encoding="utf-8")
+    )
+    return [
+        (c["case_id"], c["incident_description"])
+        for c in dataset["cases"]
+        if c.get("expected", {}).get("note") == "除外责任，标准拒赔"
+    ]
+
+
+@pytest.mark.parametrize(("case_id", "description"), _dataset_exclusion_cases())
+def test_gold_exclusion_cases_caught_by_keyword_fallback(case_id: str, description: str) -> None:
+    state = _state(incident_description=description)
+    output = _keyword_fallback(state)
+    assert output.verdict == "not_covered", f"{case_id} 兜底未命中除外关键词"
+    assert output.exclusions_triggered, f"{case_id} 应记录触发的除外项"
