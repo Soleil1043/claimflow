@@ -54,6 +54,7 @@ from services.case_store import get_default_recorder
 from services.db.models import Case, CaseEvent, DecisionDocument
 from services.materials import detect_material_type, extract_material
 from services.observability import metrics as obs
+from services.observability.token_tracker import track_case
 
 log = get_logger(__name__)
 
@@ -132,19 +133,20 @@ async def submit_case(
     await session.commit()
 
     started = time.monotonic()
-    result = await case_graph.ainvoke(
-        {
-            "case_id": case.id,
-            "user_id": body.user_id,
-            "policy_id": body.policy_no,
-            "claimed_amount": body.claimed_amount,
-            "incident_date": body.incident_date,
-            "incident_description": body.incident_description,
-            "declared_case_type": body.declared_case_type,
-            "materials": [m.model_dump() for m in body.materials],
-        },
-        config={"configurable": {"thread_id": case.id}, "recursion_limit": 60},
-    )
+    with track_case(case.id):  # 案件维度 token 归集（T099 CASE_TOKENS）
+        result = await case_graph.ainvoke(
+            {
+                "case_id": case.id,
+                "user_id": body.user_id,
+                "policy_id": body.policy_no,
+                "claimed_amount": body.claimed_amount,
+                "incident_date": body.incident_date,
+                "incident_description": body.incident_description,
+                "declared_case_type": body.declared_case_type,
+                "materials": [m.model_dump() for m in body.materials],
+            },
+            config={"configurable": {"thread_id": case.id}, "recursion_limit": 60},
+        )
 
     obs.record_case_duration(time.monotonic() - started)
 
@@ -305,12 +307,13 @@ async def upload_case_material(
     resume_status: str | None = None
     if case.status == CaseStatus.SUPPLEMENT_PENDING:
         try:
-            await case_graph.ainvoke(
-                Command(resume=build_supplement_resolution(
-                    [materials[-1]], resolved_by="customer_upload"
-                )),
-                config={"configurable": {"thread_id": case.id}, "recursion_limit": 60},
-            )
+            with track_case(case.id):
+                await case_graph.ainvoke(
+                    Command(resume=build_supplement_resolution(
+                        [materials[-1]], resolved_by="customer_upload"
+                    )),
+                    config={"configurable": {"thread_id": case.id}, "recursion_limit": 60},
+                )
             await session.refresh(case)
             resume_status = case.status
         except Exception as exc:  # noqa: BLE001——恢复失败不阻塞上传（可经工单重试）

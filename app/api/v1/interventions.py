@@ -32,6 +32,7 @@ from services.case_service import (
     decision_doc_payload,
 )
 from services.db.models import Case
+from services.observability.token_tracker import track_case
 
 log = get_logger(__name__)
 
@@ -131,10 +132,11 @@ async def resolve_case_intervention(
             resolved_by=body.resolved_by,
         )
 
-    result = await case_graph.ainvoke(
-        Command(resume=resolution),
-        config={"configurable": {"thread_id": case_id}, "recursion_limit": 60},
-    )
+    with track_case(case_id):  # 案件维度 token 归集（T099 CASE_TOKENS）
+        result = await case_graph.ainvoke(
+            Command(resume=resolution),
+            config={"configurable": {"thread_id": case_id}, "recursion_limit": 60},
+        )
     await session.refresh(case)
 
     doc = result.get("decision_document") if isinstance(result, dict) else None

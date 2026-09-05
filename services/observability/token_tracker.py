@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
@@ -31,6 +32,8 @@ _current_tracker: ContextVar[TurnTokenTracker | None] = ContextVar(
 )
 # 当前环节标注（intent / planner / executor / generator / compliance）
 _current_phase: ContextVar[str] = ContextVar("claimflow_llm_phase", default="other")
+# 当前案件上下文（核赔管线 T099）：置位时 LLM 用量按案件维度记 CASE_TOKENS
+_current_case: ContextVar[str | None] = ContextVar("claimflow_case_id", default=None)
 
 
 @dataclass
@@ -147,10 +150,26 @@ def current_phase() -> str:
 
 
 def record_usage_to_tracker(model: str, prompt_tokens: int, completion_tokens: int) -> None:
-    """observed_ainvoke 回调：归集到当前上下文的 tracker（若有）。"""
+    """observed_ainvoke 回调：归集到当前上下文的 tracker（若有）。
+
+    案件上下文置位时（核赔管线，T099）另记 CASE_TOKENS{model} 案件维度指标。
+    """
     tracker = _current_tracker.get()
     if tracker is not None:
         tracker.add(model, prompt_tokens, completion_tokens, _current_phase.get())
+    case_id = _current_case.get()
+    if case_id is not None:
+        metrics.record_case_tokens(model, prompt_tokens + completion_tokens)
+
+
+@contextmanager
+def track_case(case_id: str):
+    """案件维度 token 归集上下文（核赔路由在图调用外包裹，T099）。"""
+    token = _current_case.set(case_id)
+    try:
+        yield
+    finally:
+        _current_case.reset(token)
 
 
 async def phase_ainvoke(

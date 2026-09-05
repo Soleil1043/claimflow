@@ -21,6 +21,7 @@ from app.core.logging import get_logger
 from schemas.case import CaseStatus
 from services.case_store import CaseRecorder
 from services.decision_doc import render_decision_document
+from services.observability import metrics
 from state import ClaimCaseState
 from tools.compliance.rule_check import check_text
 
@@ -151,6 +152,9 @@ def make_human_gate_node(recorder: CaseRecorder):
         }
 
         if kind == "supplement":
+            # 补件恢复埋点（T090 SUPPLEMENT_ROUNDS 接线，T099）：每次补件 observe 1，
+            # 指标 sum = 补件恢复总次数
+            metrics.record_supplement_rounds(1)
             added = list(resolution.get("added_materials") or [])
             update["materials"] = list(state.get("materials") or []) + added
             return update

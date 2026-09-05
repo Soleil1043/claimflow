@@ -20,6 +20,7 @@ from typing import Any
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from schemas.stages import ComplianceOutput
 from services.case_store import CaseRecorder
 from services.decision_doc import render_decision_document, review_decision_document
 from state import ClaimCaseState
@@ -56,13 +57,15 @@ def make_compliance_gate_node(recorder: CaseRecorder):
                 {"type": "max_rounds", "detail": f"修订已达上限 {settings.compliance_max_rounds} 轮"}
             )
 
+        # 经阶段 schema 校验后落 channel（T099：compliance 与其余阶段同走 stages.py 模型）
+        payload = ComplianceOutput(**review).model_dump(mode="json")
         await recorder.event(
             state["case_id"],
             "stage_result",
             stage="compliance_gate",
-            payload=review,
+            payload=payload,
         )
-        return {"compliance": review}
+        return {"compliance": payload}
 
     return compliance_gate_node
 

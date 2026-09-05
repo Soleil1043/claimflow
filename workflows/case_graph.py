@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -43,7 +44,21 @@ from nodes.policy_verify import make_policy_verify_node
 from schemas.case import CaseInputState, CaseOutput
 from schemas.stages import STAGE_SPECS
 from services.case_store import CaseRecorder
+from services.observability.metrics import record_case_stage
 from state import ClaimCaseState
+
+
+def _timed(stage: str, fn: Any) -> Any:
+    """worker 节点阶段耗时埋点包装（T090 CASE_STAGE_LATENCY 接线，T099 补齐）。"""
+
+    async def timed_node(state: dict[str, Any]) -> dict[str, Any]:
+        start = time.monotonic()
+        try:
+            return await fn(state)
+        finally:
+            record_case_stage(stage, time.monotonic() - start)
+
+    return timed_node
 
 
 def build_case_graph(
@@ -71,17 +86,27 @@ def build_case_graph(
         "orchestrator", make_orchestrator_node(recorder, orchestrator_router)
     )
     builder.add_node(
-        "material_review", make_material_review_node(recorder, material_reviewer)
+        "material_review",
+        _timed("material_review", make_material_review_node(recorder, material_reviewer)),
     )
-    builder.add_node("policy_verify", make_policy_verify_node(recorder, policy_lookup))
-    builder.add_node("fraud_check", make_fraud_check_node(recorder, fraud_lookup))
+    builder.add_node(
+        "policy_verify",
+        _timed("policy_verify", make_policy_verify_node(recorder, policy_lookup)),
+    )
+    builder.add_node(
+        "fraud_check",
+        _timed("fraud_check", make_fraud_check_node(recorder, fraud_lookup)),
+    )
     builder.add_node(
         "liability_judge",
-        make_liability_judge_node(recorder, llm=liability_llm),
+        _timed("liability_judge", make_liability_judge_node(recorder, llm=liability_llm)),
     )
-    builder.add_node("amount_calc", make_amount_calc_node(recorder))
     builder.add_node(
-        "decision_generate", make_decision_generate_node(recorder, decision_writer)
+        "amount_calc", _timed("amount_calc", make_amount_calc_node(recorder))
+    )
+    builder.add_node(
+        "decision_generate",
+        _timed("decision_generate", make_decision_generate_node(recorder, decision_writer)),
     )
     builder.add_node("compliance_gate", make_compliance_gate_node(recorder))
     builder.add_node(

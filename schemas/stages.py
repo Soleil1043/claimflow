@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -126,11 +126,11 @@ class DecisionDocOutput(BaseModel):
 
 
 class ComplianceOutput(BaseModel):
-    """合规门产出：三态裁决 + 金额一致性断言结果。"""
+    """合规门产出：三态裁决 + 金额一致性断言结果（T099 与节点实际产出对齐）。"""
 
     stage: Literal["compliance_gate"] = "compliance_gate"
     verdict: ComplianceVerdict
-    violations: list[str] = Field(default_factory=list)
+    violations: list[dict[str, Any]] = Field(default_factory=list)
     suggestion: str | None = None
     risk_score: float = 0.0
     # 决定书正文金额 == calc.approved_amount 的机器断言结果（不依赖 LLM）
