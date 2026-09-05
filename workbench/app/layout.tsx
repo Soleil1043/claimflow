@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "claimflow 坐席工作台",
-  description: "人工介入工单处理（转人工会话的上下文审阅与结论回写）",
+  description: "核赔工单处理（人工复核签批与补件）",
 };
 
 /**
@@ -36,12 +36,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 className="rounded-full px-3 py-1.5 font-medium text-cf-text transition-colors hover:bg-black/[0.05]"
               >
                 核赔工单
-              </Link>
-              <Link
-                href="/"
-                className="rounded-full px-3 py-1.5 font-medium text-cf-text-2 transition-colors hover:bg-black/[0.05]"
-              >
-                会话工单
               </Link>
             </nav>
             <div className="hidden text-[11px] text-cf-text-2 md:block">

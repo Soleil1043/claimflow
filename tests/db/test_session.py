@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import services.db.session as session_module
-from services.db.models import Base, Conversation
+from services.db.models import Base, Policy
 
 
 @pytest.fixture()
@@ -29,34 +29,47 @@ async def patched_engine(monkeypatch):
     await engine.dispose()
 
 
+def _policy(no: str) -> Policy:
+    import datetime as dt
+    from decimal import Decimal
+
+    return Policy(
+        policy_no=no, holder_name="会话测试", holder_id_card="330106199203154817",
+        product_name="安心医疗", product_type="医疗险",
+        coverage_amount=Decimal("1000000"), deductible=Decimal("10000"),
+        payout_ratio=Decimal("0.8"), effective_date=dt.date(2025, 1, 1),
+        expiry_date=dt.date(2026, 12, 31), status="active",
+    )
+
+
 async def test_get_session_commits_on_success(patched_engine) -> None:
     """正常路径：请求处理完成（生成器自然耗尽）后数据提交。"""
     gen = session_module.get_session()
     session = await gen.__anext__()
-    session.add(Conversation(user_id="demo-user"))
+    session.add(_policy("POL-SES-0001"))
     # 驱动生成器跑完（模拟 FastAPI 依赖正常结束），触发 commit
     with pytest.raises(StopAsyncIteration):
         await gen.__anext__()
 
     factory = session_module.get_session_factory()
     async with factory() as check:
-        rows = (await check.execute(select(Conversation))).scalars().all()
+        rows = (await check.execute(select(Policy))).scalars().all()
         assert len(rows) == 1
-        assert rows[0].user_id == "demo-user"
+        assert rows[0].policy_no == "POL-SES-0001"
 
 
 async def test_get_session_rolls_back_on_error(patched_engine) -> None:
     """异常路径：请求处理抛错（athrow 注入）触发回滚，数据不入库。"""
     gen = session_module.get_session()
     session = await gen.__anext__()
-    session.add(Conversation(user_id="rollback-user"))
+    session.add(_policy("POL-SES-0002"))
 
     with pytest.raises(RuntimeError, match="boom"):
         await gen.athrow(RuntimeError("boom"))
 
     factory = session_module.get_session_factory()
     async with factory() as check:
-        rows = (await check.execute(select(Conversation))).scalars().all()
+        rows = (await check.execute(select(Policy))).scalars().all()
         assert rows == []
 
 
@@ -81,14 +94,11 @@ async def test_init_db_creates_all_tables(tmp_path, monkeypatch) -> None:
             )
         )
     assert created == {
-        "conversations",
-        "messages",
-        "policies",
+                        "policies",
         "medical_records",
         "claim_records",
         "kb_documents",
-        "human_tickets",
-        "eval_runs",
+                "eval_runs",
         "cases",
         "case_events",
         "decision_documents",

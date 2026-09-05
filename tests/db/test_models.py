@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import uuid
 from decimal import Decimal
 
 import pytest
@@ -19,11 +18,9 @@ from services.db.models import (
     Case,
     CaseEvent,
     ClaimRecord,
-    Conversation,
     DecisionDocument,
     KbDocument,
     MedicalRecord,
-    Message,
     Policy,
 )
 
@@ -41,17 +38,14 @@ async def db_session():
 
 
 async def test_all_tables_created(db_session) -> None:
-    """12 张业务表全部可建、可查（核赔域 cases/case_events/decision_documents/case_jobs）。"""
+    """9 张业务表全部可建、可查（核赔域 cases/case_events/decision_documents/case_jobs）。"""
     tables = {t for t in Base.metadata.tables}
     assert tables == {
-        "conversations",
-        "messages",
-        "policies",
+                        "policies",
         "medical_records",
         "claim_records",
         "kb_documents",
-        "human_tickets",
-        "eval_runs",
+                "eval_runs",
         "cases",
         "case_events",
         "decision_documents",
@@ -60,40 +54,6 @@ async def test_all_tables_created(db_session) -> None:
     for table in Base.metadata.tables.values():
         # 每张表均可查询（空表 select 即验证表结构已创建）
         await db_session.execute(select(table))
-
-
-async def test_conversation_with_messages(db_session) -> None:
-    """会话 + 消息：UUID 主键、外键、JSON 字段往返。"""
-    conv = Conversation(user_id="demo-user")
-    db_session.add(conv)
-    await db_session.flush()
-
-    msg = Message(
-        conversation_id=conv.id,
-        role="assistant",
-        content="预估赔付金额为 792,000 元",
-        intent="complex_consult",
-        tool_trace=[
-            {"tool": "policy_query", "input": {"policy_no": "POL-2025-0001"}, "duration_ms": 35},
-            {"tool": "claim_calculator", "input": {"amount": 1000000}, "duration_ms": 12},
-        ],
-        agent_steps=[{"agent": "medical", "status": "done"}, {"agent": "claim", "status": "done"}],
-        compliance_status="PASS",
-    )
-    db_session.add(msg)
-    await db_session.flush()
-
-    result = await db_session.execute(select(Message).where(Message.conversation_id == conv.id))
-    loaded = result.scalar_one()
-    assert loaded.role == "assistant"
-    assert loaded.intent == "complex_consult"
-    assert len(loaded.tool_trace) == 2
-    assert loaded.tool_trace[0]["tool"] == "policy_query"
-    assert loaded.agent_steps[0]["agent"] == "medical"
-    assert loaded.compliance_status == "PASS"
-    assert isinstance(loaded.conversation_id, uuid.UUID)
-    # server_default 生效
-    assert loaded.created_at is not None
 
 
 async def test_policy_numeric_and_date_fields(db_session) -> None:

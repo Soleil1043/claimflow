@@ -1040,3 +1040,27 @@ workbench resolve 表单轮询详情至离开挂起态（≤20s）。
 验证：13 单元（outbox/冲突/CAS/退避/死信/孤儿回收/循环回路）+ 20 API
 （19 既有 inline 零断言改动 + background 全回路新用例）+ 445 全量 passed +
 ruff 绿 + 双前端 build 绿。
+
+---
+
+## D045：v1 会话残留死栈清除（T104，2026-09-06，评审二候选 1）
+
+**背景**：第二轮架构评审实证 T093 删旧漏了前端与 schema 层——workbench 首页
+（导航默认页）调用已删端点 GET /api/v1/interventions 永远 404；schemas/api.py
+约 182 行 v1 会话 schema 零引用；chatui/lib/api.ts 整文件孤儿；三张 v1 表
+（conversations/messages/human_tickets）仅 ORM 自引用。两套"工单"词汇污染领域语言。
+
+**决策（grilling 三问，用户 A/A/A）**：
+1. 代码全删 + **迁移 drop 三张死表**（d9a5c1e8f3b7）——与 D040 留 EvalRunRecord
+   不同：那是评测基建有复用语义，这三张是 v1 产品本体永无复用；DROP 无 SQLite
+   ALTER 限制，downgrade 不重建（表定义已随 ORM 删，需要时从 git 历史恢复）
+2. workbench 首页 redirect('/cases')（坐席直达核赔工单，URL 结构零改动）
+3. 验收 = 引用清零 + 全量 pytest + 双前端 build + 迁移执行验证（grep 项检），
+   不跑服务冒烟（纯删除不触后端行为）
+
+**执行事实**：workbench 删 v1 栈四组件（StatusBadge/ResolveForm/MessageTimeline/
+AuditViewer 均仅 v1 链引用）+ tickets 页；lib/api.ts v1 段 16 类型/函数删、
+request/formatTime 两个活 helper 保留（v2 在用）；layout 删"会话工单"导航。
+测试：test_conversation_with_messages 随表删（-1），test_session 两用例改用
+Policy 行承载会话提交/回滚语义。全量 444 passed + ruff + 双 build + 迁移
+scratch 验证（升级后恰 9 张业务表）。
