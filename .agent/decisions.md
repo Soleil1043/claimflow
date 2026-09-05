@@ -895,3 +895,61 @@ case_graph 回边元组、state.py、路由 prompt、测试元组、评测集）
   long_term/ocr_extract 等活跃模块调用（评审报告此处有误，按 grep 实证修正）；
   仅删 record_turn/CONVERSATION_TURNS/TURN_LATENCY/HUMAN_INTERVENTIONS/
   COMPLIANCE_VERDICTS（唯一调用方 record_turn 属 v1 会话链）
+
+---
+
+## D041：架构评审候选 2-6 落地决策（T095-T099，2026-09-05）
+
+用户拍板"按建议顺序完成 6 个候选"（4 → 2+3 → 5 → 6 → 遗留）。逐任务关键决策：
+
+**T095（候选 4，seq/状态机）**：
+- seq 分配器归一：get_default_recorder 改共享单例（图节点与 API 路由同实例，
+  进程内缓存对全部写入者一致）+ DB 层 (case_id, seq) 唯一约束兜底跨实例 +
+  IntegrityError 失效缓存重试（≤3 次）；迁移 b5f9c3d7e2a4 先去重历史重号行再加约束
+- CaseStatus 由 Literal 别名升级 StrEnum，7 个写入点全部引用枚举成员；
+  工单挂起态集合 PENDING_CASE_STATUSES 由 schemas.case 单源
+- 不做全量状态迁移矩阵（YAGNI）：枚举 + 挂起集合已覆盖现行断言需求
+
+**T096（候选 2+3，险种 pack + agents/）**：
+- InsuranceLinePack 落 schemas/lines.py：line/product_types/online/required_docs/
+  doc_types/policy_terms/exclusion_keywords/self_pay_pattern 声明式数据；
+  medical 全量 pack，auto/property/accident 二期占位（online=False）
+- 5 处 `or "medical"` 静默兜底改为显式 unknown（skill 装载走 line→_shared→None 回退链）——
+  未知险种不再被悄悄当医疗险审
+- agents/ 包删除，活机器迁 services/worker_agent.py：AgentDefinition + create_agent
+  装配缓存 + invoke_worker（去 shared_data 参数）+ derive_tool_trace；
+  死重（run_worker_agent/`_derive_tool_trace`/shared_data 池）不迁
+- LLM 注入统一约定：四节点（orchestrator/material/liability/decision）参数
+  None = 确定性路径；"__keyword__"/"__fallback__" 字符串哨兵与异常驱动开关删除
+  （liability 由"调字符串抛 TypeError 落兜底"改为显式 None 分支）
+- 责任认定 Agent 定义按险种线懒装配缓存（_agent_def_for）——多险种 pack 上线时按
+  case_type 分定义的预留落点
+
+**T097（候选 5，规格契约）**：
+- schemas/contract.py：AUTO_APPROVE_LIMIT / WAITING_PERIOD_DAYS / ROUTING_CALL_BUDGET
+  唯一定义；config.py 默认值、医疗 pack 条款、金样本生成器、评测门预算全部引用
+- services/amounts.approved_amount：规格公式唯一实现（生成器与 amount_calc 同源）；
+  生成器重跑产出的数据集字节级一致（行为零变化实证）
+- 评测红线复用 tools.compliance.rule_check.check_text（与运行时门同实现），
+  弱化子串检查删除
+- skill 散文中的对应数字不生成化（D040 决策延续），漂移由路由软门兜住
+
+**T098（候选 6，CaseService）**：
+- services/case_service.py 收口：幂等查询/案件号生成/建档/决定书响应映射/
+  Command(resume) 载荷构造器（B03 补件自动恢复与工单处理同形）
+- 图调用（ainvoke/resume）留在路由——HTTP 请求生命周期内的编排粘合；
+  管线异步化为行为变更，单列路线图（README 已挂账）
+
+**T099（遗留收口）**：
+- T090 三指标接线：CASE_STAGE_LATENCY 在 case_graph 以 _timed 包装 6 个 worker 节点
+  （复用 STAGE_SPECS 阶段名）；SUPPLEMENT_ROUNDS 在 human_gate 补件分支 observe 1
+  （指标 sum=补件恢复总次数）；CASE_TOKENS 经 token_tracker 新增案件 ContextVar
+  （track_case，三处路由包裹图调用）+ record_usage_to_tracker 分流
+- compliance channel 落 schema：ComplianceOutput.violations 修正为 list[dict]，
+  compliance_gate_node 产出经模型校验 dump（与其余六阶段同走 stages.py）
+- README 整体重写为核赔平台口径（v1 评测/API/界面章节全部替换）；
+  docs/architecture.md 头部冻结为 v1 历史存档并指向 v2 文档
+
+验证基线：全量 411 passed + ruff 全绿；评测门确定性模式改动前后指标逐位相同
+（amount 0.9773 / route 0.9924 / liability 0.9318 / 总一致率 92.4%——失败项为
+T089 挂账存量 known issue，非本轮回归）。
