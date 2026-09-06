@@ -158,14 +158,6 @@ class CaseMaterialUploadResponse(BaseModel):
 # ---------- T086 案件人工介入（核赔工单） ----------
 
 
-class CaseInterventionHuman(BaseModel):
-    """挂起案件的人工介入信息。"""
-
-    kind: str
-    reason: str | None = None
-    missing: list[str] = Field(default_factory=list)
-
-
 class CaseInterventionItem(BaseModel):
     """待处理核赔工单（interrupt 挂起的案件）。"""
 
@@ -173,7 +165,7 @@ class CaseInterventionItem(BaseModel):
     case_type: str
     status: str
     claimed_amount: Decimal
-    human: CaseInterventionHuman
+    human: CaseHumanInfo
     created_at: dt.datetime
 
 

@@ -44,8 +44,7 @@ async def _setup(db_path: Path) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
-    session_module._engine = engine
-    session_module._session_factory = factory
+    session_module.swap_engine(engine, factory)  # T110：公开 seam（原私有直赋漏网点）
 
     policies = json.loads((DATA_DIR / "policies.json").read_text(encoding="utf-8"))
     claim_records = json.loads(

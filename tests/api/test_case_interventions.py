@@ -15,6 +15,7 @@ import nodes.material_review as mr_module
 import services.db.session as session_module
 from app.main import app
 from services.case_store import DbCaseRecorder
+from services.db.session import dispose_engine
 from services.materials import MaterialExtraction, detect_material_type
 from workflows.case_graph import build_case_graph, db_fraud_lookup, db_policy_lookup
 
@@ -66,7 +67,7 @@ async def env(monkeypatch, tmp_path: Path):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac, build
-    await engine.dispose()
+    await dispose_engine()  # T110：复位全局（dispose+置 None）
 
 
 def _full_body(**overrides: Any) -> dict[str, Any]:

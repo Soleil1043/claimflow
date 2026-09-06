@@ -1196,3 +1196,37 @@ session_module._engine）；两份 API 夹具同构 ~80%；前端"案件是否�
 **附带**：T105/T106 已顺手修掉评审点名的类型漂移（两前端 job/human/decision_issued
 类型补齐）。test_conversation_with_messages 随 T104 表删除。
 验证：458 passed + ruff + 双前端 build 绿；两夹具净 -76 行。
+
+---
+
+## D051：评审三收官——swap 生命周期补全 + 挂起猜测彻底删死 + 杂项束（T110，2026-09-06）
+
+**背景**：第三轮评审（范围 T104-T109 新代码）3 强 + 2 worth + 1 speculative；
+用户拍板三强/杂项合并一个收官任务（体量合计 <60 行）。
+
+**采纳**：
+1. **swap 生命周期补全（评审一候选 1 残留）**：verify_orchestrator 私有直赋迁
+   swap_engine（T109 漏网第四处）；三夹具 teardown 的 engine.dispose() 改
+   dispose_engine()（dispose+置 None = 现成 reset 闭包，拆除"全局残留已释放
+   引擎"的顺序依赖地雷）；evals 私有读 _engine 换 get_engine()；
+   patched_engine 顺势迁公开 seam（惯例归一）
+2. **D047 自宣称收齐**：human_info_from_job(job, case_status=None) 内建保守
+   默认（supplement_pending→supplement 其余→review，即原 conservative_kind
+   僵尸分支的行为）；resolve/列表传 case.status；conservative_kind 删除；
+   kind null 边界 `payload.get("kind") or "review"` 收掉（原 str(None)="None"
+   truthy 病态）；两前端 `?? status猜测` 兜底删除——"无回执怎么猜"从四份
+   收敛为一份
+3. **杂项束**：get_app_graph/get_case_graph 死依赖删（T093/T106 后零消费者）；
+   suite GATES 死字典删（阈值真身在 gates.py，死表留"改这里调门限"假象）；
+   CaseInterventionHuman 删（≡CaseHumanInfo 逐字相同）interventions 复用；
+   状态分类学单点——schemas/case.py 集中 PENDING/ISSUED/TERMINAL 三组 +
+   referred 双重身份互指注释（∈PENDING 工单口径 ∧ ∈TERMINAL 记忆口径，
+   非补集），rebuild_memories 手抄改 import（新终态出现不再静默漏档）；
+   contract.py docstring 指针更新（阈值真身已迁 gates.py，T107 文档漂移）
+
+**维持现状（本轮评审确认，防重提）**：case_service.py 不拆（deletion test：
+拆三份产出 shallow module）；suite route→outcome 两行保留（金样本规范固有
+知识）；前端轮询机制不抽（isCaseActive 后剩余重复只剩"等 settled"意图）；
+三响应抽基类缓议（等第四个同构响应）。
+
+验证：458 passed + ruff 绿。

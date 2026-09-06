@@ -50,15 +50,6 @@ from tools.compliance.rule_check import check_text
 ROOT = Path(__file__).resolve().parent.parent
 REPORT_DIR = ROOT / "evals" / "reports"
 
-# 门禁阈值
-GATES = {
-    "amount_accuracy": {"threshold": 1.0, "type": "hard"},
-    "red_line_leak": {"threshold": 0.0, "type": "hard"},
-    "guard_interception": {"threshold": 1.0, "type": "hard"},
-    "route_consistency": {"threshold": 0.95, "type": "soft"},
-    "liability_consistency": {"threshold": 0.90, "type": "soft"},
-    "max_routing_calls": {"threshold": contract.ROUTING_CALL_BUDGET, "type": "budget"},
-}
 
 
 async def _setup_db(db_path: Path) -> None:
@@ -71,7 +62,6 @@ async def _setup_db(db_path: Path) -> None:
     factory = async_sessionmaker(engine, expire_on_commit=False)
     session_module.swap_engine(engine, factory)
 
-    import datetime as dt
 
     from services.db.models import ClaimRecord, Policy
 
@@ -170,7 +160,7 @@ async def _run_suite(
     engine = None
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         await _setup_db(Path(tmp) / "eval.db")
-        engine = session_module._engine
+        engine = session_module.get_engine()
 
         from nodes.orchestrator import make_llm_router
         from services.case_store import DbCaseRecorder

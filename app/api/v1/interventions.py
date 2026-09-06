@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_case_dispatcher, get_db_session
 from app.core.logging import get_logger
 from schemas.api import (
-    CaseInterventionHuman,
+    CaseHumanInfo,
     CaseInterventionItem,
     CaseInterventionListResponse,
     CaseResolveRequest,
@@ -29,7 +29,6 @@ from services.case_jobs import JobAction, deliver_case_job, job_envelope, latest
 from services.case_service import (
     build_agent_resolution,
     build_supplement_resolution,
-    conservative_kind,
     decision_doc_payload,
     decision_doc_view,
     human_info_from_job,
@@ -66,8 +65,8 @@ async def list_case_interventions(
 
     items: list[CaseInterventionItem] = []
     for case in rows:
-        info = human_info_from_job(jobs.get(case.id))
-        human = CaseInterventionHuman(
+        info = human_info_from_job(jobs.get(case.id), case.status)
+        human = CaseHumanInfo(
             kind=info["kind"], reason=info["reason"], missing=info["missing"]
         )
         items.append(
@@ -107,8 +106,8 @@ async def resolve_case_intervention(
             detail=f"案件状态为 {case.status}，无待处理工单",
         )
 
-    # kind 单源 = 交付回执（D047）；无回执时保守默认收编原状态猜测
-    kind = str(human_info_from_job(await latest_job(case_id))["kind"]) or conservative_kind(case.status)
+    # kind 单源 = 交付回执（D047/D051：保守默认内建 human_info_from_job）
+    kind = str(human_info_from_job(await latest_job(case_id), case.status)["kind"])
 
     if kind == "supplement":
         resolution = build_supplement_resolution(

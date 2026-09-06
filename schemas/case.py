@@ -37,6 +37,20 @@ PENDING_CASE_STATUSES: tuple[CaseStatus, ...] = (
     CaseStatus.REFERRED,
 )
 
+# 已签发状态（D046 决定书读模型）：终态时最新版决定书即签发物
+ISSUED_CASE_STATUSES: tuple[CaseStatus, ...] = (
+    CaseStatus.AUTO_ISSUED,
+    CaseStatus.CLOSED,
+)
+
+# 记忆终态（T100 申请人档案口径）。注意 referred 的双重身份：
+# 既 ∈ PENDING（escape 工单待处理）又是记忆建档的事实终态——两组不是补集
+TERMINAL_CASE_STATUSES: tuple[CaseStatus, ...] = (
+    CaseStatus.AUTO_ISSUED,
+    CaseStatus.CLOSED,
+    CaseStatus.REFERRED,
+)
+
 
 class CaseMaterialRef(BaseModel):
     """提交时的材料引用（上传后由 API 填充落盘路径；Mock 场景可只有文件名）。"""

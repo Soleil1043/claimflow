@@ -32,6 +32,7 @@ from services.case_jobs import (
 )
 from services.case_service import new_case
 from services.db.models import Base, Case, CaseJob
+from services.db.session import dispose_engine
 from services.observability.metrics import registry as metrics_registry
 
 # ===== 夹具：文件 SQLite + 假图 + 假审计 =====
@@ -77,7 +78,7 @@ async def jobs_db(tmp_path: Path, monkeypatch):
     factory = async_sessionmaker(engine, expire_on_commit=False)
     session_module.swap_engine(engine, factory)
     yield factory
-    await engine.dispose()
+    await dispose_engine()  # T110：复位全局（dispose+置 None）
 
 
 async def _make_case(factory, case_id: str = "CASE-J-0001") -> Case:

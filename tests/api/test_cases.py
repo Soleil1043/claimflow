@@ -16,6 +16,7 @@ from httpx import ASGITransport, AsyncClient
 import app.api.v1.cases as cases_module
 import services.db.session as session_module
 from app.main import app
+from services.db.session import dispose_engine
 from services.materials import MaterialExtraction, detect_material_type
 from workflows.case_graph import create_default_case_graph
 
@@ -57,7 +58,7 @@ async def client(monkeypatch, tmp_path: Path):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
-    await engine.dispose()
+    await dispose_engine()  # T110：复位全局（dispose+置 None）
 
 
 def _body(**overrides):

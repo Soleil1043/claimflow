@@ -4,7 +4,7 @@
 - app/core/config.py 的核赔阈值默认值引用本模块（运行时可经环境变量覆盖，
   但金样本期望按本契约的规范值生成——覆盖默认值会使评测门暴露漂移）
 - scripts/gen_adjudication_cases.py 生成的金样本期望按本契约计算
-- evals/adjudication_suite.py 的门禁阈值引用本模块（评测门 = 运行时门）
+- evals/gates.py 的门禁阈值引用本模块（评测门 = 运行时门）
 - schemas/lines.py 医疗险 pack 的等待期引用本模块
 
 skill 散文中的对应数字是人工调优面（D040），不由代码生成；漂移由金样本

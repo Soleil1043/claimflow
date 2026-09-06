@@ -18,13 +18,9 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from schemas.case import CaseStatus
+from schemas.case import ISSUED_CASE_STATUSES, CaseStatus
 from services.db.models import Case, CaseJob, DecisionDocument
 from services.db.session import get_session_factory
-
-# 已签发状态：案件事实态推导（D046）——auto_issued 时最新版即签发物（auto 签发
-# 不另落版本），closed 时最新版为坐席签发版；其余状态的决定书行均为草稿
-ISSUED_CASE_STATUSES = (CaseStatus.AUTO_ISSUED, CaseStatus.CLOSED)
 
 # 自然键幂等（F01）：重复提交返回既有案件，不重复执行核赔
 NATURAL_KEY_FIELDS = ("user_id", "policy_no", "claimed_amount", "incident_date")
@@ -184,26 +180,28 @@ def decision_doc_payload(doc: DecisionDocument | dict[str, Any] | None) -> dict[
 # ===== 挂起信息读模型（T106，D047：job 回执单源） =====
 
 
-def human_info_from_job(job: CaseJob | None) -> dict[str, Any]:
-    """交付回执 → 挂起信息 dict（kind/reason/missing）。
+def human_info_from_job(
+    job: CaseJob | None, case_status: str | None = None
+) -> dict[str, Any]:
+    """交付回执 → 挂起信息 dict（kind/reason/missing，D047/D051 单源）。
 
-    无回执行的保守默认 = 后端单点收编前端的状态猜测（supplement_pending→
-    supplement，其余→review）；正常流程每个挂起案必有回执（interrupt 即
-    交付任务的成功终态，D044）。
+    无回执（或回执非挂起终态）时内建保守默认：supplement_pending→supplement，
+    其余→review——"无回执怎么猜"只有这一份实现（D051 收编 zombie 分支与
+    两前端兜底）。
     """
     if job is not None and job.outcome == "interrupted":
         payload = job.interrupt_payload or {}
         return {
-            "kind": str(payload.get("kind", "review")),
+            "kind": str(payload.get("kind") or "review"),
             "reason": payload.get("reason"),
             "missing": list(payload.get("missing", []) or []),
         }
-    return {"kind": "review", "reason": None, "missing": []}
-
-
-def conservative_kind(case_status: str) -> str:
-    """无回执时的保守 kind（supplement_pending→supplement，其余→review）。"""
-    return "supplement" if case_status == CaseStatus.SUPPLEMENT_PENDING else "review"
+    kind = (
+        "supplement"
+        if case_status == CaseStatus.SUPPLEMENT_PENDING
+        else "review"
+    )
+    return {"kind": kind, "reason": None, "missing": []}
 
 
 async def latest_jobs_for_cases(case_ids: list[str]) -> dict[str, CaseJob]:
