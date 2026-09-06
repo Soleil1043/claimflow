@@ -174,7 +174,24 @@ export const CASE_STATUS_LABEL: Record<string, string> = {
   received: "已受理",
   in_progress: "审核中",
   supplement_pending: "待补件",
+  // 坐席视图区分自动签发与坐席签发（closed）；chatui 的"已签发"是客户视图有意差异
   auto_issued: "已自动签发",
   referred: "已转人工",
   closed: "已关闭",
 };
+
+/**
+ * 案件是否仍在交付中（T109 单源口径，与 chatui/lib/case-api 同签名同语义）：
+ * job 在飞（queued/running）或受理未终态。挂起态不算 active。
+ */
+export function isCaseActive(
+  status: string,
+  jobStatus?: string | null
+): boolean {
+  return (
+    jobStatus === "queued" ||
+    jobStatus === "running" ||
+    status === "received" ||
+    status === "in_progress"
+  );
+}

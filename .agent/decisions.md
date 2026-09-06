@@ -1171,3 +1171,28 @@ liability 0.9470，同 8 条既有失败——纯结构重构零行为变化）�
 **验证**：22 个 API 用例零断言改动全绿（行为零变化的直接证据）+ 3 个收口
 单测（冲突返回 None 且会话复位可用——毒化知识从注释升格为测试覆盖、正常路径
 返回刷新任务行、kick 失败不撤销受理）；全量 458 passed + ruff 绿。
+
+---
+
+## D050：测试基建收敛 + 前端交付判定单源（T109，2026-09-06，评审二候选 6 / 收官）
+
+**背景**：换库操作四处伸手进私有全局（两份 API 夹具 + test_case_jobs + evals 裸赋
+session_module._engine）；两份 API 夹具同构 ~80%；前端"案件是否仍在交付中"判定
+两套口径（AutoRefresh 看 status+jobStatus / CaseResolveForm 看 job+两挂起态——
+后者把挂起态也算 active，坐席对无在飞任务的工单会白轮询）。
+
+**决策（grilling 四问，用户 A/A/A/A）**：
+1. **session.py 公开 swap_engine(engine, factory)**：换库收敛为一个公开 interface
+   （测试/评测唯一入口），私有全局不再被外部伸手
+2. **conftest 提取 make_case_api_core 内核**（async：文件库+swap+两张种子保单+
+   LLM 全关），两份夹具薄化；interventions 的共享 InMemorySaver + build() 可重建图
+   **保留在其文件**——那是"跨重启"测试意图的私有表达（评审明确不收全量归一）
+3. **前端 isCaseActive 单源**：统一口径 job∈{queued,running} OR status∈{received,
+   in_progress}（修正 CaseResolveForm 把挂起态算 active 的白轮询）；两应用各一份
+   同签名实现——monorepo 共享包 YAGNI（等第三个消费者）
+4. **状态标签分叉确认为有意差异**：坐席视图区分 auto_issued（自动）/closed（坐席
+   签发），客户视图不关心——两侧加互指注释防被"修不一致"误统一
+
+**附带**：T105/T106 已顺手修掉评审点名的类型漂移（两前端 job/human/decision_issued
+类型补齐）。test_conversation_with_messages 随 T104 表删除。
+验证：458 passed + ruff + 双前端 build 绿；两夹具净 -76 行。

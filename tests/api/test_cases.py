@@ -7,88 +7,31 @@
 
 from __future__ import annotations
 
-import datetime as dt
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.api.v1.cases as cases_module
 import services.db.session as session_module
 from app.main import app
-from services.db.models import Base, Policy
 from services.materials import MaterialExtraction, detect_material_type
 from workflows.case_graph import create_default_case_graph
 
 
 @pytest.fixture()
 async def client(monkeypatch, tmp_path: Path):
-    """文件 SQLite + 种子保单 + 真实核赔桩图 + mock 提取服务 + 测试客户端。"""
-    engine = create_async_engine(
-        f"sqlite+aiosqlite:///{(tmp_path / 'cases_test.db').as_posix()}"
-    )
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    monkeypatch.setattr(session_module, "_engine", engine)
-    monkeypatch.setattr(session_module, "_session_factory", factory)
-    monkeypatch.setattr(session_module.settings, "llm_api_key", "sk-test")
-    # T081：API 测试保持确定性编排（零 LLM）；LLM 路由一致性见 verify_orchestrator 脚本
-    monkeypatch.setattr(session_module.settings, "orchestrator_llm_enabled", False)
-    monkeypatch.setattr(session_module.settings, "material_review_llm_enabled", False)
-    monkeypatch.setattr(session_module.settings, "liability_llm_enabled", False)
-    monkeypatch.setattr(session_module.settings, "decision_writer_llm_enabled", False)
-
-    async with factory() as s:
-        s.add_all(
-            [
-                Policy(
-                    policy_no="POL-2025-0001",
-                    holder_name="张伟",
-                    holder_id_card="330106199203154817",
-                    product_name="安心医疗保险（旗舰版）",
-                    product_type="医疗险",
-                    coverage_amount=Decimal("1000000.00"),
-                    deductible=Decimal("10000.00"),
-                    payout_ratio=Decimal("0.8000"),
-                    effective_date=dt.date(2025, 1, 1),
-                    expiry_date=dt.date(2026, 12, 31),
-                    status="active",
-                ),
-                Policy(
-                    policy_no="POL-2023-0004",
-                    holder_name="陈静",
-                    holder_id_card="330104199001013328",
-                    product_name="出行无忧意外伤害保险",
-                    product_type="意外险",
-                    coverage_amount=Decimal("200000.00"),
-                    deductible=Decimal("0.00"),
-                    payout_ratio=Decimal("0.9000"),
-                    effective_date=dt.date(2023, 8, 15),
-                    expiry_date=dt.date(2026, 8, 14),
-                    status="active",
-                ),
-            ]
-        )
-        await s.commit()
-
-    # 真实核赔桩图（零 LLM；recorder/查询走 DB 实现打文件库）
-    monkeypatch.setattr(
-        app.state, "case_graph", create_default_case_graph(), raising=False
-    )
-    # T103 交付队列：inline 派发器（dispatch 同步执行，保留 19 用例的同步终态语义）
+    """文件库 + 种子保单 + 真实核赔桩图 + mock 提取 + 测试客户端（公共内核 T109）。"""
     from services.case_jobs import InlineDispatcher
     from services.case_store import DbCaseRecorder
+    from tests.conftest import make_case_api_core
 
-    monkeypatch.setattr(
-        app.state,
-        "case_dispatcher",
-        InlineDispatcher(app.state.case_graph, DbCaseRecorder()),
-        raising=False,
-    )
-    monkeypatch.setattr(session_module.settings, "case_jobs_execution", "inline")
+    engine, factory, seed = await make_case_api_core(monkeypatch, tmp_path, db_name="cases_test.db")
+    await seed()
+
+    # T081：API 测试保持确定性编排（零 LLM）；LLM 路由一致性见 verify_orchestrator 脚本
+    monkeypatch.setattr(session_module.settings, "orchestrator_llm_enabled", False)
 
     async def fake_extract(filename: str, mime: str, content: bytes) -> MaterialExtraction:
         return MaterialExtraction(
@@ -101,6 +44,15 @@ async def client(monkeypatch, tmp_path: Path):
         )
 
     monkeypatch.setattr(cases_module, "extract_material", fake_extract)
+
+    graph = create_default_case_graph()
+    monkeypatch.setattr(app.state, "case_graph", graph, raising=False)
+    # T103 交付队列：inline 派发器（dispatch 同步执行，保留用例的同步终态语义）
+    monkeypatch.setattr(
+        app.state, "case_dispatcher", InlineDispatcher(graph, DbCaseRecorder()),
+        raising=False,
+    )
+    monkeypatch.setattr(session_module.settings, "case_jobs_execution", "inline")
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

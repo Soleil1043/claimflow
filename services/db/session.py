@@ -27,6 +27,18 @@ _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
+def swap_engine(engine: AsyncEngine, factory: async_sessionmaker[AsyncSession]) -> None:
+    """替换全局引擎与会话工厂（T109 公开 seam：测试/评测换库唯一入口）。
+
+    此前四处调用方直接赋值私有全局 _engine/_session_factory——现收敛为一个
+    公开 interface。调用方自行管理替换对象的生命周期（pytest monkeypatch /
+    评测退出 dispose）。
+    """
+    global _engine, _session_factory
+    _engine = engine
+    _session_factory = factory
+
+
 def get_engine() -> AsyncEngine:
     """获取全局异步引擎（惰性单例）。"""
     global _engine

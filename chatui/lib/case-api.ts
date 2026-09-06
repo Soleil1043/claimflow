@@ -144,6 +144,7 @@ export const STATUS_LABEL: Record<string, string> = {
   received: "已受理",
   in_progress: "审核中",
   supplement_pending: "待补件",
+  // 客户视图不区分签发方（workbench 的"已自动签发"是坐席视图的有意差异，勿统一）
   auto_issued: "已签发",
   referred: "已转人工",
   closed: "已关闭",
@@ -161,4 +162,20 @@ export function formatTime(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString("zh-CN", { hour12: false });
+}
+
+/**
+ * 案件是否仍在交付中（T109 单源口径）：job 在飞（queued/running）或受理未终态。
+ * 挂起态（supplement_pending/referred）本身不算 active——resume 在飞由 job 覆盖。
+ */
+export function isCaseActive(
+  status: string,
+  jobStatus?: string | null
+): boolean {
+  return (
+    jobStatus === "queued" ||
+    jobStatus === "running" ||
+    status === "received" ||
+    status === "in_progress"
+  );
 }

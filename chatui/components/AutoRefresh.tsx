@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { isCaseActive } from "@/lib/case-api";
 
 /**
  * 受理后自动轮询：异步交付（T103）下详情页在非终态时定期刷新服务端组件，
@@ -15,12 +16,7 @@ export default function AutoRefresh({
   jobStatus?: string;
 }) {
   const router = useRouter();
-  // 非终态，或交付任务在飞（如补件上传后 resume 重跑中）都保持刷新
-  const active =
-    status === "received" ||
-    status === "in_progress" ||
-    jobStatus === "queued" ||
-    jobStatus === "running";
+  const active = isCaseActive(status, jobStatus);
 
   useEffect(() => {
     if (!active) return;

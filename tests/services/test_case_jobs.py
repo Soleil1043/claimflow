@@ -75,8 +75,7 @@ async def jobs_db(tmp_path: Path, monkeypatch):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
-    monkeypatch.setattr(session_module, "_engine", engine)
-    monkeypatch.setattr(session_module, "_session_factory", factory)
+    session_module.swap_engine(engine, factory)
     yield factory
     await engine.dispose()
 

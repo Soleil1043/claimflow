@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime as dt
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -10,52 +9,25 @@ from typing import Any
 import pytest
 from httpx import ASGITransport, AsyncClient
 from langgraph.checkpoint.memory import InMemorySaver
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.api.v1.cases as cases_module
 import nodes.material_review as mr_module
 import services.db.session as session_module
 from app.main import app
 from services.case_store import DbCaseRecorder
-from services.db.models import Base, Policy
 from services.materials import MaterialExtraction, detect_material_type
 from workflows.case_graph import build_case_graph, db_fraud_lookup, db_policy_lookup
 
 
-def _policy_row(policy_no: str, product_type: str) -> Policy:
-    return Policy(
-        policy_no=policy_no,
-        holder_name="张伟",
-        holder_id_card="330106199203154817",
-        product_name="安心医疗保险（旗舰版）",
-        product_type=product_type,
-        coverage_amount=Decimal("1000000.00"),
-        deductible=Decimal("10000.00"),
-        payout_ratio=Decimal("0.8000"),
-        effective_date=dt.date(2025, 1, 1),
-        expiry_date=dt.date(2026, 12, 31),
-        status="active",
-    )
-
-
 @pytest.fixture()
 async def env(monkeypatch, tmp_path: Path):
-    """文件库 + 显式共享 saver（跨重启模拟）+ 确定性核赔图 + mock 提取。"""
-    engine = create_async_engine(f"sqlite+aiosqlite:///{(tmp_path / 't.db').as_posix()}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    monkeypatch.setattr(session_module, "_engine", engine)
-    monkeypatch.setattr(session_module, "_session_factory", factory)
-    monkeypatch.setattr(session_module.settings, "llm_api_key", "sk-test")
-    for flag in ("orchestrator_llm_enabled", "material_review_llm_enabled",
-                 "liability_llm_enabled", "decision_writer_llm_enabled"):
-        monkeypatch.setattr(session_module.settings, flag, False)
+    """公共内核（T109）+ 显式共享 saver（跨重启模拟）+ 可重建图 + mock 提取。"""
+    from tests.conftest import make_case_api_core
 
-    async with factory() as s:
-        s.add(_policy_row("POL-2025-0001", "医疗险"))
-        s.add(_policy_row("POL-2023-0004", "意外险"))
-        await s.commit()
+    engine, factory, seed = await make_case_api_core(
+        monkeypatch, tmp_path, db_name="t.db"
+    )
+    await seed()
 
     saver = InMemorySaver()
 

@@ -251,3 +251,5 @@ T001 → T002 → T003 → T004 → T005
 - [x] T107: 评测门拆分 + 终态判定单源（D048，评审二候选 5） | 依赖: T106 | 涉及文件: schemas/contract.py（final_decision_from_verdict）、nodes/auto_adjudicate.py（接入单源）、evals/gates.py（新：六门纯函数）、evals/adjudication_suite.py（编排化 428→375 行 + 种子映射单源化修"缺件"死分支 + _flatten_events 删）、tests/evals/test_gates.py（新 8 用例门限边界）、tests/memory/test_case_memory.py（种子语义回归） | 验收: 评测门确定性重跑数值与重构前一致（纯结构重构）；gates 门限边界单测；missing 案种子不再自相矛盾；455 passed + ruff ✅ 2026-09-06
 
 - [x] T108: 交付生命周期收口 deliver_case_job（D049，评审二候选 4） | 依赖: T107 | 涉及文件: services/case_jobs.py（deliver_case_job）、app/api/v1/{cases,interventions}.py（三入口切换）、tests/services/test_case_jobs.py（+3 收口单测） | 验收: 22 API 用例零断言改动全绿（行为零变化）；冲突返回 None 且会话复位可用；kick 失败不撤销受理；458 passed + ruff ✅ 2026-09-06
+
+- [x] T109: 测试基建收敛 + 前端交付判定单源（D050，评审二候选 6/收官） | 依赖: T108 | 涉及文件: services/db/session.py（swap_engine 公开）、tests/conftest.py（make_case_api_core 内核）、tests/api 两夹具薄化、tests/services/test_case_jobs.py（swap 接入）、evals/adjudication_suite.py（swap 接入）、chatui/workbench（isCaseActive 单源 + CaseResolveForm 简化 + 标签互指注释） | 验收: 458 passed + ruff + 双 build；换库四处伸手收敛一个公开 interface ✅ 2026-09-06

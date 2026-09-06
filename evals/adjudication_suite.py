@@ -69,8 +69,7 @@ async def _setup_db(db_path: Path) -> None:
 
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
-    session_module._engine = engine
-    session_module._session_factory = factory
+    session_module.swap_engine(engine, factory)
 
     import datetime as dt
 
