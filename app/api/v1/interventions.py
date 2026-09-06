@@ -25,13 +25,7 @@ from schemas.api import (
     CaseResolveResponse,
 )
 from schemas.case import PENDING_CASE_STATUSES
-from services.case_jobs import (
-    CaseJobConflictError,
-    JobAction,
-    enqueue_case_job,
-    job_envelope,
-    latest_job,
-)
+from services.case_jobs import JobAction, deliver_case_job, job_envelope, latest_job
 from services.case_service import (
     build_agent_resolution,
     build_supplement_resolution,
@@ -133,22 +127,16 @@ async def resolve_case_intervention(
             resolved_by=body.resolved_by,
         )
 
-    # 交付任务行（T103）：恢复与裁决载荷同事务落库；在飞冲突 → 409（防并发双签）
-    try:
-        job = await enqueue_case_job(
-            session, case_id=case_id, action=JobAction.RESUME, payload=resolution
-        )
-    except CaseJobConflictError:
+    # 交付收口（D049）：恢复载荷同事务落库 → 派发 → 回快照；在飞冲突 → 409（防并发双签）
+    job = await deliver_case_job(
+        session, case_id=case_id, action=JobAction.RESUME, payload=resolution,
+        dispatcher=dispatcher,
+    )
+    if job is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="该案件已有处理中的交付任务，请稍候",
-        ) from None
-    await session.commit()
-
-    await dispatcher.dispatch(job.id)
-
-    await session.refresh(case)
-    await session.refresh(job)
+        )
     # 决定书读模型（D046 单源，与 cases 端点同口径）：(最新版, 是否已签发)
     doc, doc_issued = await decision_doc_view(session, case)
     return CaseResolveResponse(

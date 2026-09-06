@@ -1146,3 +1146,28 @@ auto_issued 签发物+True）。CONTEXT.md"决定书"词条本就定义为签发
 **验证**：评测门确定性模式重跑数值与重构前一致（amount 1.0/route 0.9924/
 liability 0.9470，同 8 条既有失败——纯结构重构零行为变化）；9 个新测试
 （gates 边界 8 + 种子语义 1）；全量 455 passed + ruff 绿。
+
+---
+
+## D049：交付生命周期收口 deliver_case_job（T108，2026-09-06，评审二候选 4）
+
+**背景**：enqueue→commit→dispatch→refresh 的生命周期胶水在三个入口三份变奏
+（submit 同事务直 commit / upload 双事务+冲突吸收 / resolve 冲突 409），
+"enqueue 撞活跃唯一会毒化会话须 rollback"这条关键知识只活在路由注释里。
+
+**决策（grilling 两问，用户 A/A）**：
+1. **interface 形状**：`deliver_case_job(session, *, case_id, action, payload,
+   dispatcher) -> CaseJob | None`——冲突返回 None（优于报告草案的 conflict
+   参数版：差异维度全部内化为一个布尔出口，HTTP 翻译留调用方一行，毒化复位
+   是 implementation 而非调用方知识）；commit 整个会话（submit 的 outbox
+   语义天然保留，upload 前置 commit 材料后调用即独立事务）；dispatch
+   fail-open（执行体异常本就在任务内消化，此处仅兜框架级 kick 错误——
+   任务行仍在队，background 档循环会认领，不撤销受理）
+2. **submit 防御分支**：理论不可达（新建案号唯一）同样 409——与 resolve 同形
+3. **接口收 case_id 不收 ORM 对象**：初版收 case 并 refresh，单测逮出隐含
+   "对象须在同会话持久"的调用方义务（接口味）——改为经 identity map 刷新
+   调用方同会话持有的实例（原地生效，路由零感知）
+
+**验证**：22 个 API 用例零断言改动全绿（行为零变化的直接证据）+ 3 个收口
+单测（冲突返回 None 且会话复位可用——毒化知识从注释升格为测试覆盖、正常路径
+返回刷新任务行、kick 失败不撤销受理）；全量 458 passed + ruff 绿。

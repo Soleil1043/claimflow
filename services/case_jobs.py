@@ -130,6 +130,61 @@ async def latest_job(case_id: str) -> CaseJob | None:
         ).scalar_one_or_none()
 
 
+# ===== 交付入口：三个调用点（submit/upload/resolve）共用的一步式收口 =====
+
+
+async def deliver_case_job(
+    session: Any,
+    *,
+    case_id: str,
+    action: JobAction,
+    payload: dict[str, Any],
+    dispatcher: CaseJobDispatcher,
+    max_attempts: int | None = None,
+) -> CaseJob | None:
+    """受理一个交付任务：入队 → 提交整个会话 → 派发 → 回刷新后的任务行（D049）。
+
+    三个调用点的全部生命周期差异在此一处内化（收 case_id，不收 ORM 对象）：
+    - **事务边界**：commit 整个会话——submit 的建档+任务行同事务（outbox：
+      受理成功而凭证丢失在构造上不可能）；upload 先行 commit 材料后再调用
+      即为独立事务
+    - **活跃冲突**：enqueue 撞 (case_id, seq/active) 唯一约束不仅抛错，还会
+      **毒化会话**（failed 状态下后续操作全部失效）——此处自动 rollback 复位
+      并返回 None；调用方按业务语义处置（upload 静默吸收恢复幂等 / resolve
+      映射 409 / submit 理论不可达同样 409）
+    - **派发容错**：fail-open——执行体异常已在任务内消化（重试/死信），
+      此处仅兜框架级错误（如派发器本身故障），告警不阻塞调用方响应
+    - **快照刷新**：返回前重读 case 与任务行（inline 档执行已改变行）
+
+    返回 None = 存在活跃任务，本次未受理。
+    """
+    try:
+        job = await enqueue_case_job(
+            session, case_id=case_id, action=action, payload=payload,
+            max_attempts=max_attempts,
+        )
+    except CaseJobConflictError:
+        await session.rollback()
+        log.info("case_job_delivery_conflict", case_id=case_id, action=str(action))
+        return None
+    await session.commit()
+
+    try:
+        await dispatcher.dispatch(job.id)
+    except Exception as exc:  # noqa: BLE001 —— 交付触发失败：任务行仍在队（background 档会认领）
+        log.warning("case_job_dispatch_kick_failed", job_id=job.id, error=str(exc)[:200])
+
+    # 快照刷新：经 identity map 刷新调用方同会话持有的 Case 实例（原地生效），
+    # 接口收 case_id——不要求调用方对象可 refresh（T108 单测逮出的接口味）
+    from services.db.models import Case
+
+    case_obj = await session.get(Case, case_id)
+    if case_obj is not None:
+        await session.refresh(case_obj)
+    await session.refresh(job)
+    return job
+
+
 # ===== 消费半区：CAS 认领 + 执行 =====
 
 

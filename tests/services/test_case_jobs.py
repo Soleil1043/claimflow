@@ -358,3 +358,75 @@ async def test_job_loop_end_to_end_background(jobs_db) -> None:
     assert (await _job(jobs_db, job_id)).status == "succeeded"
 
     await loop.stop(timeout_s=2)
+
+
+# ===== deliver_case_job 收口（T108，D049） =====
+
+
+async def test_deliver_conflict_returns_none_and_session_usable(jobs_db) -> None:
+    """冲突返回 None 且**会话复位可用**——毒化规避是收口的核心价值。"""
+    from services.case_jobs import deliver_case_job
+
+    case = await _make_case(jobs_db)
+    # 第一单用 no-op 派发（任务留 queued 活跃态）制造真冲突窗口
+    from services.case_jobs import BackgroundDispatcher
+
+    async with jobs_db() as s:
+        ok = await deliver_case_job(
+            s, case_id=case.id, action=JobAction.RUN, payload={"n": 1},
+            dispatcher=BackgroundDispatcher(),
+        )
+        assert ok is not None and ok.status == "queued"
+
+        # 同案件第二个任务：活跃唯一冲突 → None；随后同一会话仍能正常插入其他行
+        conflict = await deliver_case_job(
+            s, case_id=case.id, action=JobAction.RESUME, payload={"k": 1},
+            dispatcher=BackgroundDispatcher(),
+        )
+        assert conflict is None
+        from services.db.models import CaseEvent
+
+        s.add(CaseEvent(case_id=case.id, kind="probe", seq=1))
+        await s.commit()  # 毒化的会话在此处会炸——能 commit 即复位成功
+    assert True
+
+
+async def test_deliver_normal_path_returns_refreshed_job(jobs_db) -> None:
+    """正常路径：返回刷新过的任务行（succeeded），case 行同步重读。"""
+    from services.case_jobs import deliver_case_job
+
+    case = await _make_case(jobs_db)
+    dispatcher = InlineDispatcher(FakeGraph(), FakeRecorder())
+    async with jobs_db() as s:
+        job = await deliver_case_job(
+            s,
+            case_id=case.id,
+            action=JobAction.RUN,
+            payload={"case_id": case.id},
+            dispatcher=dispatcher,
+        )
+        assert job is not None
+        assert job.status == "succeeded" and job.outcome == "completed"
+        assert job.case_id == case.id
+
+
+async def test_deliver_dispatch_kick_failure_still_returns_job(jobs_db, monkeypatch) -> None:
+    """派发触发失败（框架级）→ 告警不阻塞，任务行仍在队由循环认领。"""
+    from services.case_jobs import deliver_case_job
+
+    case = await _make_case(jobs_db)
+
+    class _BrokenDispatcher:
+        async def dispatch(self, job_id: int) -> None:
+            raise RuntimeError("dispatcher down")
+
+    async with jobs_db() as s:
+        job = await deliver_case_job(
+            s,
+            case_id=case.id,
+            action=JobAction.RUN,
+            payload={"case_id": case.id},
+            dispatcher=_BrokenDispatcher(),
+        )
+        assert job is not None
+        assert job.status == "queued", "background 档语义：kick 失败不撤销受理"

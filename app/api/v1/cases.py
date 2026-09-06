@@ -43,9 +43,8 @@ from schemas.api import (
 from schemas.case import CaseStatus
 from schemas.lines import all_doc_types
 from services.case_jobs import (
-    CaseJobConflictError,
     JobAction,
-    enqueue_case_job,
+    deliver_case_job,
     job_envelope,
     latest_job,
 )
@@ -135,8 +134,8 @@ async def submit_case(
         materials=[m.model_dump() for m in body.materials],
     )
     session.add(case)
-    # 交付任务行与建档同事务（outbox，T103）：提交成功但任务丢失在设计上不可能
-    job = await enqueue_case_job(
+    # 交付收口（D049）：建档+任务行同事务（outbox）→ commit → 派发 → 回快照
+    job = await deliver_case_job(
         session,
         case_id=case.id,
         action=JobAction.RUN,
@@ -150,15 +149,13 @@ async def submit_case(
             "declared_case_type": body.declared_case_type,
             "materials": [m.model_dump() for m in body.materials],
         },
+        dispatcher=dispatcher,
     )
-    # 显式提交：图内节点经独立会话（CaseRecorder）更新本行，先落基线避免锁等待
-    await session.commit()
-
-    await dispatcher.dispatch(job.id)
-
-    # 执行体（inline 同请求 / background 循环）经独立会话更新行——重读权威快照
-    await session.refresh(case)
-    await session.refresh(job)
+    if job is None:  # 理论不可达（新建案号唯一）；与 resolve 同形防御
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="该案件已有处理中的交付任务，请稍候",
+        )
     doc, doc_issued = await decision_doc_view(session, case)
 
     return CaseSubmitResponse(
@@ -308,32 +305,20 @@ async def upload_case_material(
     )
     await session.commit()  # 材料/审计先原子落库（上传事实不因恢复状态丢失）
 
-    # 补件闭环（T086/T103）：挂起案件 + 新材料 → resume 任务行（独立事务——
-    # enqueue 撞活跃唯一约束会毒化会话，材料已在前一事务持久化，仅回滚任务行）；
-    # 上一次恢复仍在飞是唯一冲突源，恢复语义本就幂等
+    # 补件闭环（T086/T103）：挂起案件 + 新材料 → resume 任务行。材料已在前一
+    # 事务持久化，此处 deliver 独立事务；返回 None = 上一次恢复仍在飞（恢复
+    # 语义幂等，静默吸收——deliver 内已复位会话并告警）
     resume_job = None
     if case.status == CaseStatus.SUPPLEMENT_PENDING:
-        try:
-            resume_job = await enqueue_case_job(
-                session,
-                case_id=case.id,
-                action=JobAction.RESUME,
-                payload=build_supplement_resolution(
-                    [materials[-1]], resolved_by="customer_upload"
-                ),
-            )
-            await session.commit()
-        except CaseJobConflictError:
-            await session.rollback()
-            log.info("supplement_resume_inflight", case_id=case.id)
-
-    if resume_job is not None:
-        try:
-            await dispatcher.dispatch(resume_job.id)
-            await session.refresh(case)
-            await session.refresh(resume_job)
-        except Exception as exc:  # noqa: BLE001——恢复失败不阻塞上传（任务行有重试）
-            log.warning("supplement_resume_failed", case_id=case.id, error=str(exc)[:200])
+        resume_job = await deliver_case_job(
+            session,
+            case_id=case.id,
+            action=JobAction.RESUME,
+            payload=build_supplement_resolution(
+                [materials[-1]], resolved_by="customer_upload"
+            ),
+            dispatcher=dispatcher,
+        )
 
     return CaseMaterialUploadResponse(
         case_id=case.id,
