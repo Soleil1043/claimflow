@@ -32,7 +32,7 @@ export function formatTime(iso: string | null | undefined): string {
 
 export type CaseKind = "supplement" | "review" | "escape";
 
-export interface CaseInterventionHuman {
+export interface CaseHumanInfo {
   kind: string;
   reason: string | null;
   missing: string[];
@@ -43,7 +43,7 @@ export interface CaseInterventionItem {
   case_type: string;
   status: string;
   claimed_amount: string;
-  human: CaseInterventionHuman;
+  human: CaseHumanInfo;
   created_at: string;
 }
 

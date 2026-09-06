@@ -44,8 +44,9 @@ export default async function CaseDetailPage({
     );
   }
 
-  // 挂起 kind 单源 = 交付回执（D047）；escape 案此前会被状态猜测误标为 review
-  const kind = detail.human?.kind ?? (detail.status === "supplement_pending" ? "supplement" : "review");
+  // 挂起 kind 单源 = 交付回执（D047/D051）：后端保证挂起态必有 human，
+  // ?? "review" 仅 TypeScript 收窄（真实数据不触发）
+  const kind = detail.human?.kind ?? "review";
   const pending = detail.status === "supplement_pending" || detail.status === "referred";
 
   return (

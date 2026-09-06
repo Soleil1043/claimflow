@@ -1,4 +1,4 @@
-"""依赖注入：路由层统一从这里获取会话、配置与主图。"""
+"""依赖注入：路由层统一从这里获取会话、配置与核赔派发器。"""
 
 from __future__ import annotations
 
@@ -21,9 +21,6 @@ async def get_db_session() -> AsyncIterator[AsyncSession]:
 def get_app_settings() -> Settings:
     """全局配置单例。"""
     return settings
-
-
-
 
 def get_case_dispatcher(request: Request) -> Any:
     """应用级案件交付派发器（lifespan 初始化到 app.state.case_dispatcher，T103）。"""

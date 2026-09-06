@@ -41,8 +41,8 @@ export default async function CaseDetailPage({
   }
   if (!detail) notFound();
 
-  // 挂起 kind 单源 = 交付回执（D047）
-  const kind = detail.human?.kind ?? (detail.status === "supplement_pending" ? "supplement" : "review");
+  // 挂起 kind 单源 = 交付回执（D047/D051）：?? "review" 仅 TS 收窄，真实数据不触发
+  const kind = detail.human?.kind ?? "review";
   const pending = detail.status === "supplement_pending" || detail.status === "referred";
   const doc = detail.decision_document;
 

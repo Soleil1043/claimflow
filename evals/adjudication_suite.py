@@ -50,8 +50,6 @@ from tools.compliance.rule_check import check_text
 ROOT = Path(__file__).resolve().parent.parent
 REPORT_DIR = ROOT / "evals" / "reports"
 
-
-
 async def _setup_db(db_path: Path) -> None:
     """建表 + 种子全量 mock 数据（保单/理赔记录/黑名单走文件）。"""
     engine = create_async_engine(f"sqlite+aiosqlite:///{db_path.as_posix()}")

@@ -1230,3 +1230,24 @@ session_module._engine）；两份 API 夹具同构 ~80%；前端"案件是否�
 三响应抽基类缓议（等第四个同构响应）。
 
 验证：458 passed + ruff 绿。
+
+---
+
+## D051 补记（T111，2026-09-06）：第四轮走查发现两条宣称未兑现，已补齐
+
+第四轮轻量走查（范围 T110 增量）发现 D051 两条宣称与代码不符，T111 兑现：
+1. **"两前端 ?? 猜测兜底删除"未兑现**——workbench/chatui 详情页仍在
+   `?? (supplement_pending ? supplement : review)` 猜测，且 escape 案在 resume
+   在飞期间 human=None → 落回猜测误标 review（T106 宣称修死的 bug 只是把窗口
+   缩到在飞期，未修死）。根因：cases.py 的 _human_from_job 对非 interrupted
+   返回 None（无内建默认），前端兜底是活代码。**修复**：detail/submit 的
+   human 投影切 human_info_from_job + 挂起态门控（PENDING 才有 human，
+   终态 None——终态案不显示挂起卡），_human_from_job 删除；两前端兜底改
+   `?? "review"` 仅 TypeScript 收窄（真实数据不触发）。
+2. **"patched_engine 迁公开 seam"未兑现**——test_session.py 仍 monkeypatch。
+   **修复**：迁 swap_engine + teardown dispose_engine()（复位全局）。
+
+另收微 polish：dependencies.py docstring/空行、evals 空行、workbench TS
+CaseInterventionHuman → CaseHumanInfo 改名。全量 458 passed + 双 build 绿。
+教训入册：**收官轮的"宣称未兑现"必须由独立走查核对**——上轮实施时
+前端部分因 heredoc 事故后的重写流程被遗漏，靠本轮才补上。

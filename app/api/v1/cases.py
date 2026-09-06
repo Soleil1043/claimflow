@@ -40,7 +40,7 @@ from schemas.api import (
     CaseSubmitResponse,
     CaseTimelineEvent,
 )
-from schemas.case import CaseStatus
+from schemas.case import PENDING_CASE_STATUSES, CaseStatus
 from schemas.lines import all_doc_types
 from services.case_jobs import (
     JobAction,
@@ -54,10 +54,11 @@ from services.case_service import (
     decision_doc_view,
     find_idempotent_case,
     generate_case_id,
+    human_info_from_job,
     new_case,
 )
 from services.case_store import get_default_recorder
-from services.db.models import Case, CaseEvent, CaseJob
+from services.db.models import Case, CaseEvent
 from services.materials import detect_material_type, extract_material
 from services.memory.case_memory import search_case_memories
 
@@ -66,18 +67,6 @@ from services.memory.case_memory import search_case_memories
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/cases", tags=["cases"])
-
-
-def _human_from_job(job: CaseJob | None) -> CaseHumanInfo | None:
-    """任务回执 → 挂起信息（免读 checkpoint 的投影，T103）。"""
-    if job is None or job.outcome != "interrupted":
-        return None
-    payload = job.interrupt_payload or {}
-    return CaseHumanInfo(
-        kind=str(payload.get("kind", "review")),
-        reason=payload.get("reason"),
-        missing=list(payload.get("missing", []) or []),
-    )
 
 
 async def _get_case_or_404(case_id: str, session: AsyncSession) -> Case:
@@ -166,7 +155,11 @@ async def submit_case(
         approved_amount=case.approved_amount,
         decision_document=decision_doc_payload(doc),
         decision_issued=doc_issued,
-        human=_human_from_job(job),
+        human=(
+            CaseHumanInfo(**human_info_from_job(job, case.status))
+            if case.status in PENDING_CASE_STATUSES
+            else None
+        ),
         job=job_envelope(job),
     )
 
@@ -195,6 +188,13 @@ async def get_case(
     )
     job = await latest_job(case_id)
     doc, doc_issued = await decision_doc_view(session, case)
+    # human 投影（D051 兑现）：仅挂起态给出（回执优先，无回执内建保守默认）；
+    # 终态案件无挂起卡——前端不再兜底猜测
+    human = (
+        CaseHumanInfo(**human_info_from_job(job, case.status))
+        if case.status in PENDING_CASE_STATUSES
+        else None
+    )
     return CaseDetailResponse(
         case_id=case.id,
         user_id=case.user_id,
@@ -219,7 +219,7 @@ async def get_case(
         ],
         applicant_memories=[m.model_dump() for m in memories],
         job=job_envelope(job) if job is not None else None,
-        human=_human_from_job(job),
+        human=human,
         created_at=case.created_at,
         updated_at=case.updated_at,
     )
