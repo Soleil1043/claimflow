@@ -13,10 +13,8 @@ from datetime import datetime
 
 from sqlalchemy import select
 
+from schemas.case import TERMINAL_CASE_STATUSES
 from services.memory.case_memory import put_case_memory, render_case_memory
-
-# 终态状态（与 schemas.case.CaseStatus 对应）
-TERMINAL_STATUSES = ("auto_issued", "closed", "referred")
 
 # 终态原因：优先取最近一次 status_change 事件中的人可读原因
 REASON_EVENT_KINDS = ("status_change",)
@@ -38,7 +36,7 @@ async def rebuild() -> int:
         rows = (
             (
                 await session.execute(
-                    select(Case).where(Case.status.in_(TERMINAL_STATUSES))
+                    select(Case).where(Case.status.in_(TERMINAL_CASE_STATUSES))
                 )
             )
             .scalars()
