@@ -1120,3 +1120,29 @@ auto_issued 签发物+True）。CONTEXT.md"决定书"词条本就定义为签发
 **影响**：评审二候选 2 闭环。与候选 3（D046）同主题——读模型口径归一：
 决定书签发物（decision_doc_view）+ 挂起信息（human_info_from_job）两大读模型
 均收口 case_service，前端全部消费 API 投影字段，不再有任何 checkpoint 读取。
+
+---
+
+## D048：评测门拆分 + 终态判定单源（T107，2026-09-06，评审二候选 5）
+
+**背景**：adjudication_suite.py 428 行六种职责；六门判定藏在 _run_suite 内联段
+零单测；_seed_memories 手抄 category→decision 平行映射且含"缺件"死分支笔误
+（数据集实际值为 missing，11 案种子档案 outcome=referred + decision=approved
+自相矛盾）；_flatten_events 死函数。
+
+**决策（grilling 三问，用户 A/A/A）**：
+1. **终态判定单源**：schemas.contract.final_decision_from_verdict（verdict→
+   final_decision 三行规则，规格规则与阈值/公式同住契约模块）——auto_adjudicate
+   签发分支接入；种子映射不再手抄 category（route→outcome 两行语义平凡保留）。
+   转人工案（缺件/受理分类）记忆终态即 referred（它们无自动终态，决定权在人工）——
+   比 verdict 推导更符合记忆档案语义
+2. **六门拆 evals/gates.py**：evaluate_gates(results, *, red_line_leaks,
+   guard_bypasses) 纯函数零 IO + overall_passed——门限判定首次可单测
+   （硬门差一案即挂/红线零容忍/软门不阻断/error 案不进分母/预算上限 8 用例）；
+   suite 退化为编排（跑案→收集→gates→报告→打印），428→375 行
+3. **范围边界**：_setup_db/_seed_memories/_extract_outcome 留 suite（套件私有
+   装配无第二消费者，one adapter = hypothetical seam）；_flatten_events 死函数删除
+
+**验证**：评测门确定性模式重跑数值与重构前一致（amount 1.0/route 0.9924/
+liability 0.9470，同 8 条既有失败——纯结构重构零行为变化）；9 个新测试
+（gates 边界 8 + 种子语义 1）；全量 455 passed + ruff 绿。

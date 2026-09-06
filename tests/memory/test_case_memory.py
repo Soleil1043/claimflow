@@ -125,3 +125,31 @@ def test_format_case_memories_lines() -> None:
     )
     text = format_case_memories([record])
     assert "C1" in text and "等待期内出险" in text and "referred" in text
+
+
+# ===== 记忆种子终态语义（T107：verdict 判定单源后 missing 案不再自相矛盾） =====
+
+
+async def test_seed_semantics_missing_case_referred(memory_store, monkeypatch) -> None:
+    """转人工案（route != auto）记忆终态 = referred，与 outcome 不再矛盾。"""
+    from types import SimpleNamespace
+
+    from evals.adjudication_suite import _seed_memories
+
+    def _case(case_id, user_id, route, category, liability, amount):
+        return SimpleNamespace(
+            case_id=case_id, user_id=user_id, declared_case_type="medical",
+            expected=SimpleNamespace(route=route, category=category, liability=liability,
+                                     approved_amount=amount, note="缺件"),
+            incident_date="2026-08-10",
+        )
+
+    cases = [
+        _case("M1", "u-seed", "human", "missing", None, None),   # 旧代码"缺件"死分支 → approved 矛盾
+        _case("A1", "u-seed", "auto", "normal", "covered", "100.00"),
+    ]
+    await _seed_memories(cases)
+    hits = await search_case_memories("u-seed")
+    by_id = {h.case_id: h for h in hits}
+    assert by_id["M1"].outcome == "referred" and by_id["M1"].final_decision == "referred"
+    assert by_id["A1"].outcome == "auto_issued" and by_id["A1"].final_decision == "approved"

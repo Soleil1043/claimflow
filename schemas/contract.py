@@ -23,3 +23,17 @@ WAITING_PERIOD_DAYS = 30
 
 # orchestrator 每案件调度调用预算（D039 防绕圈；超限告警并强制收敛）
 ROUTING_CALL_BUDGET = 15
+
+
+# 终态结论判定（T107 单源）：auto_adjudicate 签发分支与评测记忆种子共用同一规则，
+# 防止两处手抄漂移（评审二候选 5：种子档案 outcome/decision 曾自相矛盾）
+_FINAL_DECISION_BY_VERDICT = {
+    "not_covered": "rejected",
+    "partial": "partial",
+    "covered": "approved",
+}
+
+
+def final_decision_from_verdict(verdict: str) -> str:
+    """责任结论 → 终态结论（规格规则；未知 verdict 按 covered 处理不抛错）。"""
+    return _FINAL_DECISION_BY_VERDICT.get(verdict, "approved")

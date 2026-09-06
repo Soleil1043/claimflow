@@ -41,8 +41,10 @@ from evals.adjudication_metrics import (
     load_adjudication_dataset,
     score_case,
 )
+from evals.gates import evaluate_gates, overall_passed
 from evals.schemas import AdjudicationCase
 from schemas import contract
+from schemas.contract import final_decision_from_verdict
 from tools.compliance.rule_check import check_text
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -126,15 +128,13 @@ async def _seed_memories(cases: list[Any]) -> None:
         for c in user_cases:
             exp = c.expected
             outcome = "auto_issued" if exp.route == "auto" else "referred"
-            category = exp.category
-            if category == "rejected":
-                decision = "rejected"
-            elif category == "partial":
-                decision = "partial"
-            elif category in ("缺件", "intake"):
-                decision = "referred"
-            else:
-                decision = "approved"
+            # 终态判定单源（T107）：与 auto_adjudicate 同一规则；转人工案（缺件/
+            # 受理分类）无自动终态——记忆终态即 referred
+            decision = (
+                "referred"
+                if outcome != "auto_issued"
+                else final_decision_from_verdict(exp.liability or "covered")
+            )
             record, embed_text = render_case_memory(
                 case_id=c.case_id,
                 user_id=user_id,
@@ -142,7 +142,7 @@ async def _seed_memories(cases: list[Any]) -> None:
                 outcome=outcome,
                 final_decision=decision,
                 approved_amount=exp.approved_amount,
-                reason=exp.note or category,
+                reason=exp.note or exp.category,
                 incident_date=c.incident_date,
             )
             await put_case_memory(record, embed_text)
@@ -243,58 +243,12 @@ async def _run_suite(
         print("无案件可评测")
         return 1
 
-    # 门禁计算
-    auto_cases = [r for r in results if r["expected_route"] == "auto" and not r["error"]]
-    amount_correct = sum(
-        1 for r in auto_cases if r["checks"]["amount"]
+    # 门禁计算（T107：六门纯函数 evals/gates.py，脚本与 CI 同 interface）
+    gate_results = evaluate_gates(
+        results, red_line_leaks=red_line_leaks, guard_bypasses=guard_bypasses
     )
-    amount_accuracy = amount_correct / len(auto_cases) if auto_cases else 1.0
 
-    gate_results = {
-        "amount_accuracy": {
-            "value": round(amount_accuracy, 4),
-            "threshold": GATES["amount_accuracy"]["threshold"],
-            "passed": amount_accuracy >= GATES["amount_accuracy"]["threshold"],
-            "type": "hard",
-        },
-        "red_line_leak": {
-            "value": red_line_leaks,
-            "threshold": 0,
-            "passed": red_line_leaks == 0,
-            "type": "hard",
-        },
-        "guard_interception": {
-            "value": 1.0 if guard_bypasses == 0 else 0.0,
-            "threshold": 1.0,
-            "passed": guard_bypasses == 0,
-            "type": "hard",
-        },
-        "route_consistency": {
-            "value": agg["dimensions"]["route"],
-            "threshold": 0.95,
-            "passed": agg["dimensions"]["route"] >= 0.95,
-            "type": "soft",
-        },
-        "liability_consistency": {
-            "value": agg["dimensions"]["liability"],
-            "threshold": 0.90,
-            "passed": agg["dimensions"]["liability"] >= 0.90,
-            "type": "soft",
-        },
-        "max_routing_calls": {
-            "value": max(
-                (r.get("routing_calls", 0) for r in results), default=0
-            ),
-            "threshold": 15,
-            "passed": max(
-                (r.get("routing_calls", 0) for r in results), default=0
-            ) <= 15,
-            "type": "budget",
-        },
-    }
-
-    hard_pass = all(g["passed"] for g in gate_results.values() if g["type"] == "hard")
-    overall_pass = hard_pass
+    overall_pass = overall_passed(gate_results)
 
     report = {
         "task": "T089 核赔评测上线门",
@@ -323,7 +277,7 @@ async def _run_suite(
         mark = "✅" if gate["passed"] else "❌"
         print(f"  {mark} {name}: {gate['value']} (阈值 {gate['threshold']}, {gate['type']})")
     print(f"{'=' * 60}")
-    print(f"总一致率: {agg['consistency']:.1%} | 硬门: {'全绿' if hard_pass else '有未过'}")
+    print(f"总一致率: {agg['consistency']:.1%} | 硬门: {'全绿' if overall_pass else '有未过'}")
     print(f"报告 → {report_path}")
 
     if agg["failures"]:
@@ -361,13 +315,6 @@ def _extract_outcome(
         case_type=str(state.get("case_type") or ""),
         worker_sequence=worker_sequence,
     )
-
-
-def _flatten_events(graph, config) -> list[dict]:
-    """从图 checkpoint 提取 task_plan 事件（轻量路径，不走 DB）。"""
-    state = graph.get_state(config)
-    # task_plan 是调度审计——但直接从 state 取
-    return state.values.get("task_plan", []) if state.values else []
 
 
 def _error_result(case: AdjudicationCase, error: str) -> dict[str, Any]:

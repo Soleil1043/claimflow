@@ -12,6 +12,7 @@ from typing import Any
 
 from app.core.config import settings
 from schemas.case import CaseStatus
+from schemas.contract import final_decision_from_verdict
 from services.case_store import CaseRecorder
 from services.memory.case_memory import write_case_memory
 from services.observability import metrics
@@ -63,14 +64,12 @@ def make_auto_adjudicate_node(recorder: CaseRecorder):
                 }
             }
 
-        # 自动签发（rejected 拒赔书 / approved / partial）
+        # 自动签发（终态判定单源 schemas.contract，T107；rejected 拒赔书 / approved / partial）
         if not_covered:
-            final_decision = "rejected"
             approved = Decimal("0.00")
-        elif liability.get("verdict") == "partial":
-            final_decision = "partial"
-        else:
-            final_decision = "approved"
+        final_decision = final_decision_from_verdict(
+            str(liability.get("verdict") or "covered")
+        )
 
         metrics.record_case_closed(
             case_type=str(state.get("case_type") or "unknown"),

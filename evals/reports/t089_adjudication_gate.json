@@ -1,6 +1,6 @@
 {
   "task": "T089 核赔评测上线门",
-  "generated_at": "2026-09-06T01:11:46",
+  "generated_at": "2026-09-06T18:29:08",
   "mode": "deterministic",
   "model": null,
   "total_cases": 132,
@@ -26,13 +26,13 @@
       "type": "hard"
     },
     "route_consistency": {
-      "value": 0.9924242424242424,
+      "value": 0.992424,
       "threshold": 0.95,
       "passed": true,
       "type": "soft"
     },
     "liability_consistency": {
-      "value": 0.946969696969697,
+      "value": 0.94697,
       "threshold": 0.9,
       "passed": true,
       "type": "soft"
