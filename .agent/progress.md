@@ -1872,3 +1872,13 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：378 passed + ruff 绿；评测门确定性重跑零退化（93.9%/硬门全绿——守卫行为逐位不变）。
 
 **Git**：`refactor: T118 [orchestrator守卫层拆分: 确定性裁决纯函数迁nodes-guards.py(152行); orchestrator 376→242行纯调度装配; 4消费方import更新]`
+
+### [T119] evals/reports v1 报告归档（D052 第二波收官）— 2026-09-11
+
+**操作**：34 份 v1 咨询时期评测报告（baseline/graph_assoc 实验/t040-t074 任务期冒烟回归/ui 评测台输出）git mv → evals/reports/archive/（保留 Git 历史），附归档 README 说明现行报告位置。现行 4 份留守上级目录：t081（verify_orchestrator 与 routing 测试消费）、t089（评测门现行输出）、exp_A/exp_B（compare_memory_experiment 消费）。移动前逐一 grep 确认零活代码引用。
+
+**验证**：378 passed + ruff 绿（纯文件移动，无代码影响）。
+
+**Git**：`refactor: T119 [evals-reports归档: 34份v1时期报告→archive/+README; 现行4份(t081/t089/exp_A/exp_B)留守]`
+
+**D052 结构精简两波全部收官（T112-T119）**：净删约 1700 行死代码 + long_term/orchestrator 双职责拆分 + Worker 自愈层（ToolErrorMiddleware）+ 材料提取 @task 子任务化（恢复短路/并行）+ evals/memory/observability 三域 v1 残余清零 + 报告目录整洁。
