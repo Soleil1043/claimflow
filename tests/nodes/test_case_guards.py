@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from nodes.orchestrator import default_route, enforce_guards
+from nodes.guards import default_route, enforce_guards
 
 
 def s(**kw):

@@ -15,7 +15,8 @@ from typing import Any
 
 from langgraph.checkpoint.memory import InMemorySaver
 
-from nodes.orchestrator import RoutingDecision, default_route, make_llm_router
+from nodes.guards import default_route
+from nodes.orchestrator import RoutingDecision, make_llm_router
 from workflows.case_graph import build_case_graph
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "mock"

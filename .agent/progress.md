@@ -1864,3 +1864,11 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：全库 grep turn 符号清零（.agent 历史条目按只追加规范保留）；378 passed + ruff 绿（全量首轮 1 例 background 轮询时序抖动，隔离与复跑均绿，与本改动无关）。
 
 **Git**：`refactor: T117 [token_tracker轮次语义收敛: 删TurnTokenTracker/start-finish/TURN_TOKENS/turn_token_budget全套v1轮次件; 收敛为track_case案件维度+track_phase环节标注]`
+
+### [T118] orchestrator 守卫层拆分（D052 第二波结构项）— 2026-09-11
+
+**操作**：nodes/guards.py 新建（152 行）——确定性调度裁决纯函数层自 orchestrator.py 迁出：_COMPLETION_GATED/GuardVerdict/stage_done/_material_complete/_missing_prerequisite/enforce_guards/default_route（守卫 + 兜底编排同属"代码层调度裁决"，数据源 schemas.stages 注册表）；顺手删 _missing_prerequisite 尾部重复 return 死行。orchestrator.py 376→242 行，收敛为调度装配层（RoutingDecision schema/_stage_snapshot/make_llm_router/make_orchestrator_node/route_dispatch），docstring 更新互指。消费方 import 更新：test_case_guards、test_policy_fraud_nodes、test_orchestrator_routing（default_route 改 guards，RoutingDecision/make_llm_router 留守）、adjudication_suite（stage_done 改 guards + MUST_COMPLETE 归位 schemas.stages，修一处缩进笔误）。
+
+**验证**：378 passed + ruff 绿；评测门确定性重跑零退化（93.9%/硬门全绿——守卫行为逐位不变）。
+
+**Git**：`refactor: T118 [orchestrator守卫层拆分: 确定性裁决纯函数迁nodes-guards.py(152行); orchestrator 376→242行纯调度装配; 4消费方import更新]`

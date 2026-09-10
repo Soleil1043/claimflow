@@ -321,7 +321,8 @@ def _error_result(case: AdjudicationCase, error: str) -> dict[str, Any]:
 
 def _has_guard_bypass(state: dict) -> bool:
     """守卫旁路检测：decision 存在但必做集不全 → 旁路。"""
-    from nodes.orchestrator import MUST_COMPLETE, stage_done
+    from nodes.guards import stage_done
+    from schemas.stages import MUST_COMPLETE
 
     if not state.get("decision"):
         return False

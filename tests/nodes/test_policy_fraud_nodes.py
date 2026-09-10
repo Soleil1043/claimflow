@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from nodes.fraud_check import make_fraud_check_node
-from nodes.orchestrator import default_route
+from nodes.guards import default_route
 from nodes.policy_verify import make_policy_verify_node
 
 
