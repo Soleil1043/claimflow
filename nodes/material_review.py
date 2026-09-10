@@ -1,9 +1,10 @@
-"""材料审核节点（F04，T082 真实化）。
+"""材料审核节点（F04，T082 真实化；T116 提取子任务化）。
 
 三段流水线：
-1. 逐份材料提取——优先级：storage_path 真实文件（T049 两段式：图片 vision/PDF 文本+
-   扫描件渲染/Word 文本）→ 已存提取结果（B03 上传时落档）→ 引用型兜底（种子/测试：
-   doc_type 已知、无字段，source=mock_fallback）
+1. 逐份材料提取（@task 子任务化并行，D052-2）——优先级：storage_path 真实文件
+   （T049 两段式：图片 vision/PDF 文本+扫描件渲染/Word 文本）→ 已存提取结果
+   （B03 上传时落档）→ 引用型兜底（种子/测试：doc_type 已知、无字段，
+   source=mock_fallback）。任务结果随 checkpoint 持久化：崩溃恢复跳过已提取份数。
 2. 规则层（零 LLM，tools/document）——完整性校验（险种清单）+ 金额交叉核验
    （发票 vs 清单，不一致→置信度压至 0.4 交 orchestrator 裁量）
 3. AI 一致性审查（可选，llm_router 同款参数化注入）——装载
@@ -24,6 +25,8 @@ from pathlib import Path
 from typing import Any
 
 from langchain_core.messages import HumanMessage
+from langgraph.func import task as graph_task
+from langgraph.types import RetryPolicy
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
@@ -119,8 +122,20 @@ def _reference_document(entry: dict[str, Any]) -> ExtractedDocument:
     )
 
 
+# 单份提取的声明式容错（D052-2，仅 async task 支持 timeout）：
+# RetryPolicy 默认口径——连接类/未知瞬时异常重试，ValueError/OSError 等确定性错误不重试；
+# ChatOpenAI 内层自带 max_retries=1，此处再给 1 次尝试（共 2+1 次），120s/次覆盖 vision 长尾。
+_EXTRACT_RETRY = RetryPolicy(max_attempts=2)
+_EXTRACT_TIMEOUT_S = 120.0
+
+
+@graph_task(retry_policy=_EXTRACT_RETRY, timeout=_EXTRACT_TIMEOUT_S)
 async def _extract_one(entry: dict[str, Any]) -> ExtractedDocument:
-    """单份材料提取：真实文件 → 已落档提取结果 → 引用型兜底。"""
+    """单份材料提取（@task 子任务化，D052-2）：真实文件 → 已落档提取结果 → 引用型兜底。
+
+    任务结果随图 checkpoint 持久化——进程崩溃恢复时已完成的份数不重付 LLM 调用；
+    调用顺序须稳定（resume 按调用序匹配缓存结果），材料列表只追加不重排。
+    """
     storage_path = entry.get("storage_path")
     if storage_path and Path(str(storage_path)).is_file():
         return await _extract_from_file(entry)
@@ -160,11 +175,14 @@ def make_material_review_node(recorder: CaseRecorder, ai_reviewer=None):
         line = str(state.get("case_type") or "unknown")  # 未上线险种不经此处（intake 守卫）
         entries = state.get("materials") or []
 
+        # 并行提取（D052-2）：@task 返回 future，先全部启动再按序收集——
+        # 多份材料并发走 LLM 提取，输出顺序与材料列表一致
+        futures = [_extract_one(entry) for entry in entries]
         documents: list[ExtractedDocument] = []
-        for entry in entries:
+        for entry, fut in zip(entries, futures, strict=True):
             try:
-                documents.append(await _extract_one(entry))
-            # 单份提取失败不阻塞（fail-open，D008 语义）
+                documents.append(await fut)
+            # 单份提取失败不阻塞（fail-open，D008 语义；重试已由 @task retry_policy 承载）
             except Exception as exc:  # noqa: BLE001
                 log.warning("material_extract_failed",
                             case_id=state["case_id"],

@@ -1848,3 +1848,11 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：382 passed（380+2）+ ruff 绿；金样本评测门确定性重跑零退化（总一致率 93.9%、硬门全绿、liability 0.94697 与基线一致）。
 
 **Git**：`feat: T115 [Worker容错自愈层: ToolErrorMiddleware装配(异常类型可见/原始消息隐藏)+负向测试2例; ToolRetry不叠加(GuardedTool内层已重试)]`
+
+### [T116] 材料提取 @task 子任务化（D052-2）— 2026-09-11
+
+**操作**：nodes/material_review.py——_extract_one 包 `@task(retry_policy=RetryPolicy(max_attempts=2), timeout=120s)`（默认 retry_on 口径：连接类/未知瞬时异常重试、ValueError/OSError 确定性错误不重试；timeout 仅 async task 支持）；节点提取循环串行 for → future 并行（输出顺序与材料列表一致，zip strict）。三收益落地：崩溃恢复短路（任务结果随 checkpoint 持久化，恢复不重付已提取材料 LLM 调用）、声明式容错、任务粒度 trace。**两个实测坑沉淀**：① @task 图外调用抛 RuntimeError（Called get_config outside of a runnable context）——直调节点的单测须改经最小编译图路由（test _run 重写，StateGraph+compile.ainvoke）；② 恢复必须 ainvoke(None, config) 续跑——传新输入会生成新 checkpoint id → 任务 id 全变 → scratchpad 不命中 → 重复执行（langgraph 源码定位：pregel/_call.py next_task.writes 复用，task_id 由 checkpoint_id+step+path 派生）。
+
+**验证**：tests/nodes/test_material_review.py 12→14 用例（新增恢复短路——节点尾部规则层注入 flaky 崩溃→同 thread 恢复→提取调用计数不增+completeness 正确；并行重叠——Event 门 proof，串行则超时失败）；384 passed（382+2）+ ruff 绿；评测门确定性重跑零退化（93.9%/硬门全绿，证明生产图路径 @task 兼容）。
+
+**Git**：`feat: T116 [材料提取@task子任务化: retry+timeout声明式容错+future并行+崩溃恢复短路; 两实测坑: 图外RuntimeError→编译图路由, 恢复须ainvoke(None)]`
