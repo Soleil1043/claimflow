@@ -1816,3 +1816,11 @@ workbench `npm run build` 通过（T057 已验）。
 `docs/claimflow-新架构设计-v2.md` → `docs/claimflow-新架构设计.md`、`docs/claimflow-新架构设计-v2-人话版.md` → `docs/claimflow-新架构设计-人话版.md`（git mv 保留历史）。同步更新：工程版标题/头部（"方案 v2"/"v2.1 版本说明"→现行口径）、两文档互引、AGENTS.md 两处引用；spec.md/plan.md（T077 重写的现行文档）标题去 "v2"、头部去 v1 tag 引用与文档指针、plan.md 删"v1 资产复用映射"节（其引用的 v2 文档第十五节已改处置结果）。decisions.md/tasks.md/progress.md 历史条目中的旧文件名按"只追加不改历史"保留。
 
 **Git**：`docs: 设计文档去版本号命名(新架构设计-v2→新架构设计,人话版同步)+spec/plan去v2标题与v1tag引用+删v1资产映射节`
+
+### [T112] evals v1 残骸删除（D052 结构精简第一批）— 2026-09-11
+
+**操作**：删除 v1 咨询评测框架残余——evals/metrics.py(428行)/trajectory.py/judge.py + tests/evals/{test_scoring,test_trajectory,test_judge}.py（运行器 test_suite.py 已随 T094 删除，三件套仅剩互相引用与各自测试）；evals/schemas.py 删 EvalCategory/EvalCase/EvalDataset 三类与 StrEnum/model_validator import，收敛为纯核赔金样本 schema（Adjudication* 三类）。
+
+**验证**：全库 grep 无 evals.{metrics,trajectory,judge}/Eval* 活引用；404 passed（458→404：删 v1 评测测试 54 个）+ ruff 绿；金样本评测门确定性重跑——硬门全绿（金额 1.0/红线 0/守卫 0）、失败集仍为相同 8 条边界案（与 T102 实验记录一致），指标零变化。
+
+**Git**：`refactor: T112 [evals v1残骸删除: metrics/trajectory/judge三件+Eval*三类+对应测试54个; 评测门指标零变化]`
