@@ -1287,3 +1287,14 @@ CaseInterventionHuman → CaseHumanInfo 改名。全量 458 passed + 双 build �
 故 T115 只装配 ToolErrorMiddleware（自愈层：异常 → error ToolMessage，只暴露异常类型
 不泄露原始消息——官方建议口径）；重试语义完全交由 GuardedTool 内层承载。
 模型反复失败仍由 ModelCallLimitMiddleware 硬截断 → 调用方节点确定性兜底，D039 闭环不变。
+
+## D052 补记二（2026-09-11）：审阅报告 P2 可选项取舍
+
+评估后不做（收益/风险比不足，防后人重复评估）：
+- **init_chat_model 替换手写 ChatOpenAI**：其价值在供应商前缀路由，本项目固定 OpenAI 兼容端点
+  （DeepSeek，base_url 切换已够用），替换属横向改动无功能增益。
+- **set_node_defaults + 节点级 RetryPolicy/TimeoutPolicy**：每节点已有"业务失败=正常返回+领域兜底"
+  （D039），通用节点级重试反而延迟兜底；材料提取子步骤容错已由 T116 @task 精确承载。
+- **ModelFallbackMiddleware**：模型级故障切换，单供应商 PoC 无场景；多供应商时直接采用。
+- **case_jobs.py 拆 JobLoop**：队列/派发/回收/循环是一个内聚子系统，拆分收益低于扰动。
+执行：T118（orchestrator 守卫拆分）+ T119（evals/reports v1 报告归档）。
