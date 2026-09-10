@@ -9,6 +9,8 @@
   排除结构化输出工具）
 - 降级语义：子图异常向上抛（调用方节点走确定性兜底，D039）；
   模型未产出结构化结论 → 最后一条 AIMessage 原文降级为 {"summary": ...}
+- 工具自愈层（D052）：ToolErrorMiddleware 把工具系统异常收敛为 error ToolMessage——
+  LLM 可见可换路（换工具/调参数/基于现状收口），不再炸子图直落兜底
 - 防失控：ModelCallLimitMiddleware 硬截断（run_limit=9 ≈ 8 轮工具循环 + 终局）
 """
 
@@ -19,7 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import ModelCallLimitMiddleware
+from langchain.agents.middleware import ModelCallLimitMiddleware, ToolErrorMiddleware
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import BaseTool
@@ -97,6 +99,20 @@ _RECURSION_LIMIT = 50
 _worker_cache: dict[str, Any] = {}
 
 
+def _tool_error_message(exc: Exception, request: Any) -> str:
+    """工具系统异常 → 模型可见的收敛消息（D052 自愈层）。
+
+    只暴露异常类型不暴露原始消息（官方建议：raw message 可能携带内部细节）；
+    request 为 ToolCallRequest（含 tool_call dict）。interrupt 等图控制流信号
+    不经过此处（中间件层保证穿透）。
+    """
+    name = (request.tool_call or {}).get("name", "unknown")
+    return (
+        f"工具 {name} 执行失败（{type(exc).__name__}）。"
+        "请改用其他工具或调整入参重试；确实无法完成时，基于已获取的信息给出结论。"
+    )
+
+
 def get_worker_subgraph(agent_def: AgentDefinition) -> Any:
     """装配（带缓存）一个 Worker 的 create_agent 子图。"""
     if agent_def.name not in _worker_cache:
@@ -106,7 +122,14 @@ def get_worker_subgraph(agent_def: AgentDefinition) -> Any:
             tools=tools,
             system_prompt=agent_def.system_prompt,
             response_format=agent_def.output_schema,
-            middleware=[ModelCallLimitMiddleware(run_limit=_RUN_MODEL_CALL_LIMIT, exit_behavior="end")],
+            middleware=[
+                # D052 自愈层：工具系统异常 → error ToolMessage（LLM 可见可换路）。
+                # 重试已由 GuardedTool 内层官方 .with_retry 承载，此处不叠
+                # ToolRetryMiddleware（避免重试倍数放大守卫超时窗口）；模型反复
+                # 失败时由 ModelCallLimit 硬截断收口 → 调用方节点确定性兜底。
+                ToolErrorMiddleware(on_error=_tool_error_message),
+                ModelCallLimitMiddleware(run_limit=_RUN_MODEL_CALL_LIMIT, exit_behavior="end"),
+            ],
             name=agent_def.name,
         )
         log.info("worker_subgraph_built", agent=agent_def.name, tools=[t.name for t in tools])

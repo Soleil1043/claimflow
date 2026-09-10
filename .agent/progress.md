@@ -1840,3 +1840,11 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：全库 grep 无被删符号引用（.agent 历史日志提及按只追加规范保留）；380 passed + ruff 绿。
 
 **Git**：`refactor: T114 [零散死代码: 删schemas-agent.py+两死脚本(死API调用/断链import)+ToolOutput+MAX_HISTORY_MESSAGES]`
+
+### [T115] Worker 子图官方容错中间件（D052-1 自愈层）— 2026-09-11
+
+**操作**：services/worker_agent.py 的 create_agent middleware 增 ToolErrorMiddleware(on_error=_tool_error_message)——工具系统异常收敛为模型可见 error ToolMessage（只暴露异常类型不泄露原始消息，官方建议口径），LLM 可换工具/调参数/基于现状收口，不再炸子图直落兜底。**ToolRetryMiddleware 不叠加**（D052 补记入 decisions.md）：Worker 内工具全为 GuardedTool，内层已带官方 .with_retry + 守卫超时总预算，外层再叠重试倍数放大（3×3×10s）。新增 tests/services/test_worker_agent.py 2 用例（ScriptedModel 覆写 bind_tools 绕开 BaseChatModel 默认 NotImplementedError 的实测坑）：①自愈——失败工具→error ToolMessage→模型换路产出结构化结论，异常类型可见/原始消息不可见；②耗尽——模型反复调失败工具→ModelCallLimit 截断→降级 {"summary"} 全程不抛错。
+
+**验证**：382 passed（380+2）+ ruff 绿；金样本评测门确定性重跑零退化（总一致率 93.9%、硬门全绿、liability 0.94697 与基线一致）。
+
+**Git**：`feat: T115 [Worker容错自愈层: ToolErrorMiddleware装配(异常类型可见/原始消息隐藏)+负向测试2例; ToolRetry不叠加(GuardedTool内层已重试)]`

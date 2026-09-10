@@ -1278,3 +1278,12 @@ CaseInterventionHuman → CaseHumanInfo 改名。全量 458 passed + 双 build �
    MAX_HISTORY_MESSAGES、demo_hitl_backend / verify_ui / verify_memory 脚本、v1 遗留配置项
    （memory_summary_every_n_turns / memory_top_k / memory_min_score / turn_token_budget）、
    token_tracker 轮次（turn）语义残留。
+
+## D052 补记（T115，2026-09-11）：ToolRetryMiddleware 不叠加
+
+实施时确认：Worker 子图内的工具全部是 GuardedTool（tools/factory 装配），其内层已带官方
+`.with_retry()`（stop_after_attempt=3）+ 守卫超时总预算。若再叠 ToolRetryMiddleware，
+重试倍数放大（3×3=9 次尝试 × 10s 超时窗口），最坏延迟不可接受且收益重复。
+故 T115 只装配 ToolErrorMiddleware（自愈层：异常 → error ToolMessage，只暴露异常类型
+不泄露原始消息——官方建议口径）；重试语义完全交由 GuardedTool 内层承载。
+模型反复失败仍由 ModelCallLimitMiddleware 硬截断 → 调用方节点确定性兜底，D039 闭环不变。
