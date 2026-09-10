@@ -18,10 +18,6 @@ from app.core.logging import get_logger
 
 log = get_logger(__name__)
 
-# 对话历史滑窗：注入 LLM 的最大历史条数（Token 预算控制）
-MAX_HISTORY_MESSAGES = 20
-
-
 class CheckpointManager:
     """Checkpointer 持有者：应用 lifespan 内 start/close，全局取用。
 

@@ -4,7 +4,7 @@
 - dev：进程内 TTL 字典（零容器依赖，语义与 Redis 对齐）
 
 key 规则：claimflow:toolcache:{tool}:{入参指纹}（sha256 of canonical json）。
-value：ToolOutput 序列化 JSON。TTL 由 settings.tool_cache_ttl_seconds 控制。
+value：工具结果 dict 序列化 JSON。TTL 由 settings.tool_cache_ttl_seconds 控制。
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ class ToolResultCache:
         return f"{cls._PREFIX}:{tool_name}:{digest}"
 
     async def get(self, tool_name: str, input_data: dict[str, Any]) -> dict[str, Any] | None:
-        """命中返回 ToolOutput 的 dict 形态；未命中返回 None。"""
+        """命中返回工具结果 dict；未命中返回 None。"""
         raw = await self._backend.get(self.make_key(tool_name, input_data))
         if raw is None:
             return None
