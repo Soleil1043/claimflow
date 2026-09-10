@@ -1856,3 +1856,11 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：tests/nodes/test_material_review.py 12→14 用例（新增恢复短路——节点尾部规则层注入 flaky 崩溃→同 thread 恢复→提取调用计数不增+completeness 正确；并行重叠——Event 门 proof，串行则超时失败）；384 passed（382+2）+ ruff 绿；评测门确定性重跑零退化（93.9%/硬门全绿，证明生产图路径 @task 兼容）。
 
 **Git**：`feat: T116 [材料提取@task子任务化: retry+timeout声明式容错+future并行+崩溃恢复短路; 两实测坑: 图外RuntimeError→编译图路由, 恢复须ainvoke(None)]`
+
+### [T117] token_tracker 轮次语义收敛（D052 收官）— 2026-09-11
+
+**操作**：services/observability/token_tracker.py 190→103 行——删除 v1"轮次"语义全套（TurnTokenTracker 归集器 / start_turn_tokens / finish_turn_tokens / _current_tracker 上下文 / 超预算告警），收敛为现行两件套：track_case→record_usage_to_tracker→CASE_TOKENS{model} 案件维度指标 + track_phase/current_phase 环节标注（ocr/executor，tracing span 用）；phase_ainvoke 保留（materials 在用）。连带删除 metrics.py 的 TURN_TOKENS 指标与 record_turn_tokens、config.py 的 turn_token_budget。tests/observability/test_token_tracker.py 11→4 用例（环节嵌套恢复 / 无案件上下文 noop / 案件维度归集 / 上下文退出防泄漏）。
+
+**验证**：全库 grep turn 符号清零（.agent 历史条目按只追加规范保留）；378 passed + ruff 绿（全量首轮 1 例 background 轮询时序抖动，隔离与复跑均绿，与本改动无关）。
+
+**Git**：`refactor: T117 [token_tracker轮次语义收敛: 删TurnTokenTracker/start-finish/TURN_TOKENS/turn_token_budget全套v1轮次件; 收敛为track_case案件维度+track_phase环节标注]`

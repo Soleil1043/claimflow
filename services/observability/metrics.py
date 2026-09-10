@@ -77,16 +77,6 @@ LLM_TOKENS = Counter(
     registry=registry,
 )
 
-TURN_TOKENS = Counter(
-    "claimflow_turn_tokens_total",
-    "单轮对话 token 消耗（按环节分维，T029）",
-    labelnames=[
-        "phase",
-        "model",
-    ],  # phase: intent | planner | executor | generator | compliance | other
-    registry=registry,
-)
-
 # ===== 核赔业务指标（Phase 8 T090，D037/D039） =====
 
 CASES_TOTAL = Counter(
@@ -192,11 +182,6 @@ def record_tool_cache(tool: str, result: str) -> None:
     _safe_inc(TOOL_CACHE_HITS, tool=tool, result=result)
 
 
-def record_turn_tokens(phase: str, model: str, tokens: int) -> None:
-    """单轮对话分环节 token 埋点（T029）。"""
-    _safe_inc(TURN_TOKENS, phase=phase, model=model, amount=float(tokens))
-
-
 def record_llm_call(
     model: str,
     status: str,
@@ -279,7 +264,6 @@ __all__ = [
     "TOOL_CACHE_HITS",
     "TOOL_CALLS",
     "TOOL_LATENCY",
-    "TURN_TOKENS",
     "record_breaker_rejected",
     "record_case_closed",
     "record_case_duration",
@@ -293,5 +277,4 @@ __all__ = [
     "record_supplement_rounds",
     "record_tool_cache",
     "record_tool_call",
-    "record_turn_tokens",
 ]
