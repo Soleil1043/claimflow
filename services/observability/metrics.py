@@ -87,15 +87,6 @@ TURN_TOKENS = Counter(
     registry=registry,
 )
 
-# ===== 业务指标 =====
-
-MEMORY_WRITES = Counter(
-    "claimflow_memory_writes_total",
-    "长期记忆写入次数（旁路路径，失败不阻断对话）",
-    labelnames=["result"],  # success | error
-    registry=registry,
-)
-
 # ===== 核赔业务指标（Phase 8 T090，D037/D039） =====
 
 CASES_TOTAL = Counter(
@@ -222,11 +213,6 @@ def record_llm_call(
         _safe_inc(LLM_TOKENS, model=model, kind="completion", amount=float(completion_tokens))
 
 
-def record_memory_write(result: str) -> None:
-    """长期记忆写入结果埋点（T034 旁路路径，失败静默只计数）。"""
-    _safe_inc(MEMORY_WRITES, result=result)
-
-
 # ---------- 核赔埋点辅助（T090） ----------
 
 
@@ -285,7 +271,6 @@ __all__ = [
     "LLM_CALLS",
     "LLM_LATENCY",
     "LLM_TOKENS",
-    "MEMORY_WRITES",
     "ORCH_FALLBACK",
     "REGISTRY",
     "ROUTING_CALLS",
@@ -303,7 +288,6 @@ __all__ = [
     "record_decision_amount",
     "record_guard_correction",
     "record_llm_call",
-    "record_memory_write",
     "record_orch_fallback",
     "record_routing_calls",
     "record_supplement_rounds",

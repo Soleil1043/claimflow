@@ -1824,3 +1824,11 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：全库 grep 无 evals.{metrics,trajectory,judge}/Eval* 活引用；404 passed（458→404：删 v1 评测测试 54 个）+ ruff 绿；金样本评测门确定性重跑——硬门全绿（金额 1.0/红线 0/守卫 0）、失败集仍为相同 8 条边界案（与 T102 实验记录一致），指标零变化。
 
 **Git**：`refactor: T112 [evals v1残骸删除: metrics/trajectory/judge三件+Eval*三类+对应测试54个; 评测门指标零变化]`
+
+### [T113] long_term 双职责切除（D052 结构精简第二批）— 2026-09-11
+
+**操作**：services/memory/long_term.py 428→133 行——切除 v1 会话摘要路径（MemoryRecord/memory_key/summarize_conversation/maybe_write_memory/write_memory/search_memories/MemoryHit/format_memory_context/实体正则提取等全套），收敛为纯 Store 存储层（get_memory_store/reset_memory_store/_ensure_pg_setup/search_store_items/_embed_for_store）；保留全部 BUG-003 装配知识注释。连带删除：prompts.py 的 MEMORY_SUMMARY_PROMPT、scripts/verify_memory.py、config.py 三项 v1 配置（memory_summary_every_n_turns/memory_top_k/memory_min_score，memory_enabled/memory_in_routing 保留——case_memory/orchestrator 在用）、metrics.py 的 MEMORY_WRITES 指标与 record_memory_write（消费者随摘要路径消亡）。tests/memory/test_long_term.py 26→2 用例（保留 BUG-003 prod 连接池装配回归 + _ensure_pg_setup 幂等两测试；写读闭环/幂等/隔离语义由 test_case_memory 的现行路径覆盖）。
+
+**验证**：全库 grep 无被删符号引用（CaseMemoryRecord 子串误中除外）；case_memory 写读闭环与 main.py 启动预建路径不受影响（import 全保留）；404→380 passed（删 24 个死路径测试）+ ruff 绿。
+
+**Git**：`refactor: T113 [long_term双职责切除: 428→133行纯Store存储层; 连带删MEMORY_SUMMARY_PROMPT/verify_memory/MEMORY_WRITES指标/3配置项; 26→2测试]`

@@ -78,16 +78,12 @@ class Settings(BaseSettings):
     rerank_recall_k: int = 8
     rerank_top_k: int = 4
 
-    # ===== 长期记忆（T034/T035） =====
-    # 会话摘要写入记忆 collection 的开关；每 N 轮（用户消息数）触发一次摘要更新
+    # ===== 申请人记忆（T100） =====
+    # 记忆写读总开关（旁路路径，关断零影响）
     memory_enabled: bool = True
-    # 申请人记忆注入 orchestrator 路由快照（T100）：默认关——LLM 路由口径与金样本
+    # 申请人记忆注入 orchestrator 路由快照：默认关——LLM 路由口径与金样本
     # 评测保持一致，观察检索质量后再开启
     memory_in_routing: bool = False
-    memory_summary_every_n_turns: int = 3
-    # 读注入（T035）：首轮检索条数与相似度下限（低于 min_score 视为噪声不注入）
-    memory_top_k: int = 2
-    memory_min_score: float = 0.4
 
     # ===== Redis（prod） / 内存缓存（dev 降级） =====
     redis_url: str = "redis://localhost:6379/0"
