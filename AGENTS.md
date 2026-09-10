@@ -18,7 +18,7 @@
 
 决策链见 `.agent/decisions.md`（D037-D039 为核赔平台方向决策）。
 
-总体架构与实施依据：`docs/claimflow-新架构设计-v2.md`（工程版）+ 同目录人话版导读。
+总体架构与实施依据：`docs/claimflow-新架构设计.md`（工程版）+ 同目录人话版导读。
 任务清单：`.agent/tasks.md` Phase 8（T077-T093）。
 
 ---
@@ -190,7 +190,7 @@ claimflow/
 │   ├── versions/
 │   └── env.py
 │
-├── docs/                      # 设计文档（claimflow-新架构设计-v2.md 工程版 + 人话版导读）
+├── docs/                      # 设计文档（claimflow-新架构设计.md 工程版 + 人话版导读）
 │
 ├── Dockerfile
 ├── docker-compose.yml

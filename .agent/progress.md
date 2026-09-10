@@ -1810,3 +1810,9 @@ workbench `npm run build` 通过（T057 已验）。
 **范围**：① 删除代码注释/docstring 中所有 v0/v1 版本变迁叙述（迁移/废弃/兼容壳/历史对照类约 40 处，涉及 tools/base、tools/factory、tools/guards、worker_agent、llm/prompts、case_memory、long_term、metrics、tracing、token_tracker、llm_metrics、schemas/agent、schemas/tools、evals/schemas、evals/metrics、config、cases.py、main.py、state.py、workbench 两文件）；docstring 中对已删除 architecture.md 的章节引用一并清除。② 15 个空 `__init__.py` 补包级 docstring（全库 415 个 py 模块 docstring 审计通过）。③ 文档去 v1 叙述：CONTEXT.md（5 处 Avoid 括注）、AGENTS.md（目录结构树更新为现状、6.1/6.3/7 章节去迁移表述）、v2 设计文档（头部/1.1 定位/§2 改"关键设计决策总览"/§13 目录树对齐现状/§14 已交付/§15 处置结果）、人话版（§一/§三 现行口径，删 §四 v0 对比与 §五 处置表，§六 改已交付）。④ 删除 v1 遗留文档 5 份：docs/architecture.md（v1 咨询系统架构，T099 已冻结）、docs/claimflow - 新架构设计.md（v0 草案）、docs/readme-professional-guide.md、docs/eval-audit-for-ai.md、docs/eval-audit-for-human.md（历史由 Git 承担）。⑤ prod-test skill 冒烟阶段自 v1 conversations 链路改写为现行核赔链路（verify_adjudication + adjudication_suite）。.agent/ 追加式历史日志与 evals/reports/ 运行产物未动。**验证**：ruff 全绿 + pytest **458 passed**。
 
 **Git**：`docs: 全库清理v0/v1版本变迁注释+15个空__init__补docstring+删除v1遗留文档5份(architecture/v0草案/README指南/评测审计x2)+prod-test skill冒烟链路对齐核赔现行API`
+
+### [DOCS] 设计文档去版本号命名 — 2026-09-11（用户直接指令）
+
+`docs/claimflow-新架构设计-v2.md` → `docs/claimflow-新架构设计.md`、`docs/claimflow-新架构设计-v2-人话版.md` → `docs/claimflow-新架构设计-人话版.md`（git mv 保留历史）。同步更新：工程版标题/头部（"方案 v2"/"v2.1 版本说明"→现行口径）、两文档互引、AGENTS.md 两处引用；spec.md/plan.md（T077 重写的现行文档）标题去 "v2"、头部去 v1 tag 引用与文档指针、plan.md 删"v1 资产复用映射"节（其引用的 v2 文档第十五节已改处置结果）。decisions.md/tasks.md/progress.md 历史条目中的旧文件名按"只追加不改历史"保留。
+
+**Git**：`docs: 设计文档去版本号命名(新架构设计-v2→新架构设计,人话版同步)+spec/plan去v2标题与v1tag引用+删v1资产映射节`

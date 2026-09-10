@@ -1,8 +1,7 @@
-# 技术方案（Plan）——保险理赔智能核赔平台 v2
+# 技术方案（Plan）——保险理赔智能核赔平台
 
-> Phase 8 产出（2026-09-04，D037-D039）。**主体架构以 docs/claimflow-新架构设计-v2.md 为准**
+> Phase 8 产出（2026-09-04，D037-D039）。**主体架构以 docs/claimflow-新架构设计.md 为准**
 > （本文件不重复架构细节，只记录落地映射、选型增量与风险）。
-> v1 咨询版方案见 git tag `v1-consultation`。
 > 状态标记：✅ 已确认 | 🔄 待确认 | ❌ 需修改
 
 **状态**：🔄 待确认
@@ -24,7 +23,7 @@ BGE-M3 / uv / pytest / Docker / Prometheus+Grafana），增量与关键口径：
 | 金额 | 全链路 Decimal，序列化 str/分 | F08 硬门前提 |
 | 结构化输出 | with_structured_output(method="function_calling") | D022/T068 实测口径 |
 
-## 2. 架构要点索引（详见 v2 文档）
+## 2. 架构要点索引（详见架构设计文档）
 
 - 第四节：orchestrator 设计（守卫表/失败兜底/决策审计/图骨架）——**本方案核心**
 - 第五节：ClaimCaseState 分域 + 阶段 Pydantic 模型 + 字段所有权表（并行安全）
@@ -33,18 +32,18 @@ BGE-M3 / uv / pytest / Docker / Prometheus+Grafana），增量与关键口径：
 - 第十节：静态合规门 + 金额一致性断言
 - 第七/十三节：工具映射与目录结构（含 skills/）
 
-## 3. 里程碑与任务映射
+## 3. 里程碑与任务映射（已全部交付）
 
 | 里程碑 | 任务 | 门禁摘要 |
 |---|---|---|
-| M0 立项 | T077 | spec/plan/tasks/architecture 就绪 |
+| M0 立项 | T077 | spec/plan/tasks/设计文档 就绪 |
 | M1 骨架 | T078 域模型 → T079 主图骨架（兜底编排+守卫）→ T080 案件 API | 20 金样本（桩工具）金额/路由断言全绿 |
 | M2 LLM 化 | T081 skill+orchestrator → T082 材料 → T083 保单/风控 → T084 责任 → T085 决定书+合规门 | 守卫注入 100% 拦截；金额注入 100% 拦截 |
 | M3 HITL | T086 interrupt 全链 → T087 工作台 | 补件/签批/跨重启恢复 e2e |
 | M4 评测观测 | T088 金样本判分 → T089 上线门 → T090 埋点 | 硬门全绿 + 路由 ≥95% + 调用 ≤15 |
-| M5 收尾 | T091 演示门户 → T092 容器化 → T093 删旧收尾 | 全量回归绿 |
+| M5 收尾 | T091 演示门户 → T092 容器化 → T093 清理收尾 | 全量回归绿 |
 
-依赖链严格串行（工作流约束：不跳依赖、不同时多任务）。约 6 周。
+依赖链严格串行（工作流约束：不跳依赖、不同时多任务）。
 
 ## 4. 风险与对策
 
@@ -56,13 +55,5 @@ BGE-M3 / uv / pytest / Docker / Prometheus+Grafana），增量与关键口径：
 | LLM 幻觉金额 | 理算纯确定性工具 + 决定书金额一致性断言（不依赖 LLM） |
 | 金额精度 | 全链路 Decimal，序列化 str/分 |
 | 多险种 mock 数据缺失 | pack 分批；未上线险种受理转人工；首批只做医疗险 |
-| 金样本标注成本 | 程序化生成 + 人工校验（v1 T026/T065 经验） |
+| 金样本标注成本 | 程序化生成 + 人工校验（T026/T065 经验） |
 | skill 改动回归风险 | skill 变更必须跑金样本回归；接 A/B 框架对比（skill_off/on 变体） |
-
-## 5. v1 资产复用映射（摘要，详见 v2 文档第十五节）
-
-- **升级复用**：nodes/supervisor.py（T047）→ orchestrator；compliance/human_review 两节点；
-  policy_query/calculator/ocr_extract/diagnosis_matcher/risk_scoring 工具
-- **原样保留**：guards/factory、rag 全套、materials、observability、evals 框架、docker 资产、评测台
-- **删除**（M2-M5 分批）：intent/generator/rag/planner 节点、咨询 Agent、conversations API、
-  main_graph、ui/app.py、咨询评测集
