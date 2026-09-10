@@ -57,3 +57,40 @@ BGE-M3 / uv / pytest / Docker / Prometheus+Grafana），增量与关键口径：
 | 多险种 mock 数据缺失 | pack 分批；未上线险种受理转人工；首批只做医疗险 |
 | 金样本标注成本 | 程序化生成 + 人工校验（T026/T065 经验） |
 | skill 改动回归风险 | skill 变更必须跑金样本回归；接 A/B 框架对比（skill_off/on 变体） |
+
+---
+
+## 6. 维护期重构：结构精简与官方容错对齐（2026-09-11，D052，T112-T117）
+
+> 依据：全库结构审阅 + Docs by LangChain 官方文档逐项核实。任务清单见 tasks.md 增量节。
+
+### 6.1 删除面（P0，零行为变化）
+
+| 对象 | 说明 |
+|---|---|
+| evals v1 残骸 | metrics/trajectory/judge 三件 + schemas Eval* 三类 + 对应测试（运行器 test_suite 已随 T094 删，此为残余） |
+| long_term 会话摘要半边 | 保留 Store 管线（get_memory_store / _ensure_pg_setup / search_store_items）；删 LLM 摘要路径（现行申请人记忆 case_memory 为确定性渲染，零 LLM）+ MEMORY_SUMMARY_PROMPT + verify_memory.py |
+| 零散死码 | schemas/agent.py（零消费者）、ToolOutput（零代码消费者）、MAX_HISTORY_MESSAGES、demo_hitl_backend.py（调已删 conversations API）、verify_ui.py（import 已删 ui/，运行即 ImportError） |
+| v1 配置项 | memory_summary_every_n_turns / memory_top_k / memory_min_score / turn_token_budget（消费者均在删除面内） |
+| token_tracker 轮次语义 | start/finish_turn_tokens 仅测试调用，现行入口 track_case（案件维度）；TURN_TOKENS 指标文案同步 |
+
+预期净删约 1500 行。
+
+### 6.2 官方对齐面（P1）
+
+1. **Worker 子图容错**：`ToolRetryMiddleware(on_failure="error")`（内层）+ `ToolErrorMiddleware`
+   （外层）装配进 worker_agent 的 create_agent middleware（与 ModelCallLimitMiddleware 并列）。
+   语义链：工具系统异常 → error ToolMessage（LLM 可见可自愈）→ 重试耗尽 → 既有确定性兜底。
+2. **材料提取 @task 子任务化**：material_review 节点内逐份提取包 `@task(retry_policy=, timeout=)`；
+   三收益——崩溃恢复跳过已提取材料（不重付 LLM）、声明式容错、任务粒度 trace；串行 for 顺带
+   改 future 并行。注意 ChatOpenAI max_retries=1 与 RetryPolicy 的叠加倍数（超时预算放大）。
+
+### 6.3 明确不动（防过度工程，官方核实无对应物或语义不同）
+
+CircuitBreaker（官方无熔断）、ToolResultCache Redis 版（cache_policy 语义不同）、渲染层脱敏
+（官方 PII middleware 层次不同）、orchestrator / 材料 AI 审查的快速兜底（D039 设计）。
+
+### 6.4 验证口径
+
+每任务全量 pytest + ruff；T115/T116 配负向用例（工具异常自愈 / 恢复短路）；删除类任务要求
+金样本评测门确定性模式指标零变化。

@@ -1251,3 +1251,30 @@ session_module._engine）；两份 API 夹具同构 ~80%；前端"案件是否�
 CaseInterventionHuman → CaseHumanInfo 改名。全量 458 passed + 双 build 绿。
 教训入册：**收官轮的"宣称未兑现"必须由独立走查核对**——上轮实施时
 前端部分因 heredoc 事故后的重写流程被遗漏，靠本轮才补上。
+
+## D052：结构精简重构——死代码清除 + 官方容错对齐（T112-T117，2026-09-11）
+
+**背景**：全库结构审阅（对照 Docs by LangChain 官方文档逐项核实）发现三类问题：
+① Phase 8 重写遗留死代码约 1500 行（v1 评测残骸 / long_term 双职责 / 零散死类死脚本死配置）；
+② Worker 子图内工具系统异常直接炸子图掉确定性兜底，缺"LLM 自愈"层；
+③ 材料提取为节点内串行昂贵 LLM 子步骤，无任务粒度 checkpoint 短路（崩溃恢复重付全部提取调用）。
+
+**选型与结论**（官方文档核实）：
+1. **Worker 容错**：官方 `ToolRetryMiddleware(on_failure="error")`（内层）+ `ToolErrorMiddleware`（外层）
+   组合（langchain≥1.3.14，官方文档推荐次序）——工具系统异常转为模型可见 error ToolMessage，
+   LLM 修正参数重试，重试耗尽才落既有领域兜底。**自愈优先于兜底**，与 D039 不冲突
+   （兜底保留，中间件只在子图内多争取一次自愈）。
+2. **材料提取子任务化**：`@task` 官方明确可在 StateGraph 节点内调用（graph-api "Using tasks
+   in nodes"），任务结果进 checkpointer（resume 跳过节点内已完成 task）+ 声明式
+   retry_policy/timeout。不改图结构、不引入 Functional API（Graph API 保持原样）。
+3. **明确不动**（防过度工程，均经官方文档核实）：
+   - CircuitBreaker 自研保留——官方无熔断器（文档检索零命中）
+   - ToolResultCache（Redis 跨案件）自研保留——官方 cache_policy 是图运行内 memoization，语义不同
+   - 渲染层脱敏（mask_sensitive/check_text）保留——官方 PII middleware 在 agent 消息层，层次职责不同
+   - 节点领域兜底保留——"业务失败=正常返回+确定性兜底"优于通用节点级 RetryPolicy
+   - orchestrator 路由 / 材料 AI 审查不加 @task retry——"失败快速兜底"是 D039 刻意设计（含 routing_call_budget）
+4. **死代码删除面**（全部经消费者 grep 实证零活引用）：evals v1 三件套（metrics/trajectory/judge）
+   + Eval* schema 三类、long_term 会话摘要半边（保留 Store 管线）、schemas/agent.py、ToolOutput、
+   MAX_HISTORY_MESSAGES、demo_hitl_backend / verify_ui / verify_memory 脚本、v1 遗留配置项
+   （memory_summary_every_n_turns / memory_top_k / memory_min_score / turn_token_budget）、
+   token_tracker 轮次（turn）语义残留。
