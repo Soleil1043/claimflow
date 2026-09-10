@@ -15,7 +15,8 @@
 - skill 机制：每阶段×险种一份 SKILL.md 作业规程，准确率迭代改文本不改代码
 - 多险种：case_type 枚举（medical/auto/property/accident），worker 按"险种 pack"分批上线——首批医疗险，未上线险种受理期转人工
 - 分级自动：阈值全部配置化（pydantic-settings）
-- v1 咨询问答版已冻结（tag `v1-consultation`）；决策链见 `.agent/decisions.md` D037-D039
+
+决策链见 `.agent/decisions.md`（D037-D039 为核赔平台方向决策）。
 
 总体架构与实施依据：`docs/claimflow-新架构设计-v2.md`（工程版）+ 同目录人话版导读。
 任务清单：`.agent/tasks.md` Phase 8（T077-T093）。
@@ -68,7 +69,7 @@
 
 ### 4.2 命名
 
-- API 路由：RESTful 复数名词，如 `/api/v1/conversations`
+- API 路由：RESTful 复数名词，如 `/api/v1/cases`
 - 变量/函数：snake_case
 - 类名：PascalCase
 - 常量：UPPER_SNAKE_CASE
@@ -96,107 +97,88 @@
 ```
 claimflow/
 ├── .agent/                    ← AI 工具状态（只追加，不删除）
-│   ├── spec.md                ← 需求规格（Phase 1 产出）
-│   ├── plan.md                ← 技术方案（Phase 2 产出）
-│   ├── tasks.md               ← 任务清单（Phase 3 产出）
+│   ├── spec.md                ← 需求规格
+│   ├── plan.md                ← 技术方案
+│   ├── tasks.md               ← 任务清单
+│   ├── prompts.md             ← Prompt 备忘
 │   ├── progress.md            ← 构建日志（全程追加）
 │   └── decisions.md           ← 决策记录（全程追加）
 │
 ├── app/
-│   ├── api/                   # FastAPI 路由
-│   │   ├── v1/
-│   │   │   ├── conversations.py   # 会话 / 消息 / 材料上传
-│   │   │   ├── interventions.py   # HITL 人工介入工单（T036）
-│   │   │   ├── evals.py           # 评测 API（T051）
-│   │   │   └── health.py
-│   │   └── dependencies.py    # 依赖注入
-│   ├── core/                  # 核心配置、日志、异常
+│   ├── api/
+│   │   ├── dependencies.py    # 依赖注入
+│   │   └── v1/
+│   │       ├── cases.py           # 核赔案件：提交 / 详情 / 材料上传
+│   │       ├── interventions.py   # HITL 核赔工单
+│   │       └── health.py
+│   ├── core/                  # 配置、日志、异常、事件循环
 │   │   ├── config.py
+│   │   ├── eventloop.py
 │   │   ├── logging.py
 │   │   └── exceptions.py
 │   └── main.py                # FastAPI 入口
 │
-├── agents/                    # Agent 定义
-│   ├── base.py                # AgentDefinition 基类（Worker 子图输入）
-│   ├── orchestrator.py        # 调度 Agent
-│   ├── claim.py               # 理赔核算 Agent
-│   ├── medical.py             # 医疗审核 Agent
-│   ├── compliance.py          # 合规风控 Agent
-│   └── runner.py              # Worker 子图构建/执行 + 工具轨迹派生（T046/T047）
+├── nodes/                     # 核赔主图节点
+│   ├── intake.py              # 受理论证（险种分类 + 未上线转人工）
+│   ├── orchestrator.py        # LLM 调度（RoutingDecision + Send 并行 + 守卫 + 兜底）
+│   ├── material_review.py     # 材料审核（提取 / 完整性 / AI 一致性）
+│   ├── policy_verify.py       # 保单核验
+│   ├── fraud_check.py         # 风控筛查
+│   ├── liability_judge.py     # 责任认定（确定性前置 + ReAct + 关键词兜底）
+│   ├── amount_calc.py         # 金额理算（纯确定性）
+│   ├── decision_generate.py   # 决定书生成（骨架渲染 + LLM 叙述）
+│   ├── compliance_gate.py     # 静态合规门（金额断言 + 红线 + 三态）
+│   └── human_gate.py          # 人工介入门（interrupt 挂起）
 │
-├── nodes/                     # LangGraph 节点
-│   ├── intent.py              # 意图识别节点（with_structured_output 枚举）
-│   ├── supervisor.py          # 调度节点（T047：RoutingDecision + Command(goto) 动态路由）
-│   ├── compliance.py          # 合规审查节点（三态流转 + 修订）
-│   ├── generator.py           # react 子图包装 + 回答整合节点
-│   ├── human_review.py        # 人工介入节点（interrupt 挂起，T037）
-│   └── rag.py                 # RAG 检索节点
-│
-├── state.py                   # AgentState 定义
+├── state.py                   # ClaimCaseState 主图共享状态
 │
 ├── tools/                     # 工具层
 │   ├── base.py                # ClaimflowTool 基类（继承 langchain 官方 BaseTool）
 │   ├── guards.py              # 守卫：熔断/缓存/超时（GuardedTool，D021 自研保留项）
-│   ├── factory.py             # 工厂装配（.with_retry + 守卫，替代全局注册）
-│   ├── registry.py            # 名称→工具容器（过渡，T046/T047 后删除）
-│   ├── executor.py            # ToolExecutor 兼容壳（过渡，T046/T047 后删除）
-│   ├── claim/                 # 理赔类工具
-│   │   ├── policy_query.py
-│   │   ├── calculator.py
-│   │   └── claim_rule_rag.py
-│   ├── medical/               # 医疗类工具
-│   │   ├── record_query.py
-│   │   ├── diagnosis_matcher.py
-│   │   └── ocr_extract.py
-│   └── compliance/            # 合规类工具
-│       ├── rule_check.py
-│       ├── sensitive_filter.py
-│       └── risk_scoring.py
+│   ├── factory.py             # 工厂装配（.with_retry + 守卫）
+│   ├── claim/                 # 理赔类工具（policy_query / calculator / claim_rule_rag）
+│   ├── medical/               # 医疗类工具（record_query / diagnosis_matcher / ocr_extract）
+│   ├── compliance/            # 合规类工具（rule_check / sensitive_filter / risk_scoring）
+│   ├── fraud/                 # 风控工具（blacklist / history / rules）
+│   └── document/              # 文档规则工具（classify / completeness）
 │
 ├── services/                  # 服务层
-│   ├── llm/                   # LLM 调用封装
-│   │   ├── client.py
-│   │   └── prompts.py
-│   ├── rag/                   # RAG 服务
-│   │   ├── embedder.py
-│   │   ├── retriever.py
-│   │   ├── reranker.py        # bge-reranker 精排（T043，可开关）
-│   │   └── ingest.py
-│   ├── memory/                # 记忆服务
-│   │   ├── short_term.py      # Checkpoint 会话记忆
-│   │   └── long_term.py       # 长期记忆（官方 Store，T048）
-│   ├── observability/         # 监控指标
-│   │   └── metrics.py
+│   ├── case_service.py        # 案件领域服务（幂等 / 工单投影 / 决定书视图）
+│   ├── case_jobs.py           # 案件交付队列（任务表 + 常驻单消费者）
+│   ├── case_store.py          # 案件 / 审计事件落库
+│   ├── amounts.py             # 金额理算（规格公式，Decimal）
+│   ├── decision_doc.py        # 决定书渲染与红线检查
+│   ├── skills.py              # skill 作业规程装载
 │   ├── materials.py           # 材料提取（图片/PDF/Word，T049）
-│   └── db/                    # 数据库
-│       ├── models.py
-│       └── session.py
+│   ├── worker_agent.py        # Worker 子图装配与执行（create_agent）
+│   ├── cache.py               # 工具结果缓存
+│   ├── llm/                   # LLM 封装（client / prompts）
+│   ├── rag/                   # RAG（embedder / retriever / reranker / knowledge_graph / graph_retriever / qdrant_client / ingest）
+│   ├── memory/                # 记忆（short_term / long_term / case_memory）
+│   ├── observability/         # 可观测性（metrics / llm_metrics / token_tracker / tracing）
+│   └── db/                    # 数据库（models / session）
 │
-├── workflows/                 # LangGraph 工作流组装
-│   └── main_graph.py          # 主图定义与编译
+├── workflows/
+│   └── case_graph.py          # 核赔主图定义与编译
 │
 ├── schemas/                   # Pydantic schema
 │   ├── api.py                 # API 请求/响应
-│   ├── agent.py               # Agent 相关类型
-│   └── tools.py               # 工具输入输出类型
+│   ├── case.py  stages.py     # 案件模型 / 阶段产出模型
+│   ├── contract.py            # 规格契约（阈值 / 金额公式单源）
+│   ├── lines.py               # 险种 pack
+│   ├── agent.py  tools.py     # Agent 类型 / 工具入参出参
 │
-├── evals/                     # 评测脚本
-│   ├── test_suite.py          # 测试集运行器
-│   ├── metrics.py             # 评测指标计算
-│   └── datasets/              # 标注测试用例
+├── evals/                     # 金样本评测门
+│   ├── adjudication_suite.py  # 六门评测运行器（确定性 / --llm 两模式）
+│   ├── adjudication_metrics.py  gates.py  judge.py  metrics.py  trajectory.py  schemas.py
+│   └── datasets/adjudication.json
 │
-├── tests/                     # 单元测试
-│   ├── tools/
-│   ├── agents/
-│   └── workflows/
+├── skills/                    # 作业规程包（<stage>/<line>.md，准确率迭代改文本不改代码）
 │
-├── ui/                        # Gradio 界面（HTTP 调 FastAPI，可分离部署）
-│   ├── app.py                 # 聊天演示（T014）
-│   └── eval_app.py            # 评测台：一键评测/进度/趋势/报告（T051-T053）
+├── tests/                     # 单元测试（目录结构与源码对应）
 │
-├── chatui/                    # 用户对话界面（Next.js 15 + Tailwind 4，T063，共享 workbench 设计系统，端口 3000）
-│
-├── workbench/                 # HITL 人工介入工作台（Next.js，T038）
+├── chatui/                    # 案件提交门户（Next.js 15 + Tailwind 4，端口 3000）
+├── workbench/                 # 坐席工作台（Next.js，工单列表 / 详情 / 签批改判）
 ├── scripts/                   # 种子数据 / verify 验证脚本 / 知识图谱构建
 ├── data/                      # 运行数据：mock 种子 / kb_docs 知识库 / graph / qdrant 本地存储
 │
@@ -208,8 +190,7 @@ claimflow/
 │   ├── versions/
 │   └── env.py
 │
-├── docs/
-│   └── architecture.md        # 架构文档
+├── docs/                      # 设计文档（claimflow-新架构设计-v2.md 工程版 + 人话版导读）
 │
 ├── Dockerfile
 ├── docker-compose.yml
@@ -241,8 +222,6 @@ class MyTool(ClaimflowTool):            # 继承 langchain_core.tools.BaseTool
 - 守卫由 `tools/factory.py` 统一装配：官方 `.with_retry()` 重试 + `GuardedTool`（`tools/guards.py`：
   超时 / 熔断 / 缓存白名单——熔断与缓存为 D021 仅有的自研保留项）
 - 外部 API 调用通过 Adapter 模式封装，方便 mock 和替换
-- `ToolExecutor`（`tools/executor.py`）为 v1 兼容壳，供现有节点渐进迁移，T046/T047 后删除
-- 自研 `BaseTool`（input_schema/output_schema/execute 信封）与全局注册中心已废弃（D021/D022）
 
 ### 6.2 Agent 层约定
 
@@ -252,14 +231,14 @@ class MyTool(ClaimflowTool):            # 继承 langchain_core.tools.BaseTool
 - 可用工具列表
 - 输出格式约束（结构化输出）
 
-Agent 不直接调工具，通过 LangGraph 的 `ToolNode` 或工具执行器调用。
+Agent 不直接调工具，通过 Worker 子图（`services/worker_agent.py`）或 `ToolNode` 调用。
 
 ### 6.3 工作流约定
 
-- 主图定义在 `workflows/main_graph.py`，所有节点从 `nodes/` 导入
+- 主图定义在 `workflows/case_graph.py`，所有节点从 `nodes/` 导入
 - 状态定义在 `state.py`，新增状态字段必须同步更新所有相关节点
-- 所有输出路径必须经过 compliance 节点（用条件边保证）
-- Checkpoint 用 PostgreSQLSaver，支持对话中断恢复
+- 决定书生成 → 合规门（compliance_gate）是图结构静态边，任何路由决策不可绕过
+- Checkpoint：prod 用 AsyncPostgresSaver、dev 用 InMemorySaver，支撑 interrupt 挂起与跨重启恢复
 - 图的入口和出口用 `__start__` / `__end__`
 
 ### 6.4 Prompt 约定
@@ -280,7 +259,7 @@ Agent 不直接调工具，通过 LangGraph 的 `ToolNode` 或工具执行器调
 
 ## 7. Phase 推进方式
 
-项目分 4 个 Phase，每个 Phase 完成后停下来等用户确认再进入下一个：
+项目按 Phase 推进，每个 Phase 完成后停下来等用户确认再进入下一个：
 
 | Phase   | 目标                     | 产出                                 |
 | ------- | ---------------------- | ---------------------------------- |
@@ -289,11 +268,10 @@ Agent 不直接调工具，通过 LangGraph 的 `ToolNode` 或工具执行器调
 | Phase 2 | 多智能体协作                 | Orchestrator + 3 个 Worker Agent 协作 |
 | Phase 3 | 工程化与优化                 | 容错、监控、评测、性能优化                      |
 | Phase 4 | 深度亮点                   | GraphRAG、A/B 测试、高级特性               |
+| Phase 8 | 核赔平台重写（D037-D039）     | 案件驱动核赔管线 + 金样本评测门（T077-T093）       |
 
-具体任务清单见 `.agent/tasks.md`（在 Phase 规划阶段生成）。
-
-> 上表为 v1 咨询产品历史规划（T001-T076 已全部完成）。当前推进 **Phase 8：核赔平台重写（D037-D039）**，
-> 任务 T077-T093，见 `.agent/tasks.md`。
+上列 Phase 均已交付。当前为维护期：新需求先写入 `.agent/tasks.md` 再实施，
+历史决策链见 `.agent/decisions.md`。
 
 ---
 

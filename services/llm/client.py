@@ -31,7 +31,7 @@ def get_chat_model(temperature: float = _DEFAULT_TEMPERATURE) -> BaseChatModel:
 
     用途：意图识别、supervisor 调度、Worker/React 工具调用、回答生成。
 
-    extra_body 显式关闭 thinking mode（v1 基线行为）：DeepSeek thinking 下
+    extra_body 显式关闭 thinking mode：DeepSeek thinking 下
     不支持 create_agent/with_structured_output 传入的 tool_choice 强制选工具
     （400 "Thinking mode does not support this tool_choice"，T048 回归实测）。
     """

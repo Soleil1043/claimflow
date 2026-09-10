@@ -62,8 +62,6 @@ from services.db.models import Case, CaseEvent
 from services.materials import detect_material_type, extract_material
 from services.memory.case_memory import search_case_memories
 
-# 指标与 token 归集已随交付执行体迁 services.case_jobs（T103）
-
 log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/cases", tags=["cases"])

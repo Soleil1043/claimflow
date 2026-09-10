@@ -1,4 +1,4 @@
-"""Worker Agent 装配与执行（T046 引入；T096 自 agents/ 迁入并去 v1 死重）。
+"""Worker Agent 装配与执行。
 
 以 AgentDefinition 为蓝本，用官方 `langchain.agents.create_agent` 装配 Worker 子图：
 
@@ -10,9 +10,6 @@
 - 降级语义：子图异常向上抛（调用方节点走确定性兜底，D039）；
   模型未产出结构化结论 → 最后一条 AIMessage 原文降级为 {"summary": ...}
 - 防失控：ModelCallLimitMiddleware 硬截断（run_limit=9 ≈ 8 轮工具循环 + 终局）
-
-v1 死重（run_worker_agent 兼容入口、_derive_tool_trace、shared_data 共享数据池）
-已随 T096 删除——唯一消费者 liability_judge 以两参 invoker 调用。
 """
 
 from __future__ import annotations
@@ -88,7 +85,7 @@ class _WorkerTokenHandler(BaseCallbackHandler):
         except (AttributeError, IndexError, TypeError, ValueError):
             pass  # 非标准响应（测试假件等）：记账跳过，不影响执行
 
-# 单个 Worker 步骤内的工具循环预算（v1 MAX_TOOL_ROUNDS=8）。
+# 单个 Worker 步骤内的工具循环预算。
 # 硬截断由官方 ModelCallLimitMiddleware 承载（run_limit=9 ≈ 8 轮工具循环 + 终局），
 # 超限 exit_behavior="end" 强制收口（多查询任务模型会连续调工具不收口，仅靠
 # recursion_limit 会爆异常——T048 回归实测）。

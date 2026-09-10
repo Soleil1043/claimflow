@@ -1,8 +1,8 @@
-"""评测指标计算（T027，architecture.md 9.1）。
+"""评测指标计算（T027）。
 
 纯函数层：单用例判分（answer/tool_trace/compliance → CaseResult）+ 数据集聚合
 （任务完成率/工具调用准确率/合规通过率/转人工准确率/平均耗时）。
-运行器（test_suite.py）只负责调度与 IO，判分逻辑全部在此（可单测）。
+运行器只负责调度与 IO，判分逻辑全部在此（可单测）。
 """
 
 from __future__ import annotations

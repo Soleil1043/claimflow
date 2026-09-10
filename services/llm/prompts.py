@@ -1,4 +1,4 @@
-"""Prompt 模板集中管理（核赔平台现行 prompt；v1 咨询 prompt 已随 T093/T099 清除）。
+"""Prompt 模板集中管理（核赔平台全部 prompt）。
 
 约定（AGENTS.md 6.4）：所有节点 / Agent 的 prompt 放本文件，
 用字符串常量，需要变量时用 {variable} 占位、调用时 format。
@@ -76,7 +76,7 @@ KG_EXTRACTION_PROMPT = """\
 [{{"source": {{"id": "...", "type": "...", "name": "...", "properties": {{}}}}, "target": {{"id": "...", "type": "...", "name": "...", "properties": {{}}}}, "relation": "...", "evidence": "..."}}]
 """
 
-# 会话记忆提取（T034，architecture.md 6.3 长期记忆）：摘要 + 关键实体 JSON 输出
+# 长期记忆摘要提取（T034）：对话记录 → 摘要 + 关键实体 JSON 输出
 MEMORY_SUMMARY_PROMPT = """\
 你是保险理赔系统的长期记忆提取器。下面是用户与理赔助手的一段对话记录，请把它压缩成可跨会话复用的长期记忆。
 

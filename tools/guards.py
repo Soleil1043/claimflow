@@ -2,15 +2,15 @@
 
 D021 仅保留的两项自研在此落地：
 - 熔断器：LangGraph/LangChain 无对应物（进程级守卫，不进图拓扑——作用域与
-  thread 级图状态错配，见 architecture.md 5.3/ADR-007 讨论）
+  thread 级图状态错配）
 - 工具结果缓存白名单（T028）：框架无工具级缓存标准
 
 其余保障用官方机制：重试 = Runnable `.with_retry()`、降级 = `.with_fallbacks()`
 （均在 factory 装配，包在守卫内层）；超时 = stdlib `asyncio.timeout`。
 
 装配顺序（外→内）：GuardedTool（缓存 → 熔断 → 超时）→ with_retry(原工具)。
-守卫随工具对象走：agent 循环内（ToolNode）与循环外（A07 直调、合规节点）
-所有调用点统一生效。超时为总预算（含重试），较 v1 每次尝试独立超时更保守。
+守卫随工具对象走：agent 循环内（ToolNode）与循环外（节点直调、合规节点）
+所有调用点统一生效。超时为总预算（含重试）。
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ log = get_logger(__name__)
 
 
 class _BreakerState(StrEnum):
-    """熔断器状态（architecture.md 7.2）。"""
+    """熔断器三态。"""
 
     CLOSED = "closed"
     OPEN = "open"
@@ -39,7 +39,7 @@ class _BreakerState(StrEnum):
 
 
 class CircuitBreaker:
-    """单工具熔断器：5 次连续失败 → open 30s → half-open 探测（v1 executor 原样迁入）。"""
+    """单工具熔断器：连续失败达阈值 → open 一个冷却期 → half-open 放行探测。"""
 
     def __init__(self, failure_threshold: int, cooldown_seconds: float) -> None:
         self.failure_threshold = failure_threshold
@@ -155,7 +155,7 @@ class GuardedTool(ClaimflowTool):
                 result = await self._inner.ainvoke(kwargs)
         except Exception as exc:  # noqa: BLE001 守卫层统一收口
             self._breaker.record_failure()
-            # v1 语义：配置了 fallback 则降级返回（计 fallback 态），否则计 error 并抛错
+            # 配置了 fallback 则降级返回（计 fallback 态），否则计 error 并抛错
             if self._fallback is not None:
                 metrics.record_tool_call(self.name, "fallback", time.perf_counter() - started)
                 return dict(self._fallback)

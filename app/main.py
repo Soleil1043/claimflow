@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     await asyncio.to_thread(preload_embedding_model)
 
-    # Phase 8 T080/T093：核赔案件主图（v1 主图已删除）
+    # Phase 8 T080/T093：核赔案件主图
     from workflows.case_graph import create_default_case_graph
 
     app.state.case_graph: Any = create_default_case_graph(checkpointer=checkpointer)
@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="claimflow",
-    description="多智能体保险理赔对话系统",
+    description="保险理赔智能核赔平台（多险种）",
     version="0.1.0",
     lifespan=lifespan,
 )

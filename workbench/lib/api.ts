@@ -6,7 +6,7 @@
  */
 const API_BASE = process.env.WORKBENCH_API_TARGET ?? "http://localhost:8000";
 
-/** JSON 请求封装（v2 核赔工单沿用；T104 自 v1 段保留） */
+/** JSON 请求封装：POST/PUT 等带 JSON 体请求统一走此处 */
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(`${API_BASE}${path}`, {
     headers: { "Content-Type": "application/json" },

@@ -1,4 +1,4 @@
-"""LLM 调用观测包装（T024，architecture.md 8.1 LLM 指标）。
+"""LLM 调用观测包装（T024）：指标埋点 + 追踪 span 统一入口。
 
 各节点的 `model.ainvoke(...)` 统一换成本模块 `observed_ainvoke(model, messages, ...)`：
 - 成功/失败 + 耗时 → claimflow_llm_calls_total / claimflow_llm_latency_seconds

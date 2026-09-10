@@ -1,8 +1,4 @@
-"""LangGraph 状态定义。
-
-核赔案件主图共享状态（T079，v2 架构文档 5.1）。
-v1（咨询产品）AgentState 已随 T093/T094 删除，历史见 tag v1-consultation。
-"""
+"""LangGraph 状态定义：核赔案件主图共享状态（T079）。"""
 
 from __future__ import annotations
 
@@ -17,9 +13,9 @@ from typing_extensions import TypedDict
 
 
 class ClaimCaseState(TypedDict, total=False):
-    """核赔案件主图共享状态（T079，v2 架构文档 5.1）。
+    """核赔案件主图共享状态（T079）。
 
-    total=False：各节点局部更新；阶段结论字段各只有一个写者（字段所有权表见架构文档 5.3，
+    total=False：各节点局部更新；阶段结论字段各只有一个写者（唯一写者见各字段注释，
     并行分支写不同 channel，无需合并 reducer）；errors 显式追加。
     注意：claimed_amount 用 Decimal——InMemorySaver（dev/测试）直接持对象；
     prod checkpoint 序列化兼容性在 T092 容器化时验证。

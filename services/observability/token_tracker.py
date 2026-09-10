@@ -1,12 +1,12 @@
-"""轮次 Token 统计与预算控制（T029，architecture.md 8.3）。
+"""轮次 Token 统计与预算控制（T029）。
 
 机制：contextvars 跨节点传递 TurnTokenTracker——
-- A06 入口 `start_turn_tokens()` 创建 tracker 并写入上下文
+- 请求入口 `start_turn_tokens()` 创建 tracker 并写入上下文
 - 各节点经 observed_ainvoke 调 LLM 时自动归集 usage（无需节点感知）
 - 环节（phase）由调用方用 track_phase / phase_ainvoke 标注
-- A06 出口 `finish_turn_tokens()` 汇总：结构化日志 + Prometheus 指标 + 超预算告警
+- 请求出口 `finish_turn_tokens()` 汇总：结构化日志 + Prometheus 指标 + 超预算告警
 
-不用 AgentState 字段传递的原因：state 是 LangGraph 管理的合并语义，
+不用图状态字段传递的原因：state 是 LangGraph 管理的合并语义，
 节点返回 dict 才生效；观测数据走上下文对节点零侵入。
 """
 

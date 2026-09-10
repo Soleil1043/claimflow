@@ -2,7 +2,7 @@
 
 领域口径（D042）：
 - 记忆条目 = 案件终态的结构化档案（结论/核定金额/原因/日期），**确定性渲染零 LLM**
-  （案件事实本就是结构化数据，与 v1 会话记忆的 LLM 摘要不同路）
+  （案件事实本就是结构化数据，无需 LLM 摘要）
 - key = case_id 派生，幂等 upsert；条目是 cases 表事实的派生视图，可离线重建
   （scripts/rebuild_memories.py 安全网）
 - 只写终态（auto_issued / closed / 终态 referred）——过程流转归 case_events 审计层，
@@ -28,7 +28,7 @@ from services.memory.long_term import search_store_items
 
 log = get_logger(__name__)
 
-# 与 v1 会话记忆同命名空间（user 维度），value.kind 区分种类
+# Store 命名空间：user 维度，value.kind 区分条目种类（case = 申请人核赔档案）
 _MEMORY_USER_NAMESPACE = "memory"
 CASE_KIND = "case"
 

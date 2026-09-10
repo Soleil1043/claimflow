@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     # ===== LLM（DeepSeek，OpenAI 兼容接口） =====
     llm_base_url: str = "https://api.deepseek.com"
     llm_api_key: str = ""
-    # 主链路模型（意图/规划/工具调用/生成）；旧别名 deepseek-chat 已退役（D007）
+    # 主链路模型（意图/规划/工具调用/生成）
     llm_model: str = "deepseek-v4-flash"
     # 图片 OCR 专职模型，失败降级 Mock（D008）
     llm_vision_model: str = "deepseek-v4-flash-vision-exp"
@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     rerank_recall_k: int = 8
     rerank_top_k: int = 4
 
-    # ===== 长期记忆（T034/T035，architecture.md 6.3） =====
+    # ===== 长期记忆（T034/T035） =====
     # 会话摘要写入记忆 collection 的开关；每 N 轮（用户消息数）触发一次摘要更新
     memory_enabled: bool = True
     # 申请人记忆注入 orchestrator 路由快照（T100）：默认关——LLM 路由口径与金样本
@@ -110,7 +110,7 @@ class Settings(BaseSettings):
     auto_approve_confidence_floor: float = 0.8
     # 材料抽取置信度下限：低于该值转 orchestrator 异常裁量（而非直接补件）
     material_confidence_floor: float = 0.6
-    # 合规 MODIFY 修订闭环轮数上限（防死循环，v1 D012 语义延续）
+    # 合规 MODIFY 修订闭环轮数上限（防死循环，D012 语义）
     compliance_max_rounds: int = 2
     # orchestrator 每案件调度调用预算（超限告警并强制收敛；D039 防绕圈；规范值 schemas.contract）
     routing_call_budget: int = contract.ROUTING_CALL_BUDGET

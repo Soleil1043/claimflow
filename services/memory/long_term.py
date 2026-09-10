@@ -1,11 +1,11 @@
-"""长期记忆服务（T034 写路径 + T035 读注入；T048 迁移 LangGraph 官方 Store）。
+"""长期记忆服务（T034 写路径 + T035 读注入；LangGraph 官方 Store 体系）。
 
 存储层（T048，D021/ADR-007）：LangGraph Store 体系——
 - dev：InMemoryStore（进程内，零依赖）
 - prod：AsyncPostgresStore（langgraph.store.postgres，复用 psycopg 连接）
 - 向量检索：Store 内建 index（IndexConfig：dims=1024 / embed=BGE-M3 / fields=[embed_text]），
   namespace 按 (user_id,) 隔离，key 为会话确定性 id（upsert 幂等覆盖）
-- 自研 Qdrant long_term_memory collection 与注入管线删除；Qdrant 仅保留 RAG 用途
+- Qdrant 仅保留 RAG 用途，记忆存储统一走 Store
 
 写路径（T034）：会话累计 N 轮（用户消息数）时生成对话摘要 + 关键实体
 （保单号/诊断/金额），嵌入文本 = 摘要 + 实体字段（实体入向量，保证
@@ -201,7 +201,7 @@ def _embed_for_store(texts: list[str]) -> list[list[float]]:
 
 
 def _build_embed_text(record: MemoryRecord) -> str:
-    """嵌入文本 = 摘要 + 实体字段（与 v1 口径一致）。"""
+    """嵌入文本 = 摘要 + 实体字段（实体入向量，保证实体查询可命中）。"""
     ent = record.entities or {}
     extras: list[str] = []
     if ent.get("policy_nos"):

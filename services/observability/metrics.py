@@ -1,4 +1,4 @@
-"""Prometheus 指标定义与埋点辅助（architecture.md 8.1/8.2）。
+"""Prometheus 指标定义与埋点辅助。
 
 三类指标：
 - 工具指标：调用成功率（Counter 按 status 分维）、耗时直方图、熔断拒绝计数
@@ -88,8 +88,6 @@ TURN_TOKENS = Counter(
 )
 
 # ===== 业务指标 =====
-# （v1 会话指标组 CONVERSATION_TURNS/TURN_LATENCY/HUMAN_INTERVENTIONS/COMPLIANCE_VERDICTS
-#   已随 T094 删除——调用方为 T093 移除的 v1 对话图；TURN_TOKENS 经 token_tracker 存活）
 
 MEMORY_WRITES = Counter(
     "claimflow_memory_writes_total",

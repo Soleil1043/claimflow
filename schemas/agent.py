@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 
 class IntentType(StrEnum):
-    """意图五分类（T045 结构化输出枚举；complex_consult 即 v1 multi_step，D023 更名）。"""
+    """意图五分类（T045 结构化输出枚举）。"""
 
     simple_faq = "simple_faq"
     single_domain = "single_domain"
@@ -17,7 +17,7 @@ class IntentType(StrEnum):
     other = "other"
 
 
-# 历史值映射：T045 前落库的旧意图名（D023 更名）读取时归一
+# 旧值归一映射：历史落库数据中的旧意图名 → 现行枚举值
 _LEGACY_INTENT_NAMES = {"multi_step": IntentType.complex_consult.value}
 
 

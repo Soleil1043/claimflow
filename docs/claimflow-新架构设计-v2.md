@@ -1,10 +1,9 @@
 # 保险理赔智能核赔平台——总体架构方案 v2（Orchestrator 版）
 
-> **版本说明**：v2.1（2026-09-04，D039 修订）——多险种前提确认，调度架构改为
-> **LLM Orchestrator-Worker 全动态 + 静态合规门 + 前置条件守卫 + skill 作业规程包**。
-> v0 草案（《claimflow - 新架构设计.md》）留作历史参考；方向决策链见 `.agent/decisions.md` D037-D039。
+> **版本说明**：v2.1（2026-09-04，D039 修订）——多险种前提确认，调度架构为
+> **LLM Orchestrator-Worker 全动态 + 静态合规门 + 前置条件守卫 + skill 作业规程包**；
+> 方向决策链见 `.agent/decisions.md` D037-D039。
 > **先读人话版**：《claimflow-新架构设计-v2-人话版.md》；本文是工程实施版。
-> v1 咨询产品冻结于 tag `v1-consultation`。
 
 ---
 
@@ -12,13 +11,10 @@
 
 ### 1.1 定位
 
-| | v1（冻结） | v2（本方案） |
-|---|---|---|
-| 产品形态 | 对话式理赔**咨询**问答 | 案件驱动的理赔**核赔**平台 |
-| 输入 | 用户自然语言提问 | 理赔申请（结构化字段 + 材料文件） |
-| 输出 | 回答文本 | 理赔决定书 / 补件请求 / 转人工工单 |
-| 调度 | LLM supervisor（双 worker 咨询调度） | **LLM Orchestrator** 多险种动态调度 + 前置守卫 + 静态合规门 |
-| 覆盖险种 | 医疗险咨询 | **多险种**（medical/auto/property/accident），worker 按险种分批上线 |
+案件驱动的理赔**核赔**平台：客户提交理赔申请（结构化字段 + 材料文件），系统自动完成核赔，
+输出**理赔决定书 / 补件请求 / 转人工工单**。调度采用 **LLM Orchestrator** 多险种动态调度 +
+前置守卫 + 静态合规门；覆盖**多险种**（medical/auto/property/accident），
+worker 按险种分批上线。
 
 ### 1.2 多险种策略（D039）
 
@@ -44,25 +40,25 @@ AND `approved_amount <= AUTO_APPROVE_LIMIT`（配置，建议 5000 元）AND 全
 
 ---
 
-## 二、与 v0 草案的差异总览
+## 二、关键设计决策总览
 
-| # | v0 草案 | v2 修正 | 理由 |
-|---|---|---|---|
-| 1 | 常驻 LLM supervisor（无守卫、路由键缺失） | LLM Orchestrator-Worker 全动态 + **前置条件守卫 + 静态合规门 + 失败兜底** | 多险种下路由是真决策，保留 LLM 调度；但安全靠代码层对冲，不靠提示词自觉 |
-| 2 | 4.1 伪代码返回 `"parallel_verify_fraud"` 在 6.1 路由表无映射 | 全图骨架经过正确性推演（第四节） | 照抄会路由失败 |
-| 3 | `Command(goto=None)` 实现"挂起" | `interrupt()` + `Command(resume=...)` | goto=None 无挂起语义；T037 已验证 |
-| 4 | 图 2 人工介入回 supervisor、6.1 代码却是 END | 补件 → 材料审核重跑 → 回 orchestrator 重规划（第八节） | 草案图文自相矛盾 |
-| 5 | 决定书生成后直出 END | **静态合规门**：decision_generate → compliance_gate 为图结构静态边，orchestrator 无法绕过 | F10 铁律；审批流的合规控制不能是概率性的 |
-| 6 | ClaimState 30+ 字段大扁平、float 金额、str 日期 | 分域阶段模型（第五节）；金额 Decimal、日期 date | 类型/并行/序列化安全 |
-| 7 | `parallel_mode` 无写入者；Send 塞整个 state | 并行派发 = `Command(goto=[Send, Send])`；字段唯一写者表（5.3） | 正确性 |
-| 8 | SqliteSaver + `with` 块 | AsyncPostgresSaver 常驻（D009） | 同步 saver 不适合常驻服务 |
-| 9 | LangSmith | OTel + Prometheus + Grafana（D017） | 自托管、数据不出境 |
-| 10 | ChromaDB / PGVector | 维持 Qdrant + pgvector | 不引第三套向量库 |
-| 11 | OCR 第三方服务 | vision LLM 两段式（D008/D024/D025） | PII 不出境，已验证 |
-| 12 | requirements.txt / config/utils 目录 | uv + pydantic-settings + prompts 集中 + structlog | AGENTS.md 约定 |
-| 13 | 全险种一蹴而就、10-13 周、无评测 | 架构多险种原生 + **医疗险 pack 首批**、约 6 周、每里程碑带门禁 | 范围与质量 |
-| 14 | 无 skill 机制 | `skills/<stage>/<line>.md` 作业规程包，装载进 worker/orchestrator prompt | 准确率迭代改文本不改代码 |
-| 15 | 无评测门禁 | 硬门（金额 100%/红线 0/守卫拦截 100%）+ 软门（路由一致率 ≥95% 等） | 质量可证 |
+| # | 决策 | 理由 |
+|---|---|---|
+| 1 | LLM Orchestrator-Worker 全动态调度 + **前置条件守卫 + 静态合规门 + 失败兜底** | 多险种下路由是真决策，保留 LLM 调度；安全靠代码层对冲，不靠提示词自觉 |
+| 2 | 全图骨架经正确性推演（第四节），派发目标与路由表全域一致 | 派发目标无映射会直接路由失败 |
+| 3 | 挂起恢复用 `interrupt()` + `Command(resume=...)` | 官方挂起语义，T037 已验证 |
+| 4 | 补件 → 材料审核重跑 → 回 orchestrator 重规划（第八节） | 审批流闭环完整 |
+| 5 | **静态合规门**：decision_generate → compliance_gate 为图结构静态边，orchestrator 无法绕过 | F10 铁律；审批流的合规控制不能是概率性的 |
+| 6 | 分域阶段模型（第五节）；金额 Decimal、日期 date | 类型/并行/序列化安全 |
+| 7 | 并行派发 = `Command(goto=[Send, Send])`；字段唯一写者表（5.3） | 正确性 |
+| 8 | AsyncPostgresSaver 常驻（D009） | 同步 saver 不适合常驻服务 |
+| 9 | OTel + Prometheus + Grafana（D017） | 自托管、数据不出境 |
+| 10 | 向量检索维持 Qdrant + pgvector | 不引第三套向量库 |
+| 11 | OCR 用 vision LLM 两段式（D008/D024/D025） | PII 不出境，已验证 |
+| 12 | uv + pydantic-settings + prompts 集中 + structlog | AGENTS.md 约定 |
+| 13 | 架构多险种原生 + **医疗险 pack 首批**、每里程碑带门禁 | 范围与质量 |
+| 14 | `skills/<stage>/<line>.md` 作业规程包，装载进 worker/orchestrator prompt | 准确率迭代改文本不改代码 |
+| 15 | 硬门（金额 100%/红线 0/守卫拦截 100%）+ 软门（路由一致率 ≥95% 等） | 质量可证 |
 
 ---
 
@@ -450,40 +446,38 @@ system prompt = base 角色 + skill 文本；skill 缺失回退 base 并告警�
 
 ---
 
-## 十三、目录结构（目标形态）
+## 十三、目录结构
 
 ```
 claimflow/
-├── .agent/                     # 状态文件；历史条目只追加不改
+├── .agent/                     # AI 工具状态文件；历史条目只追加不改
 ├── app/api/v1/
-│   ├── cases.py                # 案件提交/查询/材料上传（取代 conversations.py）
-│   ├── interventions.py        # HITL 工单（改造）
-│   ├── evals.py  health.py
-├── app/core/                   # 保留（config 增核赔阈值组）
-├── state.py                    # ClaimCaseState 重写
+│   ├── cases.py                # 案件提交/查询/材料上传
+│   ├── interventions.py        # HITL 工单
+│   └── health.py
+├── app/core/                   # config（含核赔阈值组）/ logging / exceptions / eventloop
+├── state.py                    # ClaimCaseState
 ├── schemas/
-│   ├── case.py  stages.py  api.py
+│   ├── case.py  stages.py  api.py  contract.py  lines.py  agent.py  tools.py
 ├── nodes/
-│   ├── intake.py  orchestrator.py          # 调度（取代 supervisor/triage）
+│   ├── intake.py  orchestrator.py          # 调度（RoutingDecision + Send 并行派发）
 │   ├── material_review.py  policy_verify.py  fraud_check.py
 │   ├── liability_judge.py  amount_calc.py  decision_generate.py
-│   ├── compliance.py  human_gate.py
-├── workflows/case_graph.py
-├── agents/                     # create_agent 子图构造（liability 等）
-├── tools/                      # base/guards/factory 保留 + document/policy/fraud/medical/compliance
-├── services/                   # llm/rag/materials/observability/db 保留；+skills.py +decision_doc.py
+│   ├── compliance_gate.py  human_gate.py
+├── workflows/case_graph.py     # 主图定义与编译
+├── tools/                      # base/guards/factory + claim/medical/compliance/fraud/document
+├── services/                   # llm/rag/materials/observability/db/memory + skills.py + decision_doc.py
+│   └── worker_agent.py         # create_agent Worker 子图装配
 ├── skills/                     # 作业规程包（D039）
 │   ├── orchestrator/_shared.md
-│   ├── intake/_shared.md
 │   ├── material_review/medical.md
 │   ├── policy_verify/medical.md
 │   ├── fraud_check/_shared.md
 │   ├── liability_judge/medical.md
-│   ├── amount_calc/_shared.md
 │   └── decision_writer/medical.md
-├── evals/                      # 框架保留；数据集换核赔金样本
-├── workbench/                  # 坐席工作台（改造）
-├── chatui/                     # 案件提交门户（D038 改造）
+├── evals/                      # 金样本评测门（adjudication_suite + datasets/adjudication.json）
+├── workbench/                  # 坐席工作台
+├── chatui/                     # 案件提交门户
 ├── alembic/                    # cases/case_events/decision_documents 迁移
 ├── data/mock/                  # 多险种案件/保单/历史理赔/黑名单种子（首批医疗险）
 ├── docker-compose.yml  prometheus/  otelcol/  grafana/
@@ -492,40 +486,25 @@ claimflow/
 
 ---
 
-## 十四、重写路线图（T077-T093，详见 .agent/tasks.md Phase 8）
+## 十四、实施路线图（T077-T093，已全部交付；详见 .agent/tasks.md Phase 8）
 
 | 里程碑 | 任务 | 门禁 |
 |---|---|---|
-| M0 立项 | T077（tag 冻结/spec/plan/tasks/AGENTS） | 本文档评审确认 |
+| M0 立项 | T077（spec/plan/tasks/AGENTS 定稿） | 本文档评审确认 |
 | M1 骨架 | T078 域模型 → T079 主图骨架（兜底编排+守卫）→ T080 案件 API | 20 金样本（桩）金额/路由断言全绿；守卫单测全覆盖 |
 | M2 LLM 化 | T081 skill+orchestrator → T082 材料审核 → T083 保单/风控 → T084 责任认定 → T085 决定书+合规门 | 守卫注入 100% 拦截；金额注入 100% 拦截；三态闭环 |
 | M3 HITL | T086 interrupt 全链 → T087 工作台改造 | 补件/签批/跨重启恢复 e2e |
 | M4 评测观测 | T088 金样本判分 → T089 上线门 → T090 埋点 | 硬门全绿 + 路由 ≥95% + 调用数 ≤15 |
-| M5 收尾 | T091 演示门户 → T092 容器化 → T093 删旧收尾 | 全量回归绿；旧咨询代码移除 |
+| M5 收尾 | T091 演示门户 → T092 容器化 → T093 清理收尾 | 全量回归绿 |
 
-旧代码共存：新核赔图与新 API 并行落地（不同入口），M2 验收后按十五节清单分批删除；
-每任务独立 commit。
+每任务独立 commit，验收门禁全程生效。
 
 ---
 
-## 十五、现有资产处置清单
+## 十五、资产处置结果
 
-**保留原样**：`tools/{base,guards,factory}.py`、`services/llm/*`、`services/rag/*`、
-`services/materials.py`、`services/observability/*`、`services/db/session.py`、`app/core/*`、
-`evals/`（框架与 API）、docker 全套、alembic 基建、CI、`ui/eval_app.py`（评测台）。
-
-**改造复用**：
-- **`nodes/supervisor.py`（T047）→ orchestrator**：RoutingDecision 结构化输出、计划对账、
-  关键词兜底三大件直接升级（D039 从"参考后删"改为"改造复用"）
-- `nodes/compliance.py`（审查对象改决定书 + 金额断言 + 静态门）
-- `nodes/human_review.py`（三类工单分流）
-- `tools/claim/{policy_query,calculator}.py`、`tools/medical/{ocr_extract,record_query,diagnosis_matcher}.py`、
-  `tools/compliance/*`、`app/api/v1/interventions.py`、`workbench/`、`chatui/`（D038 门户化）
-
-**删除**（M2-M5 分批）：`nodes/{intent,generator,rag,planner}.py`、
-`agents/{orchestrator,claim,medical,compliance}.py`（咨询语义）、
-`app/api/v1/conversations.py`、`workflows/main_graph.py`、`ui/app.py`（D038 退役）、
-咨询评测集（金样本替换）、长期记忆链路（核赔无跨会话记忆需求，Store 代码归档）。
+处置已全部完成：基础设施（工具守卫 / RAG / 材料识别 / 监控追踪 / 评测框架）为现行组成，
+现行模块清单以第十三节目录结构为准。
 
 ---
 

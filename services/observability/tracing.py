@@ -1,12 +1,11 @@
-"""OpenTelemetry 全链路追踪（T039，architecture.md 8.2，D015 后置项落地）。
+"""OpenTelemetry 全链路追踪（T039，D015 后置项落地）。
 
-埋点结构（trace_id 贯穿 A06 → 节点 → LLM/工具）：
-- FastAPI instrumentation：A06 请求级 server span（入口）
+埋点结构（trace_id 贯穿 API 入口 → 节点 → LLM）：
+- FastAPI instrumentation：请求级 server span（入口）
 - LLM 调用 span：services/observability/llm_metrics.observed_ainvoke 统一包装——
-  一处埋点覆盖全部调用点（intent/planner/generator/compliance/runner/ocr/memory），
-  属性含模型名、环节（phase）、token 用量（usage 提取处天然可得）
-- 工具调用 span：ToolExecutor.execute 统一包装，属性含工具名与成败
-- 合规裁决：ComplianceNode 内 span 属性 verdict / risk_score / rounds
+  一处埋点覆盖全部调用点，属性含模型名、环节（phase）、token 用量
+- 通用便捷 span：traced_span——工具 / 合规等其他调用方按需打点，
+  span 属性名统一用本模块 claimflow.* 常量
 
 部署：compose `--profile tracing` 起 OTel Collector（4317）+ Jaeger（16686 UI）；
 采样率/开关/endpoint 配置化（OTEL_ENABLED / OTEL_ENDPOINT / OTEL_SAMPLER_RATIO）。

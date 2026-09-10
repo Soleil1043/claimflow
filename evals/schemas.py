@@ -1,4 +1,4 @@
-"""评测用例 Pydantic schema（T026，architecture.md 9.2）。
+"""评测用例 Pydantic schema（T026）。
 
 标注标准：每条用例 = 用户输入 + 期望工具调用序列 + 期望回答要点。
 要点分为三类，评测器按类判分：
@@ -18,11 +18,10 @@ from pydantic import BaseModel, Field, model_validator
 class EvalCategory(StrEnum):
     """评测用例分类。
 
-    基础四分类（架构 9.2 比例：FAQ 30 / 单领域 60 / 多步 80 / 边界 30）；
-    T033 新增 graph_assoc：复杂关联类（疾病↔险种↔规则跨实体），
-    存放独立数据集 evals/datasets/eval_graph_assoc.json，用于纯 RAG vs 混合召回对比；
-    T065 新增 human_handoff：转人工期望类（北极星"转人工率"分母，审计 BUG-001），
-    并入主数据集（200→218，v1.1.0）——北极星指标须在全量报告直接可见（D033）。
+    - 基础四类：simple_faq / single_domain / multi_step / edge_case
+    - graph_assoc：复杂关联类（疾病↔险种↔规则跨实体多跳）
+    - human_handoff：转人工期望类（北极星"转人工率"分母，全量报告直接可见，D033）
+    - adversarial：安全对抗类（注入/越权/PII 诱导/违规承诺/错别字方言）
     """
 
     SIMPLE_FAQ = "simple_faq"  # 简单 FAQ（RAG 知识库问答）
@@ -46,7 +45,6 @@ class EvalCase(BaseModel):
     )
     expected_intent: str | None = Field(
         default=None,
-        # complex_consult 即 v1 multi_step（D023 更名，T045）
         description="期望意图标签（simple_faq/single_domain/complex_consult/chitchat/other）",
     )
     must_include: list[str] = Field(

@@ -1,12 +1,11 @@
-"""工具工厂（T044）：显式装配替代 import 时全局注册（v1 registry 模式）。
+"""工具工厂（T044）：显式装配带守卫的工具实例。
 
 装配链：raw 工具（ClaimflowTool：args_schema + _arun）
   → Runnable `.with_retry()`（官方重试，指数退避）
   → GuardedTool（缓存白名单 → 熔断 → 超时，tools/guards.py）
 
 默认工具图 `get_default_tool_map()` 为进程级惰性单例——熔断器随工具对象常驻，
-跨会话共享（这正是守卫放工具层而非图层的理由）。`tools.registry.get_default_registry()`
-过渡期从本工厂惰性填充（v1 调用方零改动，T046/T047 消费端迁移后移除）。
+跨会话共享（这正是守卫放工具层而非图层的理由）。
 """
 
 from __future__ import annotations
@@ -19,7 +18,7 @@ from langchain_core.tools import BaseTool
 from tools.base import ClaimflowTool
 from tools.guards import CircuitBreaker, GuardedTool
 
-# 守卫默认参数（与 v1 ToolExecutor 对齐：10s 超时 / 2 次重试 / 5 失败熔断 30s）
+# 守卫默认参数：10s 超时 / 2 次重试 / 5 次连续失败熔断 30s
 DEFAULT_TIMEOUT_S = 10.0
 DEFAULT_MAX_RETRIES = 2
 DEFAULT_BACKOFF_INITIAL = 0.5
@@ -73,8 +72,8 @@ def assemble_tool(
 ) -> GuardedTool:
     """单个工具装配：官方重试（内层）+ 守卫（缓存/熔断/超时，外层）。
 
-    重试范围 = 全部异常（v1 语义对齐：瞬时/系统故障均退避重试）；
-    官方默认 stop_after_attempt=3 恰为 v1 的 1 次初始 + 2 次重试。
+    重试范围 = 全部异常（瞬时/系统故障均退避重试）；
+    stop_after_attempt = max_retries + 1，即初始 1 次 + 重试 N 次。
     """
     retried: Runnable = raw.with_retry(
         stop_after_attempt=max_retries + 1,

@@ -18,7 +18,7 @@ from app.core.logging import get_logger
 
 log = get_logger(__name__)
 
-# 对话历史滑窗：注入 LLM 的最大历史条数（Token 预算控制，architecture.md 6.3）
+# 对话历史滑窗：注入 LLM 的最大历史条数（Token 预算控制）
 MAX_HISTORY_MESSAGES = 20
 
 
