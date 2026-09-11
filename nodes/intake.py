@@ -1,7 +1,8 @@
 """Intake 受理节点（F01）：险种分类 + 案件建档事件。
 
-T079 桩版：按保单 product_type 确定性分类（保单是权威数据源）；T081 叠加 LLM 分类
-（自由文本/无保单场景）。未上线险种（首批仅 medical pack）→ 受理期转人工（D039）。
+按保单 product_type 确定性分类（保单是权威数据源）；无保单回退客户自报险种
+（declared_case_type），均缺失 → unknown。未上线险种（首批仅 medical pack）→
+受理期转人工（D039）。
 """
 
 from __future__ import annotations
