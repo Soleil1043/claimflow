@@ -43,4 +43,5 @@ data/uploads/
 Thumbs.db
 
 # 练习
-docs/exercises
+docs/exercises/
+tests/exercises/
