@@ -38,10 +38,11 @@ def test_extracted_document_decimal_and_date_coercion() -> None:
     assert doc.source == "vision"  # 默认值
 
 
-def test_extracted_document_invalid_doc_type_rejected() -> None:
-    """doc_type 白名单外的材料类型必须拒错（结构化输出 schema 同源）。"""
-    with pytest.raises(ValidationError):
-        ExtractedDocument(doc_type="passport", file_name="x.jpg")
+def test_extracted_document_doc_type_is_open_string() -> None:
+    """doc_type 为开放 str：白名单由险种 pack 派生、API 层统一校验（T120 归一），
+    提取层不再以 Literal 拒绝（新增险种材料类型零 schema 改动）。"""
+    doc = ExtractedDocument(doc_type="police_report", file_name="x.jpg")
+    assert doc.doc_type == "police_report"
 
 
 def test_material_review_output_round_trip() -> None:

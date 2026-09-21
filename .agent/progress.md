@@ -1882,3 +1882,16 @@ workbench `npm run build` 通过（T057 已验）。
 **Git**：`refactor: T119 [evals-reports归档: 34份v1时期报告→archive/+README; 现行4份(t081/t089/exp_A/exp_B)留守]`
 
 **D052 结构精简两波全部收官（T112-T119）**：净删约 1700 行死代码 + long_term/orchestrator 双职责拆分 + Worker 自愈层（ToolErrorMiddleware）+ 材料提取 @task 子任务化（恢复短路/并行）+ evals/memory/observability 三域 v1 残余清零 + 报告目录整洁。
+
+## T120 险种扩充——auto/property/accident 三线 pack 上线（2026-09-21，D053）
+
+**做了什么**：车险/财产险/意外险三线全量上线。pack 层：三 pack 各备材料三件套/条款要素（等待期均 0 天）/除外关键词/自费正则（意外险复用医疗口径），新增 liability_tools 声明式字段（医疗线 claim_rule_rag+diagnosis_matcher，其余仅条款检索）。skill 层：5 阶段 × 3 险种 15 份作业规程。数据层：3 张 mock 保单（POL-2026-0008/0009/0010，公式覆盖免赔/比例各分支）。评测层：生成器新增三线组（正常阶梯/超阈值/除外/缺件/退保拒赔共 22 案），"未上线"组改写为仅 unknown（重疾 POL-2025-0002）。
+
+**关键改动（三个附带修复，均有独立证据）**：
+1. doc_type 白名单三处 Literal 硬编码（schemas/case.py、schemas/api.py、schemas/stages.py::ExtractedDocument）归一为 str + API 层 pack 派生校验（B01 提交端点补 422 校验，与 B03 上传同口径）——T096"白名单全由 pack 派生"的遗漏；
+2. policy_verify 等待期 `terms.get(...) or DEFAULT` 吞零 bug——三线条款等待期 0 天会被吞成默认 30 天，改 `get(k, DEFAULT)`；
+3. 底座案 CASE-2026-0021 与生成器 4 条"意外险未上线"期望随上线重写（离线转人工 → 走管线/退保拒赔），评测集 132→151 案。
+
+**结果**：评测门六门全绿，route 97.7%→98.7%、liability 94.7%→95.4%、总一致率 92.4%→94.0%；三线 22 条新金样本全部 PASS；顺带修复既有失败案 E-0065（意外险退保案 expected=auto observed=human 的口径矛盾）；失败集 10→9 条，余 9 条全为医疗线遗留（7 partial 自费关键词、2 frequency 路由）。生成器重跑字节级一致；seed 两遍幂等；383 passed + ruff 绿。pytest 配置加 norecursedirs 排除 tests/exercises（gitignore 练习残留）。
+
+**Git**：`feat: T120 [险种扩充: 车险/财产险/意外险三线pack上线; 15份skill; doc_type白名单pack化; 等待期0天修复; 评测151案六门全绿]`

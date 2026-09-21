@@ -89,6 +89,8 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# tests/exercises 为 gitignore 的练习残留，不参与收集
+norecursedirs = ["exercises"]
 
 [build-system]
 requires = ["hatchling"]

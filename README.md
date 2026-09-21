@@ -76,7 +76,7 @@
 | 静态合规门 | decision_generate → compliance_gate 是图上焊死的边，任何路由决策无法绕过 |
 | 分级自动签发 | 低风险 + 责任明确 + 金额阈值内自动出《理赔决定书》；否则转人工（阈值全配置化） |
 | HITL 三类工单 | 补件 / 核赔复核 / 升级——interrupt 挂起，客户补传自动恢复，坐席结论必过合规复审 |
-| 险种 pack 分批上线 | `schemas/lines.py` 一份 pack = 一个险种的全部知识；首批医疗险，未上线险种受理转人工 |
+| 险种 pack | `schemas/lines.py` 一份 pack = 一个险种的全部知识；医疗/车险/财产险/意外险四线已上线（T120），产品类型不在任何 pack（unknown）受理转人工 |
 | StageSpec 单源 | 六阶段的名字 / 前置 / 快照 / 回边 / prompt 清单由一份注册表派生（加阶段只改一处） |
 | 金额安全设计 | 全链路 Decimal，正文金额三方断言不依赖 LLM，叙述段零金额注入 |
 | 全链路可观测 | Prometheus/Grafana 8 面板（结案率 / 阶段 P95 / 调度健康 / 守卫纠错）+ OTel/Jaeger |

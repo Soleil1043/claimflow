@@ -21,9 +21,18 @@
       "incident_date": "2026-08-10",
       "incident_description": "急性阑尾炎住院手术，共花费15800元，申请理赔。",
       "materials": [
-        {"file_name": "invoice_15800.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_appendicitis.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_15800.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_appendicitis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "normal",
@@ -42,9 +51,18 @@
       "incident_date": "2026-07-05",
       "incident_description": "肺炎住院治疗7天，总费用13500元。",
       "materials": [
-        {"file_name": "invoice_13500.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_pneumonia.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_13500.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_pneumonia.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "normal",
@@ -63,9 +81,18 @@
       "incident_date": "2026-09-01",
       "incident_description": "胆囊结石腹腔镜手术，费用11875元。保单2026-08-01生效，出险为第32天（已过等待期）。",
       "materials": [
-        {"file_name": "invoice_11875.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_gallstone.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_11875.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_gallstone.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "normal",
@@ -84,9 +111,18 @@
       "incident_date": "2026-06-20",
       "incident_description": "急性胃炎住院治疗5天，费用12000元。",
       "materials": [
-        {"file_name": "invoice_12000.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_gastritis.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_12000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_gastritis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "normal",
@@ -105,9 +141,18 @@
       "incident_date": "2026-05-12",
       "incident_description": "急性肠胃炎住院3天，费用11250元。",
       "materials": [
-        {"file_name": "invoice_11250.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_gastroenteritis.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_11250.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_gastroenteritis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "normal",
@@ -126,9 +171,18 @@
       "incident_date": "2026-09-02",
       "incident_description": "肺炎住院4天，费用10062.50元，略超免赔额。",
       "materials": [
-        {"file_name": "invoice_10062_50.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_pneumonia2.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_10062_50.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_pneumonia2.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "normal",
@@ -147,9 +201,18 @@
       "incident_date": "2026-06-18",
       "incident_description": "骑车摔伤致腿骨骨折，内固定手术费用62000元。",
       "materials": [
-        {"file_name": "invoice_62000.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_fracture.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_62000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_fracture.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "normal",
@@ -168,9 +231,18 @@
       "incident_date": "2026-08-01",
       "incident_description": "肺炎住院治疗，费用20000元。",
       "materials": [
-        {"file_name": "invoice_20000.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_pneumonia3.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_20000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_pneumonia3.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "normal",
@@ -189,9 +261,18 @@
       "incident_date": "2026-08-15",
       "incident_description": "急性阑尾炎手术，费用9500元。保单2026-08-01生效，出险为第15天（等待期内）。",
       "materials": [
-        {"file_name": "invoice_9500.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_appendicitis2.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_9500.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_appendicitis2.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "rejected",
@@ -210,9 +291,18 @@
       "incident_date": "2026-07-08",
       "incident_description": "鼻综合整形手术，费用23000元。",
       "materials": [
-        {"file_name": "invoice_23000.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_rhinoplasty.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_23000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_rhinoplasty.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "rejected",
@@ -231,9 +321,18 @@
       "incident_date": "2026-06-30",
       "incident_description": "肺炎住院治疗，费用8800元。保单2025-02-28已到期。",
       "materials": [
-        {"file_name": "invoice_8800.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_pneumonia4.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_8800.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_pneumonia4.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "rejected",
@@ -252,9 +351,18 @@
       "incident_date": "2026-04-18",
       "incident_description": "牙科种植牙两颗，费用6600元。",
       "materials": [
-        {"file_name": "invoice_6600.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_dental.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_6600.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_dental.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "rejected",
@@ -273,9 +381,18 @@
       "incident_date": "2026-06-05",
       "incident_description": "骨科手术，含自费内固定材料2500元（清单单列），总费用17500元。",
       "materials": [
-        {"file_name": "invoice_17500.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_orthopedic.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list_selfpay.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_17500.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_orthopedic.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_selfpay.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "partial",
@@ -294,9 +411,18 @@
       "incident_date": "2026-09-02",
       "incident_description": "腹腔镜胆囊切除术，含乙类药自付3000元（清单单列），总费用16000元。",
       "materials": [
-        {"file_name": "invoice_16000.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_cholecystectomy.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list_b.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_16000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_cholecystectomy.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_b.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "partial",
@@ -315,9 +441,18 @@
       "incident_date": "2026-08-08",
       "incident_description": "急性阑尾炎手术，费用15800元。",
       "materials": [
-        {"file_name": "invoice_15800_b.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_appendicitis_b.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list_b2.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_15800_b.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_appendicitis_b.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_b2.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "fraud",
@@ -336,9 +471,18 @@
       "incident_date": "2026-08-20",
       "incident_description": "肺炎住院治疗，费用12800元。近90天第3次申请理赔。",
       "materials": [
-        {"file_name": "invoice_12800.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_pneumonia_b.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list_c.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_12800.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_pneumonia_b.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_c.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "fraud",
@@ -357,9 +501,18 @@
       "incident_date": "2026-07-15",
       "incident_description": "急性肠胃炎住院，费用9800元。材料与此前被拒案件高度相似。",
       "materials": [
-        {"file_name": "invoice_9800.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_gastroenteritis_b.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list_d.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_9800.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_gastroenteritis_b.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_d.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "fraud",
@@ -378,9 +531,18 @@
       "incident_date": "2026-08-22",
       "incident_description": "肺炎住院治疗，费用10000元整，恰等于免赔额。",
       "materials": [
-        {"file_name": "invoice_10000.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_pneumonia_c.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list_e.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_10000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_pneumonia_c.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_e.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "edge",
@@ -399,9 +561,18 @@
       "incident_date": "2026-07-01",
       "incident_description": "重大疾病境外治疗转回住院手术，费用130万元。",
       "materials": [
-        {"file_name": "invoice_1300000.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_major.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list_f.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "invoice_1300000.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_major.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_f.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "edge",
@@ -420,9 +591,19 @@
       "incident_date": "2026-08-10",
       "incident_description": "急性阑尾炎手术申请理赔。发票金额15800元与费用清单12800元不一致。",
       "materials": [
-        {"file_name": "invoice_15800_c.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_appendicitis_c.jpg", "doc_type": "diagnosis"},
-        {"file_name": "cost_list_mismatch.pdf", "doc_type": "cost_list", "note": "清单金额12800，与发票矛盾"}
+        {
+          "file_name": "invoice_15800_c.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_appendicitis_c.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "cost_list_mismatch.pdf",
+          "doc_type": "cost_list",
+          "note": "清单金额12800，与发票矛盾"
+        }
       ],
       "expected": {
         "category": "edge",
@@ -441,15 +622,25 @@
       "incident_date": "2026-08-25",
       "incident_description": "雨天摔倒致手腕骨折，门诊+住院费用8600元。",
       "materials": [
-        {"file_name": "invoice_8600.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_fracture_b.jpg", "doc_type": "diagnosis"}
+        {
+          "file_name": "incident_proof_rain.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
+          "file_name": "invoice_8600.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_fracture_b.jpg",
+          "doc_type": "diagnosis"
+        }
       ],
       "expected": {
         "category": "edge",
-        "route": "human",
-        "liability": null,
-        "approved_amount": null,
-        "note": "意外险 pack 未上线——intake 险种分类后受理期转人工（F01 未上线险种转人工）"
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "note": "意外险 pack 上线（T120）：退保保单走管线，policy_verify 判保障终止 → 标准拒赔"
       }
     },
     {
@@ -461,8 +652,14 @@
       "incident_date": "2026-08-28",
       "incident_description": "确诊乳腺癌（重疾），申请重大疾病理赔。",
       "materials": [
-        {"file_name": "diagnosis_cancer.jpg", "doc_type": "diagnosis"},
-        {"file_name": "pathology_report.pdf", "doc_type": "medical_record"}
+        {
+          "file_name": "diagnosis_cancer.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "pathology_report.pdf",
+          "doc_type": "medical_record"
+        }
       ],
       "expected": {
         "category": "edge",
@@ -481,8 +678,14 @@
       "incident_date": "2026-08-10",
       "incident_description": "急性阑尾炎住院手术，费用15800元。未上传费用清单。",
       "materials": [
-        {"file_name": "invoice_15800_d.jpg", "doc_type": "invoice"},
-        {"file_name": "diagnosis_appendicitis_d.jpg", "doc_type": "diagnosis"}
+        {
+          "file_name": "invoice_15800_d.jpg",
+          "doc_type": "invoice"
+        },
+        {
+          "file_name": "diagnosis_appendicitis_d.jpg",
+          "doc_type": "diagnosis"
+        }
       ],
       "expected": {
         "category": "missing",
@@ -501,7 +704,10 @@
       "incident_date": "2026-09-02",
       "incident_description": "肺炎住院治疗，费用12300元。仅上传费用清单。",
       "materials": [
-        {"file_name": "cost_list_g.pdf", "doc_type": "cost_list"}
+        {
+          "file_name": "cost_list_g.pdf",
+          "doc_type": "cost_list"
+        }
       ],
       "expected": {
         "category": "missing",

@@ -89,5 +89,44 @@
     "effective_date": "2026-03-01",
     "expiry_date": "2027-02-28",
     "status": "active"
+  },
+  {
+    "policy_no": "POL-2026-0008",
+    "holder_name": "周杰",
+    "holder_id_card": "330105199507226611",
+    "product_name": "安心车损险（2026 版）",
+    "product_type": "车险",
+    "coverage_amount": "150000.00",
+    "deductible": "500.00",
+    "payout_ratio": "1.0000",
+    "effective_date": "2026-01-01",
+    "expiry_date": "2026-12-31",
+    "status": "active"
+  },
+  {
+    "policy_no": "POL-2026-0009",
+    "holder_name": "吴敏",
+    "holder_id_card": "33010619820312182X",
+    "product_name": "家庭财产综合保险",
+    "product_type": "财产险",
+    "coverage_amount": "300000.00",
+    "deductible": "0.00",
+    "payout_ratio": "0.9000",
+    "effective_date": "2026-01-01",
+    "expiry_date": "2026-12-31",
+    "status": "active"
+  },
+  {
+    "policy_no": "POL-2026-0010",
+    "holder_name": "陈静",
+    "holder_id_card": "330104199001013328",
+    "product_name": "安心意外伤害保险（含意外医疗）",
+    "product_type": "意外险",
+    "coverage_amount": "100000.00",
+    "deductible": "100.00",
+    "payout_ratio": "0.9000",
+    "effective_date": "2026-01-01",
+    "expiry_date": "2026-12-31",
+    "status": "active"
   }
 ]

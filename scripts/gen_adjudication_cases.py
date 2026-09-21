@@ -12,8 +12,10 @@
 - 除外责任：整形/美容/牙科/种植牙/矫正/正畸
 - 部分责任：自费金额阶梯（先扣自费再扣免赔乘比例）
 - 欺诈：黑名单人案件（高风险短路）+ 频率（frequency_signals 相对天数）
-- 边界：免赔临界 0 元、保额封顶、材料矛盾、重复申请、未上线险种
+- 边界：免赔临界 0 元、保额封顶、材料矛盾、重复申请
+- 三线组（T120）：车险/财产险/意外险各自的正常/超阈值/除外/缺件/退保拒赔
 - 缺件：三类单一缺失 + 组合缺失
+- 未分类边界：产品类型不在任何 pack（unknown）受理转人工
 
 金额公式（规格）：approved = min(max(claimed − selfpay − deductible, 0) × ratio, coverage)；
 rejection（等待期/除外/过期）→ 0.00。期望由本脚本按规格计算（规格即实现依据，
@@ -31,7 +33,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from schemas import contract
-from schemas.lines import MEDICAL_PACK
+from schemas.lines import ACCIDENT_PACK, AUTO_PACK, MEDICAL_PACK, PROPERTY_PACK
 from services.amounts import approved_amount
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -118,6 +120,21 @@ def main() -> None:
         {"file_name": "invoice.jpg", "doc_type": "invoice"},
         {"file_name": "diagnosis.jpg", "doc_type": "diagnosis"},
         {"file_name": "cost_list.pdf", "doc_type": "cost_list"},
+    ]
+    auto_docs = [
+        {"file_name": "police_report.jpg", "doc_type": "police_report"},
+        {"file_name": "repair_invoice.jpg", "doc_type": "repair_invoice"},
+        {"file_name": "loss_assessment.pdf", "doc_type": "loss_assessment"},
+    ]
+    property_docs = [
+        {"file_name": "incident_proof_fire.jpg", "doc_type": "incident_proof"},
+        {"file_name": "loss_list.pdf", "doc_type": "loss_list"},
+        {"file_name": "purchase_receipt.jpg", "doc_type": "purchase_receipt"},
+    ]
+    accident_docs = [
+        {"file_name": "incident_proof_fall.jpg", "doc_type": "incident_proof"},
+        {"file_name": "diagnosis.jpg", "doc_type": "diagnosis"},
+        {"file_name": "invoice.jpg", "doc_type": "invoice"},
     ]
 
     # ---------- 正常自动签发（金额阶梯 × 3 保单） ----------
@@ -253,9 +270,9 @@ def main() -> None:
         )
 
     # ---------- 过期/退保保单拒赔（标准拒赔） ----------
+    # POL-2023-0004（意外险退保）的拒赔覆盖随 T120 意外险上线移入意外险组（材料口径同步事故三件套）
     for user, policy_no, desc in [
         ("u-wangqiang", "POL-2024-0003", "肺炎住院治疗"),
-        ("u-chenjing", "POL-2023-0004", "意外跌倒骨折治疗"),
     ]:
         claimed = "12000.00"
         add(
@@ -340,11 +357,153 @@ def main() -> None:
             note=f"缺件：{'、'.join(missing)}",
         )
 
-    # ---------- 未上线险种 / 分类边界 ----------
+    # ---------- 车险组（T120 上线，POL-2026-0008：免赔 500 / 比例 1.0 / 无等待期） ----------
+    auto_kw = [kw for kw, _ in AUTO_PACK.exclusion_keywords]
+    auto_policy = policies["POL-2026-0008"]
+    for claimed in ["3500.00", "4000.00", "5050.00"]:
+        add(
+            user_id="u-zhoujie", policy_no="POL-2026-0008", claimed=claimed,
+            incident_date="2026-05-12",
+            incident_description=f"路口碰撞事故，本车维修费用{claimed}元，交警认定我方全责。",
+            materials=auto_docs, category="normal", route="auto",
+            liability="covered", approved=_approved(Decimal(claimed), auto_policy),
+            sequence=FULL_SEQ, declared="auto",
+            note="车险正常签发（金额阶梯）",
+        )
+    for claimed in ["8000.00", "15000.00"]:
+        add(
+            user_id="u-zhoujie", policy_no="POL-2026-0008", claimed=claimed,
+            incident_date="2026-05-12",
+            incident_description=f"追尾事故，本车维修费用{claimed}元，交警认定我方全责。",
+            materials=auto_docs, category="normal", route="human",
+            liability="covered", approved=_approved(Decimal(claimed), auto_policy),
+            sequence=FULL_SEQ, declared="auto",
+            note="车险金额超自动签发线，走完管线后签批转人工",
+        )
+    for desc in ["酒后驾驶发生单车事故，车辆损失3500元。", "无证驾驶碰撞护栏，维修费8000元。"]:
+        assert any(kw in desc for kw in auto_kw), f"车险排除描述「{desc}」不含包排除关键词"
+        add(
+            user_id="u-zhoujie", policy_no="POL-2026-0008", claimed="8000.00",
+            incident_date="2026-06-18",
+            incident_description=desc,
+            materials=auto_docs, category="rejected", route="auto",
+            liability="not_covered", approved=Decimal("0.00"), sequence=FULL_SEQ,
+            declared="auto", note="车险除外责任，标准拒赔",
+        )
+    add(
+        user_id="u-zhoujie", policy_no="POL-2026-0008", claimed="8000.00",
+        incident_date="2026-05-12",
+        incident_description="追尾事故，本车维修费用8000元，交警认定我方全责。",
+        materials=auto_docs[1:], category="missing", route="supplement",
+        liability=None, approved=None, sequence=["material_review"], declared="auto",
+        note="车险缺件：缺交通事故认定书",
+    )
+
+    # ---------- 财产险组（T120 上线，POL-2026-0009：免赔 0 / 比例 0.9 / 无等待期） ----------
+    property_kw = [kw for kw, _ in PROPERTY_PACK.exclusion_keywords]
+    property_policy = policies["POL-2026-0009"]
+    for claimed in ["4000.00", "5000.00"]:
+        add(
+            user_id="u-wumin", policy_no="POL-2026-0009", claimed=claimed,
+            incident_date="2026-04-20",
+            incident_description=f"厨房火灾烧毁家电与家具，财产损失{claimed}元，消防已出具证明。",
+            materials=property_docs, category="normal", route="auto",
+            liability="covered", approved=_approved(Decimal(claimed), property_policy),
+            sequence=FULL_SEQ, declared="property",
+            note="财产险正常签发（金额阶梯）",
+        )
+    add(
+        user_id="u-wumin", policy_no="POL-2026-0009", claimed="12000.00",
+        incident_date="2026-04-20",
+        incident_description="厨房火灾烧毁家电与家具，财产损失12000元，消防已出具证明。",
+        materials=property_docs, category="normal", route="human",
+        liability="covered", approved=_approved(Decimal("12000.00"), property_policy),
+        sequence=FULL_SEQ, declared="property",
+        note="财产险金额超自动签发线，走完管线后签批转人工",
+    )
+    for desc in ["地震导致房屋墙体开裂，维修损失12000元。", "家中被盗损失金银首饰一批，共计30000元。"]:
+        assert any(kw in desc for kw in property_kw), f"财产险排除描述「{desc}」不含包排除关键词"
+        add(
+            user_id="u-wumin", policy_no="POL-2026-0009", claimed="12000.00",
+            incident_date="2026-04-20",
+            incident_description=desc,
+            materials=property_docs, category="rejected", route="auto",
+            liability="not_covered", approved=Decimal("0.00"), sequence=FULL_SEQ,
+            declared="property", note="财产险除外责任，标准拒赔",
+        )
+    add(
+        user_id="u-wumin", policy_no="POL-2026-0009", claimed="4000.00",
+        incident_date="2026-04-20",
+        incident_description="厨房火灾烧毁家电与家具，财产损失4000元，消防已出具证明。",
+        materials=property_docs[:1], category="missing", route="supplement",
+        liability=None, approved=None, sequence=["material_review"], declared="property",
+        note="财产险缺件：缺损失清单、购置凭证",
+    )
+
+    # ---------- 意外险组（T120 上线，POL-2026-0010：免赔 100 / 比例 0.9 / 无等待期） ----------
+    accident_kw = [kw for kw, _ in ACCIDENT_PACK.exclusion_keywords]
+    accident_policy = policies["POL-2026-0010"]
+    for claimed in ["2000.00", "3000.00"]:
+        add(
+            user_id="u-chenjing", policy_no="POL-2026-0010", claimed=claimed,
+            incident_date="2026-07-02",
+            incident_description=f"雨天路滑跌倒致手腕骨折，门诊治疗费用{claimed}元。",
+            materials=accident_docs, category="normal", route="auto",
+            liability="covered", approved=_approved(Decimal(claimed), accident_policy),
+            sequence=FULL_SEQ, declared="accident",
+            note="意外险正常签发（金额阶梯）",
+        )
+    add(
+        user_id="u-chenjing", policy_no="POL-2026-0010", claimed="5000.00",
+        incident_date="2026-07-02",
+        incident_description="跌倒致踝骨骨折，治疗费用5000元，含自费药800元。",
+        materials=accident_docs, category="partial", route="auto",
+        liability="partial",
+        approved=_approved(Decimal("5000.00"), accident_policy, Decimal("800.00")),
+        sequence=FULL_SEQ, declared="accident",
+        note="意外险部分责任：先扣自费再扣免赔乘比例",
+    )
+    add(
+        user_id="u-chenjing", policy_no="POL-2026-0010", claimed="9000.00",
+        incident_date="2026-07-02",
+        incident_description="跌倒致腿部骨折住院，治疗费用9000元。",
+        materials=accident_docs, category="normal", route="human",
+        liability="covered", approved=_approved(Decimal("9000.00"), accident_policy),
+        sequence=FULL_SEQ, declared="accident",
+        note="意外险金额超自动签发线，走完管线后签批转人工",
+    )
+    for desc in ["潜水时发生耳膜穿孔，治疗费3000元。", "攀岩坠落导致骨折，治疗费9000元。"]:
+        assert any(kw in desc for kw in accident_kw), f"意外险排除描述「{desc}」不含包排除关键词"
+        add(
+            user_id="u-chenjing", policy_no="POL-2026-0010", claimed="9000.00",
+            incident_date="2026-07-02",
+            incident_description=desc,
+            materials=accident_docs, category="rejected", route="auto",
+            liability="not_covered", approved=Decimal("0.00"), sequence=FULL_SEQ,
+            declared="accident", note="意外险除外责任，标准拒赔",
+        )
+    # 退保保单拒赔（原"未上线转人工"案随 T120 上线转为走管线拒赔）
+    add(
+        user_id="u-chenjing", policy_no="POL-2023-0004", claimed="8600.00",
+        incident_date="2026-08-25",
+        incident_description="雨天摔倒致手腕骨折，门诊+住院费用8600元。",
+        materials=accident_docs, category="rejected", route="auto",
+        liability="not_covered", approved=Decimal("0.00"), sequence=FULL_SEQ,
+        declared="accident",
+        note="意外险保单已退保（surrendered），保障终止标准拒赔",
+    )
+    add(
+        user_id="u-chenjing", policy_no="POL-2026-0010", claimed="3000.00",
+        incident_date="2026-07-02",
+        incident_description="雨天路滑跌倒致手腕骨折，门诊治疗费用3000元。",
+        materials=accident_docs[2:], category="missing", route="supplement",
+        liability=None, approved=None, sequence=["material_review"], declared="accident",
+        note="意外险缺件：缺事故证明、诊断证明",
+    )
+
+    # ---------- 未上线/未分类边界（T120 后仅 unknown：重疾险不在任何 pack） ----------
     offline = [
-        ("u-chenjing", "POL-2023-0004", "accident", "雨天摔倒骨折，费用8600元。"),
         ("u-lina", "POL-2025-0002", None, "确诊重大疾病，申请理赔。"),
-        ("u-chenjing", "POL-2023-0004", "accident", "交通事故软组织损伤，费用5200元。"),
         ("u-lina", "POL-2025-0002", None, "轻度脑中风后遗症理赔申请。"),
     ]
     for user, policy_no, declared, desc in offline:
@@ -353,7 +512,7 @@ def main() -> None:
             incident_date="2026-08-25", incident_description=desc,
             materials=[], category="intake", route="human", liability=None,
             approved=None, sequence=[],
-            note="未上线险种受理转人工", declared=declared,
+            note="产品类型不在任何上线 pack（unknown），受理转人工", declared=declared,
         )
 
     # ---------- 补充边界 ----------

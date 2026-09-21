@@ -28,7 +28,8 @@ ComplianceVerdict = Literal["PASS", "MODIFY", "REJECT"]
 class ExtractedDocument(BaseModel):
     """单份材料的结构化提取结果（OCR/文本解析产出）。"""
 
-    doc_type: Literal["invoice", "diagnosis", "cost_list", "medical_record"]
+    # 合法取值白名单由险种 pack 派生（all_doc_types），API 层统一校验——不在 schema 硬编码（T120）
+    doc_type: str
     file_name: str
     patient_name: str | None = None
     hospital: str | None = None

@@ -165,18 +165,17 @@ async def test_escape_resolve_referred(env) -> None:
     ac, _ = env
     acc = await _submit(
         ac,
-        user_id="u-chenjing",
-        policy_no="POL-2023-0004",
-        claimed_amount="8600.00",
-        incident_date="2026-08-25",
-        incident_description="雨天摔倒骨折，费用8600元。",
-        declared_case_type="accident",
+        user_id="u-lina",
+        policy_no="POL-2025-0002",
+        claimed_amount="500000.00",
+        incident_date="2026-08-28",
+        incident_description="确诊乳腺癌（重疾），申请重大疾病理赔。",
         materials=[],
     )
     assert acc["human"]["kind"] == "escape"
     resolved = await ac.post(
         f"/api/v1/interventions/cases/{acc['case_id']}/resolve",
-        json={"note": "转意外险专家线下受理", "resolved_by": "agent-03"},
+        json={"note": "转重疾险专家线下受理", "resolved_by": "agent-03"},
     )
     body = resolved.json()
     assert body["status"] == "referred"
@@ -243,11 +242,10 @@ async def test_intervention_kind_single_source_from_receipt(env) -> None:
     ac, _ = env
     offline = {
         "user_id": "u-kind-source",
-        "policy_no": "POL-2023-0004",
-        "claimed_amount": "8600.00",
-        "incident_date": "2026-08-25",
-        "incident_description": "雨天摔倒骨折，费用8600元。",
-        "declared_case_type": "accident",
+        "policy_no": "POL-2025-0002",
+        "claimed_amount": "500000.00",
+        "incident_date": "2026-08-28",
+        "incident_description": "确诊乳腺癌（重疾），申请重大疾病理赔。",
         "materials": [],
     }
     resp = await ac.post("/api/v1/cases", json=offline)

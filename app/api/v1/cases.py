@@ -87,6 +87,17 @@ async def submit_case(
 
     新建 201（受理快照 + job 交付凭证）；幂等命中 200（既有终态）。
     """
+    # doc_type 白名单校验（与 B03 上传同口径，pack 派生——T120 归一）
+    invalid_docs = [
+        m.file_name for m in body.materials
+        if m.doc_type is not None and m.doc_type not in all_doc_types()
+    ]
+    if invalid_docs:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"doc_type 取值非法：{', '.join(invalid_docs)}",
+        )
+
     # 自然键幂等（F01，service 收口）：重复提交返回既有案件，不重复执行
     existing = await find_idempotent_case(
         session,
@@ -229,7 +240,7 @@ async def upload_case_material(
     file: UploadFile = File(...),  # noqa: B008
     doc_type: str | None = Form(  # noqa: B008
         default=None,
-        description="材料类型：invoice/diagnosis/cost_list/medical_record（可空）",
+        description="材料类型（可空）：取值见险种 pack 白名单（invoice/diagnosis/police_report/repair_invoice 等）",
     ),
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
     dispatcher=Depends(get_case_dispatcher),  # noqa: B008

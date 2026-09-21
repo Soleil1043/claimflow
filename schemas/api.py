@@ -34,7 +34,8 @@ class CaseMaterialRefIn(BaseModel):
     """案件提交时的材料引用。"""
 
     file_name: str = Field(min_length=1, max_length=255)
-    doc_type: Literal["invoice", "diagnosis", "cost_list", "medical_record"] | None = None
+    # 合法取值白名单由险种 pack 派生（all_doc_types），创建端点统一校验（T120）
+    doc_type: str | None = Field(default=None, max_length=32)
 
 
 class CaseCreateRequest(BaseModel):

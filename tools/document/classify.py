@@ -8,12 +8,25 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-# 文件名关键词 → doc_type（推断顺序即优先级）
+# 文件名关键词 → doc_type（推断顺序即优先级；覆盖四险种材料类型，T120）
 _DOC_TYPE_KEYWORDS: tuple[tuple[str, str], ...] = (
+    ("维修发票", "repair_invoice"),
+    ("repair_invoice", "repair_invoice"),
     ("发票", "invoice"),
     ("invoice", "invoice"),
     ("诊断", "diagnosis"),
     ("diagnosis", "diagnosis"),
+    ("认定书", "police_report"),
+    ("交通事故", "police_report"),
+    ("police_report", "police_report"),
+    ("定损", "loss_assessment"),
+    ("loss_assessment", "loss_assessment"),
+    ("事故证明", "incident_proof"),
+    ("incident_proof", "incident_proof"),
+    ("损失清单", "loss_list"),
+    ("loss_list", "loss_list"),
+    ("购置", "purchase_receipt"),
+    ("purchase_receipt", "purchase_receipt"),
     ("清单", "cost_list"),
     ("病历", "medical_record"),
     ("记录", "medical_record"),
@@ -25,6 +38,7 @@ _DOC_TYPE_KEYWORDS: tuple[tuple[str, str], ...] = (
 _AMOUNT_CROSS_CHECK_PAIRS: tuple[tuple[str, str, str], ...] = (
     # (doc_type_a, doc_type_b, 不一致描述模板)
     ("invoice", "cost_list", "发票金额与费用清单金额不一致"),
+    ("repair_invoice", "loss_assessment", "维修发票金额与定损单金额不一致"),
 )
 
 

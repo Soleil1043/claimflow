@@ -13,7 +13,7 @@
 
 - LLM Orchestrator-Worker 架构（D039）：结构化路由决策 + 前置条件守卫（代码层）+ **静态合规门**（图结构保证不可绕过）+ 失败兜底默认计划
 - skill 机制：每阶段×险种一份 SKILL.md 作业规程，准确率迭代改文本不改代码
-- 多险种：case_type 枚举（medical/auto/property/accident），worker 按"险种 pack"分批上线——首批医疗险，未上线险种受理期转人工
+- 多险种：case_type 枚举（medical/auto/property/accident），worker 按"险种 pack"承载——四险种已全部上线（T120），产品类型不在任何 pack（unknown）受理期转人工
 - 分级自动：阈值全部配置化（pydantic-settings）
 
 决策链见 `.agent/decisions.md`（D037-D039 为核赔平台方向决策）。

@@ -36,8 +36,8 @@ log = get_logger(__name__)
 _EXCLUSION_CLAUSE = "第五条 责任免除"
 _COVERED_CLAUSE = "第三条 保险责任"
 
-# 责任认定 Agent 工具集（默认工具图中的守卫工具名）
-LABILITY_TOOL_NAMES = ["claim_rule_rag", "diagnosis_matcher"]
+# 责任认定 Agent 工具集（医疗线加诊断匹配；按 pack 声明式承载，T120）
+LIABILITY_TOOL_NAMES = ["claim_rule_rag", "diagnosis_matcher"]
 
 # Agent 定义按险种线缓存（skill 装载随线别；子图编译本身在 worker_agent 层缓存）
 _agent_defs: dict[str, AgentDefinition] = {}
@@ -46,13 +46,14 @@ _agent_defs: dict[str, AgentDefinition] = {}
 def _agent_def_for(line: str) -> AgentDefinition:
     """按险种线装配责任认定 Agent 定义（多险种 pack 上线时按 case_type 分定义）。"""
     if line not in _agent_defs:
+        pack = get_line_pack(line)
         _agent_defs[line] = AgentDefinition(
             name="liability_judge",
             display_name="责任认定专员",
             system_prompt=build_system_prompt(
                 CASE_LIABILITY_AGENT_PROMPT, "liability_judge", line
             ),
-            tool_names=list(LABILITY_TOOL_NAMES),
+            tool_names=list(pack.liability_tools) if pack else list(LIABILITY_TOOL_NAMES),
             output_schema=LiabilityOutput,
             description="判定出险是否属于保险责任范围，输出结论/条款引用/置信度",
         )
@@ -184,7 +185,7 @@ def make_liability_judge_node(recorder: CaseRecorder, llm=None, agent_def=None):
                      if k in LiabilityOutput.model_fields}
                 )
                 tools_used = [t["tool"] for t in derive_tool_trace(new_messages)]
-            except Exception as exc:  # noqa: BLE001——LLM 失败走关键词兜底（D012 思想）
+            except Exception as exc:  # noqa: BLE001  LLM 失败走关键词兜底（D012 思想）
                 log.warning("liability_llm_failed",
                             case_id=state["case_id"], error=str(exc)[:200])
                 output = _keyword_fallback(state)

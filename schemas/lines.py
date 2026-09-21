@@ -29,6 +29,7 @@ class InsuranceLinePack:
         policy_terms: 条款要素（等待期天数/除外/保障范围/限额说明），空 dict = 未配置
         exclusion_keywords: 责任认定关键词兜底 ((关键词, 除外项名称)，顺序即匹配优先级)
         self_pay_pattern: 自费/乙类自付金额识别正则（partial 判定），None = 不启用
+        liability_tools: 责任认定 Agent 工具集（医疗线加诊断匹配，其余仅条款检索）
     """
 
     line: str
@@ -39,6 +40,7 @@ class InsuranceLinePack:
     policy_terms: dict[str, Any] = field(default_factory=dict)
     exclusion_keywords: tuple[tuple[str, str], ...] = ()
     self_pay_pattern: str | None = None
+    liability_tools: tuple[str, ...] = ("claim_rule_rag",)
 
 
 # ===== 首批：医疗险 pack（D039）=====
@@ -71,12 +73,102 @@ MEDICAL_PACK = InsuranceLinePack(
     ),
     # 自费/乙类自付金额识别（如"自费内固定材料2500元"）
     self_pay_pattern=r"(?:自费|自付)[^0-9]{0,12}([0-9]+(?:\.[0-9]+)?)\s*元",
+    # 责任认定工具：条款检索 + 诊断匹配（医疗线专用）
+    liability_tools=("claim_rule_rag", "diagnosis_matcher"),
 )
 
-# ===== 二期占位：未上线险种（受理期即转人工；条款/材料单随 pack 立项补充）=====
-AUTO_PACK = InsuranceLinePack(line="auto", product_types=("车险",))
-PROPERTY_PACK = InsuranceLinePack(line="property", product_types=("财产险",))
-ACCIDENT_PACK = InsuranceLinePack(line="accident", product_types=("意外险",))
+# ===== 二批上线：车险 / 财产险 / 意外险（T120，D053）=====
+AUTO_PACK = InsuranceLinePack(
+    line="auto",
+    product_types=("车险",),
+    online=True,
+    required_docs=(
+        ("police_report", "交通事故认定书"),
+        ("repair_invoice", "维修发票"),
+        ("loss_assessment", "维修定损单"),
+    ),
+    doc_types=("police_report", "repair_invoice", "loss_assessment", "driving_license"),
+    policy_terms={
+        "waiting_period_days": 0,  # 车险无等待期，保险期间内出险即受理
+        "exclusions": ["酒后驾驶", "无证驾驶", "肇事逃逸", "竞赛或测试期间", "故意行为"],
+        "coverage_scope": ["碰撞事故车损", "自然灾害车损"],
+        "limit_notes": "单车损失累计不超过保额；绝对免赔额按条款约定扣除",
+    },
+    exclusion_keywords=(
+        ("酒驾", "酒后驾驶"),
+        ("酒后驾驶", "酒后驾驶"),
+        ("醉酒驾驶", "酒后驾驶"),
+        ("无证驾驶", "无证驾驶"),
+        ("肇事逃逸", "肇事逃逸"),
+        ("逃逸", "肇事逃逸"),
+        ("赛车", "竞赛或测试期间"),
+        ("测试车辆", "竞赛或测试期间"),
+        ("故意撞击", "故意行为"),
+    ),
+)
+
+PROPERTY_PACK = InsuranceLinePack(
+    line="property",
+    product_types=("财产险",),
+    online=True,
+    required_docs=(
+        ("incident_proof", "事故证明（警方/消防）"),
+        ("loss_list", "损失清单"),
+        ("purchase_receipt", "购置凭证"),
+    ),
+    doc_types=("incident_proof", "loss_list", "purchase_receipt", "property_photo"),
+    policy_terms={
+        "waiting_period_days": 0,
+        "exclusions": ["地震海啸", "战争军事行为", "金银珠宝及有价证券", "故意行为", "自然磨损"],
+        "coverage_scope": ["火灾爆炸", "暴雨台风等自然灾害", "外来盗抢"],
+        "limit_notes": "房屋主体与室内财产分项限额，累计不超过保额",
+    },
+    exclusion_keywords=(
+        ("地震", "地震海啸"),
+        ("海啸", "地震海啸"),
+        ("战争", "战争军事行为"),
+        ("军事演习", "战争军事行为"),
+        ("金银", "金银珠宝及有价证券"),
+        ("珠宝", "金银珠宝及有价证券"),
+        ("首饰", "金银珠宝及有价证券"),
+        ("现金", "金银珠宝及有价证券"),
+        ("有价证券", "金银珠宝及有价证券"),
+        ("故意纵火", "故意行为"),
+        ("自然磨损", "自然磨损"),
+    ),
+)
+
+ACCIDENT_PACK = InsuranceLinePack(
+    line="accident",
+    product_types=("意外险",),
+    online=True,
+    required_docs=(
+        ("incident_proof", "事故证明"),
+        ("diagnosis", "诊断证明"),
+        ("invoice", "医疗费用发票"),
+    ),
+    doc_types=("incident_proof", "diagnosis", "invoice", "medical_record"),
+    policy_terms={
+        "waiting_period_days": 0,  # 意外险无等待期（区别于医疗险疾病等待期）
+        "exclusions": ["高风险运动", "酒后意外", "自伤自残", "无证驾驶", "战争军事行为"],
+        "coverage_scope": ["意外伤害医疗", "意外伤残", "意外身故"],
+        "limit_notes": "意外医疗累计不超过意外医疗保额",
+    },
+    exclusion_keywords=(
+        ("潜水", "高风险运动"),
+        ("攀岩", "高风险运动"),
+        ("跳伞", "高风险运动"),
+        ("蹦极", "高风险运动"),
+        ("酒后", "酒后意外"),
+        ("醉酒", "酒后意外"),
+        ("自残", "自伤自残"),
+        ("自杀", "自伤自残"),
+        ("酒驾", "酒后意外"),
+        ("无证驾驶", "无证驾驶"),
+    ),
+    # 意外医疗同样存在自费药/乙类自付（与医疗险同口径识别）
+    self_pay_pattern=r"(?:自费|自付)[^0-9]{0,12}([0-9]+(?:\.[0-9]+)?)\s*元",
+)
 
 LINE_PACKS: dict[str, InsuranceLinePack] = {
     p.line: p for p in (MEDICAL_PACK, AUTO_PACK, PROPERTY_PACK, ACCIDENT_PACK)

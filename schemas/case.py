@@ -9,7 +9,6 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
-from typing import Literal
 
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
@@ -56,8 +55,9 @@ class CaseMaterialRef(BaseModel):
     """提交时的材料引用（上传后由 API 填充落盘路径；Mock 场景可只有文件名）。"""
 
     file_name: str
-    # 客户可声明材料类型；intake/材料审核阶段可校正
-    doc_type: Literal["invoice", "diagnosis", "cost_list", "medical_record"] | None = None
+    # 客户可声明材料类型；intake/材料审核阶段可校正。
+    # 合法取值白名单由险种 pack 派生（all_doc_types），API 层统一校验——不在 schema 硬编码
+    doc_type: str | None = None
     storage_path: str | None = None
 
 

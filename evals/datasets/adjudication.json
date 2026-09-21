@@ -628,6 +628,10 @@
       "incident_description": "雨天摔倒致手腕骨折，门诊+住院费用8600元。",
       "materials": [
         {
+          "file_name": "incident_proof_rain.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
           "file_name": "invoice_8600.jpg",
           "doc_type": "invoice"
         },
@@ -638,10 +642,10 @@
       ],
       "expected": {
         "category": "edge",
-        "route": "human",
-        "liability": null,
-        "approved_amount": null,
-        "note": "意外险 pack 未上线——intake 险种分类后受理期转人工（F01 未上线险种转人工）"
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "note": "意外险 pack 上线（T120）：退保保单走管线，policy_verify 判保障终止 → 标准拒赔"
       }
     },
     {
@@ -3143,44 +3147,6 @@
     },
     {
       "case_id": "CASE-E-0065",
-      "user_id": "u-chenjing",
-      "policy_no": "POL-2023-0004",
-      "declared_case_type": "medical",
-      "claimed_amount": "12000.00",
-      "incident_date": "2026-06-30",
-      "incident_description": "意外跌倒骨折治疗，费用12000.00元。",
-      "materials": [
-        {
-          "file_name": "invoice.jpg",
-          "doc_type": "invoice"
-        },
-        {
-          "file_name": "diagnosis.jpg",
-          "doc_type": "diagnosis"
-        },
-        {
-          "file_name": "cost_list.pdf",
-          "doc_type": "cost_list"
-        }
-      ],
-      "expected": {
-        "category": "rejected",
-        "route": "auto",
-        "liability": "not_covered",
-        "approved_amount": "0.00",
-        "expected_worker_sequence": [
-          "material_review",
-          "policy_verify",
-          "fraud_check",
-          "liability_judge",
-          "amount_calc",
-          "decision_generate"
-        ],
-        "note": "保单过期/退保，保障终止，标准拒赔"
-      }
-    },
-    {
-      "case_id": "CASE-E-0066",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3218,7 +3184,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0067",
+      "case_id": "CASE-E-0066",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3256,7 +3222,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0068",
+      "case_id": "CASE-E-0067",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3294,7 +3260,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0069",
+      "case_id": "CASE-E-0068",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3332,7 +3298,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0070",
+      "case_id": "CASE-E-0069",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3370,7 +3336,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0071",
+      "case_id": "CASE-E-0070",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3408,7 +3374,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0072",
+      "case_id": "CASE-E-0071",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3446,7 +3412,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0073",
+      "case_id": "CASE-E-0072",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3484,7 +3450,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0074",
+      "case_id": "CASE-E-0073",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3522,7 +3488,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0075",
+      "case_id": "CASE-E-0074",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3560,7 +3526,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0076",
+      "case_id": "CASE-E-0075",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3598,7 +3564,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0077",
+      "case_id": "CASE-E-0076",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3636,7 +3602,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0078",
+      "case_id": "CASE-E-0077",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -3674,7 +3640,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0079",
+      "case_id": "CASE-E-0078",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
@@ -3712,7 +3678,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0080",
+      "case_id": "CASE-E-0079",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -3747,7 +3713,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0081",
+      "case_id": "CASE-E-0080",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -3782,7 +3748,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0082",
+      "case_id": "CASE-E-0081",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -3817,7 +3783,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0083",
+      "case_id": "CASE-E-0082",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -3852,7 +3818,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0084",
+      "case_id": "CASE-E-0083",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -3887,7 +3853,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0085",
+      "case_id": "CASE-E-0084",
       "user_id": "u-zhaomin",
       "policy_no": "POL-2026-0006",
       "declared_case_type": "medical",
@@ -3922,7 +3888,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0086",
+      "case_id": "CASE-E-0085",
       "user_id": "u-sunqiang",
       "policy_no": "POL-2026-0007",
       "declared_case_type": "medical",
@@ -3959,7 +3925,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0087",
+      "case_id": "CASE-E-0086",
       "user_id": "u-sunqiang",
       "policy_no": "POL-2026-0007",
       "declared_case_type": "medical",
@@ -3996,7 +3962,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0088",
+      "case_id": "CASE-E-0087",
       "user_id": "u-sunqiang",
       "policy_no": "POL-2026-0007",
       "declared_case_type": "medical",
@@ -4033,7 +3999,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0089",
+      "case_id": "CASE-E-0088",
       "user_id": "u-sunqiang",
       "policy_no": "POL-2026-0007",
       "declared_case_type": "medical",
@@ -4070,7 +4036,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0090",
+      "case_id": "CASE-E-0089",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4095,7 +4061,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0091",
+      "case_id": "CASE-E-0090",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4120,7 +4086,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0092",
+      "case_id": "CASE-E-0091",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4145,7 +4111,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0093",
+      "case_id": "CASE-E-0092",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4165,7 +4131,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0094",
+      "case_id": "CASE-E-0093",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4194,7 +4160,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0095",
+      "case_id": "CASE-E-0094",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4223,7 +4189,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0096",
+      "case_id": "CASE-E-0095",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4252,7 +4218,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0097",
+      "case_id": "CASE-E-0096",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4277,25 +4243,808 @@
       }
     },
     {
+      "case_id": "CASE-E-0097",
+      "user_id": "u-zhoujie",
+      "policy_no": "POL-2026-0008",
+      "declared_case_type": "auto",
+      "claimed_amount": "3500.00",
+      "incident_date": "2026-05-12",
+      "incident_description": "路口碰撞事故，本车维修费用3500.00元，交警认定我方全责。",
+      "materials": [
+        {
+          "file_name": "police_report.jpg",
+          "doc_type": "police_report"
+        },
+        {
+          "file_name": "repair_invoice.jpg",
+          "doc_type": "repair_invoice"
+        },
+        {
+          "file_name": "loss_assessment.pdf",
+          "doc_type": "loss_assessment"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "3000.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "车险正常签发（金额阶梯）"
+      }
+    },
+    {
       "case_id": "CASE-E-0098",
+      "user_id": "u-zhoujie",
+      "policy_no": "POL-2026-0008",
+      "declared_case_type": "auto",
+      "claimed_amount": "4000.00",
+      "incident_date": "2026-05-12",
+      "incident_description": "路口碰撞事故，本车维修费用4000.00元，交警认定我方全责。",
+      "materials": [
+        {
+          "file_name": "police_report.jpg",
+          "doc_type": "police_report"
+        },
+        {
+          "file_name": "repair_invoice.jpg",
+          "doc_type": "repair_invoice"
+        },
+        {
+          "file_name": "loss_assessment.pdf",
+          "doc_type": "loss_assessment"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "3500.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "车险正常签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0099",
+      "user_id": "u-zhoujie",
+      "policy_no": "POL-2026-0008",
+      "declared_case_type": "auto",
+      "claimed_amount": "5050.00",
+      "incident_date": "2026-05-12",
+      "incident_description": "路口碰撞事故，本车维修费用5050.00元，交警认定我方全责。",
+      "materials": [
+        {
+          "file_name": "police_report.jpg",
+          "doc_type": "police_report"
+        },
+        {
+          "file_name": "repair_invoice.jpg",
+          "doc_type": "repair_invoice"
+        },
+        {
+          "file_name": "loss_assessment.pdf",
+          "doc_type": "loss_assessment"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4550.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "车险正常签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0100",
+      "user_id": "u-zhoujie",
+      "policy_no": "POL-2026-0008",
+      "declared_case_type": "auto",
+      "claimed_amount": "8000.00",
+      "incident_date": "2026-05-12",
+      "incident_description": "追尾事故，本车维修费用8000.00元，交警认定我方全责。",
+      "materials": [
+        {
+          "file_name": "police_report.jpg",
+          "doc_type": "police_report"
+        },
+        {
+          "file_name": "repair_invoice.jpg",
+          "doc_type": "repair_invoice"
+        },
+        {
+          "file_name": "loss_assessment.pdf",
+          "doc_type": "loss_assessment"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": "7500.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "车险金额超自动签发线，走完管线后签批转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0101",
+      "user_id": "u-zhoujie",
+      "policy_no": "POL-2026-0008",
+      "declared_case_type": "auto",
+      "claimed_amount": "15000.00",
+      "incident_date": "2026-05-12",
+      "incident_description": "追尾事故，本车维修费用15000.00元，交警认定我方全责。",
+      "materials": [
+        {
+          "file_name": "police_report.jpg",
+          "doc_type": "police_report"
+        },
+        {
+          "file_name": "repair_invoice.jpg",
+          "doc_type": "repair_invoice"
+        },
+        {
+          "file_name": "loss_assessment.pdf",
+          "doc_type": "loss_assessment"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": "14500.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "车险金额超自动签发线，走完管线后签批转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0102",
+      "user_id": "u-zhoujie",
+      "policy_no": "POL-2026-0008",
+      "declared_case_type": "auto",
+      "claimed_amount": "8000.00",
+      "incident_date": "2026-06-18",
+      "incident_description": "酒后驾驶发生单车事故，车辆损失3500元。",
+      "materials": [
+        {
+          "file_name": "police_report.jpg",
+          "doc_type": "police_report"
+        },
+        {
+          "file_name": "repair_invoice.jpg",
+          "doc_type": "repair_invoice"
+        },
+        {
+          "file_name": "loss_assessment.pdf",
+          "doc_type": "loss_assessment"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "车险除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0103",
+      "user_id": "u-zhoujie",
+      "policy_no": "POL-2026-0008",
+      "declared_case_type": "auto",
+      "claimed_amount": "8000.00",
+      "incident_date": "2026-06-18",
+      "incident_description": "无证驾驶碰撞护栏，维修费8000元。",
+      "materials": [
+        {
+          "file_name": "police_report.jpg",
+          "doc_type": "police_report"
+        },
+        {
+          "file_name": "repair_invoice.jpg",
+          "doc_type": "repair_invoice"
+        },
+        {
+          "file_name": "loss_assessment.pdf",
+          "doc_type": "loss_assessment"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "车险除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0104",
+      "user_id": "u-zhoujie",
+      "policy_no": "POL-2026-0008",
+      "declared_case_type": "auto",
+      "claimed_amount": "8000.00",
+      "incident_date": "2026-05-12",
+      "incident_description": "追尾事故，本车维修费用8000元，交警认定我方全责。",
+      "materials": [
+        {
+          "file_name": "repair_invoice.jpg",
+          "doc_type": "repair_invoice"
+        },
+        {
+          "file_name": "loss_assessment.pdf",
+          "doc_type": "loss_assessment"
+        }
+      ],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "车险缺件：缺交通事故认定书"
+      }
+    },
+    {
+      "case_id": "CASE-E-0105",
+      "user_id": "u-wumin",
+      "policy_no": "POL-2026-0009",
+      "declared_case_type": "property",
+      "claimed_amount": "4000.00",
+      "incident_date": "2026-04-20",
+      "incident_description": "厨房火灾烧毁家电与家具，财产损失4000.00元，消防已出具证明。",
+      "materials": [
+        {
+          "file_name": "incident_proof_fire.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
+          "file_name": "loss_list.pdf",
+          "doc_type": "loss_list"
+        },
+        {
+          "file_name": "purchase_receipt.jpg",
+          "doc_type": "purchase_receipt"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "3600.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "财产险正常签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0106",
+      "user_id": "u-wumin",
+      "policy_no": "POL-2026-0009",
+      "declared_case_type": "property",
+      "claimed_amount": "5000.00",
+      "incident_date": "2026-04-20",
+      "incident_description": "厨房火灾烧毁家电与家具，财产损失5000.00元，消防已出具证明。",
+      "materials": [
+        {
+          "file_name": "incident_proof_fire.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
+          "file_name": "loss_list.pdf",
+          "doc_type": "loss_list"
+        },
+        {
+          "file_name": "purchase_receipt.jpg",
+          "doc_type": "purchase_receipt"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "4500.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "财产险正常签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0107",
+      "user_id": "u-wumin",
+      "policy_no": "POL-2026-0009",
+      "declared_case_type": "property",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-04-20",
+      "incident_description": "厨房火灾烧毁家电与家具，财产损失12000元，消防已出具证明。",
+      "materials": [
+        {
+          "file_name": "incident_proof_fire.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
+          "file_name": "loss_list.pdf",
+          "doc_type": "loss_list"
+        },
+        {
+          "file_name": "purchase_receipt.jpg",
+          "doc_type": "purchase_receipt"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": "10800.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "财产险金额超自动签发线，走完管线后签批转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0108",
+      "user_id": "u-wumin",
+      "policy_no": "POL-2026-0009",
+      "declared_case_type": "property",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-04-20",
+      "incident_description": "地震导致房屋墙体开裂，维修损失12000元。",
+      "materials": [
+        {
+          "file_name": "incident_proof_fire.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
+          "file_name": "loss_list.pdf",
+          "doc_type": "loss_list"
+        },
+        {
+          "file_name": "purchase_receipt.jpg",
+          "doc_type": "purchase_receipt"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "财产险除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0109",
+      "user_id": "u-wumin",
+      "policy_no": "POL-2026-0009",
+      "declared_case_type": "property",
+      "claimed_amount": "12000.00",
+      "incident_date": "2026-04-20",
+      "incident_description": "家中被盗损失金银首饰一批，共计30000元。",
+      "materials": [
+        {
+          "file_name": "incident_proof_fire.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
+          "file_name": "loss_list.pdf",
+          "doc_type": "loss_list"
+        },
+        {
+          "file_name": "purchase_receipt.jpg",
+          "doc_type": "purchase_receipt"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "财产险除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0110",
+      "user_id": "u-wumin",
+      "policy_no": "POL-2026-0009",
+      "declared_case_type": "property",
+      "claimed_amount": "4000.00",
+      "incident_date": "2026-04-20",
+      "incident_description": "厨房火灾烧毁家电与家具，财产损失4000元，消防已出具证明。",
+      "materials": [
+        {
+          "file_name": "incident_proof_fire.jpg",
+          "doc_type": "incident_proof"
+        }
+      ],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "财产险缺件：缺损失清单、购置凭证"
+      }
+    },
+    {
+      "case_id": "CASE-E-0111",
+      "user_id": "u-chenjing",
+      "policy_no": "POL-2026-0010",
+      "declared_case_type": "accident",
+      "claimed_amount": "2000.00",
+      "incident_date": "2026-07-02",
+      "incident_description": "雨天路滑跌倒致手腕骨折，门诊治疗费用2000.00元。",
+      "materials": [
+        {
+          "file_name": "incident_proof_fall.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "1710.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "意外险正常签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0112",
+      "user_id": "u-chenjing",
+      "policy_no": "POL-2026-0010",
+      "declared_case_type": "accident",
+      "claimed_amount": "3000.00",
+      "incident_date": "2026-07-02",
+      "incident_description": "雨天路滑跌倒致手腕骨折，门诊治疗费用3000.00元。",
+      "materials": [
+        {
+          "file_name": "incident_proof_fall.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "auto",
+        "liability": "covered",
+        "approved_amount": "2610.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "意外险正常签发（金额阶梯）"
+      }
+    },
+    {
+      "case_id": "CASE-E-0113",
+      "user_id": "u-chenjing",
+      "policy_no": "POL-2026-0010",
+      "declared_case_type": "accident",
+      "claimed_amount": "5000.00",
+      "incident_date": "2026-07-02",
+      "incident_description": "跌倒致踝骨骨折，治疗费用5000元，含自费药800元。",
+      "materials": [
+        {
+          "file_name": "incident_proof_fall.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        }
+      ],
+      "expected": {
+        "category": "partial",
+        "route": "auto",
+        "liability": "partial",
+        "approved_amount": "3690.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "意外险部分责任：先扣自费再扣免赔乘比例"
+      }
+    },
+    {
+      "case_id": "CASE-E-0114",
+      "user_id": "u-chenjing",
+      "policy_no": "POL-2026-0010",
+      "declared_case_type": "accident",
+      "claimed_amount": "9000.00",
+      "incident_date": "2026-07-02",
+      "incident_description": "跌倒致腿部骨折住院，治疗费用9000元。",
+      "materials": [
+        {
+          "file_name": "incident_proof_fall.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        }
+      ],
+      "expected": {
+        "category": "normal",
+        "route": "human",
+        "liability": "covered",
+        "approved_amount": "8010.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "意外险金额超自动签发线，走完管线后签批转人工"
+      }
+    },
+    {
+      "case_id": "CASE-E-0115",
+      "user_id": "u-chenjing",
+      "policy_no": "POL-2026-0010",
+      "declared_case_type": "accident",
+      "claimed_amount": "9000.00",
+      "incident_date": "2026-07-02",
+      "incident_description": "潜水时发生耳膜穿孔，治疗费3000元。",
+      "materials": [
+        {
+          "file_name": "incident_proof_fall.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "意外险除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0116",
+      "user_id": "u-chenjing",
+      "policy_no": "POL-2026-0010",
+      "declared_case_type": "accident",
+      "claimed_amount": "9000.00",
+      "incident_date": "2026-07-02",
+      "incident_description": "攀岩坠落导致骨折，治疗费9000元。",
+      "materials": [
+        {
+          "file_name": "incident_proof_fall.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        }
+      ],
+      "expected": {
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "意外险除外责任，标准拒赔"
+      }
+    },
+    {
+      "case_id": "CASE-E-0117",
       "user_id": "u-chenjing",
       "policy_no": "POL-2023-0004",
       "declared_case_type": "accident",
       "claimed_amount": "8600.00",
       "incident_date": "2026-08-25",
-      "incident_description": "雨天摔倒骨折，费用8600元。",
-      "materials": [],
+      "incident_description": "雨天摔倒致手腕骨折，门诊+住院费用8600元。",
+      "materials": [
+        {
+          "file_name": "incident_proof_fall.jpg",
+          "doc_type": "incident_proof"
+        },
+        {
+          "file_name": "diagnosis.jpg",
+          "doc_type": "diagnosis"
+        },
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        }
+      ],
       "expected": {
-        "category": "intake",
-        "route": "human",
-        "liability": null,
-        "approved_amount": null,
-        "expected_worker_sequence": [],
-        "note": "未上线险种受理转人工"
+        "category": "rejected",
+        "route": "auto",
+        "liability": "not_covered",
+        "approved_amount": "0.00",
+        "expected_worker_sequence": [
+          "material_review",
+          "policy_verify",
+          "fraud_check",
+          "liability_judge",
+          "amount_calc",
+          "decision_generate"
+        ],
+        "note": "意外险保单已退保（surrendered），保障终止标准拒赔"
       }
     },
     {
-      "case_id": "CASE-E-0099",
+      "case_id": "CASE-E-0118",
+      "user_id": "u-chenjing",
+      "policy_no": "POL-2026-0010",
+      "declared_case_type": "accident",
+      "claimed_amount": "3000.00",
+      "incident_date": "2026-07-02",
+      "incident_description": "雨天路滑跌倒致手腕骨折，门诊治疗费用3000元。",
+      "materials": [
+        {
+          "file_name": "invoice.jpg",
+          "doc_type": "invoice"
+        }
+      ],
+      "expected": {
+        "category": "missing",
+        "route": "supplement",
+        "liability": null,
+        "approved_amount": null,
+        "expected_worker_sequence": [
+          "material_review"
+        ],
+        "note": "意外险缺件：缺事故证明、诊断证明"
+      }
+    },
+    {
+      "case_id": "CASE-E-0119",
       "user_id": "u-lina",
       "policy_no": "POL-2025-0002",
       "declared_case_type": null,
@@ -4309,29 +5058,11 @@
         "liability": null,
         "approved_amount": null,
         "expected_worker_sequence": [],
-        "note": "未上线险种受理转人工"
+        "note": "产品类型不在任何上线 pack（unknown），受理转人工"
       }
     },
     {
-      "case_id": "CASE-E-0100",
-      "user_id": "u-chenjing",
-      "policy_no": "POL-2023-0004",
-      "declared_case_type": "accident",
-      "claimed_amount": "8600.00",
-      "incident_date": "2026-08-25",
-      "incident_description": "交通事故软组织损伤，费用5200元。",
-      "materials": [],
-      "expected": {
-        "category": "intake",
-        "route": "human",
-        "liability": null,
-        "approved_amount": null,
-        "expected_worker_sequence": [],
-        "note": "未上线险种受理转人工"
-      }
-    },
-    {
-      "case_id": "CASE-E-0101",
+      "case_id": "CASE-E-0120",
       "user_id": "u-lina",
       "policy_no": "POL-2025-0002",
       "declared_case_type": null,
@@ -4345,11 +5076,11 @@
         "liability": null,
         "approved_amount": null,
         "expected_worker_sequence": [],
-        "note": "未上线险种受理转人工"
+        "note": "产品类型不在任何上线 pack（unknown），受理转人工"
       }
     },
     {
-      "case_id": "CASE-E-0102",
+      "case_id": "CASE-E-0121",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4387,7 +5118,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0103",
+      "case_id": "CASE-E-0122",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4425,7 +5156,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0104",
+      "case_id": "CASE-E-0123",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4463,7 +5194,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0105",
+      "case_id": "CASE-E-0124",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4497,7 +5228,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0106",
+      "case_id": "CASE-E-0125",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4531,7 +5262,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0107",
+      "case_id": "CASE-E-0126",
       "user_id": "u-zhangwei",
       "policy_no": "POL-2025-0001",
       "declared_case_type": "medical",
@@ -4565,7 +5296,7 @@
       }
     },
     {
-      "case_id": "CASE-E-0108",
+      "case_id": "CASE-E-0127",
       "user_id": "u-liuyang",
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",

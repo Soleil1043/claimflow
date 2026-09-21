@@ -129,24 +129,51 @@ async def test_submit_idempotent_natural_key(client: AsyncClient) -> None:
 
 
 async def test_submit_offline_line_referred(client: AsyncClient) -> None:
-    """未上线险种（意外险）→ 受理期转人工（escape）。"""
+    """产品类型不在任何上线 pack（重疾险 → unknown）→ 受理期转人工（escape）。
+
+    T120 后四险种全部上线，离线口径只剩 unknown。
+    """
     resp = await client.post(
         "/api/v1/cases",
         json=_body(
-            user_id="u-chenjing",
-            policy_no="POL-2023-0004",
-            claimed_amount="8600.00",
-            incident_date="2026-08-25",
-            incident_description="雨天摔倒致手腕骨折，费用8600元。",
-            declared_case_type="accident",
+            user_id="u-lina",
+            policy_no="POL-2025-0002",
+            claimed_amount="500000.00",
+            incident_date="2026-08-28",
+            incident_description="确诊乳腺癌（重疾），申请重大疾病理赔。",
         ),
     )
     assert resp.status_code == 201
     body = resp.json()
     assert body["status"] == "referred"
-    assert body["case_type"] == "accident"
+    assert body["case_type"] == "unknown"
     assert body["human"] is not None and body["human"]["kind"] == "escape"
     assert body["final_decision"] is None
+
+
+async def test_submit_online_line_runs_pipeline(client: AsyncClient) -> None:
+    """上线险种（意外险）受理即进管线——补件挂起或自动结论，不再 escape（T120）。"""
+    resp = await client.post(
+        "/api/v1/cases",
+        json=_body(
+            user_id="u-chenjing",
+            policy_no="POL-2026-0010",
+            claimed_amount="3000.00",
+            incident_date="2026-07-02",
+            incident_description="雨天路滑跌倒致手腕骨折，门诊治疗费用3000元。",
+            declared_case_type="accident",
+            materials=[
+                {"file_name": "incident_proof.jpg", "doc_type": "incident_proof"},
+                {"file_name": "diagnosis.jpg", "doc_type": "diagnosis"},
+                {"file_name": "invoice.jpg", "doc_type": "invoice"},
+            ],
+        ),
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["case_type"] == "accident"
+    assert body["human"] is None or body["human"]["kind"] != "escape"
+    assert body["status"] in {"auto_issued", "in_progress"}
 
 
 async def test_submit_missing_material_supplement(client: AsyncClient) -> None:

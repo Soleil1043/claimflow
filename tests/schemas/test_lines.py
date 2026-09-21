@@ -21,12 +21,22 @@ def test_medical_pack_is_online_with_full_knowledge() -> None:
     assert pack.self_pay_pattern is not None
 
 
-def test_second_phase_lines_declared_but_offline() -> None:
-    """auto/property/accident 已声明未上线——受理期转人工（D039）。"""
-    assert online_lines() == frozenset({"medical"})
+def test_all_declared_lines_online() -> None:
+    """四险种全部上线（T120，D053）；离线转人工仅剩 unknown（无 pack 产品类型）。"""
+    assert online_lines() == frozenset({"medical", "auto", "property", "accident"})
     for line in ("auto", "property", "accident"):
         pack = get_line_pack(line)
-        assert pack is not None and not pack.online
+        assert pack is not None and pack.online
+        assert pack.required_docs, f"{line} pack 必备材料清单为空"
+        assert pack.policy_terms, f"{line} pack 条款要素为空"
+        assert pack.exclusion_keywords, f"{line} pack 除外关键词为空"
+
+
+def test_liability_tools_per_line() -> None:
+    """责任认定工具集按 pack 声明：医疗线带诊断匹配，其余仅条款检索（T120）。"""
+    assert get_line_pack("medical").liability_tools == ("claim_rule_rag", "diagnosis_matcher")
+    for line in ("auto", "property", "accident"):
+        assert get_line_pack(line).liability_tools == ("claim_rule_rag",)
 
 
 def test_product_type_mapping_covers_all_packs() -> None:
@@ -44,7 +54,11 @@ def test_unknown_line_returns_none() -> None:
 
 
 def test_doc_type_whitelist_is_union_of_packs() -> None:
-    """API 上传白名单 = 全部 pack doc_types 并集。"""
-    assert all_doc_types() == frozenset({"invoice", "diagnosis", "cost_list", "medical_record"})
-    assert set(all_doc_types()) >= set(get_line_pack("medical").doc_types)
+    """API 上传白名单 = 全部 pack doc_types 并集（T120 扩四险种）。"""
+    expected = set()
+    for pack in LINE_PACKS.values():
+        expected |= set(pack.doc_types)
+    assert all_doc_types() == frozenset(expected)
+    assert {"police_report", "repair_invoice", "loss_assessment"} <= expected  # 车险
+    assert {"incident_proof", "loss_list", "purchase_receipt"} <= expected  # 财产险
     assert len(LINE_PACKS) == 4

@@ -27,8 +27,24 @@ def test_completeness_medical_partial() -> None:
 
 
 def test_completeness_unknown_line_treated_complete() -> None:
-    """未上线险种无清单 → complete（该类案件受理期即转人工，不消费此规则）。"""
-    assert validate_completeness([], "accident")["completeness"] == "complete"
+    """无 pack 险种（unknown/重疾）无清单 → complete（受理期即转人工，不消费此规则）。"""
+    assert validate_completeness([], "unknown")["completeness"] == "complete"
+    assert validate_completeness([], "critical_illness")["completeness"] == "complete"
+
+
+def test_completeness_new_line_packs() -> None:
+    """三线上线的必备清单口径（T120）：车险/财产险/意外险各三件套。"""
+    auto_docs = [_doc(t) for t in ("police_report", "repair_invoice", "loss_assessment")]
+    assert validate_completeness(auto_docs, "auto")["completeness"] == "complete"
+    assert validate_completeness(auto_docs[:2], "auto")["missing"] == ["维修定损单"]
+
+    prop_docs = [_doc(t) for t in ("incident_proof", "loss_list", "purchase_receipt")]
+    assert validate_completeness(prop_docs, "property")["completeness"] == "complete"
+    assert validate_completeness(prop_docs[:1], "property")["missing"] == ["损失清单", "购置凭证"]
+
+    acc_docs = [_doc(t) for t in ("incident_proof", "diagnosis", "invoice")]
+    assert validate_completeness(acc_docs, "accident")["completeness"] == "complete"
+    assert validate_completeness(acc_docs[1:], "accident")["missing"] == ["事故证明"]
 
 
 def test_completeness_empty_documents_partial() -> None:

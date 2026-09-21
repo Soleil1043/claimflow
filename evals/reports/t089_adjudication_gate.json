@@ -1,11 +1,11 @@
 {
   "task": "T089 核赔评测上线门",
-  "generated_at": "2026-09-11T05:52:40",
+  "generated_at": "2026-09-21T15:37:38",
   "mode": "deterministic",
   "model": null,
-  "total_cases": 132,
-  "matched": 124,
-  "consistency": 0.9394,
+  "total_cases": 151,
+  "matched": 142,
+  "consistency": 0.9404,
   "gates": {
     "amount_accuracy": {
       "value": 1.0,
@@ -26,13 +26,13 @@
       "type": "hard"
     },
     "route_consistency": {
-      "value": 0.992424,
+      "value": 0.986755,
       "threshold": 0.95,
       "passed": true,
       "type": "soft"
     },
     "liability_consistency": {
-      "value": 0.94697,
+      "value": 0.953642,
       "threshold": 0.9,
       "passed": true,
       "type": "soft"
@@ -47,32 +47,32 @@
   "overall_passed": true,
   "by_category": {
     "normal": {
-      "total": 48,
-      "matched": 48
+      "total": 59,
+      "matched": 59
     },
     "rejected": {
-      "total": 26,
-      "matched": 24
+      "total": 32,
+      "matched": 31
     },
     "partial": {
-      "total": 16,
-      "matched": 10
+      "total": 17,
+      "matched": 11
     },
     "fraud": {
       "total": 16,
-      "matched": 16
+      "matched": 14
     },
     "edge": {
       "total": 11,
       "matched": 11
     },
     "missing": {
-      "total": 11,
-      "matched": 11
+      "total": 14,
+      "matched": 14
     },
     "intake": {
-      "total": 4,
-      "matched": 4
+      "total": 2,
+      "matched": 2
     }
   },
   "failures": [
@@ -91,16 +91,16 @@
       "error": null
     },
     {
-      "case_id": "CASE-E-0065",
-      "category": "rejected",
+      "case_id": "CASE-E-0067",
+      "category": "partial",
       "expected_route": "auto",
-      "observed_route": "human",
+      "observed_route": "auto",
       "checks": {
-        "route": false,
+        "route": true,
         "amount": true,
-        "liability": true,
+        "liability": false,
         "case_type": true,
-        "sequence": false
+        "sequence": true
       },
       "error": null
     },
@@ -119,7 +119,7 @@
       "error": null
     },
     {
-      "case_id": "CASE-E-0069",
+      "case_id": "CASE-E-0070",
       "category": "partial",
       "expected_route": "auto",
       "observed_route": "auto",
@@ -133,7 +133,7 @@
       "error": null
     },
     {
-      "case_id": "CASE-E-0071",
+      "case_id": "CASE-E-0073",
       "category": "partial",
       "expected_route": "auto",
       "observed_route": "auto",
@@ -147,7 +147,7 @@
       "error": null
     },
     {
-      "case_id": "CASE-E-0074",
+      "case_id": "CASE-E-0075",
       "category": "partial",
       "expected_route": "auto",
       "observed_route": "auto",
@@ -161,7 +161,7 @@
       "error": null
     },
     {
-      "case_id": "CASE-E-0076",
+      "case_id": "CASE-E-0078",
       "category": "partial",
       "expected_route": "auto",
       "observed_route": "auto",
@@ -175,14 +175,28 @@
       "error": null
     },
     {
-      "case_id": "CASE-E-0079",
-      "category": "partial",
-      "expected_route": "auto",
+      "case_id": "CASE-E-0086",
+      "category": "fraud",
+      "expected_route": "human",
       "observed_route": "auto",
       "checks": {
-        "route": true,
+        "route": false,
         "amount": true,
-        "liability": false,
+        "liability": true,
+        "case_type": true,
+        "sequence": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0088",
+      "category": "fraud",
+      "expected_route": "human",
+      "observed_route": "auto",
+      "checks": {
+        "route": false,
+        "amount": true,
+        "liability": true,
         "case_type": true,
         "sequence": true
       },

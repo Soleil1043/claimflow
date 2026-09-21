@@ -47,7 +47,9 @@ def make_policy_verify_node(recorder: CaseRecorder, policy_lookup: PolicyLookup)
             return {"policy": output}
 
         terms = info.get("terms") or {}
-        waiting_days = int(terms.get("waiting_period_days") or DEFAULT_WAITING_PERIOD_DAYS)
+        # 不能用 `or` 兜底：车险/财产险/意外险条款等待期为 0 天（合法值，T120）
+        raw_waiting = terms.get("waiting_period_days")
+        waiting_days = int(raw_waiting) if raw_waiting is not None else DEFAULT_WAITING_PERIOD_DAYS
         effective = dt.date.fromisoformat(str(info["effective_date"]))
         expiry = dt.date.fromisoformat(str(info["expiry_date"]))
         is_active = str(info.get("status", "")) == "active"

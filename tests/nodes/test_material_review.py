@@ -236,13 +236,26 @@ async def test_ai_reviewer_failure_fail_open() -> None:
 
 
 @pytest.mark.parametrize(
-    "line,expected_complete",
-    [("medical", True), ("accident", True)],
+    "line,docs,expected_complete,expected_missing",
+    [
+        # 医疗险三件套，单发票 → 缺诊断证明/费用清单（原用例此处实际未断言，顺手补实）
+        ("medical", ["invoice"], False, ["诊断证明", "费用清单"]),
+        ("medical", ["invoice", "diagnosis", "cost_list"], True, []),
+        # 意外险上线（T120）：清单三件套，单发票 → 缺事故证明/诊断证明
+        ("accident", ["invoice"], False, ["事故证明", "诊断证明"]),
+        ("accident", ["incident_proof", "diagnosis", "invoice"], True, []),
+    ],
 )
-async def test_line_scoped_completeness(line: str, expected_complete: bool) -> None:
-    update = await _run(_node(), [{"file_name": "x.jpg", "doc_type": "invoice"}], case_type=line)
-    if expected_complete and line == "accident":
-        assert update["material"]["completeness"] == "complete"
+async def test_line_scoped_completeness(
+    line: str, docs: list[str], expected_complete: bool, expected_missing: list[str]
+) -> None:
+    update = await _run(
+        _node(),
+        [{"file_name": f"{d}.jpg", "doc_type": d} for d in docs],
+        case_type=line,
+    )
+    assert (update["material"]["completeness"] == "complete") is expected_complete
+    assert update["material"]["missing"] == expected_missing
 
 
 # ---------- @task 子任务化（T116，D052-2） ----------
