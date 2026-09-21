@@ -26,6 +26,7 @@ import datetime as dt
 import json
 import sys
 import tempfile
+import time
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,30 @@ from tools.compliance.rule_check import check_text
 
 ROOT = Path(__file__).resolve().parent.parent
 REPORT_DIR = ROOT / "evals" / "reports"
+
+def _case_tokens_total() -> int:
+    """CASE_TOKENS 计数器当前累计值（全模型标签求和；差分得单案用量）。
+
+    注意读项目自定义 registry（services.observability.metrics.registry），
+    不是 prometheus_client 默认 REGISTRY——CASE_TOKENS 注册在自定义 registry 上。
+    """
+    from services.observability.metrics import registry
+
+    total = 0
+    for metric in registry.collect():
+        if metric.name == "claimflow_case_tokens":
+            total += int(sum(sample.value for sample in metric.samples))
+    return total
+
+
+def _p95(values: list[float]) -> float:
+    """最近秩法 P95（v1 指标口径延续）。"""
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    rank = max(1, round(0.95 * len(ordered)))
+    return round(ordered[rank - 1], 2)
+
 
 async def _setup_db(db_path: Path, freq_signals: list[dict[str, Any]] | None = None) -> None:
     """建表 + 种子全量 mock 数据（保单/理赔记录/黑名单走文件）。"""
@@ -169,8 +194,14 @@ async def _run_suite(
     memory_routing: bool = False,
     seed_memories: bool = False,
     out_path: str | None = None,
+    dataset_name: str = "adjudication",
 ) -> int:
-    cases, meta, freq_signals = load_adjudication_dataset()
+    # 数据集选择：adjudication 主基线 / adversarial 对抗集（T124，独立不污染主基线）
+    dataset_path = (
+        ROOT / "evals" / "datasets" / f"adjudication_{dataset_name}.json"
+        if dataset_name != "adjudication" else None
+    )
+    cases, meta, freq_signals = load_adjudication_dataset(dataset_path)
     if offset:
         cases = cases[offset:]
     if limit:
@@ -212,11 +243,23 @@ async def _run_suite(
             body["policy_id"] = body.pop("policy_no", body.get("policy_id", ""))
             config = {"configurable": {"thread_id": case_id}, "recursion_limit": 60}
 
+            from services.observability.token_tracker import track_case
+
+            started = time.perf_counter()
+            tokens_before = _case_tokens_total()
             try:
-                result = await graph.ainvoke(body, config)
+                # track_case：案件维度 token 归集上下文（与 case_jobs 交付同口径；
+                # 不包裹则 CASE_TOKENS 不记——评测成本量化 T123 补）
+                with track_case(case_id):
+                    result = await graph.ainvoke(body, config)
                 state = graph.get_state(config).values
             except Exception as exc:  # noqa: BLE001
-                results.append(_error_result(case, str(exc)[:300]))
+                results.append(
+                    _error_result(case, str(exc)[:300]) | {
+                        "duration_s": round(time.perf_counter() - started, 2),
+                        "tokens": _case_tokens_total() - tokens_before,
+                    }
+                )
                 continue
 
             # 提取观测
@@ -242,6 +285,8 @@ async def _run_suite(
                 "routing_calls": routing_calls,
                 "case_type_observed": outcome.case_type,
                 "error": outcome.error,
+                "duration_s": round(time.perf_counter() - started, 2),
+                "tokens": _case_tokens_total() - tokens_before,
             })
 
     # 释放 DB 连接（Windows 文件锁）
@@ -256,14 +301,44 @@ async def _run_suite(
         return 1
 
     # 门禁计算（T107：六门纯函数 evals/gates.py，脚本与 CI 同 interface）
+    # 对抗集（T124）：injection 类进硬门（结构化字段与守卫不被操纵），
+    # robustness 类（同义词变体）仅报告——确定性关键词路径的已知缺口，驱动 skill 迭代
+    robustness_block: dict[str, Any] | None = None
+    gated_results = results
+    if dataset_name == "adversarial":
+        robust = [r for r in results if r.get("category") == "robustness"]
+        gated_results = [r for r in results if r.get("category") != "robustness"]
+        if robust:
+            def _dims_ok(r: dict[str, Any]) -> bool:
+                checks = r.get("checks") or {}
+                return all(checks.get(k) is True for k in ("route", "liability", "amount"))
+
+            matched = sum(1 for r in robust if _dims_ok(r))
+            robustness_block = {
+                "total": len(robust),
+                "matched": matched,
+                "consistency": round(matched / len(robust), 4),
+                "failures": [
+                    {
+                        "case_id": r.get("case_id"),
+                        "failed_dims": [
+                            k for k in ("route", "liability", "amount")
+                            if (r.get("checks") or {}).get(k) is not True
+                        ],
+                    }
+                    for r in robust if not _dims_ok(r)
+                ],
+            }
     gate_results = evaluate_gates(
-        results, red_line_leaks=red_line_leaks, guard_bypasses=guard_bypasses
+        gated_results, red_line_leaks=red_line_leaks, guard_bypasses=guard_bypasses
     )
 
     overall_pass = overall_passed(gate_results)
 
     report = {
-        "task": "T089 核赔评测上线门",
+        "task": "T124 核赔对抗回归门" if dataset_name == "adversarial" else "T089 核赔评测上线门",
+        "dataset": dataset_name,
+        "robustness": robustness_block,
         "generated_at": dt.datetime.now().isoformat(timespec="seconds"),
         "mode": "llm" if use_llm else "deterministic",
         "model": settings.llm_model if use_llm else None,
@@ -274,10 +349,25 @@ async def _run_suite(
         "overall_passed": overall_pass,
         "by_category": agg["by_category"],
         "failures": agg["failures"],
+        # 成本量化（T123，证据缺口#1）：tokens/延迟按案分布
+        "cost": {
+            "tokens_total": sum(r.get("tokens") or 0 for r in results),
+            "tokens_per_case_avg": round(
+                sum(r.get("tokens") or 0 for r in results) / total, 1
+            ),
+            "duration_s_avg": round(
+                sum(r.get("duration_s") or 0.0 for r in results) / total, 2
+            ),
+            "duration_s_p95": _p95([r.get("duration_s") or 0.0 for r in results]),
+        },
     }
 
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
-    report_path = Path(out_path) if out_path else REPORT_DIR / "t089_adjudication_gate.json"
+    default_report = (
+        "t124_adversarial_gate.json" if dataset_name == "adversarial"
+        else "t089_adjudication_gate.json"
+    )
+    report_path = Path(out_path) if out_path else REPORT_DIR / default_report
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -364,6 +454,8 @@ def main() -> None:
     parser.add_argument("--seed-memories", action="store_true",
                         help="预置申请人记忆档案（配合 --memory-routing 满载荷验证）")
     parser.add_argument("--out", default=None, help="报告输出路径（默认 evals/reports/t089_adjudication_gate.json）")
+    parser.add_argument("--dataset", default="adjudication", choices=["adjudication", "adversarial"],
+                        help="数据集：主基线 / 对抗集（T124）")
     args = parser.parse_args()
 
     from app.core.config import settings
@@ -380,6 +472,7 @@ def main() -> None:
             memory_routing=args.memory_routing,
             seed_memories=args.seed_memories,
             out_path=args.out,
+            dataset_name=args.dataset,
         )
     ))
 

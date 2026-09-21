@@ -1,0 +1,85 @@
+{
+  "task": "T089 核赔评测上线门",
+  "generated_at": "2026-09-21T16:41:37",
+  "mode": "llm",
+  "model": "deepseek-v4-flash",
+  "total_cases": 151,
+  "matched": 151,
+  "consistency": 1.0,
+  "gates": {
+    "amount_accuracy": {
+      "value": 1.0,
+      "threshold": 1.0,
+      "passed": true,
+      "type": "hard"
+    },
+    "red_line_leak": {
+      "value": 0,
+      "threshold": 0,
+      "passed": true,
+      "type": "hard"
+    },
+    "guard_interception": {
+      "value": 1.0,
+      "threshold": 1.0,
+      "passed": true,
+      "type": "hard"
+    },
+    "route_consistency": {
+      "value": 1.0,
+      "threshold": 0.95,
+      "passed": true,
+      "type": "soft"
+    },
+    "liability_consistency": {
+      "value": 1.0,
+      "threshold": 0.9,
+      "passed": true,
+      "type": "soft"
+    },
+    "max_routing_calls": {
+      "value": 5,
+      "threshold": 15,
+      "passed": true,
+      "type": "budget"
+    }
+  },
+  "overall_passed": true,
+  "by_category": {
+    "normal": {
+      "total": 59,
+      "matched": 59
+    },
+    "rejected": {
+      "total": 32,
+      "matched": 32
+    },
+    "partial": {
+      "total": 17,
+      "matched": 17
+    },
+    "fraud": {
+      "total": 16,
+      "matched": 16
+    },
+    "edge": {
+      "total": 11,
+      "matched": 11
+    },
+    "missing": {
+      "total": 14,
+      "matched": 14
+    },
+    "intake": {
+      "total": 2,
+      "matched": 2
+    }
+  },
+  "failures": [],
+  "cost": {
+    "tokens_total": 0,
+    "tokens_per_case_avg": 0.0,
+    "duration_s_avg": 2.16,
+    "duration_s_p95": 2.69
+  }
+}

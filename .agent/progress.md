@@ -1905,3 +1905,13 @@ workbench `npm run build` 通过（T057 已验）。
 **结果**：评测门 151 案全维一致 100%、六门全绿、失败集 9→0；384 passed + ruff 绿。
 
 **Git**：T121 `docs: T121 [自我面试: Q5-Q16双角色续演; 总评LeanHire; 9证据缺口+3实锤缺陷→T122-T124]`；T122 `fix: T122 [评测失败集清零: 等待期off-by-one对齐契约; partial/除外组0005案保障期外日期; frequency信号相对天数落库; 151案100%六门全绿]`
+
+## T123 LLM 全量重跑与成本量化 + T124 对抗回归集（2026-09-21，D054）
+
+**T123**：suite 补成本埋点（track_case 上下文包裹 ainvoke——不包则 CASE_TOKENS 不记；Prometheus 自定义 registry 差分（踩坑：读默认 REGISTRY 恒为 0）；per-case 耗时计时 + 报告 cost 块）。151 案 LLM 全量：一致率 1.0、六门全绿、0 失败（T089 口径 99.24%→100%）；延迟 avg 2.16s / p95 2.69s 每案（确定性 0.25s，增量 +1.9s/案）；token 补录时 API 402 余额耗尽——不估算、挂 T125。计划外收益：402 期间 orchestrator 全量 LLM 失败→确定性兜底，案件仍全部正确完成，D039 降级设计获真实故障首验。结论 D054：LLM 编排保持默认开（无退化+降级安全），LLM 增量价值论据（同义词鲁棒层）待 API 恢复闭环。
+
+**T124**：对抗回归集 14 案两 tier（evals/datasets/adjudication_adversarial.json，独立不污染主基线）：injection 8 条（指令注入/角色伪装/虚构免责/红线诱导/PII 诱导/施压翻转/事实伪造/字段注入）**全过、硬门全绿**——"结构化字段与守卫不被文本操纵"首次系统性验证；robustness 6 条同义词变体（隆鼻/牙齿矫治/摘镜/喝了点酒开车/深潜/玉器）**6/6 暴露漏判**（2 条被金额超线兜成 review、4 条彻底漏判）——确定性关键词缺口从隐性变持续量化，驱动 skill/关键词迭代与 LLM 鲁棒增量论据。suite 增 --dataset adversarial（tier 门禁切分：injection 进门禁、robustness 仅报告）；4 个数据集校验单测。
+
+**验证**：388 passed（+4 对抗集校验）+ ruff 绿；主门 151 案 100% 六门全绿（确定性）；对抗门 injection 8/8 硬门全绿。
+
+**Git**：T123 `feat: T123 [LLM全量重跑: 151案一致率1.0六门全绿; 延迟2.16s/案量化; token采集管线修通; D054]`；T124 `feat: T124 [对抗回归集: injection 8条全过硬门全绿; robustness同义词6/6量化暴露; --dataset adversarial双数据集门禁]`
