@@ -1507,3 +1507,34 @@ T127 两个矛盾案，节点级已压 0.4）→ 校准对评测门零影响（�
 **验证**：test_material_review +1（五分支：全字段 0.9 / 缺金额 0.65 /
 缺双核心 0.4 / mock 全缺 0.05 / 0 元视同缺失）；431 passed + ruff 绿 +
 评测门不退化。
+
+## D061（2026-09-22，T141）：checkpoint schema 版本策略——版本戳 + resume 降级门卫
+
+**背景**：缺口#7（面试链 5.5）——恢复机制扎实（Command resume/@task 短路），
+但 State schema 演进无版本语义："升级图代码后旧 checkpoint 还能不能 resume"
+此前是裸的。现状事实：框架侧表结构迁移由 langgraph-checkpoint-postgres 的
+checkpoint_migrations 自管（setup() 自动补跑）；缺的是**业务 State 形状**的
+版本判定。
+
+**决断**：
+
+1. **版本戳**：`state.CASE_SCHEMA_VERSION = 1`（Final 常量）；ClaimCaseState
+   加 schema_version 字段，intake 写入。**bump 语义**：State 字段增删改 /
+   channel 语义变化时人工 +1（写代码的人判断兼容性，不做自动推断）。
+   无此字段的旧 checkpoint 一律视为不匹配（版本化之前=未知=保守处理）。
+2. **resume 降级门卫**（interview 口径"不兼容时降级重跑"）：execute_job 的
+   RESUME 分支 aget_state 比对版本——匹配 → Command(resume) 原路径；
+   不匹配 → **删旧 thread（adelete_thread）+ 取该案最近一次 RUN 任务的原始
+   图输入全新重跑** + schema_reset 审计事件。理论依据 D006：案件事实权威在
+   cases 表，checkpoint 只承载可重建的执行态——重跑无损。删 thread 必须先行：
+   全新输入落在既有 channel 上会与旧阶段结论合并，污染重跑。
+3. **防御**：降级时找不到原始 RUN 输入（理论不可达）→ 显式 RuntimeError 进
+   任务重试/死信，不盲 resume 旧格式。
+
+**兼容性实证**：全部既有真图 resume 链路（B03 补件/工单处理/跨重启恢复）
+的 checkpoint 由现行 intake 写入（带版本戳）→ 匹配路径，行为不变；
+评测门不涉 resume，复跑六门全绿 100%。
+
+**验证**：test_case_jobs +2（旧 checkpoint 降级：原始 RUN 输入重跑 + thread
+删除 + schema_reset 审计；无 RUN 输入防御失败进重试）+ 既有 resume 包装
+测试改为版本匹配路径；433 passed + ruff 绿 + 评测门不退化。

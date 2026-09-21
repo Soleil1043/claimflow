@@ -14,7 +14,7 @@ from app.core.logging import get_logger
 from schemas.case import CaseStatus
 from schemas.lines import online_lines, pack_for_product_type
 from services.case_store import CaseRecorder
-from state import ClaimCaseState
+from state import CASE_SCHEMA_VERSION, ClaimCaseState
 
 log = get_logger(__name__)
 
@@ -40,7 +40,11 @@ def make_intake_node(recorder: CaseRecorder, policy_lookup: PolicyLookup):
         else:  # 保单不存在，未声明险种
             case_type = "unknown"
 
-        update: dict[str, Any] = {"case_type": case_type}  # 更新 case_type
+        update: dict[str, Any] = {
+            "case_type": case_type,
+            # 图 schema 版本戳（T141，D061）：resume 门卫以此识别 checkpoint 新旧
+            "schema_version": CASE_SCHEMA_VERSION,
+        }
         if case_type not in online_lines():  # 未上线险种，转人工受理
             update["human_request"] = {
                 "case_id": state["case_id"],

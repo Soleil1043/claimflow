@@ -34,17 +34,36 @@ from services.case_service import new_case
 from services.db.models import Base, Case, CaseJob
 from services.db.session import dispose_engine
 from services.observability.metrics import registry as metrics_registry
+from state import CASE_SCHEMA_VERSION
 
 # ===== 夹具：文件 SQLite + 假图 + 假审计 =====
 
 
 class FakeGraph:
-    """脚本化核赔图：记录调用，按脚本返回/抛错。"""
+    """脚本化核赔图：记录调用，按脚本返回/抛错；可模拟 checkpoint 快照（T141）。"""
 
-    def __init__(self, *, result: dict | None = None, error: Exception | None = None):
+    def __init__(
+        self,
+        *,
+        result: dict | None = None,
+        error: Exception | None = None,
+        snapshot_values: dict | None = None,
+    ):
         self.calls: list[tuple[Any, dict]] = []
         self._result = result if result is not None else {"final_decision": "approved"}
         self._error = error
+        self._snapshot_values = snapshot_values
+        self.deleted_threads: list[str] = []
+        # 模拟编译图的 checkpointer.adelete_thread（T141 降级路径消费）
+        self.checkpointer = SimpleNamespace(adelete_thread=self._delete_thread)
+
+    async def _delete_thread(self, thread_id: str) -> None:
+        self.deleted_threads.append(thread_id)
+
+    async def aget_state(self, config: dict) -> Any:
+        if self._snapshot_values is None:
+            raise AttributeError("无 checkpoint 快照（模拟不可用）")
+        return SimpleNamespace(values=dict(self._snapshot_values))
 
     async def ainvoke(self, invocation: Any, config: dict | None = None) -> dict:
         self.calls.append((invocation, config or {}))
@@ -196,18 +215,65 @@ async def test_execute_interrupt_is_success(jobs_db) -> None:
 
 
 async def test_execute_resume_wraps_command(jobs_db) -> None:
-    """resume 任务 → 图收到 Command(resume=payload)，不是裸 dict。"""
+    """resume 任务（checkpoint 版本匹配）→ 图收到 Command(resume=payload)，不是裸 dict。"""
     case = await _make_case(jobs_db)
     resolution = {"kind": "review", "action": "confirm", "resolved_by": "agent-01"}
     async with jobs_db() as s:
         await enqueue_case_job(s, case_id=case.id, action=JobAction.RESUME, payload=resolution)
         await s.commit()
     job = await claim_next()
-    graph = FakeGraph()
+    graph = FakeGraph(snapshot_values={"schema_version": CASE_SCHEMA_VERSION})
     await execute_job(job, graph=graph, recorder=FakeRecorder())
     invocation, _ = graph.calls[0]
     assert isinstance(invocation, Command)
     assert invocation.resume == resolution
+    assert graph.deleted_threads == []
+
+
+async def test_resume_schema_mismatch_degrades_to_fresh_run(jobs_db) -> None:
+    """旧 checkpoint（无版本戳）resume → 删旧 thread + 原始 RUN 输入全新重跑 + schema_reset 审计（T141，D061）。"""
+    case = await _make_case(jobs_db)
+    run_payload = {"case_id": case.id, "user_id": "u-jobs", "claimed_amount": "1000.00"}
+    async with jobs_db() as s:
+        await enqueue_case_job(s, case_id=case.id, action=JobAction.RUN, payload=run_payload)
+        await s.commit()
+    run_job = await claim_next()
+    await execute_job(run_job, graph=FakeGraph(), recorder=FakeRecorder())  # RUN 完成，让位 RESUME
+
+    async with jobs_db() as s:
+        await enqueue_case_job(
+            s, case_id=case.id, action=JobAction.RESUME,
+            payload={"kind": "supplement", "action": "upload", "resolved_by": "u"},
+        )
+        await s.commit()
+    resume_job = await claim_next()
+
+    graph = FakeGraph(snapshot_values={"case_id": case.id})  # 旧 checkpoint：无 schema_version
+    recorder = FakeRecorder()
+    await execute_job(resume_job, graph=graph, recorder=recorder)
+
+    invocation, _ = graph.calls[0]
+    assert invocation == run_payload  # 全新重跑：原始 RUN 图输入，非 Command(resume)
+    assert graph.deleted_threads == [case.id]  # 旧 checkpoint 已清（防 channel 污染重跑）
+    assert [kind for _, kind, _ in recorder.events] == ["schema_reset"]
+
+
+async def test_resume_schema_mismatch_without_run_payload_fails(jobs_db) -> None:
+    """降级但找不到原始 RUN 输入 → 显式失败进重试（不盲 resume 旧格式 checkpoint）。"""
+    case = await _make_case(jobs_db)
+    async with jobs_db() as s:
+        await enqueue_case_job(
+            s, case_id=case.id, action=JobAction.RESUME, payload={"kind": "review"}
+        )
+        await s.commit()
+    job = await claim_next()
+    graph = FakeGraph(snapshot_values={})  # 旧 checkpoint 且无前置 RUN
+    await execute_job(job, graph=graph, recorder=FakeRecorder())
+
+    assert graph.calls == []  # 未盲 resume
+    row = await _job(jobs_db, job.id)
+    assert row.status == "queued"  # 异常进重试（attempt < max）
+    assert "降级失败" in (row.last_error or "")
 
 
 async def test_execute_error_retries_with_backoff(jobs_db) -> None:

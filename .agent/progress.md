@@ -2029,3 +2029,13 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：test_material_review +1（五分支含 0 元边界）；431 passed（+1）+ ruff 绿 + 评测门 100% 不退化。
 
 **Git**：`feat: T140 [提取置信度校准: 来源常数→齐全度函数(金额/诊断-.25); 缺失真正影响调度(0.65/0.4锚定两级阈值); 0元视同缺失; 评测门零影响实证; 431绿]`
+
+## 2026-09-22 T141 checkpoint schema 版本策略（缺口#7，D061）+ T125 收口
+
+**做了什么**：state.py 加 CASE_SCHEMA_VERSION=1（Final）与 ClaimCaseState.schema_version 字段（intake 写入；bump 语义=State 字段增删改/channel 语义变化时人工 +1，D061 落档）；execute_job 的 RESUME 分支接版本门卫 `_resume_invocation`——aget_state 比对，匹配走原 Command(resume) 路径（全部既有真图 resume 链路的 checkpoint 由现行 intake 写入带版本戳，零行为变化）；不匹配（含版本化之前的旧 checkpoint 无字段）降级全新重跑：**先 adelete_thread 删旧状态**（关键顺序——全新输入落在既有 channel 上会与旧阶段结论合并污染重跑，实测 InMemorySaver 删后 values={} 干净）再取最近 RUN 任务原始图输入重新 ainvoke + schema_reset 审计事件；防御分支（找不到 RUN 输入，理论不可达）显式 RuntimeError 进任务重试，不盲 resume 旧格式。理论依据 D006：案件事实权威在 cases 表，checkpoint 只承载可重建执行态——重跑无损。
+
+**T125 收口**：六子项全部清账——a token 成本（T123/T130，7,075.8 tokens/案实数）、b 对抗集 LLM 验证（T130，injection 3/8/robustness 0/6）、c 记忆治理（T138）、d 叙述抽评（T139）、e 置信度校准（T140）、f checkpoint 版本策略（本任务）。任务行标 [x] 收口，拆解与实施见"增量：T125 挂账清账"节。
+
+**验证**：test_case_jobs +2（旧 checkpoint 降级全链路：原始输入重跑+thread 删除+schema_reset 审计；无 RUN 输入防御失败进重试）+ 既有 resume 包装测试改为版本匹配路径 + FakeGraph 支持快照/adelete_thread 模拟；433 passed（+2）+ ruff 绿 + 评测门 153 案六门全绿 100% 不退化。
+
+**Git**：`feat: T141 [checkpoint schema版本策略: CASE_SCHEMA_VERSION+intake版本戳+resume门卫(不匹配删thread+RUN原始输入全新重跑+schema_reset审计); T125六子项收口; 433绿]`
