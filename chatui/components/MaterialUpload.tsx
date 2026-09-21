@@ -1,20 +1,22 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
-import { uploadCaseMaterial } from "@/lib/case-api";
-
-const DOC_TYPES = [
-  { value: "invoice", label: "医疗发票" },
-  { value: "diagnosis", label: "诊断证明" },
-  { value: "cost_list", label: "费用清单" },
-  { value: "medical_record", label: "病历" },
-];
+import { useEffect, useRef, useState } from "react";
+import { fetchMaterialCatalog, uploadCaseMaterial, type MaterialCatalogLine } from "@/lib/case-api";
 
 export default function MaterialUpload({ caseId, disabled }: { caseId: string; disabled?: boolean }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [docType, setDocType] = useState("cost_list");
+  const [docType, setDocType] = useState("");
+  // 材料类型目录（险种分组，后端 pack 单源；T126 动态化）
+  const [catalog, setCatalog] = useState<MaterialCatalogLine[]>([]);
+
+  useEffect(() => {
+    fetchMaterialCatalog().then((lines) => {
+      setCatalog(lines);
+      setDocType((cur) => cur || lines[0]?.docs[0]?.value || "");
+    });
+  }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
@@ -41,7 +43,11 @@ export default function MaterialUpload({ caseId, disabled }: { caseId: string; d
         <input ref={fileRef} type="file" disabled={disabled}
           accept=".jpg,.jpeg,.png,.webp,.bmp,.pdf,.docx" className="cf-input" />
         <select value={docType} onChange={(e) => setDocType(e.target.value)} disabled={disabled} className="cf-input">
-          {DOC_TYPES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+          {catalog.map((g) => (
+            <optgroup key={g.line} label={g.label}>
+              {g.docs.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+            </optgroup>
+          ))}
         </select>
         <button type="button" disabled={busy || disabled} onClick={onUpload} className="cf-btn primary">
           {busy ? "上传中…" : "上传"}

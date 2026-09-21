@@ -45,18 +45,23 @@ from schemas.case import CaseInputState, CaseOutput
 from schemas.stages import STAGE_SPECS
 from services.case_store import CaseRecorder
 from services.observability.metrics import record_case_stage
+from services.observability.tracing import traced_span
 from state import ClaimCaseState
 
 
 def _timed(stage: str, fn: Any) -> Any:
-    """worker 节点阶段耗时埋点包装（T090 CASE_STAGE_LATENCY 接线，T099 补齐）。"""
+    """worker 节点阶段埋点包装：CASE_STAGE_LATENCY 计时（T099）+ OTel 阶段 span（T128）。
+
+    span 未启用时 traced_span 走 noop tracer，零开销。
+    """
 
     async def timed_node(state: dict[str, Any]) -> dict[str, Any]:
         start = time.monotonic()
-        try:
-            return await fn(state)
-        finally:
-            record_case_stage(stage, time.monotonic() - start)
+        with traced_span(f"case.{stage}", case_id=state.get("case_id")):
+            try:
+                return await fn(state)
+            finally:
+                record_case_stage(stage, time.monotonic() - start)
 
     return timed_node
 

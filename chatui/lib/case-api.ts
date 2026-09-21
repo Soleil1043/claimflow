@@ -118,6 +118,24 @@ export function getCaseDetail(caseId: string): Promise<CaseDetail> {
 
 // ---------- 材料上传 ----------
 
+export interface MaterialCatalogLine {
+  line: string;
+  label: string;
+  docs: { value: string; label: string }[];
+}
+
+/** 材料类型目录（险种分组，后端 pack 单源派生；拉取失败回退空表）。 */
+export async function fetchMaterialCatalog(): Promise<MaterialCatalogLine[]> {
+  try {
+    const resp = await fetch(apiUrl("/api/v1/cases/material-catalog"));
+    if (!resp.ok) return [];
+    const data = (await resp.json()) as { lines: MaterialCatalogLine[] };
+    return data.lines ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function uploadCaseMaterial(
   caseId: string,
   file: File,

@@ -39,6 +39,8 @@ from schemas.api import (
     CaseMaterialUploadResponse,
     CaseSubmitResponse,
     CaseTimelineEvent,
+    MaterialCatalogLine,
+    MaterialCatalogResponse,
 )
 from schemas.case import PENDING_CASE_STATUSES, CaseStatus
 from schemas.lines import all_doc_types
@@ -74,6 +76,19 @@ async def _get_case_or_404(case_id: str, session: AsyncSession) -> Case:
     if case is None:
         raise HTTPException(status_code=404, detail="案件不存在")
     return case
+
+
+@router.get("/material-catalog", response_model=MaterialCatalogResponse)
+async def get_material_catalog() -> MaterialCatalogResponse:
+    """材料类型目录（险种分组，pack 单源派生；T126 前端下拉动态化）。
+
+    注册顺序在 /{case_id} 动态路由之前（T086 教训）。
+    """
+    from schemas.lines import material_catalog
+
+    return MaterialCatalogResponse(
+        lines=[MaterialCatalogLine(**entry) for entry in material_catalog()]
+    )
 
 
 @router.post("", response_model=CaseSubmitResponse, status_code=status.HTTP_201_CREATED)

@@ -1,10 +1,12 @@
 {
   "task": "T089 核赔评测上线门",
-  "generated_at": "2026-09-21T15:47:29",
+  "dataset": "adjudication",
+  "robustness": null,
+  "generated_at": "2026-09-21T21:58:40",
   "mode": "deterministic",
   "model": null,
-  "total_cases": 151,
-  "matched": 151,
+  "total_cases": 153,
+  "matched": 153,
   "consistency": 1.0,
   "gates": {
     "amount_accuracy": {
@@ -63,8 +65,8 @@
       "matched": 16
     },
     "edge": {
-      "total": 11,
-      "matched": 11
+      "total": 13,
+      "matched": 13
     },
     "missing": {
       "total": 14,
@@ -75,5 +77,11 @@
       "matched": 2
     }
   },
-  "failures": []
+  "failures": [],
+  "cost": {
+    "tokens_total": 0,
+    "tokens_per_case_avg": 0.0,
+    "duration_s_avg": 0.25,
+    "duration_s_p95": 0.22
+  }
 }

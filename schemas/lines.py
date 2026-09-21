@@ -197,3 +197,28 @@ def online_lines() -> frozenset[str]:
 def all_doc_types() -> frozenset[str]:
     """全部险种的合法材料类型并集（API 上传白名单口径）。"""
     return frozenset(dt for p in LINE_PACKS.values() for dt in p.doc_types)
+
+
+# 险种展示名（前端材料目录分组标签，T126）
+LINE_LABELS: dict[str, str] = {
+    "medical": "医疗险",
+    "auto": "车险",
+    "property": "财产险",
+    "accident": "意外险",
+}
+
+
+def material_catalog() -> list[dict[str, Any]]:
+    """材料类型目录（按险种分组，含展示名）：前端下拉/补件表单的唯一来源（T126）。
+
+    只列有展示名的必备材料类型；新险种上线目录自动扩展，前端零改动。
+    """
+    return [
+        {
+            "line": pack.line,
+            "label": LINE_LABELS.get(pack.line, pack.line),
+            "docs": [{"value": code, "label": label} for code, label in pack.required_docs],
+        }
+        for pack in LINE_PACKS.values()
+        if pack.online and pack.required_docs
+    ]

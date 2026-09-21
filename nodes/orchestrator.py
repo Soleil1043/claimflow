@@ -28,6 +28,7 @@ from services.case_store import CaseRecorder
 from services.llm.client import get_chat_model
 from services.llm.prompts import CASE_ORCHESTRATOR_ROUTING_PROMPT
 from services.observability import metrics
+from services.observability.tracing import traced_span
 from services.skills import build_system_prompt
 from state import ClaimCaseState
 
@@ -136,7 +137,11 @@ def make_orchestrator_node(recorder: CaseRecorder, llm_router=None):
 
         if llm_router is not None and not over_budget:
             try:
-                decision = await llm_router(state)
+                with traced_span(
+                    "case.orchestrator_route",
+                    case_id=state.get("case_id"), routing_call=calls,
+                ):
+                    decision = await llm_router(state)
                 mode = "llm"
             except Exception as exc:  # noqa: BLE001 —— D039 安全设计 3：LLM 故障走兜底
                 log.warning("orchestrator_llm_failed", calls=calls, error=str(exc)[:200])

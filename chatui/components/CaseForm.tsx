@@ -1,15 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { submitCase, type CaseSubmitResponse } from "@/lib/case-api";
-
-const DOC_TYPES = [
-  { value: "invoice", label: "医疗发票" },
-  { value: "diagnosis", label: "诊断证明" },
-  { value: "cost_list", label: "费用清单" },
-  { value: "medical_record", label: "病历" },
-];
+import { useEffect, useState } from "react";
+import {
+  fetchMaterialCatalog,
+  submitCase,
+  type CaseSubmitResponse,
+  type MaterialCatalogLine,
+} from "@/lib/case-api";
 
 export default function CaseForm() {
   const router = useRouter();
@@ -22,9 +20,16 @@ export default function CaseForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<CaseSubmitResponse | null>(null);
+  // 材料类型目录（险种分组，后端 pack 单源；T126 动态化——四险种材料都可声明）
+  const [catalog, setCatalog] = useState<MaterialCatalogLine[]>([]);
+
+  useEffect(() => {
+    fetchMaterialCatalog().then(setCatalog);
+  }, []);
 
   function addFile() {
-    setFiles([...files, { name: `材料${files.length + 1}.pdf`, docType: "invoice" }]);
+    const first = catalog[0]?.docs[0]?.value ?? "";
+    setFiles([...files, { name: `材料${files.length + 1}.pdf`, docType: first }]);
   }
 
   function removeFile(idx: number) {
@@ -117,8 +122,12 @@ export default function CaseForm() {
             <div key={i} className="flex items-center gap-2">
               <input value={f.name} readOnly className="cf-input flex-1 text-[12px]" />
               <select value={f.docType} onChange={(e) => updateFileType(i, e.target.value)}
-                className="cf-input w-[140px] text-[12px]">
-                {DOC_TYPES.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                className="cf-input w-[160px] text-[12px]">
+                {catalog.map((g) => (
+                  <optgroup key={g.line} label={g.label}>
+                    {g.docs.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                  </optgroup>
+                ))}
               </select>
               <button type="button" onClick={() => removeFile(i)}
                 className="cf-btn secondary text-[12px]">删除</button>

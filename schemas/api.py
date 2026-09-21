@@ -30,6 +30,20 @@ class HealthResponse(BaseModel):
 # ---------- B01-B03 核赔案件（Phase 8 T080） ----------
 
 
+class MaterialCatalogLine(BaseModel):
+    """材料目录单险种分组（T126：pack 单源，前端下拉动态化）。"""
+
+    line: str
+    label: str
+    docs: list[dict[str, str]]
+
+
+class MaterialCatalogResponse(BaseModel):
+    """GET /api/v1/cases/material-catalog 响应。"""
+
+    lines: list[MaterialCatalogLine]
+
+
 class CaseMaterialRefIn(BaseModel):
     """案件提交时的材料引用。"""
 

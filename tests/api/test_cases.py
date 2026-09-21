@@ -128,6 +128,18 @@ async def test_submit_idempotent_natural_key(client: AsyncClient) -> None:
     assert third.json()["case_id"] != case_id
 
 
+async def test_material_catalog_pack_derived(client: AsyncClient) -> None:
+    """材料目录（T126）：四险种分组齐备，与 pack required_docs 单源一致。"""
+    resp = await client.get("/api/v1/cases/material-catalog")
+    assert resp.status_code == 200
+    lines = {entry["line"]: entry for entry in resp.json()["lines"]}
+    assert set(lines) == {"medical", "auto", "property", "accident"}
+    assert [d["value"] for d in lines["auto"]["docs"]] == [
+        "police_report", "repair_invoice", "loss_assessment",
+    ]
+    assert lines["property"]["label"] == "财产险"
+
+
 async def test_submit_offline_line_referred(client: AsyncClient) -> None:
     """产品类型不在任何上线 pack（重疾险 → unknown）→ 受理期转人工（escape）。
 

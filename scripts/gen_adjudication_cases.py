@@ -553,6 +553,41 @@ def main() -> None:
             sequence=["material_review"], note=f"材料矛盾（发票{inv} vs 清单{cost}）",
         )
 
+    # 材料矛盾·真实提取路径（T127）：材料带 extraction 金额 → find_amount_contradictions
+    # 本体触发（既有矛盾案是 note 标记压置信度路径，交叉核验规则从未真正执行过）
+    add(
+        user_id="u-zhangwei", policy_no="POL-2025-0001", claimed="15800.00",
+        incident_date="2026-08-10",
+        incident_description="急性阑尾炎手术申请理赔，发票与费用清单已上传。",
+        materials=[
+            {"file_name": "invoice.pdf", "doc_type": "invoice",
+             "extraction": {"amount": "15800.00", "source": "text_model",
+                            "patient_name": "张伟", "date": "2026-08-10"}},
+            {"file_name": "diagnosis.jpg", "doc_type": "diagnosis"},
+            {"file_name": "cost_list.pdf", "doc_type": "cost_list",
+             "extraction": {"amount": "12800.00", "source": "text_model"}},
+        ],
+        category="edge", route="human", liability=None, approved=None,
+        sequence=["material_review"], declared="medical",
+        note="材料矛盾（真实提取金额）：发票 15800 vs 清单 12800，交叉核验触发转人工",
+    )
+    add(
+        user_id="u-zhoujie", policy_no="POL-2026-0008", claimed="8000.00",
+        incident_date="2026-05-12",
+        incident_description="追尾事故，本车维修费用8000元，交警认定我方全责。",
+        materials=[
+            {"file_name": "police_report.jpg", "doc_type": "police_report"},
+            {"file_name": "repair_invoice.pdf", "doc_type": "repair_invoice",
+             "extraction": {"amount": "8000.00", "source": "text_model",
+                            "date": "2026-05-15"}},
+            {"file_name": "loss_assessment.pdf", "doc_type": "loss_assessment",
+             "extraction": {"amount": "6500.00", "source": "text_model"}},
+        ],
+        category="edge", route="human", liability=None, approved=None,
+        sequence=["material_review"], declared="auto",
+        note="车险材料矛盾（真实提取金额）：维修发票 8000 vs 定损单 6500，交叉核验触发转人工",
+    )
+
     # 部分责任 + 缺件复合（先补件后 partial）
     add(
         user_id="u-liuyang", policy_no="POL-2026-0005", claimed="16000.00",

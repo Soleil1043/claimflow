@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
-import { uploadCaseMaterial } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+import { fetchMaterialCatalog, uploadCaseMaterial, type MaterialCatalogLine } from "@/lib/api";
 
 /**
  * 补件材料上传（T087）：multipart 上传 → 后端自动恢复补件挂起的核赔流程
@@ -11,7 +11,16 @@ import { uploadCaseMaterial } from "@/lib/api";
 export default function MaterialUploadForm({ caseId }: { caseId: string }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [docType, setDocType] = useState("cost_list");
+  const [docType, setDocType] = useState("");
+  // 材料类型目录（险种分组，后端 pack 单源；T126 动态化——四险种补件都可声明）
+  const [catalog, setCatalog] = useState<MaterialCatalogLine[]>([]);
+
+  useEffect(() => {
+    fetchMaterialCatalog().then((lines) => {
+      setCatalog(lines);
+      setDocType((cur) => cur || lines[0]?.docs[0]?.value || "");
+    });
+  }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<string | null>(null);
@@ -41,10 +50,11 @@ export default function MaterialUploadForm({ caseId }: { caseId: string }) {
       <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
         <input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.webp,.bmp,.pdf,.docx" className="cf-input" />
         <select value={docType} onChange={(e) => setDocType(e.target.value)} className="cf-input">
-          <option value="invoice">医疗发票</option>
-          <option value="diagnosis">诊断证明</option>
-          <option value="cost_list">费用清单</option>
-          <option value="medical_record">病历/记录</option>
+          {catalog.map((g) => (
+            <optgroup key={g.line} label={g.label}>
+              {g.docs.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+            </optgroup>
+          ))}
         </select>
         <button
           type="button"

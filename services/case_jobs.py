@@ -33,6 +33,7 @@ from services.db.models import CaseJob
 from services.db.session import get_session_factory
 from services.observability import metrics
 from services.observability.token_tracker import track_case
+from services.observability.tracing import traced_span
 
 log = get_logger(__name__)
 
@@ -235,13 +236,14 @@ async def execute_job(job: CaseJob, *, graph: Any, recorder: CaseRecorder) -> No
                 if job.action == JobAction.RESUME.value
                 else job.payload
             )
-            result = await graph.ainvoke(
-                invocation,
-                config={
-                    "configurable": {"thread_id": job.case_id},
-                    "recursion_limit": 60,
-                },
-            )
+            with traced_span("case.deliver", case_id=job.case_id, action=job.action):
+                result = await graph.ainvoke(
+                    invocation,
+                    config={
+                        "configurable": {"thread_id": job.case_id},
+                        "recursion_limit": 60,
+                    },
+                )
         if job.action == JobAction.RUN.value:
             metrics.record_case_duration(time.monotonic() - started)
 
