@@ -1969,3 +1969,11 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：tests/support/test_agent.py 11 例（prompt 边界断言/普通轮往返/工具轮/空终局兜底/转人工全流程+后续轮拒答/缺会话/replay 映射/case_status 同口径投影/缺案提示/claim_draft 五分支/escalate 标记式）；support_db 夹具提 tests/support/conftest.py 共用；test_infrastructure 工具图断言 12→15 同步；全量 410 passed（+11）+ ruff 绿。
 
 **Git**：`feat: T133 [客服Agent装配+四工具: case_status_query同口径快照/claim_draft_link预填/escalate_to_human标记式+reply确定性流转; 工厂12→15; 410绿]`
+
+## 2026-09-22 T134 门户客服 API
+
+**做了什么**：app/api/v1/support.py 四端点 + main.py 注册 + schemas/api.py 客服组（SupportConversationCreate/Status、SupportMessageOut/List、SupportSendMessageRequest/Response，role/status 用 Literal 收紧）。POST messages 语义按状态机分派：ai → agent_reply（响应回读终态——本轮触发转人工时返回 escalated+转接话术，前端据此切换轮询，修正了初版固定回 "ai" 的语义漏洞）；escalated → 只落 user 消息 reply=None（AI 停答）；closed → 409；LLM 故障 → 503 且用户消息已落库（reply 先落消息再调 LLM，时间线不丢）。LookupError→404 / SupportStateError→409 边界翻译。
+
+**验证**：tests/api/test_support.py 6 例（建会话/往返+历史口径/转人工停答+后续消息无 assistant/404/closed 409/BoomModel 503+消息留存）；fixture 支持按测试重排脚本消息（set_script + 缓存复位）；416 passed（+6）+ ruff 绿。
+
+**Git**：`feat: T134 [门户客服API: /support四端点; escalated停答reply=None; 转人工轮回读终态; LLM故障503消息留存; 416绿]`

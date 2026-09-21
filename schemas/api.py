@@ -220,3 +220,54 @@ class CaseResolveResponse(BaseModel):
     decision_document: CaseDecisionDocumentOut | None = None
     job: CaseJobOut | None = None
     decision_issued: bool = False
+
+
+# ---------- 门户在线客服（T134，D057） ----------
+
+
+class SupportConversationCreateResponse(BaseModel):
+    """建会话回执。"""
+
+    conversation_id: str
+    status: str
+    created_at: dt.datetime
+
+
+class SupportConversationStatusResponse(BaseModel):
+    """会话状态（门户轮询 / 坐席视角共用）。"""
+
+    conversation_id: str
+    status: Literal["ai", "escalated", "closed"]
+    escalated_reason: str | None = None
+    created_at: dt.datetime
+    escalated_at: dt.datetime | None = None
+    closed_at: dt.datetime | None = None
+
+
+class SupportMessageOut(BaseModel):
+    """一条会话消息。"""
+
+    id: int
+    role: Literal["user", "assistant", "agent"]
+    content: str
+    created_at: dt.datetime
+
+
+class SupportMessageListResponse(BaseModel):
+    """会话消息历史。"""
+
+    total: int
+    items: list[SupportMessageOut]
+
+
+class SupportSendMessageRequest(BaseModel):
+    """客户发送消息。"""
+
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class SupportSendMessageResponse(BaseModel):
+    """发消息回执：ai 态携带 AI 回复；escalated 态 reply=None（坐席应答经轮询获取）。"""
+
+    status: Literal["ai", "escalated"]
+    reply: str | None = None
