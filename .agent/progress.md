@@ -1895,3 +1895,13 @@ workbench `npm run build` 通过（T057 已验）。
 **结果**：评测门六门全绿，route 97.7%→98.7%、liability 94.7%→95.4%、总一致率 92.4%→94.0%；三线 22 条新金样本全部 PASS；顺带修复既有失败案 E-0065（意外险退保案 expected=auto observed=human 的口径矛盾）；失败集 10→9 条，余 9 条全为医疗线遗留（7 partial 自费关键词、2 frequency 路由）。生成器重跑字节级一致；seed 两遍幂等；383 passed + ruff 绿。pytest 配置加 norecursedirs 排除 tests/exercises（gitignore 练习残留）。
 
 **Git**：`feat: T120 [险种扩充: 车险/财产险/意外险三线pack上线; 15份skill; doc_type白名单pack化; 等待期0天修复; 评测151案六门全绿]`
+
+## T121 自我面试驱动架构评审 + T122 评测失败集清零（2026-09-21）
+
+**T121（面试）**：agent-interviewer skill 双角色续演（Q5-Q16，链 7 评测有效性 → 链 3 工具可靠性 → 岗位知识 → 收尾）。总评 Lean Hire；最佳回答为结构化输出三层保证（唯一 3 分），最弱为 RAG 检索评估与 judge 校准（1.5 分）。产出 9 项证据缺口（LLM 调度成本未量化/T120 后 LLM 全量未重跑/金额门循环论证/叙述质量零量化/无留出集无对抗集/工具选择率无统计/checkpoint 版本策略缺失/RAG 无独立指标/提取置信度常数未校准）与 3 项实锤缺陷（等待期 off-by-one、partial 组保障期外日期、frequency 信号评测漂移失效）。完整记录见 agent-interview-session.md。
+
+**T122（修复）**：三缺陷根因与修复——①等待期：运行时 `incident >= eff+N` 与契约注释"出险日 ≤ eff+N → 责任免除"矛盾（单测把 eff+30 叫"第 31 天"沿用错口径），改 `>` 并重写边界单测（eff+30 拒 / eff+31 首个可赔日）；②数据集：partial 组 6 案（2026-06-05）与除外组 5 案（2026-07-08）统一日期早于 POL-2026-0005 生效日（2026-08-01），not_covered 全部来自 precheck、partial 路径与除外关键词路径从未被真实测到——0005 案出险日改 eff+45（2026-09-15）；③frequency：_meta 声明"相对天数换算绝对日期入库"但 suite 实现只灌静态 mock 日期，now-90d 窗口随日历衰减（T089 时 2 条在窗→今天 1 条），medium 信号静默降级 low——补实现 freq_signals 相对天数落库（信号保单静态记录替换为 now-days_ago，计数= len(claims_days_ago) 恒定）。
+
+**结果**：评测门 151 案全维一致 100%、六门全绿、失败集 9→0；384 passed + ruff 绿。
+
+**Git**：T121 `docs: T121 [自我面试: Q5-Q16双角色续演; 总评LeanHire; 9证据缺口+3实锤缺陷→T122-T124]`；T122 `fix: T122 [评测失败集清零: 等待期off-by-one对齐契约; partial/除外组0005案保障期外日期; frequency信号相对天数落库; 151案100%六门全绿]`

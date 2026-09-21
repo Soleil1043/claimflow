@@ -76,10 +76,18 @@ async def test_waiting_period_day_29_fails() -> None:
     assert "等待期" in (result["invalid_reason"] or "")
 
 
-async def test_waiting_period_day_31_passes_boundary() -> None:
-    """第 31 天（生效日+30）起等待期已过（30 天等待期的首个可出险日为第 31 天）。"""
+async def test_waiting_period_last_day_fails() -> None:
+    """契约口径（T122 对齐）：出险日 = 生效日+30（等待期最后一日）→ 仍未过。"""
     policy = _policy(effective_date="2026-08-01", expiry_date="2027-07-31")
     result = await _verify(policy, "2026-08-31")
+    assert result["waiting_period_passed"] is False
+    assert result["coverage_valid"] is True  # 在保障期内，仅等待期未过
+
+
+async def test_waiting_period_first_payable_day_passes() -> None:
+    """首个可赔日 = 生效日+31（第 31 天，金样本 offset 计数口径）→ 等待期已过。"""
+    policy = _policy(effective_date="2026-08-01", expiry_date="2027-07-31")
+    result = await _verify(policy, "2026-09-01")
     assert result["waiting_period_passed"] is True
 
 

@@ -50,7 +50,7 @@ from tools.compliance.rule_check import check_text
 ROOT = Path(__file__).resolve().parent.parent
 REPORT_DIR = ROOT / "evals" / "reports"
 
-async def _setup_db(db_path: Path) -> None:
+async def _setup_db(db_path: Path, freq_signals: list[dict[str, Any]] | None = None) -> None:
     """建表 + 种子全量 mock 数据（保单/理赔记录/黑名单走文件）。"""
     engine = create_async_engine(f"sqlite+aiosqlite:///{db_path.as_posix()}")
     async with engine.begin() as conn:
@@ -95,6 +95,31 @@ async def _setup_db(db_path: Path) -> None:
                 submitted_at=submitted,
                 updated_at=submitted,
             ))
+        # frequency_signals 相对天数换算（_meta 口径，T122 补实现）：信号保单的静态
+        # mock 记录替换为"now - days_ago"记录——"近 90 天"计数不随评测执行时间漂移
+        # （原实现只灌静态日期，T089 时窗内 2 条、随日历衰减到 1 条，medium 信号
+        # 静默失效，E-0086/88 由金额超线碰巧掩盖）
+        if freq_signals:
+            from sqlalchemy import delete as sa_delete
+
+            now = dt.datetime.now()
+            for sig in freq_signals:
+                await s.execute(
+                    sa_delete(ClaimRecord).where(
+                        ClaimRecord.policy_no == sig["policy_no"]
+                    )
+                )
+                for i, days_ago in enumerate(sig["claims_days_ago"]):
+                    submitted = now - dt.timedelta(days=days_ago)
+                    s.add(ClaimRecord(
+                        claim_no=f"EVAL-FREQ-{sig['policy_no']}-{i}",
+                        policy_no=sig["policy_no"],
+                        status="approved",
+                        applied_amount=Decimal("1000.00"),
+                        approved_amount=Decimal("800.00"),
+                        submitted_at=submitted,
+                        updated_at=submitted,
+                    ))
         await s.commit()
 
 
@@ -157,7 +182,7 @@ async def _run_suite(
 
     engine = None
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-        await _setup_db(Path(tmp) / "eval.db")
+        await _setup_db(Path(tmp) / "eval.db", freq_signals)
         engine = session_module.get_engine()
 
         from nodes.orchestrator import make_llm_router

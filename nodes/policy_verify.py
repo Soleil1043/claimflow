@@ -55,7 +55,9 @@ def make_policy_verify_node(recorder: CaseRecorder, policy_lookup: PolicyLookup)
         is_active = str(info.get("status", "")) == "active"
         in_term = effective <= incident_date <= expiry
         coverage_valid = is_active and in_term
-        waiting_passed = incident_date >= effective + dt.timedelta(days=waiting_days)
+        # 契约口径（schemas.contract）：出险日 ≤ 生效日+N 天 → 等待期未过（含第 N 天，
+        # 首个可赔日为生效日+N+1）——曾用 >= 造成第 N 天误过（E-0044，T122 修复）
+        waiting_passed = incident_date > effective + dt.timedelta(days=waiting_days)
 
         invalid_reason: str | None = None
         if not is_active:

@@ -2771,7 +2771,7 @@
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
       "claimed_amount": "12000.00",
-      "incident_date": "2026-07-08",
+      "incident_date": "2026-09-15",
       "incident_description": "眼部美容手术，费用12000.00元。",
       "materials": [
         {
@@ -2847,7 +2847,7 @@
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
       "claimed_amount": "12000.00",
-      "incident_date": "2026-07-08",
+      "incident_date": "2026-09-15",
       "incident_description": "脊柱侧弯矫正手术，费用12000.00元。",
       "materials": [
         {
@@ -2923,7 +2923,7 @@
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
       "claimed_amount": "12000.00",
-      "incident_date": "2026-07-08",
+      "incident_date": "2026-09-15",
       "incident_description": "牙齿矫正器，费用12000.00元。",
       "materials": [
         {
@@ -2999,7 +2999,7 @@
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
       "claimed_amount": "12000.00",
-      "incident_date": "2026-07-08",
+      "incident_date": "2026-09-15",
       "incident_description": "口腔正畸治疗，费用12000.00元。",
       "materials": [
         {
@@ -3075,7 +3075,7 @@
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
       "claimed_amount": "12000.00",
-      "incident_date": "2026-07-08",
+      "incident_date": "2026-09-15",
       "incident_description": "视力矫正激光手术，费用12000.00元。",
       "materials": [
         {
@@ -3227,7 +3227,7 @@
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
       "claimed_amount": "15000.00",
-      "incident_date": "2026-06-05",
+      "incident_date": "2026-09-15",
       "incident_description": "骨科手术，含自费内固定材料2000.00元（清单单列），总费用15000.00元。",
       "materials": [
         {
@@ -3265,7 +3265,7 @@
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
       "claimed_amount": "18000.00",
-      "incident_date": "2026-06-05",
+      "incident_date": "2026-09-15",
       "incident_description": "骨科手术，含自费内固定材料3000.00元（清单单列），总费用18000.00元。",
       "materials": [
         {
@@ -3341,7 +3341,7 @@
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
       "claimed_amount": "16500.00",
-      "incident_date": "2026-06-05",
+      "incident_date": "2026-09-15",
       "incident_description": "骨科手术，含自费内固定材料1500.00元（清单单列），总费用16500.00元。",
       "materials": [
         {
@@ -3455,7 +3455,7 @@
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
       "claimed_amount": "17000.00",
-      "incident_date": "2026-06-05",
+      "incident_date": "2026-09-15",
       "incident_description": "骨科手术，含自费内固定材料2500.00元（清单单列），总费用17000.00元。",
       "materials": [
         {
@@ -3531,7 +3531,7 @@
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
       "claimed_amount": "15500.00",
-      "incident_date": "2026-06-05",
+      "incident_date": "2026-09-15",
       "incident_description": "骨科手术，含自费内固定材料1200.00元（清单单列），总费用15500.00元。",
       "materials": [
         {
@@ -3645,7 +3645,7 @@
       "policy_no": "POL-2026-0005",
       "declared_case_type": "medical",
       "claimed_amount": "17500.00",
-      "incident_date": "2026-06-05",
+      "incident_date": "2026-09-15",
       "incident_description": "骨科手术，含自费内固定材料3800.00元（清单单列），总费用17500.00元。",
       "materials": [
         {

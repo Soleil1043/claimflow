@@ -260,9 +260,13 @@ def main() -> None:
             "确定性兜底将漏判，请改写描述或补包关键词"
         )
         claimed = "12000.00"
+        # POL-2026-0005 生效 2026-08-01：出险日取生效+45（过等待期，测除外关键词
+        # 而非保障期外）；POL-2025-0001 用 2026-07-08（T122 修复：原统一 07-08 对
+        # 0005 是保障期外，not_covered 来自 precheck，关键词路径从未被测到）
+        incident = "2026-09-15" if policy_no == "POL-2026-0005" else "2026-07-08"
         add(
             user_id=user, policy_no=policy_no, claimed=claimed,
-            incident_date="2026-07-08",
+            incident_date=incident,
             incident_description=f"{desc}，费用{claimed}元。",
             materials=full_docs, category="rejected", route="auto",
             liability="not_covered", approved=Decimal("0.00"), sequence=FULL_SEQ,
@@ -303,9 +307,12 @@ def main() -> None:
     ]:
         policy = policies[policy_no]
         approved = _approved(Decimal(claimed), policy, Decimal(selfpay))
+        # POL-2026-0005 生效 2026-08-01：出险日取生效+45（T122 修复：原统一 06-05
+        # 对 0005 是保障期外，6 案 not_covered 与期望 partial 矛盾）
+        incident = "2026-09-15" if policy_no == "POL-2026-0005" else "2026-06-05"
         add(
             user_id=user, policy_no=policy_no, claimed=claimed,
-            incident_date="2026-06-05",
+            incident_date=incident,
             incident_description=f"骨科手术，含自费内固定材料{selfpay}元（清单单列），总费用{claimed}元。",
             materials=full_docs, category="partial", route="auto",
             liability="partial", approved=approved, sequence=FULL_SEQ,
