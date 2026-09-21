@@ -1977,3 +1977,11 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：tests/api/test_support.py 6 例（建会话/往返+历史口径/转人工停答+后续消息无 assistant/404/closed 409/BoomModel 503+消息留存）；fixture 支持按测试重排脚本消息（set_script + 缓存复位）；416 passed（+6）+ ruff 绿。
 
 **Git**：`feat: T134 [门户客服API: /support四端点; escalated停答reply=None; 转人工轮回读终态; LLM故障503消息留存; 416绿]`
+
+## 2026-09-22 T135 转人工闭环（坐席端点 + workbench 三件套）
+
+**做了什么**：坐席侧四端点（app/api/v1/support.py）：工单列表（escalated 倒序 + 最新消息预览；store 新增 list_escalated_conversations / last_messages_by_conversation，后者单 SQL 批量取每会话最新消息，模式同 case_service.latest_jobs_for_cases 消 N+1）、工单详情（完整 transcript，closed 只读留档可审计）、坐席回复（role=agent 入时间线，门户轮询可见）、关闭（note 先入 transcript 再流转终态——顺序保证"关闭备注"对客户可见且不撞终态拒写）。workbench：lib/api.ts 客服工单组 + 导航入口 + /support 列表页 + 详情页（三角色气泡 transcript：客户蓝/AI 灰/坐席绿）+ SupportReplyForm（回复 + 关闭备注）。
+
+**验证**：tests/api/test_support.py +2 例（工单全流程：入队预览→回复门户可见→备注关闭→队列清空详情留档→门户再发 409；ai 态操作 409/404）；418 passed（+2）+ ruff 绿 + workbench build 绿（/support、/support/[conversationId] 两动态路由）。
+
+**Git**：`feat: T135 [转人工闭环: 坐席四端点(队列预览/transcript/回复/note先入后关); workbench三件套+导航; 418绿+build绿]`

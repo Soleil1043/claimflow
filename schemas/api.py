@@ -271,3 +271,64 @@ class SupportSendMessageResponse(BaseModel):
 
     status: Literal["ai", "escalated"]
     reply: str | None = None
+
+
+# ---------- 坐席侧客服工单（T135，D057-3） ----------
+
+
+class SupportTicketItem(BaseModel):
+    """坐席工单列表项（escalated 会话 + 最新消息预览）。"""
+
+    conversation_id: str
+    escalated_reason: str | None = None
+    created_at: dt.datetime
+    escalated_at: dt.datetime
+    last_message: SupportMessageOut | None = None
+
+
+class SupportTicketListResponse(BaseModel):
+    """坐席工单列表。"""
+
+    total: int
+    items: list[SupportTicketItem]
+
+
+class SupportTicketDetailResponse(BaseModel):
+    """坐席工单详情：会话状态 + 完整 transcript（closed 会话可查作审计）。"""
+
+    conversation_id: str
+    status: Literal["ai", "escalated", "closed"]
+    escalated_reason: str | None = None
+    created_at: dt.datetime
+    escalated_at: dt.datetime | None = None
+    closed_at: dt.datetime | None = None
+    messages: list[SupportMessageOut]
+
+
+class SupportTicketReplyRequest(BaseModel):
+    """坐席回复。"""
+
+    agent: str = Field(min_length=1, max_length=64)
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class SupportTicketReplyResponse(BaseModel):
+    """坐席回复回执。"""
+
+    status: Literal["escalated"]
+    message: SupportMessageOut
+
+
+class SupportTicketCloseRequest(BaseModel):
+    """关闭工单（note 作为最后一条坐席消息入 transcript）。"""
+
+    agent: str = Field(min_length=1, max_length=64)
+    note: str | None = Field(default=None, max_length=4000)
+
+
+class SupportTicketCloseResponse(BaseModel):
+    """关闭回执。"""
+
+    conversation_id: str
+    status: Literal["closed"]
+    closed_at: dt.datetime

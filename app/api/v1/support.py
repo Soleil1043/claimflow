@@ -11,7 +11,7 @@ v1 请求-响应式（SSE 挂 D057-3 后续）；坐席侧工单端点见 T135�
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.exceptions import SupportStateError
 from app.core.logging import get_logger
@@ -22,6 +22,13 @@ from schemas.api import (
     SupportMessageOut,
     SupportSendMessageRequest,
     SupportSendMessageResponse,
+    SupportTicketCloseRequest,
+    SupportTicketCloseResponse,
+    SupportTicketDetailResponse,
+    SupportTicketItem,
+    SupportTicketListResponse,
+    SupportTicketReplyRequest,
+    SupportTicketReplyResponse,
 )
 from services.support import store
 from services.support.agent import reply as agent_reply
@@ -130,3 +137,99 @@ async def send_conversation_message(
         )
         return SupportSendMessageResponse(status=store.CONV_ESCALATED, reply=None)
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="会话已结束，不可继续发送")
+
+
+# ---------- 坐席侧客服工单（T135，D057-3：三件套后端） ----------
+
+
+def _message_out(m) -> SupportMessageOut:  # noqa: ANN001 —— SupportMessage ORM 行
+    return SupportMessageOut(id=m.id, role=m.role, content=m.content, created_at=m.created_at)
+
+
+@router.get("/tickets", response_model=SupportTicketListResponse)
+async def list_support_tickets(
+    limit: int = Query(default=50, ge=1, le=200),
+) -> SupportTicketListResponse:
+    """坐席工单列表：escalated 会话队列（转人工时间倒序）+ 最新消息预览。"""
+    convs = await store.list_escalated_conversations(limit=limit)
+    last_msgs = await store.last_messages_by_conversation([c.id for c in convs])
+    items = [
+        SupportTicketItem(
+            conversation_id=c.id,
+            escalated_reason=c.escalated_reason,
+            created_at=c.created_at,
+            escalated_at=c.escalated_at or c.created_at,
+            last_message=(
+                _message_out(last_msgs[c.id]) if c.id in last_msgs else None
+            ),
+        )
+        for c in convs
+    ]
+    return SupportTicketListResponse(total=len(items), items=items)
+
+
+@router.get(
+    "/tickets/{conversation_id}", response_model=SupportTicketDetailResponse
+)
+async def get_support_ticket(conversation_id: str) -> SupportTicketDetailResponse:
+    """坐席工单详情：会话状态 + 完整 transcript（closed 会话可查作审计）。"""
+    conv = await _get_conversation_or_404(conversation_id)
+    msgs = await store.list_messages(conversation_id)
+    return SupportTicketDetailResponse(
+        conversation_id=conv.id,
+        status=conv.status,
+        escalated_reason=conv.escalated_reason,
+        created_at=conv.created_at,
+        escalated_at=conv.escalated_at,
+        closed_at=conv.closed_at,
+        messages=[_message_out(m) for m in msgs],
+    )
+
+
+@router.post(
+    "/tickets/{conversation_id}/reply", response_model=SupportTicketReplyResponse
+)
+async def reply_support_ticket(
+    conversation_id: str, body: SupportTicketReplyRequest
+) -> SupportTicketReplyResponse:
+    """坐席回复（role=agent 入 transcript，门户 escalated 态轮询可见）。"""
+    conv = await _get_conversation_or_404(conversation_id)
+    if conv.status != store.CONV_ESCALATED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"会话状态为 {conv.status}，仅转人工中的会话可回复",
+        )
+    msg = await store.append_message(
+        conversation_id, role=store.ROLE_AGENT, content=body.content
+    )
+    return SupportTicketReplyResponse(status=store.CONV_ESCALATED, message=_message_out(msg))
+
+
+@router.post(
+    "/tickets/{conversation_id}/close", response_model=SupportTicketCloseResponse
+)
+async def close_support_ticket(
+    conversation_id: str, body: SupportTicketCloseRequest
+) -> SupportTicketCloseResponse:
+    """关闭工单：note 先作为最后一条坐席消息入 transcript，再流转终态（此后全停）。"""
+    conv = await _get_conversation_or_404(conversation_id)
+    if conv.status != store.CONV_ESCALATED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"会话状态为 {conv.status}，仅转人工中的会话可关闭",
+        )
+    try:
+        if body.note:
+            await store.append_message(
+                conversation_id, role=store.ROLE_AGENT, content=body.note
+            )
+        closed = await store.close_conversation(conversation_id)
+    except SupportStateError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="会话状态已变更，请刷新"
+        ) from exc
+    return SupportTicketCloseResponse(
+        conversation_id=closed.id,
+        status=store.CONV_CLOSED,
+        closed_at=closed.closed_at,
+    )

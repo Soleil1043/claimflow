@@ -120,6 +120,47 @@ async def recent_messages(conversation_id: str, limit: int) -> list[SupportMessa
     return msgs
 
 
+# ===== 坐席工单读模型（T135） =====
+
+
+async def list_escalated_conversations(limit: int = 100) -> list[SupportConversation]:
+    """escalated 工单队列（坐席列表页，转人工时间倒序）。"""
+    factory = get_session_factory()
+    async with factory() as session:
+        result = await session.execute(
+            select(SupportConversation)
+            .where(SupportConversation.status == CONV_ESCALATED)
+            .order_by(SupportConversation.escalated_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+
+async def last_messages_by_conversation(
+    conversation_ids: list[str],
+) -> dict[str, SupportMessage]:
+    """批量取每会话最新一条消息（工单列表预览，单 SQL 消 N+1）。"""
+    if not conversation_ids:
+        return {}
+    factory = get_session_factory()
+    async with factory() as session:
+        rows = (
+            (
+                await session.execute(
+                    select(SupportMessage)
+                    .where(SupportMessage.conversation_id.in_(conversation_ids))
+                    .order_by(SupportMessage.conversation_id, SupportMessage.id.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+    last: dict[str, SupportMessage] = {}
+    for row in rows:
+        last.setdefault(row.conversation_id, row)  # id 降序 → 首见即最新
+    return last
+
+
 async def escalate_conversation(
     conversation_id: str, *, reason: str | None = None
 ) -> SupportConversation:

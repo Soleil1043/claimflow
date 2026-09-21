@@ -186,6 +186,74 @@ export async function uploadCaseMaterial(
   return (await resp.json()) as { case_status: string | null; materials_count: number };
 }
 
+// ---------- 在线客服工单（T135） ----------
+
+export type SupportRole = "user" | "assistant" | "agent";
+
+export interface SupportMessage {
+  id: number;
+  role: SupportRole;
+  content: string;
+  created_at: string;
+}
+
+export interface SupportTicketItem {
+  conversation_id: string;
+  escalated_reason: string | null;
+  created_at: string;
+  escalated_at: string;
+  last_message: SupportMessage | null;
+}
+
+export interface SupportTicketListResponse {
+  total: number;
+  items: SupportTicketItem[];
+}
+
+export interface SupportTicketDetail {
+  conversation_id: string;
+  status: "ai" | "escalated" | "closed";
+  escalated_reason: string | null;
+  created_at: string;
+  escalated_at: string | null;
+  closed_at: string | null;
+  messages: SupportMessage[];
+}
+
+export function listSupportTickets(): Promise<SupportTicketListResponse> {
+  return request<SupportTicketListResponse>("/api/v1/support/tickets");
+}
+
+export function getSupportTicket(conversationId: string): Promise<SupportTicketDetail> {
+  return request<SupportTicketDetail>(`/api/v1/support/tickets/${conversationId}`);
+}
+
+export function replySupportTicket(
+  conversationId: string,
+  body: { agent: string; content: string }
+): Promise<{ status: string; message: SupportMessage }> {
+  return request(`/api/v1/support/tickets/${conversationId}/reply`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function closeSupportTicket(
+  conversationId: string,
+  body: { agent: string; note?: string | null }
+): Promise<{ conversation_id: string; status: string; closed_at: string }> {
+  return request(`/api/v1/support/tickets/${conversationId}/close`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export const SUPPORT_ROLE_LABEL: Record<string, string> = {
+  user: "客户",
+  assistant: "AI 客服",
+  agent: "人工坐席",
+};
+
 // ---------- 展示辅助 ----------
 
 export const KIND_LABEL: Record<string, string> = {

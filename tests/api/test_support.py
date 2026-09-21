@@ -207,3 +207,83 @@ async def test_llm_failure_503_message_persisted(client, monkeypatch) -> None:
         await ac.get(f"/api/v1/support/conversations/{conv_id}/messages")
     ).json()
     assert [(m["role"], m["content"]) for m in history["items"]] == [("user", "你好")]
+
+
+async def test_tickets_full_flow(client) -> None:
+    """坐席工单全流程：转人工入队（含最新消息预览）→ 坐席回复门户可见 → 备注关闭 → 队列清空详情留档。"""
+    ac, set_script = client
+    conv_id = await _create(ac)
+    assert (await ac.get("/api/v1/support/tickets")).json()["total"] == 0
+
+    set_script(
+        [
+            _tool_call_msg(),
+            AIMessage(content="已为您转接人工客服，请稍候。"),
+        ]
+    )
+    escalated = await ac.post(
+        f"/api/v1/support/conversations/{conv_id}/messages", json={"content": "转人工"}
+    )
+    assert escalated.json()["status"] == "escalated"
+
+    tickets = (await ac.get("/api/v1/support/tickets")).json()
+    assert tickets["total"] == 1
+    item = tickets["items"][0]
+    assert item["conversation_id"] == conv_id
+    assert item["escalated_reason"] == "客户要求人工"
+    assert item["last_message"]["role"] == "assistant"
+    assert item["last_message"]["content"] == "已为您转接人工客服，请稍候。"
+
+    reply = await ac.post(
+        f"/api/v1/support/tickets/{conv_id}/reply",
+        json={"agent": "agent-01", "content": "您好，我是人工坐席，请描述您的问题"},
+    )
+    assert reply.status_code == 200
+    assert reply.json()["status"] == "escalated"
+    assert reply.json()["message"]["role"] == "agent"
+
+    # 门户侧（同会话 messages 口径）可见坐席回复
+    history = (
+        await ac.get(f"/api/v1/support/conversations/{conv_id}/messages")
+    ).json()
+    assert history["items"][-1]["content"] == "您好，我是人工坐席，请描述您的问题"
+
+    closed = await ac.post(
+        f"/api/v1/support/tickets/{conv_id}/close",
+        json={"agent": "agent-01", "note": "问题已在线解决，会话关闭。"},
+    )
+    assert closed.status_code == 200
+    assert closed.json()["status"] == "closed"
+    assert closed.json()["closed_at"]
+
+    # 队列清空；closed 详情仍可审计，关闭备注为最后一条坐席消息
+    assert (await ac.get("/api/v1/support/tickets")).json()["total"] == 0
+    detail = (await ac.get(f"/api/v1/support/tickets/{conv_id}")).json()
+    assert detail["status"] == "closed"
+    assert [m["role"] for m in detail["messages"]] == [
+        "user",
+        "assistant",
+        "agent",
+        "agent",
+    ]
+    assert detail["messages"][-1]["content"] == "问题已在线解决，会话关闭。"
+
+    # 关闭后门户再发消息 409
+    follow = await ac.post(
+        f"/api/v1/support/conversations/{conv_id}/messages", json={"content": "x"}
+    )
+    assert follow.status_code == 409
+
+
+async def test_ticket_actions_require_escalated(client) -> None:
+    """ai 态会话不可坐席操作（409）；不存在 404。"""
+    ac, _ = client
+    conv_id = await _create(ac)
+    reply = await ac.post(
+        f"/api/v1/support/tickets/{conv_id}/reply",
+        json={"agent": "a", "content": "x"},
+    )
+    assert reply.status_code == 409
+    close = await ac.post(f"/api/v1/support/tickets/{conv_id}/close", json={"agent": "a"})
+    assert close.status_code == 409
+    assert (await ac.get("/api/v1/support/tickets/nope")).status_code == 404
