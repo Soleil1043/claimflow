@@ -1,8 +1,8 @@
 """数据库 ORM 模型（SQLAlchemy 2.0 声明式）。
 
-业务表共 9 张（核赔域 4 张：cases/case_events/decision_documents/case_jobs）：
-conversations / messages / policies / medical_records / claim_records / kb_documents /
-human_tickets / eval_runs / cases / case_events / decision_documents。
+业务表共 11 张：核赔域 4 张（cases/case_events/decision_documents/case_jobs）+
+客服域 2 张（support_conversations/support_messages，T132）+ mock/支撑 5 张
+（policies/medical_records/claim_records/kb_documents/eval_runs）。
 LangGraph checkpoint 表由 PostgreSQLSaver 自管，不在此建模（D006）。
 
 跨后端兼容：JSONB（PostgreSQL）自动降级 JSON（SQLite dev），Uuid/BigInteger 走 SQLAlchemy
@@ -305,3 +305,50 @@ class CaseJob(Base):
 
     def __repr__(self) -> str:
         return f"<CaseJob {self.id} case={self.case_id} {self.action} {self.status}>"
+
+
+class SupportConversation(Base):
+    """客服会话主档（T132，D057）：门户在线客服会话状态机的权威来源。
+
+    状态机：ai（AI 应答）→ escalated（转人工，AI 停答）→ closed（终态）；
+    ai → closed（用户直接结束）合法；closed 不可逆。流转合法性由 store 层
+    （services/support/store.py）校验，表只承载事实。与核赔案件无关——客服
+    对话无案件可挂（D057-3，不复用 interventions 工单）。
+
+    id 为 uuid4 hex（客户端 localStorage 持有，无需业务编号）；消息见 SupportMessage。
+    """
+
+    __tablename__ = "support_conversations"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    # ai / escalated / closed
+    status: Mapped[str] = mapped_column(String(16), default="ai", index=True)
+    # 转人工原因（escalate_to_human 工具写入，workbench 工单列表展示）
+    escalated_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    escalated_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    closed_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<SupportConversation {self.id[:8]}… status={self.status}>"
+
+
+class SupportMessage(Base):
+    """客服消息（append-only 投影，T132）：UI 历史与坐席 transcript 的单源。
+
+    role：user（客户）/ assistant（AI）/ agent（人工坐席）。客服 Agent 多轮
+    记忆由本表 replay（D057-2，不接 checkpointer）；按 id 自增序即写入序。
+    """
+
+    __tablename__ = "support_messages"
+
+    id: Mapped[int] = mapped_column(_autoincrement_id(), primary_key=True, autoincrement=True)
+    conversation_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("support_conversations.id"), index=True
+    )
+    role: Mapped[str] = mapped_column(String(16))
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+
+    def __repr__(self) -> str:
+        return f"<SupportMessage {self.id} conv={self.conversation_id[:8]}… {self.role}>"

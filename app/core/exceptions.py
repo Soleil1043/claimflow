@@ -27,3 +27,7 @@ class LLMError(ClaimAgentError):
 
 class ComplianceRejectedError(ClaimAgentError):
     """合规审查拦截（REJECT，转人工流程，T018 实现）。"""
+
+
+class SupportStateError(ClaimAgentError):
+    """客服会话状态机非法操作（非法流转/终态后写入，T132）。"""

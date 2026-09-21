@@ -1949,3 +1949,13 @@ workbench `npm run build` 通过（T057 已验）。
 **结果**：规划落档，未动代码；待用户确认后从 T132 起逐任务实施（每任务全量绿 + 单 commit + 确认推进）。
 
 **Git**：`docs: 客服对话功能规划落档（D057 四决断 + T131占位 + T132-T137 分解）`
+
+## 2026-09-22 T132 客服会话域持久化 + 配置（D057）
+
+**做了什么**：客服增量第一块落地。新表 support_conversations（会话状态机权威：ai → escalated → closed，含 escalated_reason/escalated_at/closed_at）+ support_messages（append-only 消息投影：user/assistant/agent 三角色，UI 历史与坐席 transcript 单源）；alembic 迁移 b7d2e6f9a3c1 挂 head d9a5c1e8f3b7 之后。新域 services/support/store.py：create/get/append_message/list_messages/recent_messages（replay 窗口，升序返回）/escalate_conversation/close_conversation；状态机严格校验——escalated 后 AI 停答（assistant 拒写，D057-3）、closed 终态全拒且不可逆、非法流转抛新全局异常 SupportStateError（承 ClaimAgentError）、缺会话抛 LookupError（均为业务信号非系统异常）。config 增"门户客服"组（support_history_window=20）+ .env.example 同步。
+
+**关键发现**：旧迁移链在 SQLite 方言不可执行（b5f9c3d7e2a4 加唯一约束无 batch_alter_table）——dev 历来走 create_all、迁移只在 prod PG 上跑；迁移单测改为"空库 stamp 上一版 → upgrade head → downgrade -1"只测本迁移 DDL，比全链升降更准确。另修 store 初版 `async with get_session_factory()` 漏调用的笔误（async_sessionmaker 不支持上下文协议，测试即暴露）。顺手修正 models.py 文件头陈旧表清单（仍列已删的 v1 conversations/messages/human_tickets）。
+
+**验证**：tests/support 9 例（建会话/消息序/replay 窗口/转人工停答/关闭终态/直关/重复转人工拒/缺会话/迁移升降）+ tests/db 两处全表断言同步；全量 399 passed（+9）+ ruff 绿。
+
+**Git**：`feat: T132 [客服会话域: support两表+迁移b7d2e6f9a3c1; store状态机ai→escalated→closed(AI停答/终态拒写); replay窗口+config; 399绿]`

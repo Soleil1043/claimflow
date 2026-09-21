@@ -136,6 +136,10 @@ class Settings(BaseSettings):
     # 案件材料上传落盘目录（B03；storage_path 供材料审核真实提取）
     case_materials_dir: str = "./data/uploads"
 
+    # ===== 门户客服（T132，D057） =====
+    # Agent 多轮记忆 replay 窗口：送入 LLM 的最近消息条数（含用户与 AI 双方，超出截断）
+    support_history_window: int = 20
+
     # ===== OTel 追踪（T039，D015 后置项） =====
     # 开关（默认关：不起 tracing 栈时零开销）；OTLP gRPC 上报地址；采样率 0.0-1.0
     otel_enabled: bool = False
