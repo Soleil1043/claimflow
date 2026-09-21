@@ -88,6 +88,20 @@ export interface ApplicantMemory {
   reason?: string | null;
   incident_date?: string;
   updated_at?: string;
+  /** 写入时终态链路置信度（auto=min(材料,责任)；human 路径=1.0，T138） */
+  confidence?: number;
+}
+
+/** 删除一条申请人核赔档案（坐席操作，审计留痕，T138）。 */
+export function deleteApplicantMemory(
+  userId: string,
+  caseId: string,
+  agent: string
+): Promise<{ deleted: boolean; user_id: string; case_id: string }> {
+  return request(`/api/v1/memory/${userId}/entries/${caseId}`, {
+    method: "DELETE",
+    body: JSON.stringify({ agent }),
+  });
 }
 
 export interface CaseDetail {

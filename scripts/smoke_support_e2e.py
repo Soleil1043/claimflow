@@ -97,7 +97,7 @@ async def main() -> int:
         tickets_after = (await c.get("/api/v1/support/tickets")).json()
         left = [t for t in tickets_after["items"] if t["conversation_id"] == cid]
         assert not left, "关闭后仍在队列"
-        print(f"[8] 队列出清 ✓  全链路冒烟通过")
+        print("[8] 队列出清 ✓  全链路冒烟通过")
 
     return 0
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ApplicantMemoryCard from "@/components/ApplicantMemoryCard";
 import CaseResolveForm from "@/components/CaseResolveForm";
 import CaseTimeline from "@/components/CaseTimeline";
 import MaterialUploadForm from "@/components/MaterialUploadForm";
@@ -109,35 +110,12 @@ export default async function CaseDetailPage({
           </div>
         </section>
 
-        {/* 申请人核赔档案（T129 读闭环：记忆唯一人类消费点——坐席视角，客户门户不渲染） */}
+        {/* 申请人核赔档案（T129 读闭环：记忆唯一人类消费点——坐席视角，客户门户不渲染；T138 加治理） */}
         {(detail.applicant_memories?.length ?? 0) > 0 && (
-          <section className="cf-card px-5 py-4">
-            <h2 className="cf-kicker mb-3">申请人核赔档案（近 {detail.applicant_memories!.length} 案）</h2>
-            <div className="space-y-2">
-              {detail.applicant_memories!.map((m) => (
-                <div
-                  key={m.case_id}
-                  className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[10px] bg-black/[0.03] px-3 py-2 text-[12px]"
-                >
-                  <span className="font-mono text-cf-text-2">{m.case_id}</span>
-                  <span className="rounded-full bg-black/[0.05] px-2 py-0.5">{m.case_type}</span>
-                  <span className="text-cf-text-2">
-                    {m.outcome === "auto_issued" ? "自动签发" : m.outcome === "closed" ? "坐席办结" : "转人工"}
-                    {m.final_decision ? ` · ${m.final_decision}` : ""}
-                  </span>
-                  {m.approved_amount && (
-                    <span className="tabular-nums text-cf-text">{m.approved_amount} 元</span>
-                  )}
-                  {m.incident_date && <span className="text-cf-text-2">出险 {m.incident_date}</span>}
-                  {m.reason && (
-                    <span className="w-full truncate text-cf-text-2" title={m.reason}>
-                      {m.reason}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
+          <ApplicantMemoryCard
+            userId={detail.user_id}
+            memories={detail.applicant_memories!}
+          />
         )}
 
         {/* 决定书 */}

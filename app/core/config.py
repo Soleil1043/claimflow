@@ -85,6 +85,14 @@ class Settings(BaseSettings):
     # 评测保持一致，观察检索质量后再开启
     memory_in_routing: bool = False
 
+    # ===== 记忆治理（T138，D055-3/D058） =====
+    # 写入门控：终态链路置信度低于该值的档案不写入（低置信 not_covered 档案
+    # 从源头拦截，不再无差别入档污染坐席视图）
+    memory_confidence_floor: float = 0.6
+    # 档案 TTL（天）；0=永不过期。应用层实现：值内 expires_at + 读取惰性过滤清理
+    # （InMemoryStore 不支持原生 ttl——实测 aput(ttl=) 抛 NotImplementedError，D058）
+    memory_ttl_days: int = 365
+
     # ===== Redis（prod） / 内存缓存（dev 降级） =====
     redis_url: str = "redis://localhost:6379/0"
 

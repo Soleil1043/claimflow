@@ -1,7 +1,8 @@
-"""申请人记忆（T100）测试：确定性渲染 / 终态钩子 / 检索过滤 / 幂等重建。"""
+"""申请人记忆（T100）测试：确定性渲染 / 终态钩子 / 检索过滤 / 幂等重建 + 治理（T138）。"""
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 
 import pytest
@@ -9,7 +10,9 @@ import pytest
 import services.memory.long_term as lt
 from services.memory.case_memory import (
     case_memory_key,
+    delete_case_memory,
     format_case_memories,
+    put_case_memory,
     render_case_memory,
     search_case_memories,
     write_case_memory,
@@ -125,6 +128,73 @@ def test_format_case_memories_lines() -> None:
     )
     text = format_case_memories([record])
     assert "C1" in text and "等待期内出险" in text and "referred" in text
+
+
+# ===== 治理：置信度门控 / TTL / 删除（T138，D058） =====
+
+
+async def test_write_gated_below_confidence_floor(memory_store) -> None:
+    """置信度门控：低于 floor 不入档（低置信 not_covered 档案源头拦断）。"""
+    await write_case_memory(_state(), outcome="auto_issued", confidence=0.5)
+    assert await search_case_memories("u-1") == []
+
+
+async def test_confidence_persisted_and_default(memory_store) -> None:
+    """置信度随档案落库；human 路径缺省 1.0（确定性事实）。"""
+    await write_case_memory(_state(), outcome="auto_issued", confidence=0.85)
+    record, _ = render_case_memory(
+        case_id="C9", user_id="u-1", case_type="medical", outcome="closed"
+    )
+    assert record.confidence == 1.0
+
+    hits = await search_case_memories("u-1")
+    assert hits[0].confidence == 0.85
+
+
+async def test_ttl_written_and_lazy_expiry(memory_store) -> None:
+    """TTL：默认写入未来 expires_at；过期条目读取被滤除并惰性删除。"""
+    await write_case_memory(_state(), outcome="auto_issued")
+    hits = await search_case_memories("u-1")
+    assert hits[0].expires_at is not None
+    assert dt.datetime.fromisoformat(hits[0].expires_at) > dt.datetime.now()
+
+    # 手工放入一条已过期档案（模拟时间流逝）
+    expired, embed = render_case_memory(
+        case_id="CASE-2026-0099", user_id="u-1", case_type="medical",
+        outcome="auto_issued", incident_date="2026-01-01",
+    )
+    expired = expired.model_copy(
+        update={"expires_at": (dt.datetime.now() - dt.timedelta(days=1)).isoformat(timespec="seconds")}
+    )
+    await put_case_memory(expired, embed)
+
+    hits = await search_case_memories("u-1")
+    assert [h.case_id for h in hits] == ["CASE-2026-0001"]  # 过期条目被滤除
+
+    # 惰性清理：过期条目已从 Store 删除
+    store = lt.get_memory_store()
+    item = await store.aget(("memory", "u-1"), case_memory_key("CASE-2026-0099"))
+    assert item is None
+
+
+async def test_ttl_disabled_never_expires(memory_store, monkeypatch) -> None:
+    """memory_ttl_days=0：不写 expires_at，永不惰性过期。"""
+    monkeypatch.setattr(lt.settings, "memory_ttl_days", 0)
+    record, embed = render_case_memory(
+        case_id="C2", user_id="u-2", case_type="auto", outcome="auto_issued"
+    )
+    assert record.expires_at is None
+    await put_case_memory(record, embed)
+    assert len(await search_case_memories("u-2")) == 1
+
+
+async def test_delete_case_memory(memory_store) -> None:
+    """删除链路：存在→删除 True→档案消失；再删/不存在 False。"""
+    await write_case_memory(_state(), outcome="auto_issued")
+    assert await delete_case_memory("u-1", "CASE-2026-0001") is True
+    assert await search_case_memories("u-1") == []
+    assert await delete_case_memory("u-1", "CASE-2026-0001") is False
+    assert await delete_case_memory("u-1", "CASE-NOT-EXIST") is False
 
 
 # ===== 记忆种子终态语义（T107：verdict 判定单源后 missing 案不再自相矛盾） =====

@@ -1452,3 +1452,32 @@ react-markdown 均可纯复用；转人工需新会话域（interventions 工单
 **验证计划**：T132-T137 分六任务交付（会话表 / Agent+工具 / 门户 API /
 转人工闭环 / 前端气泡 / 端到端冒烟），每任务全量绿 + 单 commit + 用户确认后
 推进。
+
+## D058（2026-09-22，T138）：记忆治理三件——置信度门控 / 应用层 TTL / 删除链路
+
+**背景**：D055-3 挂账的申请人记忆治理（第二轮面试确认"写而不读、无删除、
+无门控"，读闭环已由 T129 补齐）。探索实证：BaseStore 有 adelete/aget 异步
+接口；**InMemoryStore 不支持原生 ttl（aput(ttl=) 实测抛 NotImplementedError）**，
+仅 AsyncPostgresStore 支持。
+
+**决断**：
+
+1. **置信度门控（写侧源头拦断）**：CaseMemoryRecord 加 confidence 字段——
+   auto 签发路径传 min(材料, 责任) 置信度（auto_adjudicate 已算，顺手复用），
+   human 三路径（坐席签批/escape/REJECT 保守兜底）缺省 1.0（人工或保守动作
+   是确定性事实，不应被门控误伤）。confidence < memory_confidence_floor
+   （默认 0.6）不写入只告警——低置信 not_covered 档案污染从源头消失。存量
+   prod 条目缺字段 → 模型缺省 1.0 兼容，展示不受影响。
+2. **TTL 应用层实现（双后端一致）**：不走 BaseStore 原生 ttl——dev 后端根本
+   不支持，按后端分叉会让 dev/prod 行为漂移且 dev 不可测。改为值内 expires_at
+   字段（memory_ttl_days 默认 365，0=永不过期）+ 读取惰性过滤 + 顺手 adelete
+   清理。代价：过期条目在被读到之前物理留存——档案视图语义正确，可接受。
+3. **删除链路（坐席操作 + 审计留痕）**：DELETE /api/v1/memory/{user_id}/
+   entries/{case_id}（store.adelete + CaseEvent kind=human payload.action=
+   memory_deleted）；workbench 档案卡每条加删除按钮。**删除语义**：非
+   tombstone——scripts/rebuild_memories.py 是显式人工安全网，重跑按 cases 表
+   终态重建（删除≠永久抹除，如需永久抹除需 tombstone 表，当前无此需求）。
+
+**验证**：tests/memory +5（门控/置信度落库与缺省/TTL 写入与惰性过期删除/
+TTL 关闭/删除链路）+ tests/api/test_memory.py +2（删除端点 200+审计事件、
+404）；425 passed + ruff 绿 + workbench build 绿。

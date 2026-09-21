@@ -87,12 +87,14 @@ def make_auto_adjudicate_node(recorder: CaseRecorder):
             "status_change",
             payload={"status": CaseStatus.AUTO_ISSUED, "final_decision": final_decision},
         )
-        # 申请人记忆（T100）：签发终态档案
+        # 申请人记忆（T100）：签发终态档案；置信度=链路最低值（T138 门控：
+        # 低于 memory_confidence_floor 不入档，低置信 not_covered 档案源头拦断）
         await write_case_memory(
             state,
             outcome=CaseStatus.AUTO_ISSUED,
             final_decision=final_decision,
             approved_amount=approved,
+            confidence=min_confidence,
         )
         return {
             "final_decision": final_decision,

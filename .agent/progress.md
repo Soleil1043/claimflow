@@ -2003,3 +2003,11 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：核赔评测门复跑 153 案确定性模式六门全绿、总一致率 100%（t089 报告随最新运行刷新，核赔主链路零退化）；全量 418 passed + ruff 绿；chatui/workbench 双前端 build 绿（T135/T136 各自验过）。**客服增量 T132-T137 六任务全部完结**：会话域表 → Agent+四工具 → 门户 API → 转人工闭环 → 悬浮气泡 → 端到端冒烟，D057 四决断全部兑现。
 
 **Git**：`feat: T137 [客服全链路真实LLM冒烟通过(问答/查进度/预填链接/转人工/坐席回复/关闭); 评测门153案六门全绿不退化; 增量完结]`
+
+## 2026-09-22 T138 记忆删除链路 + 置信度门控 + TTL（D058）
+
+**做了什么**：D055-3 挂账清偿。CaseMemoryRecord 加 confidence/expires_at 两字段（存量条目模型缺省兼容）；写入门控——auto 签发传 min(材料,责任)（auto_adjudicate 现成值顺手复用）、human 三路径缺省 1.0（人工/保守兜底是确定性事实，不被门控误伤），< memory_confidence_floor=0.6 不写只告警；TTL 应用层实现（关键实测：**InMemoryStore 的 aput(ttl=) 直接抛 NotImplementedError**，原生 ttl 仅 PG 支持——分叉后端会造成 dev/prod 行为漂移且 dev 不可测，故值内 expires_at + 读取惰性过滤 + 顺手 adelete 清理，双后端一致）；删除链路 DELETE /api/v1/memory/{user_id}/entries/{case_id}（aget 存在性检查 → adelete → CaseEvent kind=human 审计）+ workbench ApplicantMemoryCard（置信度展示 + 删除按钮，T129 服务端卡重构为客户端组件）；删除语义非 tombstone（rebuild 安全网重跑会重建）落 D058；顺手清 .env.example 三个从未进 config 的死变量。
+
+**验证**：tests/memory +5（门控拦截/置信度落库与缺省/TTL 写入/惰性过期删除（aget 复核条目物理删除）/TTL 关闭/删除链路两态）+ tests/api/test_memory +2（删除 200+审计事件 payload、404）；425 passed（+7）+ ruff 绿 + workbench build 绿。
+
+**Git**：`feat: T138 [记忆治理: 置信度门控+应用层TTL(InMemoryStore无原生ttl实测)+坐席删除API+审计; workbench档案卡治理化; 425绿]`
