@@ -48,7 +48,7 @@
       }
     ]
   },
-  "generated_at": "2026-09-21T16:39:46",
+  "generated_at": "2026-09-21T21:59:01",
   "mode": "deterministic",
   "model": null,
   "total_cases": 14,
@@ -192,7 +192,7 @@
   "cost": {
     "tokens_total": 0,
     "tokens_per_case_avg": 0.0,
-    "duration_s_avg": 1.33,
-    "duration_s_p95": 0.35
+    "duration_s_avg": 1.18,
+    "duration_s_p95": 0.22
   }
 }
