@@ -1405,3 +1405,50 @@ llm_degraded_fallback + fallback_default_route 审计注记 + 单测）。修复
    鲁棒性"假设**证伪**；鲁棒性提升路径在 skill/关键词迭代，不在换模型。
 3. **评测"LLM 模式"语义收窄**：现行 --llm 仅启用路由器（liability/material/decision 仍
    确定性），三种 LLM 组件无联合 LLM 评测形态。挂 T125 备注。
+
+## D057（2026-09-22，T132-T137 规划）：门户在线客服对话——形态四决断
+
+**背景**：用户需求为门户（chatui）增加在线客服对话。四项产品决策经用户逐项确认：
+全功能助手（理赔知识问答 + 案件进度查询 + 引导提交理赔）/ 独立 ReAct Agent /
+悬浮客服气泡 / AI + 转人工坐席。探索结论：claim_rule_rag 工具、create_agent
+装配模式、get_chat_model、cases.get_case 拼装口径、前端 cf-* 设计系统与
+react-markdown 均可纯复用；转人工需新会话域（interventions 工单语义不匹配）；
+全仓无 SSE/streaming 基建。
+
+**决断与理由**：
+
+1. **独立 Agent，不接核赔主图**：照 worker_agent 的 create_agent 装配
+   （get_chat_model + ToolError/ModelCallLimit 中间件）独立成 services/support
+   域。客服闲聊与核赔管线生命周期完全不同，接主图会污染 checkpoint 语义与
+   静态合规门边界。工具四件：claim_rule_rag 复用（工厂守卫版直取）；
+   case_status_query（get_case 拼装口径抽 service）；claim_draft_link（生成
+   预填表单链接）；escalate_to_human（走会话 store）。
+
+2. **会话记忆走 DB replay，不接 CheckpointManager**：候选两条——
+   checkpointer(thread_id=会话id) vs 会话表历史窗口 replay。选后者：转人工后
+   坐席消息与用户消息必须在同一时间线上（checkpoint 双源同步复杂，且坐席侧
+   不可读）；LLM 本就无状态，两方案每轮 token 成本等价；窗口长度可控。
+   support_conversations / support_messages 兼作 UI 历史与坐席 transcript 的
+   单源投影（与"CaseEvent 审计投影 + checkpoint 图状态并存"的既有架构同理，
+   但客服域只留一源）。核赔主图 checkpoint 不受影响。
+
+3. **转人工不复用 interventions 工单，v1 轮询不流式**：核赔工单 = 案件图
+   interrupt 挂起的投影，强绑 Case 状态机；客服转人工 = 对话移交，无案件可挂。
+   新建会话状态机 ai → escalated → closed（escalated 时 AI 停答、坐席接管；
+   close 终止会话）。workbench 交互照搬三件套模式（列表/详情/处理表单）。
+   通信 v1 请求-响应 + 轮询（AutoRefresh 模式）——全仓无 SSE 基建，流式
+   打字机挂后续优化，不阻塞本增量。
+
+4. **引导提交 = 预填跳转，不在对话内直接立案**：agent 对话收集险种/事发信息
+   后由 claim_draft_link 生成带 query 参数的表单链接，CaseForm 加 initialValues
+   预填。理由：立案依赖表单校验与材料上传，对话内提交会绕过两者，且与既有
+   幂等提交链路（B01 POST /cases）重复造轮子。
+
+**隐私与边界口径**：延续门户现状（无鉴权、case_id 即凭证，与 GET /cases/{id}
+一致，不新增放宽）；客服 system prompt 明确拒答边界——不承诺赔付结果、不引用
+内部阈值/规则原文、答不了或用户明确要求时转人工（T124 对抗门对注入面的关注
+延伸到客服域，T133 验收含边界断言）。
+
+**验证计划**：T132-T137 分六任务交付（会话表 / Agent+工具 / 门户 API /
+转人工闭环 / 前端气泡 / 端到端冒烟），每任务全量绿 + 单 commit + 用户确认后
+推进。

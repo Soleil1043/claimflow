@@ -1941,3 +1941,11 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：390 passed（+退化单测）+ ruff 绿；主门确定性 153 案 100% 六门全绿；LLM 模式修复后 153/153=1.0 六门全绿。
 
 **Git**：`feat: T130 [模型切换deepseek-flash(V4.1); token埋点client级全调用点; 路由退化liveness修复回落default_route; 全量1.0六门全绿; tokens7075/案; D056]`
+
+## 2026-09-22 客服对话功能规划落档（D057 + T132-T137）
+
+**做了什么**：用户提出门户（chatui）增加在线客服对话，AskUserQuestion 四问确认实现方式：全功能助手（问答+查进度+引导提交）/ 独立 ReAct Agent / 悬浮客服气泡 / AI+转人工坐席。探索代理摸清复用点：claim_rule_rag 工具、create_agent 装配、get_case 拼装口径、cf-* 前端设计系统、react-markdown 可纯复用；转人工不能复用 interventions 工单（核赔工单=案件图 interrupt 投影，客服转人工无案件可挂）→ 新建会话状态机；全仓无 SSE 基建 → v1 轮询。落 D057 四决断；T131 占位（D056 追记指名的路由注入面挂账）；T132-T137 六任务分解。
+
+**结果**：规划落档，未动代码；待用户确认后从 T132 起逐任务实施（每任务全量绿 + 单 commit + 确认推进）。
+
+**Git**：`docs: 客服对话功能规划落档（D057 四决断 + T131占位 + T132-T137 分解）`
