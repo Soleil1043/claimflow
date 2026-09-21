@@ -332,3 +332,48 @@ class SupportTicketCloseResponse(BaseModel):
     conversation_id: str
     status: Literal["closed"]
     closed_at: dt.datetime
+
+
+# ---------- 决定书叙述抽评（T139，缺口#4） ----------
+
+
+class NarrativeSampleStats(BaseModel):
+    """抽评统计：通过率 = passed / reviewed（设计文档口径 ≥97%）。"""
+
+    sampled: int = 0
+    reviewed: int = 0
+    passed: int = 0
+    revised: int = 0
+
+
+class NarrativeSampleItem(BaseModel):
+    """待评审样本：自动签发案件 + 最新版决定书全文（叙述段在 body）。"""
+
+    case_id: str
+    case_type: str = "unknown"
+    final_decision: str | None = None
+    approved_amount: str | None = None
+    narrative: str | None = None
+    sampled_at: dt.datetime | None = None
+
+
+class NarrativeSampleListResponse(BaseModel):
+    """抽评队列（pending）+ 全量统计。"""
+
+    total: int
+    items: list[NarrativeSampleItem]
+    stats: NarrativeSampleStats = NarrativeSampleStats()
+
+
+class NarrativeReviewRequest(BaseModel):
+    """坐席叙述评审：pass（通过）/ revise（需改进）+ 评语。"""
+
+    agent: str = Field(min_length=1, max_length=64)
+    verdict: Literal["pass", "revise"]
+    comment: str = Field(default="", max_length=1000)
+
+
+class NarrativeReviewResponse(BaseModel):
+    case_id: str
+    verdict: Literal["pass", "revise"]
+    reviewed: bool = True

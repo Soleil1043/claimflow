@@ -7,6 +7,7 @@ rejected（责任不成立）在风险低时同样自动出拒赔决定书。
 
 from __future__ import annotations
 
+import random
 from decimal import Decimal
 from typing import Any
 
@@ -17,6 +18,15 @@ from services.case_store import CaseRecorder
 from services.memory.case_memory import write_case_memory
 from services.observability import metrics
 from state import ClaimCaseState
+
+
+def _narrative_sampled(case_id: str) -> bool:
+    """叙述抽评确定性采样（T139，缺口#4）：random 种子=case_id——同案恒同结果，
+    可复算可测试，不引入运行时随机性。"""
+    return (
+        random.Random(f"narrative-sample:{case_id}").random()
+        < settings.manual_review_sample_rate
+    )
 
 
 def adjudication_route(state: ClaimCaseState) -> str:
@@ -87,6 +97,14 @@ def make_auto_adjudicate_node(recorder: CaseRecorder):
             "status_change",
             payload={"status": CaseStatus.AUTO_ISSUED, "final_decision": final_decision},
         )
+        # 叙述抽评采样（T139，缺口#4）：rate=0.05 首次接线——抽中落 narrative_sample
+        # 事件进坐席评审队列（终态不动状态机；deterministic 采样见 _narrative_sampled）
+        if settings.manual_review_sample_rate > 0 and _narrative_sampled(state["case_id"]):
+            await recorder.event(
+                state["case_id"],
+                "narrative_sample",
+                payload={"rate": settings.manual_review_sample_rate},
+            )
         # 申请人记忆（T100）：签发终态档案；置信度=链路最低值（T138 门控：
         # 低于 memory_confidence_floor 不入档，低置信 not_covered 档案源头拦断）
         await write_case_memory(

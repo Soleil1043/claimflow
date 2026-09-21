@@ -2,6 +2,8 @@
 
 - GET  /api/v1/interventions/cases                       核赔工单列表（interrupt 挂起案件）
 - POST /api/v1/interventions/cases/{case_id}/resolve     处理工单（Command(resume) 恢复流程）
+- GET  /api/v1/interventions/narrative-samples           决定书叙述抽评队列（T139）
+- POST /api/v1/interventions/cases/{case_id}/narrative-review  叙述评审（pass/revise 落审计）
 
 工单类型与恢复语义（nodes/human_gate.py）：
 - supplement：补传材料 → 重跑材料审核 → 回 orchestrator
@@ -23,6 +25,11 @@ from schemas.api import (
     CaseInterventionListResponse,
     CaseResolveRequest,
     CaseResolveResponse,
+    NarrativeReviewRequest,
+    NarrativeReviewResponse,
+    NarrativeSampleItem,
+    NarrativeSampleListResponse,
+    NarrativeSampleStats,
 )
 from schemas.case import PENDING_CASE_STATUSES
 from services.case_jobs import JobAction, deliver_case_job, job_envelope, latest_job
@@ -34,7 +41,8 @@ from services.case_service import (
     human_info_from_job,
     latest_jobs_for_cases,
 )
-from services.db.models import Case
+from services.case_store import get_default_recorder
+from services.db.models import Case, CaseEvent, DecisionDocument
 
 log = get_logger(__name__)
 
@@ -147,3 +155,135 @@ async def resolve_case_intervention(
         decision_issued=doc_issued,
         job=job_envelope(job),
     )
+
+
+# ---------- 决定书叙述抽评（T139，缺口#4：人工口径先于 judge） ----------
+
+NARRATIVE_SAMPLE_KIND = "narrative_sample"
+NARRATIVE_REVIEW_KIND = "narrative_review"
+
+
+@router.get("/narrative-samples", response_model=NarrativeSampleListResponse)
+async def list_narrative_samples(
+    limit: int = Query(default=50, ge=1, le=200),
+    session: AsyncSession = Depends(get_db_session),  # noqa: B008
+) -> NarrativeSampleListResponse:
+    """叙述抽评队列：已采样未评审的自动签发案件 + 通过率统计。
+
+    采样在 auto_adjudicate 签发分支（确定性，种子=case_id）；评审结论落
+    narrative_review 事件（kind 自由字符串，时间线消费方有兜底）。
+    """
+    sample_rows = (
+        (
+            await session.execute(
+                select(CaseEvent)
+                .where(CaseEvent.kind == NARRATIVE_SAMPLE_KIND)
+                .order_by(CaseEvent.id.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    latest_sample: dict[str, CaseEvent] = {}
+    for row in sample_rows:
+        latest_sample.setdefault(row.case_id, row)  # id 降序 → 首见即最新
+
+    review_rows = (
+        (
+            await session.execute(
+                select(CaseEvent).where(CaseEvent.kind == NARRATIVE_REVIEW_KIND)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    reviewed: set[str] = {r.case_id for r in review_rows}
+    pending_ids = [cid for cid in latest_sample if cid not in reviewed]
+
+    stats = NarrativeSampleStats(
+        sampled=len(latest_sample),
+        reviewed=len(reviewed),
+        passed=sum(1 for r in review_rows if (r.payload or {}).get("verdict") == "pass"),
+    )
+    stats.revised = stats.reviewed - stats.passed
+    if not pending_ids:
+        return NarrativeSampleListResponse(total=0, items=[], stats=stats)
+
+    cases = {
+        c.id: c
+        for c in (
+            await session.execute(select(Case).where(Case.id.in_(pending_ids)))
+        ).scalars().all()
+    }
+    docs = (
+        (
+            await session.execute(
+                select(DecisionDocument)
+                .where(DecisionDocument.case_id.in_(pending_ids))
+                .order_by(DecisionDocument.case_id, DecisionDocument.version.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    latest_doc: dict[str, DecisionDocument] = {}
+    for d in docs:
+        latest_doc.setdefault(d.case_id, d)
+
+    items = []
+    for cid in pending_ids[:limit]:
+        case = cases.get(cid)
+        doc = latest_doc.get(cid)
+        items.append(
+            NarrativeSampleItem(
+                case_id=cid,
+                case_type=case.case_type if case else "unknown",
+                final_decision=case.final_decision if case else None,
+                approved_amount=(
+                    str(case.approved_amount)
+                    if case and case.approved_amount is not None
+                    else None
+                ),
+                narrative=doc.body if doc else None,
+                sampled_at=latest_sample[cid].created_at,
+            )
+        )
+    return NarrativeSampleListResponse(total=len(pending_ids), items=items, stats=stats)
+
+
+@router.post(
+    "/cases/{case_id}/narrative-review", response_model=NarrativeReviewResponse
+)
+async def review_narrative(
+    case_id: str,
+    body: NarrativeReviewRequest,
+    session: AsyncSession = Depends(get_db_session),  # noqa: B008
+) -> NarrativeReviewResponse:
+    """坐席叙述抽评：pass/revise + 评语 → narrative_review 事件落审计。"""
+    case = (
+        await session.execute(select(Case).where(Case.id == case_id))
+    ).scalar_one_or_none()
+    if case is None:
+        raise HTTPException(status_code=404, detail="案件不存在")
+
+    kinds = set(
+        (
+            await session.execute(
+                select(CaseEvent.kind).where(
+                    CaseEvent.case_id == case_id,
+                    CaseEvent.kind.in_([NARRATIVE_SAMPLE_KIND, NARRATIVE_REVIEW_KIND]),
+                )
+            )
+        ).scalars()
+    )
+    if NARRATIVE_SAMPLE_KIND not in kinds:
+        raise HTTPException(status_code=404, detail="该案件不在叙述抽评样本中")
+    if NARRATIVE_REVIEW_KIND in kinds:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该案件叙述已评审")
+
+    await get_default_recorder().event(
+        case_id,
+        NARRATIVE_REVIEW_KIND,
+        payload={"verdict": body.verdict, "comment": body.comment, "operator": body.agent},
+    )
+    return NarrativeReviewResponse(case_id=case_id, verdict=body.verdict)

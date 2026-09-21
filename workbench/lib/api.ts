@@ -268,6 +268,44 @@ export const SUPPORT_ROLE_LABEL: Record<string, string> = {
   agent: "人工坐席",
 };
 
+// ---------- 决定书叙述抽评（T139） ----------
+
+export interface NarrativeSampleStats {
+  sampled: number;
+  reviewed: number;
+  passed: number;
+  revised: number;
+}
+
+export interface NarrativeSampleItem {
+  case_id: string;
+  case_type: string;
+  final_decision: string | null;
+  approved_amount: string | null;
+  narrative: string | null;
+  sampled_at: string | null;
+}
+
+export interface NarrativeSampleListResponse {
+  total: number;
+  items: NarrativeSampleItem[];
+  stats: NarrativeSampleStats;
+}
+
+export function listNarrativeSamples(): Promise<NarrativeSampleListResponse> {
+  return request<NarrativeSampleListResponse>("/api/v1/interventions/narrative-samples");
+}
+
+export function reviewNarrative(
+  caseId: string,
+  body: { agent: string; verdict: "pass" | "revise"; comment?: string }
+): Promise<{ case_id: string; verdict: string; reviewed: boolean }> {
+  return request(`/api/v1/interventions/cases/${caseId}/narrative-review`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 // ---------- 展示辅助 ----------
 
 export const KIND_LABEL: Record<string, string> = {

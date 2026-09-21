@@ -43,6 +43,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               >
                 客服工单
               </Link>
+              <Link
+                href="/samples"
+                className="rounded-full px-3 py-1.5 font-medium text-cf-text transition-colors hover:bg-black/[0.05]"
+              >
+                叙述抽评
+              </Link>
             </nav>
             <div className="hidden text-[11px] text-cf-text-2 md:block">
               后端代理 → localhost:8000

@@ -2011,3 +2011,13 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：tests/memory +5（门控拦截/置信度落库与缺省/TTL 写入/惰性过期删除（aget 复核条目物理删除）/TTL 关闭/删除链路两态）+ tests/api/test_memory +2（删除 200+审计事件 payload、404）；425 passed（+7）+ ruff 绿 + workbench build 绿。
 
 **Git**：`feat: T138 [记忆治理: 置信度门控+应用层TTL(InMemoryStore无原生ttl实测)+坐席删除API+审计; workbench档案卡治理化; 425绿]`
+
+## 2026-09-22 T139 决定书叙述抽评机制（缺口#4，D059）
+
+**做了什么**：manual_review_sample_rate（T078 引入、至今零消费）首次接线成完整人工口径闭环。采样挂在 auto_adjudicate 签发分支——`random.Random(f"narrative-sample:{case_id}")` 确定性采样（同案恒同结果，可复算可回归），抽中落 narrative_sample 事件；评审通道独立于 interventions 工单（探索实证：auto_issued 终态进不了 PENDING_CASE_STATUSES 挂起列表、resolve 端点对非挂起 409，复用通道不可行）——GET /narrative-samples（pending 队列 + 最新版决定书全文 + 通过率统计）+ POST narrative-review（pass/revise + 评语落 narrative_review 审计，已评 409 / 未采样 404）。workbench /samples 页：行内展开决定书全文、pass/revise 切换、评语、通过率实时展示（对齐设计文档"自动结案 vs 人工抽检一致率 ≥97%"口径——此前该指标分母为零，从本任务起有数）。
+
+**踩坑实录**：采样测试单跑绿、全量红——tests/core/test_logging.py 的 importlib.reload(app.core.config) 产生新 settings 单例，测试函数内 import 的 settings 与消费方（auto_adjudicate 模块持有）不是同一对象；按 conftest 既有口径改 patch 消费方 `aa.settings` 后全量绿（tests/tools/test_tool_cache.py 早有同类注释，本次亲历）。
+
+**验证**：采样确定性/节点级事件 2 例 + API 3 例（队列口径排除已评与未采样、评审落审计后队列出清统计更新、409/404）；430 passed（+5）+ ruff 绿 + workbench build 绿（/samples 2.58kB）+ 评测门 153 案六门全绿（采样事件不进任何门指标）。
+
+**Git**：`feat: T139 [叙述抽评: rate首次接线确定性采样(case_id种子); 独立评审通道narrative_sample/review事件; workbench /samples页+通过率; 430绿+评测门不退化]`
