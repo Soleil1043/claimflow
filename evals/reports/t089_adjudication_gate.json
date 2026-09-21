@@ -2,7 +2,7 @@
   "task": "T089 核赔评测上线门",
   "dataset": "adjudication",
   "robustness": null,
-  "generated_at": "2026-09-21T21:58:40",
+  "generated_at": "2026-09-22T03:02:30",
   "mode": "deterministic",
   "model": null,
   "total_cases": 153,
@@ -81,7 +81,7 @@
   "cost": {
     "tokens_total": 0,
     "tokens_per_case_avg": 0.0,
-    "duration_s_avg": 0.25,
-    "duration_s_p95": 0.22
+    "duration_s_avg": 0.26,
+    "duration_s_p95": 0.25
   }
 }

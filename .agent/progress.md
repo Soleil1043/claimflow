@@ -1993,3 +1993,13 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：chatui build 绿（/ 2.61kB 动态路由）；后端全量 418 passed + ruff 绿不受影响。真实 LLM 全链路冒烟（问答/查进度/预填/转人工/坐席回复/关闭）在 T137 执行。
 
 **Git**：`feat: T136 [chatui悬浮客服气泡: cf-bubble复用+markdown预填链接+乐观追加+escalated轮询+closed新会话; CaseForm initialValues+险种申报; build绿]`
+
+## 2026-09-22 T137 端到端冒烟 + 收尾（客服增量 T132-T137 完结）
+
+**做了什么**：scripts/smoke_support_e2e.py（可重复执行的客服全链路冒烟）+ dev 栈起服（127.0.0.1:8000，qdrant local / deepseek-flash）真跑：知识问答（RAG 检索后结构化材料清单回答）、案件进度查询（真实调用 case_status_query，报 CASE-2026-0001 received 状态/金额/提交时间）、转人工（LLM 判定→标记工具→确定性流转，escalated_reason 自动生成"客户对案件 CASE-2026-0001 处理进度不满，明确要求投诉并转人工客服"）、坐席队列预览、坐席回复门户可见、关闭后门户发消息 409、队列出清——状态机环节全部硬断言通过，服务器日志零 error。另单独验证引导提交：车险追尾场景 claim_draft_link 真实触发，AI 回复含完整预填链接（case_type=auto 识别正确 / incident_date / claimed_amount=8000.00 / description 四参数）。
+
+**观察项（非缺陷）**：用户口述"9月20日"未带年份时模型补为 2025（当前实为 2026）——客户可在预填表单页修正；后续可在 SUPPORT_AGENT_PROMPT 补"无年份日期按当前年份推算"一句话优化。
+
+**验证**：核赔评测门复跑 153 案确定性模式六门全绿、总一致率 100%（t089 报告随最新运行刷新，核赔主链路零退化）；全量 418 passed + ruff 绿；chatui/workbench 双前端 build 绿（T135/T136 各自验过）。**客服增量 T132-T137 六任务全部完结**：会话域表 → Agent+四工具 → 门户 API → 转人工闭环 → 悬浮气泡 → 端到端冒烟，D057 四决断全部兑现。
+
+**Git**：`feat: T137 [客服全链路真实LLM冒烟通过(问答/查进度/预填链接/转人工/坐席回复/关闭); 评测门153案六门全绿不退化; 增量完结]`
