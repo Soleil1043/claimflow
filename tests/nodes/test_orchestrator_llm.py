@@ -55,6 +55,35 @@ async def test_llm_illegal_target_intercepted_by_guard() -> None:
     assert corrections[0]["payload"]["requested"] == ["amount_calc"]
 
 
+async def test_llm_degenerate_redone_targets_fall_back_to_default_route() -> None:
+    """D056-2：LLM 反复请求已完成阶段（v4.1-flash 实测退化形态）→ 守卫清空
+    → 回落 default_route 而非空目标终止，管线活性保证。
+
+    场景：材料已审核完成，LLM 却重复请求 material_review——守卫 drop_done 清空，
+    兜底 default_route 给出下一个待办阶段（policy_verify∥fraud_check）。
+    """
+    rec = MiniRecorder()
+
+    async def degenerate_router(state):
+        return RoutingDecision(next=["material_review"], reason="规划退化")
+
+    node = make_orchestrator_node(rec, degenerate_router)
+    state = {
+        "case_id": "C1",
+        "routing_calls": 1,
+        "case_type": "medical",
+        "material": {"completeness": "complete", "missing": [], "confidence": 0.9},
+    }
+    update = await node(state)
+
+    # 空目标被兜底改派：材料已完成 → 下一步保单∥风控（default_route + 守卫链）
+    assert update["pending_dispatch"], "守卫清空后必须回落确定性调度，不得空目标终止"
+    assert "material_review" not in update["pending_dispatch"]
+    routing = next(e for e in rec.events if e["kind"] == "routing")
+    assert "fallback_default_route" in "".join(routing["payload"]["notes"])
+    assert routing["payload"]["mode"] == "llm_degraded_fallback"
+
+
 async def test_llm_failure_falls_back_to_deterministic() -> None:
     """路由器抛错 → 回退 default_route（空案件 → 材料审核），mode 留痕。"""
     rec = MiniRecorder()

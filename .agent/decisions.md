@@ -1366,3 +1366,42 @@ memory_in_routing 默认关）、无删除链路、无置信度门控。决断�
    按 namespace 清扫 API + 应用层端点 + 审计事件，单独立项；not_covered 档案
    无差别写入的污染风险在删除链路落地前接受（档案只用于坐席展示，不进路由，
    污染面=展示层）。
+
+## D056（2026-09-21，T130）：模型切换 DeepSeek-V4.1-Flash（deepseek-flash）
+
+**背景**：用户要求切换 deepseek-v4.1-flash 并配额充值。按官方更新日志（api-docs.deepseek.com/zh-cn/updates），
+V4.1-Flash 的 **model 参数实际取值为 `deepseek-flash`**（用户口中的 v4.1-flash 是版本名，非 API id）；
+旧 `deepseek-v4-flash` / `deepseek-v4-flash-vision-exp` 已下线（临时兼容路由到 V4.1）。
+
+**变更**：
+1. 主模型 `deepseek-v4-flash` → `deepseek-flash`（config 默认值 + .env + .env.example + client docstring）；
+2. **vision 模型收敛为同一模型**：V4.1-Flash 原生多模态，`-vision-exp` 专用视觉模型失去存在必要——
+   LLM_VISION_MODEL=deepseek-flash（保留配置项本身：未来若拆分思考/视觉档位仍有用）；
+3. thinking-disabled extra_body 保留不动（tool_choice 兼容口径在新模型未验证，保守）；
+4. 测试断言 5 处旧名同步（test_client/test_health/test_config/test_metrics）。
+
+**验证**：冒烟 3 案 LLM 模式一致性 1.0、六门全绿；全量 151 案 + 对抗集 LLM 模式结果见
+evals/reports/t130_llm_full_v41.json / t130_adversarial_llm.json（回填于 progress）。
+
+## D056 追记（T130 收尾，2026-09-21）：最终评测结论与三项后续发现
+
+**修复后终值**（evals/reports/t130_llm_full_v41_fixed.json，deepseek-flash 153 案）：
+- **一致率 1.0（153/153）、六门全绿、0 失败**——liveness 修复后新模型达到旧模型满分水平；
+- **tokens/案 = 7,075.8**（全案 1,082,594）、延迟 avg 6.22s / p95 7.68s——证据缺口#1（D039 成本）正式关闭；
+  对照：确定性模式 0.25s/案、零 token——LLM 调度的代价边界从此有数。
+
+**路由退化与 liveness 修复（D056-2）**：未修复的两样本（0.8431 / 0.902）暴露 v4.1-flash
+存在"反复请求已完成阶段"的规划退化（旧模型两次全量 151/151 未出现）。守卫正确丢弃，
+但 route_dispatch 空目标直接 END → 案件中途终止（注释"正常流程不会到达"被新模型证伪）。
+修复：守卫清空 LLM 目标且未超预算时回落 default_route（nodes/orchestrator.py，模式留痕
+llm_degraded_fallback + fallback_default_route 审计注记 + 单测）。修复即满分——退化被
+完全兜住，是"LLM 自由度由守卫圈定"哲学的又一次实证。
+
+**三项后续发现（不阻塞切换，入账）**：
+1. **路由提示注入面**：对抗集 LLM 模式下 3/8 注入案（角色伪装/虚构免责/字段注入）被
+   拐到 human——方向保守（amount 全对，无错赔），实害是人工队列可被申请文本扰动
+   （DoS 面）。待办 T131：路由 prompt 数据/指令分离（描述文本定界包裹 + 中和指令式措辞）。
+2. **同义词鲁棒 0/6 与模型无关**：LLM 模式下 robustness 依旧 0/6——D054"LLM 层价值=
+   鲁棒性"假设**证伪**；鲁棒性提升路径在 skill/关键词迭代，不在换模型。
+3. **评测"LLM 模式"语义收窄**：现行 --llm 仅启用路由器（liability/material/decision 仍
+   确定性），三种 LLM 组件无联合 LLM 评测形态。挂 T125 备注。

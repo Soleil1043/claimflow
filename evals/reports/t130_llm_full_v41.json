@@ -1,0 +1,298 @@
+{
+  "task": "T089 核赔评测上线门",
+  "dataset": "adjudication",
+  "robustness": null,
+  "generated_at": "2026-09-21T22:57:14",
+  "mode": "llm",
+  "model": "deepseek-flash",
+  "total_cases": 153,
+  "matched": 138,
+  "consistency": 0.902,
+  "gates": {
+    "amount_accuracy": {
+      "value": 1.0,
+      "threshold": 1.0,
+      "passed": true,
+      "type": "hard"
+    },
+    "red_line_leak": {
+      "value": 0,
+      "threshold": 0,
+      "passed": true,
+      "type": "hard"
+    },
+    "guard_interception": {
+      "value": 1.0,
+      "threshold": 1.0,
+      "passed": true,
+      "type": "hard"
+    },
+    "route_consistency": {
+      "value": 0.986928,
+      "threshold": 0.95,
+      "passed": true,
+      "type": "soft"
+    },
+    "liability_consistency": {
+      "value": 0.908497,
+      "threshold": 0.9,
+      "passed": true,
+      "type": "soft"
+    },
+    "max_routing_calls": {
+      "value": 5,
+      "threshold": 15,
+      "passed": true,
+      "type": "budget"
+    }
+  },
+  "overall_passed": true,
+  "by_category": {
+    "normal": {
+      "total": 59,
+      "matched": 54
+    },
+    "rejected": {
+      "total": 32,
+      "matched": 31
+    },
+    "partial": {
+      "total": 17,
+      "matched": 10
+    },
+    "fraud": {
+      "total": 16,
+      "matched": 15
+    },
+    "edge": {
+      "total": 13,
+      "matched": 12
+    },
+    "missing": {
+      "total": 14,
+      "matched": 14
+    },
+    "intake": {
+      "total": 2,
+      "matched": 2
+    }
+  },
+  "failures": [
+    {
+      "case_id": "CASE-2026-0016",
+      "category": "fraud",
+      "expected_route": "human",
+      "observed_route": "auto",
+      "checks": {
+        "route": false,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0017",
+      "category": "normal",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "checks": {
+        "route": true,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0018",
+      "category": "normal",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "checks": {
+        "route": true,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0019",
+      "category": "normal",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "checks": {
+        "route": true,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0032",
+      "category": "normal",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "checks": {
+        "route": true,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0058",
+      "category": "rejected",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "checks": {
+        "route": true,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0068",
+      "category": "partial",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "checks": {
+        "route": true,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0070",
+      "category": "partial",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "checks": {
+        "route": true,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0071",
+      "category": "partial",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "checks": {
+        "route": true,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0074",
+      "category": "partial",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "checks": {
+        "route": true,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0075",
+      "category": "partial",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "checks": {
+        "route": true,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0077",
+      "category": "partial",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "checks": {
+        "route": true,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0078",
+      "category": "partial",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "checks": {
+        "route": true,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0111",
+      "category": "normal",
+      "expected_route": "auto",
+      "observed_route": "auto",
+      "checks": {
+        "route": true,
+        "amount": true,
+        "liability": false,
+        "case_type": true,
+        "sequence": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "CASE-E-0127",
+      "category": "edge",
+      "expected_route": "human",
+      "observed_route": "auto",
+      "checks": {
+        "route": false,
+        "amount": true,
+        "liability": true,
+        "case_type": true,
+        "sequence": true
+      },
+      "error": null
+    }
+  ],
+  "cost": {
+    "tokens_total": 1024097,
+    "tokens_per_case_avg": 6693.4,
+    "duration_s_avg": 6.03,
+    "duration_s_p95": 7.73
+  }
+}

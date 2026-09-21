@@ -1,0 +1,63 @@
+{
+  "task": "T089 核赔评测上线门",
+  "dataset": "adjudication",
+  "robustness": null,
+  "generated_at": "2026-09-21T22:06:53",
+  "mode": "llm",
+  "model": "deepseek-flash",
+  "total_cases": 3,
+  "matched": 3,
+  "consistency": 1.0,
+  "gates": {
+    "amount_accuracy": {
+      "value": 1.0,
+      "threshold": 1.0,
+      "passed": true,
+      "type": "hard"
+    },
+    "red_line_leak": {
+      "value": 0,
+      "threshold": 0,
+      "passed": true,
+      "type": "hard"
+    },
+    "guard_interception": {
+      "value": 1.0,
+      "threshold": 1.0,
+      "passed": true,
+      "type": "hard"
+    },
+    "route_consistency": {
+      "value": 1.0,
+      "threshold": 0.95,
+      "passed": true,
+      "type": "soft"
+    },
+    "liability_consistency": {
+      "value": 1.0,
+      "threshold": 0.9,
+      "passed": true,
+      "type": "soft"
+    },
+    "max_routing_calls": {
+      "value": 5,
+      "threshold": 15,
+      "passed": true,
+      "type": "budget"
+    }
+  },
+  "overall_passed": true,
+  "by_category": {
+    "normal": {
+      "total": 3,
+      "matched": 3
+    }
+  },
+  "failures": [],
+  "cost": {
+    "tokens_total": 0,
+    "tokens_per_case_avg": 0.0,
+    "duration_s_avg": 12.49,
+    "duration_s_p95": 23.59
+  }
+}

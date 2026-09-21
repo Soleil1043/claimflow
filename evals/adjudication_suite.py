@@ -62,7 +62,10 @@ def _case_tokens_total() -> int:
     total = 0
     for metric in registry.collect():
         if metric.name == "claimflow_case_tokens":
-            total += int(sum(sample.value for sample in metric.samples))
+            total += int(sum(
+                sample.value for sample in metric.samples
+                if sample.name.endswith("_total")  # 排除 _created 时间戳样本
+            ))
     return total
 
 

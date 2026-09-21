@@ -22,7 +22,6 @@ from typing import Any
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelCallLimitMiddleware, ToolErrorMiddleware
-from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.errors import GraphRecursionError
@@ -30,10 +29,7 @@ from pydantic import BaseModel
 
 from app.core.logging import get_logger
 from services.llm.client import get_chat_model
-from services.observability.token_tracker import (
-    record_usage_to_tracker,
-    track_phase,
-)
+from services.observability.token_tracker import track_phase
 from tools.factory import get_default_tool_map
 
 log = get_logger(__name__)
@@ -65,27 +61,6 @@ class AgentDefinition:
         """从工具图解析本 Agent 可用的工具对象（跳过未装配的）。"""
         return [tool_map[name] for name in self.tool_names if name in tool_map]
 
-
-class _WorkerTokenHandler(BaseCallbackHandler):
-    """归集 Worker 子图内 LLM 调用的 token 用量（T029 轮次预算口径不变）。
-
-    create_agent 内部自行调用模型，无法再经 phase_ainvoke 包装；
-    官方扩展点为 callback：on_llm_end 读 usage_metadata 记入轮次 tracker。
-    """
-
-    def on_llm_end(self, response: Any, **kwargs: Any) -> None:
-        try:
-            message = response.generations[0][0].message
-            usage = getattr(message, "usage_metadata", None) or {}
-            model = (response.llm_output or {}).get("model_name") or "unknown"
-            if usage:
-                record_usage_to_tracker(
-                    model,
-                    int(usage.get("input_tokens", 0)),
-                    int(usage.get("output_tokens", 0)),
-                )
-        except (AttributeError, IndexError, TypeError, ValueError):
-            pass  # 非标准响应（测试假件等）：记账跳过，不影响执行
 
 # 单个 Worker 步骤内的工具循环预算。
 # 硬截断由官方 ModelCallLimitMiddleware 承载（run_limit=9 ≈ 8 轮工具循环 + 终局），
@@ -191,10 +166,7 @@ async def invoke_worker(
         with track_phase("executor"):
             result = await worker.ainvoke(
                 {"messages": input_messages},
-                config={
-                    "recursion_limit": _RECURSION_LIMIT,
-                    "callbacks": [_WorkerTokenHandler()],
-                },
+                config={"recursion_limit": _RECURSION_LIMIT},
             )
     except GraphRecursionError:
         # 防御性兜底（正常由 ModelCallLimitMiddleware 硬截断收口）：

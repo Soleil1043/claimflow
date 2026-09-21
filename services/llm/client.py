@@ -17,6 +17,7 @@ from langchain_openai import ChatOpenAI
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from services.observability.token_tracker import UsageRecordingHandler
 
 log = get_logger(__name__)
 
@@ -27,7 +28,7 @@ _DEFAULT_TIMEOUT = 60
 
 @cache
 def get_chat_model(temperature: float = _DEFAULT_TEMPERATURE) -> BaseChatModel:
-    """主链路 ChatModel（deepseek-v4-flash），进程内单例。
+    """主链路 ChatModel（deepseek-flash = DeepSeek-V4.1-Flash），进程内单例。
 
     用途：意图识别、supervisor 调度、Worker/React 工具调用、回答生成。
 
@@ -43,6 +44,7 @@ def get_chat_model(temperature: float = _DEFAULT_TEMPERATURE) -> BaseChatModel:
         timeout=_DEFAULT_TIMEOUT,
         max_retries=2,  # langchain 内建重试（网络层瞬时故障）
         extra_body={"thinking": {"type": "disabled"}},
+        callbacks=[UsageRecordingHandler()],  # 模型级 token 归集（T130c，全调用点统一）
     )
     log.info("chat_model_initialized", model=settings.llm_model, base_url=settings.llm_base_url)
     return model
@@ -50,7 +52,7 @@ def get_chat_model(temperature: float = _DEFAULT_TEMPERATURE) -> BaseChatModel:
 
 @cache
 def get_vision_model(temperature: float = _DEFAULT_TEMPERATURE) -> BaseChatModel:
-    """视觉 ChatModel（deepseek-v4-flash-vision-exp），图片 OCR 专职。
+    """视觉 ChatModel（deepseek-flash 原生多模态，V4.1 起与主模型同一），图片 OCR 专职。
 
     独立配置项 llm_vision_model，与主链路互不影响；
     调用方（tools/medical/ocr_extract.py，T020）负责失败降级 Mock。
@@ -62,6 +64,7 @@ def get_vision_model(temperature: float = _DEFAULT_TEMPERATURE) -> BaseChatModel
         temperature=temperature,
         timeout=_DEFAULT_TIMEOUT,
         max_retries=1,  # OCR 有 Mock 兜底，减少重试等待
+        callbacks=[UsageRecordingHandler()],  # 模型级 token 归集（T130c，全调用点统一）
     )
     log.info("vision_model_initialized", model=settings.llm_vision_model)
     return model

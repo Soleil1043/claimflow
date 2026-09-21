@@ -28,20 +28,20 @@ def test_metrics_registered() -> None:
     # 至少打一次点让带标签的样本出现
     metrics.record_tool_call("policy_query", "success", 0.1)
     metrics.record_breaker_rejected("ocr_extract")
-    metrics.record_llm_call("deepseek-v4-flash", "success", 0.5, prompt_tokens=10, completion_tokens=5)
+    metrics.record_llm_call("deepseek-flash", "success", 0.5, prompt_tokens=10, completion_tokens=5)
 
     assert _counter_value(
         "claimflow_tool_calls_total", tool="policy_query", status="success"
     ) >= 1.0
     assert _counter_value("claimflow_tool_breaker_rejected_total", tool="ocr_extract") >= 1.0
     assert _counter_value(
-        "claimflow_llm_calls_total", model="deepseek-v4-flash", status="success"
+        "claimflow_llm_calls_total", model="deepseek-flash", status="success"
     ) >= 1.0
     assert _counter_value(
-        "claimflow_llm_tokens_total", model="deepseek-v4-flash", kind="prompt"
+        "claimflow_llm_tokens_total", model="deepseek-flash", kind="prompt"
     ) >= 10.0
     assert _counter_value(
-        "claimflow_llm_tokens_total", model="deepseek-v4-flash", kind="completion"
+        "claimflow_llm_tokens_total", model="deepseek-flash", kind="completion"
     ) >= 5.0
 
 

@@ -188,6 +188,27 @@ def make_orchestrator_node(recorder: CaseRecorder, llm_router=None):
                 payload={"requested": requested, **verdict.__dict__},
             )
 
+        # D056-2（T130）：LLM 决策被守卫完全清空（退化形态——反复请求已完成阶段，
+        # v4.1-flash 实测出现）时回落确定性调度，保证管线活性；案件不得因
+        # 路由规划退化而中途终止。default_route 自身无目标可派时维持空目标
+        # （全部阶段完成，正常收敛）。
+        if (
+            decision is not None
+            and human_request is None
+            and not verdict.targets
+            and calls <= settings.routing_call_budget
+        ):
+            fb_targets, fb_human = default_route(state)
+            if fb_human is not None:
+                human_request = fb_human
+                verdict = GuardVerdict(targets=["human_gate"], corrected=True,
+                                       notes=[*verdict.notes, "fallback_default_route"])
+            elif fb_targets:
+                verdict = enforce_guards(fb_targets, state)
+                verdict.notes = [*verdict.notes, "fallback_default_route"]
+                mode = "llm_degraded_fallback"
+                metrics.record_orch_fallback()
+
         metrics.record_routing_calls(calls)
         await recorder.event(
             state["case_id"],

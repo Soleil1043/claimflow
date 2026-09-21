@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AnyMessage
 
@@ -61,6 +62,30 @@ def record_usage_to_tracker(model: str, prompt_tokens: int, completion_tokens: i
     case_id = _current_case.get()
     if case_id is not None:
         metrics.record_case_tokens(model, prompt_tokens + completion_tokens)
+
+
+class UsageRecordingHandler(BaseCallbackHandler):
+    """模型级 token 归集回调（T130c 自 worker_agent 迁移为 client 级共享）。
+
+    挂在 get_chat_model 返回的模型实例上——orchestrator 路由 / 材料审查 / 决定书
+    撰写 / Worker 子图的全部 LLM 调用统一经 on_llm_end 归集 CASE_TOKENS；
+    案件上下文（track_case）未置位时不记录（零案件上下文的裸调用无归宿）。
+    之前只挂 Worker 子图：评测 LLM 模式仅路由器走 LLM，token 恒为 0（T125a 根因）。
+    """
+
+    def on_llm_end(self, response: Any, **kwargs: Any) -> None:
+        try:
+            message = response.generations[0][0].message
+            usage = getattr(message, "usage_metadata", None) or {}
+            model = (response.llm_output or {}).get("model_name") or "unknown"
+            if usage:
+                record_usage_to_tracker(
+                    model,
+                    int(usage.get("input_tokens", 0)),
+                    int(usage.get("output_tokens", 0)),
+                )
+        except (AttributeError, IndexError, TypeError, ValueError):
+            pass  # 非标准响应（测试假件等）：记账跳过，不影响执行
 
 
 @contextmanager

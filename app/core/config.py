@@ -39,9 +39,9 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://api.deepseek.com"
     llm_api_key: str = ""
     # 主链路模型（意图/规划/工具调用/生成）
-    llm_model: str = "deepseek-v4-flash"
+    llm_model: str = "deepseek-flash"
     # 图片 OCR 专职模型，失败降级 Mock（D008）
-    llm_vision_model: str = "deepseek-v4-flash-vision-exp"
+    llm_vision_model: str = "deepseek-flash"
 
     # ===== 材料上传（T049，D024：PDF/Word 支持） =====
     material_max_size_mb: int = 10

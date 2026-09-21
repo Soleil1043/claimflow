@@ -38,15 +38,15 @@ def _clean_cache(monkeypatch):
 
 
 def test_chat_model_uses_configured_main_model() -> None:
-    """主链路模型读取 llm_model 配置（deepseek-v4-flash，D007）。"""
+    """主链路模型读取 llm_model 配置（deepseek-flash，T130 切 V4.1-Flash）。"""
     model = get_chat_model()
-    assert model.model_name == "deepseek-v4-flash"
+    assert model.model_name == "deepseek-flash"
 
 
 def test_vision_model_is_independent_config() -> None:
     """vision 模型独立配置项 llm_vision_model（D008 混合策略）。"""
     model = get_vision_model()
-    assert model.model_name == "deepseek-v4-flash-vision-exp"
+    assert model.model_name == "deepseek-flash"  # V4.1 起原生多模态，vision 收敛同模型
     # 两个是不同实例，互不影响
     assert get_chat_model() is not get_vision_model()
 
@@ -82,7 +82,7 @@ async def test_chat_model_invoke_via_mocked_network() -> None:
         "id": "chatcmpl-test",
         "object": "chat.completion",
         "created": 1,
-        "model": "deepseek-v4-flash",
+        "model": "deepseek-flash",
         "choices": [
             {"index": 0, "message": {"role": "assistant", "content": "测试响应"}, "finish_reason": "stop"}
         ],
@@ -101,7 +101,7 @@ async def test_chat_model_invoke_via_mocked_network() -> None:
     mocked.assert_awaited_once()
     # 请求体校验：模型名与消息结构符合 OpenAI 兼容协议
     _, kwargs = mocked.call_args
-    assert kwargs["model"] == "deepseek-v4-flash"
+    assert kwargs["model"] == "deepseek-flash"
     assert kwargs["messages"][0]["role"] == "user"
 
 
@@ -126,7 +126,7 @@ async def test_chat_model_supports_tool_binding() -> None:
         "id": "chatcmpl-test2",
         "object": "chat.completion",
         "created": 1,
-        "model": "deepseek-v4-flash",
+        "model": "deepseek-flash",
         "choices": [
             {
                 "index": 0,

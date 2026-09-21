@@ -1929,3 +1929,15 @@ workbench `npm run build` 通过（T057 已验）。
 **结果**：389 passed + ruff 绿 + 双前端 build 绿；主门 153 案 100% 六门全绿（含 2 条新矛盾案）；对抗门 injection 层 8/8 硬门全绿。
 
 **Git**：T121b `docs: T121b [第二轮自我面试: 弱项专项+手撕; 总评Hire; 缺口#10-#17→T126-T129]`；T126-T129 合并 `feat: T126-T129 [材料目录动态化pack单源; 矛盾真路径金样本; tracing接线; 记忆读闭环+D055]`
+
+## T130 模型切换 DeepSeek-V4.1-Flash + 路由 liveness 修复（2026-09-21 深夜，D056）
+
+**做了什么**：按官方更新日志确认 V4.1-Flash 的 API id 为 `deepseek-flash`（用户口中的 v4.1-flash 是版本名）；主/vision 模型收敛同模型（原生多模态，-vision-exp 下线）；thinking-disabled extra_body 保守保留。token 埋点升 client 级（UsageRecordingHandler 挂 ChatOpenAI 构造，worker 层重复挂载删除）——评测 LLM 模式此前只有无埋点的路由器走 LLM，token 恒 0；顺修 suite 读数把 `_created` 时间戳样本计入的污染。
+
+**全量评测三样本（deepseek-flash，153 案）**：0.8431 → 0.902 → **1.0（修复后）**。前两样本暴露 v4.1-flash 特有的路由规划退化：反复请求已完成阶段 → 守卫全部 drop_done → 空目标 → route_dispatch END（"正常流程不会到达"注释被证伪）→ 案件中途终止。D056-2 修复：守卫清空 LLM 目标且未超预算时回落 default_route（llm_degraded_fallback 模式留痕 + fallback_default_route 审计注记 + 退化单测）。修复即满分，硬门全程全绿（失败安全）。
+
+**结账**：tokens/案 7,075.8、延迟 avg 6.22s / p95 7.68s（对照确定性 0.25s/案零 token）——D039 遗留成本缺口正式关闭。对抗集 LLM 复验：injection 3/8 被拐 human（保守方向、amount 全对——路由 prompt 数据/指令分离挂 T131）；robustness 0/6 与模型无关（D054"LLM=鲁棒性"假设证伪）。
+
+**验证**：390 passed（+退化单测）+ ruff 绿；主门确定性 153 案 100% 六门全绿；LLM 模式修复后 153/153=1.0 六门全绿。
+
+**Git**：`feat: T130 [模型切换deepseek-flash(V4.1); token埋点client级全调用点; 路由退化liveness修复回落default_route; 全量1.0六门全绿; tokens7075/案; D056]`

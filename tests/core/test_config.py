@@ -9,9 +9,9 @@ def test_default_settings_load_from_env_example_fields() -> None:
     assert s.app_profile == Profile.DEV
     assert s.llm_base_url == "https://api.deepseek.com"
     # 主链路模型（D007：deepseek-chat 旧别名已退役，禁止回退）
-    assert s.llm_model == "deepseek-v4-flash"
+    assert s.llm_model == "deepseek-flash"
     # OCR 专职视觉模型（D008 混合策略）
-    assert s.llm_vision_model == "deepseek-v4-flash-vision-exp"
+    assert s.llm_vision_model == "deepseek-flash"  # V4.1 原生多模态，vision 收敛同模型（T130）
     assert s.qdrant_collection == "claim_rules"
     assert s.embedding_model == "BAAI/bge-m3"
 

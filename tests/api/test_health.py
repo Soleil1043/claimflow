@@ -45,7 +45,7 @@ async def test_health_all_ok_in_dev(client: AsyncClient) -> None:
     assert body["dependencies"]["qdrant"]["detail"] == "local mode"
     assert body["dependencies"]["redis"]["status"] == "skipped"
     assert body["dependencies"]["llm"]["status"] == "ok"
-    assert body["dependencies"]["llm"]["detail"] == "deepseek-v4-flash"
+    assert body["dependencies"]["llm"]["detail"] == "deepseek-flash"
 
 
 async def test_health_degraded_when_llm_unconfigured(client, monkeypatch) -> None:
