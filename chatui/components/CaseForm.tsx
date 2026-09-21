@@ -9,13 +9,27 @@ import {
   type MaterialCatalogLine,
 } from "@/lib/case-api";
 
-export default function CaseForm() {
+/** 客服预填初值（T136：客服对话收集 → query 参数 → 表单预填，可改）。 */
+export interface CaseFormInitialValues {
+  caseType?: string;
+  amount?: string;
+  date?: string;
+  description?: string;
+}
+
+export default function CaseForm({
+  initialValues,
+}: {
+  initialValues?: CaseFormInitialValues;
+}) {
   const router = useRouter();
   const [userId, setUserId] = useState("");
   const [policyNo, setPolicyNo] = useState("");
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState("");
-  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState(initialValues?.amount ?? "");
+  const [date, setDate] = useState(initialValues?.date ?? "");
+  const [description, setDescription] = useState(initialValues?.description ?? "");
+  // 险种申报（intake 分类提示；留空自动识别）——客服预填时携带
+  const [declaredType, setDeclaredType] = useState(initialValues?.caseType ?? "");
   const [files, setFiles] = useState<{ name: string; docType: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -56,6 +70,7 @@ export default function CaseForm() {
         claimed_amount: amount.trim(),
         incident_date: date,
         incident_description: description.trim(),
+        declared_case_type: declaredType || undefined,
         materials: files.map((f) => ({ file_name: f.name, doc_type: f.docType })),
       });
       setResult(resp);
@@ -93,6 +108,18 @@ export default function CaseForm() {
           <span className="mb-1 block text-[12px] font-medium text-cf-text-2">出险日期</span>
           <input value={date} onChange={(e) => setDate(e.target.value)}
             type="date" className="cf-input" />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[12px] font-medium text-cf-text-2">
+            险种（留空自动识别）
+          </span>
+          <select value={declaredType} onChange={(e) => setDeclaredType(e.target.value)}
+            className="cf-input">
+            <option value="">自动识别</option>
+            {catalog.map((g) => (
+              <option key={g.line} value={g.line}>{g.label}</option>
+            ))}
+          </select>
         </label>
       </div>
 

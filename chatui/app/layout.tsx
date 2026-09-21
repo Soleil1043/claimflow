@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import SupportBubble from "@/components/SupportBubble";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
 /**
  * 全站骨架（T063 / D030 设计语言）：sticky 毛玻璃浮层导航 + 纵向 flex 内容区。
  * 与 workbench 同构；健康状态 pill 为客户端组件（挂载探测 /health）。
+ * T136：全站右下角挂悬浮在线客服气泡（D057：问答/查进度/引导提交/转人工）。
  */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -32,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </header>
         {children}
+        <SupportBubble />
       </body>
     </html>
   );

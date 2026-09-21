@@ -1985,3 +1985,11 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：tests/api/test_support.py +2 例（工单全流程：入队预览→回复门户可见→备注关闭→队列清空详情留档→门户再发 409；ai 态操作 409/404）；418 passed（+2）+ ruff 绿 + workbench build 绿（/support、/support/[conversationId] 两动态路由）。
 
 **Git**：`feat: T135 [转人工闭环: 坐席四端点(队列预览/transcript/回复/note先入后关); workbench三件套+导航; 418绿+build绿]`
+
+## 2026-09-22 T136 chatui 悬浮客服气泡 + 引导预填
+
+**做了什么**：SupportBubble（"use client"）全站挂载 layout.tsx——右下角气泡按钮 + 对话窗：复用存量 cf-bubble user/bot 样式（v1 时代保留的对话皮肤正好派上用场）；AI/坐席消息 react-markdown 渲染使 claim_draft_link 的预填链接可直接点击；发送采用乐观追加 + 服务端响应后整体刷新校准（服务端为时间线单源）；"正在输入"态覆盖 3-8s 请求-响应等待（v1 无 SSE，D057-3）；escalated 态打开期间 3s 轮询坐席回复与关闭事件；closed 终态只读 + 一键开新会话；会话 id localStorage 持久化（跨刷新恢复，后端 404 自愈新建）。预填链路闭环：page.tsx 读 searchParams → 预填横幅（列明预填项）→ CaseForm initialValues（金额/日期/经过预填；caseType 落新增"险种申报"下拉，留空自动识别，随 declared_case_type 提交——后端 B01 已支持该字段，全链路无后端改动）。
+
+**验证**：chatui build 绿（/ 2.61kB 动态路由）；后端全量 418 passed + ruff 绿不受影响。真实 LLM 全链路冒烟（问答/查进度/预填/转人工/坐席回复/关闭）在 T137 执行。
+
+**Git**：`feat: T136 [chatui悬浮客服气泡: cf-bubble复用+markdown预填链接+乐观追加+escalated轮询+closed新会话; CaseForm initialValues+险种申报; build绿]`
