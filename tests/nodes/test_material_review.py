@@ -347,3 +347,45 @@ async def test_resume_skips_completed_extractions(monkeypatch, tmp_path) -> None
     # 恢复轮：已完成提取任务从 checkpoint 短路——LLM 提取零重复调用
     assert len(calls) == 3, f"提取被重复调用了: {calls}"
     assert update["material"]["completeness"] == "complete"
+
+
+# ---------- 提取置信度校准（T140，D060） ----------
+
+
+async def test_confidence_calibration_field_penalties(monkeypatch) -> None:
+    """校准：全字段=来源基准；核心字段缺失逐级扣分；缺金额+诊断低于转人工阈值。
+
+    旧口径为来源常数（同源同分，缺失零感知）；新口径确定性函数（D060）：
+    0.9 基准 −（金额 .25 + 诊断 .25 + 日期 .1 + 姓名 .1）。
+    """
+    full = {
+        "patient_name": "张三", "diagnosis": "急性阑尾炎",
+        "amount": 15800.0, "date": "2026-08-10",
+        "source": "text_model", "file_type": "pdf",
+    }
+
+    def _mat(ext: dict) -> list[dict]:
+        return [{"file_name": "invoice.pdf", "doc_type": "invoice", "extraction": ext}]
+
+    # 全字段 → 基准 0.9（与既有 test_stored_extraction_converted 口径一致）
+    update = await _run(_node(), _mat(full))
+    assert update["material"]["confidence"] == 0.9
+
+    # 缺金额 → 0.65（仍高于 floor 0.6，但已低于自动签发门 0.8）
+    update = await _run(_node(), _mat({k: v for k, v in full.items() if k != "amount"}))
+    assert update["material"]["confidence"] == 0.65
+
+    # 缺金额+诊断 → 0.4，低于 material_confidence_floor=0.6 → 转人工裁量路径
+    update = await _run(
+        _node(),
+        _mat({k: v for k, v in full.items() if k not in ("amount", "diagnosis")}),
+    )
+    assert update["material"]["confidence"] == 0.4
+
+    # mock 兜底 + 全字段缺失 → 基准 0.3 - 0.7 → clamp 下限 0.05
+    update = await _run(_node(), _mat({"source": "mock_fallback"}))
+    assert update["material"]["confidence"] == 0.05
+
+    # 0 元金额视同未提取（0 值发票）
+    update = await _run(_node(), _mat({**full, "amount": 0}))
+    assert update["material"]["confidence"] == 0.65

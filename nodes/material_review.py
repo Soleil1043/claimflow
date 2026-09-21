@@ -43,12 +43,37 @@ from tools.document.completeness import validate_completeness
 
 log = get_logger(__name__)
 
-# 来源 → 置信度（与 T049 提取服务 source 口径对齐）
-_SOURCE_CONFIDENCE = {"vision": 0.9, "text_model": 0.9, "mock_fallback": 0.3}
+# 来源基准分（与 T049 提取服务 source 口径对齐）
+_CONFIDENCE_BASE = {"vision": 0.9, "text_model": 0.9, "mock_fallback": 0.3}
 # 已知异常标记（材料条目 note 字段）的置信度
 _ANOMALY_CONFIDENCE = 0.4
 # 交叉核验/AI 异常命中时的置信度（低于 material_confidence_floor=0.6 → orchestrator 裁量）
 _CONTRADICTION_CONFIDENCE = 0.4
+
+# 关键字段缺失扣分（T140 校准，D060）：金额/诊断为核赔核心字段各 -0.25，
+# 日期/姓名 -0.1。缺两项核心 = 0.9-0.5 = 0.4，低于 material_confidence_floor
+# 0.6 → 转人工裁量——字段缺失真正影响调度（旧口径来源常数同源同分，缺失零感知）
+_FIELD_PENALTIES: tuple[tuple[str, float], ...] = (
+    ("amount", 0.25),
+    ("diagnosis", 0.25),
+    ("date", 0.1),
+    ("patient_name", 0.1),
+)
+
+
+def _field_missing(value: Any) -> bool:
+    """字段缺失判定：None / 空串 / 0 值（0 元发票金额视同未提取）。"""
+    return value in (None, "", 0, "0")
+
+
+def _calibrated_confidence(source: str, extraction: dict[str, Any]) -> float:
+    """提取置信度（T140 校准，D060）：来源基准 − 关键字段缺失扣分，clamp [0.05, 基准]。
+
+    确定性校准函数——不做模型自评（不可控不可测，面试缺口#9 口径是"标定常数"）。
+    """
+    base = _CONFIDENCE_BASE.get(source, 0.5)
+    penalty = sum(p for field, p in _FIELD_PENALTIES if _field_missing(extraction.get(field)))
+    return round(max(0.05, base - penalty), 2)
 
 # AI 一致性审查的结构化输出
 class MaterialAiReview(BaseModel):
@@ -103,7 +128,7 @@ def _to_document(
         diagnosis=extraction.get("diagnosis"),
         total_amount=Decimal(str(amount)) if amount not in (None, "") else None,
         treatment_date=treatment_date,
-        confidence=_SOURCE_CONFIDENCE.get(source, 0.5),
+        confidence=_calibrated_confidence(source, extraction),
         source=source,  # type: ignore[arg-type]
     )
 
