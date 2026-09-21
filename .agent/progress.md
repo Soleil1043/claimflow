@@ -1959,3 +1959,13 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：tests/support 9 例（建会话/消息序/replay 窗口/转人工停答/关闭终态/直关/重复转人工拒/缺会话/迁移升降）+ tests/db 两处全表断言同步；全量 399 passed（+9）+ ruff 绿。
 
 **Git**：`feat: T132 [客服会话域: support两表+迁移b7d2e6f9a3c1; store状态机ai→escalated→closed(AI停答/终态拒写); replay窗口+config; 399绿]`
+
+## 2026-09-22 T133 客服 Agent 装配 + 四工具（D057）
+
+**做了什么**：services/support/agent.py 落地客服 Agent——照 worker_agent 的 create_agent 三要素装配（get_chat_model + ToolError/ModelCallLimit(run_limit=9) 中间件），对话型差异：无 response_format 自然语言终局，多轮记忆 = 会话表窗口 replay（recent_messages → user→Human/assistant→AI，D057-2 不接 checkpointer）。system prompt SUPPORT_AGENT_PROMPT 落 prompts.py：四能力工具指引 + 服务边界（不承诺赔付结果/不引内部阈值/检索不到禁止编造/不索要敏感信息）。工具：claim_rule_rag 工厂守卫版直取；新三件 case_status_query（case_service 新增 case_progress_snapshot——与 B02 get_case 同口径的 LLM 紧凑投影：状态/挂起缺件/决定书/最近 8 事件）、claim_draft_link（险种对 LINE_PACKS 单源校验，生成门户表单预填 URL query 参数，日期金额非法作为业务失败返回供 LLM 换参重试）、escalate_to_human；工厂 build_raw_tools 12→15（核赔 worker 的 pack 不引用，不污染核赔工具面）。
+
+**关键设计**：escalate_to_human 为**标记式**——工具不直接改会话状态（只返回受理提示），真正的 ai→escalated 流转由 reply() 在 AI 终局话术落库之后确定性执行（reason 取工具入参）。这样"已为您转接人工"话术仍在 AI 时间线内，不撞 T132 状态机约束（escalated 后 assistant 停答）；且转人工触发是代码判定而非 LLM 副作用，漏调/误调风险收窄到 prompt 层。reply() 前置校验会话状态（非 ai 抛 SupportStateError，API 层据此拒答），GraphRecursionError 与空终局均有兜底话术。
+
+**验证**：tests/support/test_agent.py 11 例（prompt 边界断言/普通轮往返/工具轮/空终局兜底/转人工全流程+后续轮拒答/缺会话/replay 映射/case_status 同口径投影/缺案提示/claim_draft 五分支/escalate 标记式）；support_db 夹具提 tests/support/conftest.py 共用；test_infrastructure 工具图断言 12→15 同步；全量 410 passed（+11）+ ruff 绿。
+
+**Git**：`feat: T133 [客服Agent装配+四工具: case_status_query同口径快照/claim_draft_link预填/escalate_to_human标记式+reply确定性流转; 工厂12→15; 410绿]`

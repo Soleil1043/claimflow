@@ -120,10 +120,12 @@ def test_to_openai_tool_schema() -> None:
 
 
 def test_default_tool_map_factory_assembly() -> None:
-    """默认工具图：工厂装配 12 个守卫工具（官方重试 + 熔断/缓存/超时）。"""
+    """默认工具图：工厂装配 15 个守卫工具（官方重试 + 熔断/缓存/超时）。"""
     tool_map = get_default_tool_map()
-    assert len(tool_map) == 12
+    assert len(tool_map) == 15
     assert "policy_query" in tool_map and "risk_scoring" in tool_map
+    # 客服域三件（T133）随工厂注册（核赔 worker 不引用）
+    assert {"case_status_query", "claim_draft_link", "escalate_to_human"} <= set(tool_map)
     guarded = tool_map["policy_query"]
     assert isinstance(guarded, GuardedTool)
     spec = guarded.to_openai_tool()

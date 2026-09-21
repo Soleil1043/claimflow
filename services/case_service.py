@@ -18,8 +18,8 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from schemas.case import ISSUED_CASE_STATUSES, CaseStatus
-from services.db.models import Case, CaseJob, DecisionDocument
+from schemas.case import ISSUED_CASE_STATUSES, PENDING_CASE_STATUSES, CaseStatus
+from services.db.models import Case, CaseEvent, CaseJob, DecisionDocument
 from services.db.session import get_session_factory
 
 # 自然键幂等（F01）：重复提交返回既有案件，不重复执行核赔
@@ -221,3 +221,64 @@ async def latest_jobs_for_cases(case_ids: list[str]) -> dict[str, CaseJob]:
     for row in rows:
         latest.setdefault(row.case_id, row)  # id 降序 → 首见即最新
     return latest
+
+
+# ===== 客服案件进度读模型（T133，D057：与 B02 get_case 同口径的 LLM 紧凑投影） =====
+
+
+async def case_progress_snapshot(case_id: str) -> dict[str, Any] | None:
+    """案件进度快照：客服 case_status_query 工具的查询口径。
+
+    与 app.api.v1.cases.get_case 共用读模型（decision_doc_view /
+    human_info_from_job / latest_job），投影更紧凑——面向 LLM 作答，不含完整
+    timeline / 材料清单 / 申请人记忆。自开会话（工具无请求级 session 可用）。
+    """
+    from services.case_jobs import latest_job
+
+    factory = get_session_factory()
+    async with factory() as session:
+        case = await session.get(Case, case_id)
+        if case is None:
+            return None
+        job = await latest_job(case_id)
+        doc, issued = await decision_doc_view(session, case)
+        recent_rows = (
+            (
+                await session.execute(
+                    select(CaseEvent.kind, CaseEvent.stage, CaseEvent.created_at)
+                    .where(CaseEvent.case_id == case_id)
+                    .order_by(CaseEvent.seq.desc())
+                    .limit(8)
+                )
+            ).all()
+        )
+    recent_rows.reverse()  # 取最近 8 条后恢复时序
+    return {
+        "case_id": case.id,
+        "case_type": case.case_type,
+        "status": case.status,
+        "claimed_amount": str(case.claimed_amount),
+        "approved_amount": (
+            str(case.approved_amount) if case.approved_amount is not None else None
+        ),
+        "final_decision": case.final_decision,
+        "decision_issued": issued,
+        "decision_conclusion": doc.conclusion if doc is not None else None,
+        "decision_approved_amount": (
+            str(doc.approved_amount) if doc is not None and doc.approved_amount is not None else None
+        ),
+        "human": (
+            human_info_from_job(job, case.status)
+            if case.status in PENDING_CASE_STATUSES
+            else None
+        ),
+        "recent_events": [
+            {
+                "kind": kind,
+                "stage": stage,
+                "at": created_at.isoformat() if created_at is not None else None,
+            }
+            for (kind, stage, created_at) in recent_rows
+        ],
+        "submitted_at": case.created_at.isoformat() if case.created_at is not None else None,
+    }

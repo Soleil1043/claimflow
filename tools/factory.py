@@ -31,6 +31,8 @@ _tool_map: dict[str, BaseTool] | None = None
 def build_raw_tools() -> list[ClaimflowTool]:
     """构造全部原始工具（DI 取全局缺省；测试可单独构造替换）。"""
     from tools.claim.calculator import ClaimCalculatorTool
+    from tools.claim.case_status import CaseStatusQueryTool
+    from tools.claim.claim_draft import ClaimDraftLinkTool
     from tools.claim.claim_rule_rag import ClaimRuleRagTool
     from tools.claim.policy_query import PolicyQueryTool
     from tools.compliance.risk_scoring import RiskScoringTool
@@ -42,6 +44,7 @@ def build_raw_tools() -> list[ClaimflowTool]:
     from tools.medical.diagnosis_matcher import DiagnosisMatcherTool
     from tools.medical.ocr_extract import OcrExtractTool
     from tools.medical.record_query import RecordQueryTool
+    from tools.support.escalate import EscalateToHumanTool
 
     return [
         PolicyQueryTool(),
@@ -56,6 +59,10 @@ def build_raw_tools() -> list[ClaimflowTool]:
         QueryBlacklistTool(),
         ClaimsHistoryTool(),
         FraudRulesTool(),
+        # 客服域（T133，D057）：客服 Agent 专用，核赔 worker 不引用
+        CaseStatusQueryTool(),
+        ClaimDraftLinkTool(),
+        EscalateToHumanTool(),
     ]
 
 
