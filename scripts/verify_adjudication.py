@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import io
+import os
 import sys
 import time
 import urllib.request
@@ -146,10 +147,21 @@ async def upload_material(
     return resp.status_code, body
 
 
+def _staff_headers() -> dict[str, str]:
+    """坐席端点鉴权头（T147）：读 STAFF_KEYS 取首个 Key；未配置回退 compose 演示
+    栈默认值（与 docker-compose.yml 对齐）。本地 dev 直跑无 Key 时服务端不校验，
+    多余 header 无害。"""
+    raw = os.environ.get("STAFF_KEYS") or "demo-staff:demo-key-2026"
+    key = raw.split(",")[0].strip().partition(":")[2].strip()
+    return {"X-Staff-Key": key} if key else {}
+
+
 async def verify(base_url: str, offline: bool = False) -> None:
     # 幂等键含 user_id：加时间戳后缀，保证脚本可重复运行（否则二次运行命中 200）
     tag = str(int(time.time()))
-    async with httpx.AsyncClient(base_url=base_url, timeout=60) as ac:
+    async with httpx.AsyncClient(
+        base_url=base_url, timeout=60, headers=_staff_headers()
+    ) as ac:
         # ===== 1. 自动签发主链路（真实材料上传补齐）=====
         print(f"\n--- 1. 自动签发主链路{'（离线兜底档：只守落档与状态机）' if offline else ''} ---")
         body = {

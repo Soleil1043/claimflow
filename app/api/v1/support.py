@@ -11,8 +11,9 @@ v1 请求-响应式（SSE 挂 D057-3 后续）；坐席侧工单端点见 T135�
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.api.dependencies import require_staff
 from app.core.exceptions import SupportStateError
 from app.core.logging import get_logger
 from schemas.api import (
@@ -146,7 +147,11 @@ def _message_out(m) -> SupportMessageOut:  # noqa: ANN001 —— SupportMessage 
     return SupportMessageOut(id=m.id, role=m.role, content=m.content, created_at=m.created_at)
 
 
-@router.get("/tickets", response_model=SupportTicketListResponse)
+@router.get(
+    "/tickets",
+    response_model=SupportTicketListResponse,
+    dependencies=[Depends(require_staff)],  # 坐席端点（T147 鉴权）
+)
 async def list_support_tickets(
     limit: int = Query(default=50, ge=1, le=200),
 ) -> SupportTicketListResponse:
@@ -169,7 +174,9 @@ async def list_support_tickets(
 
 
 @router.get(
-    "/tickets/{conversation_id}", response_model=SupportTicketDetailResponse
+    "/tickets/{conversation_id}",
+    response_model=SupportTicketDetailResponse,
+    dependencies=[Depends(require_staff)],  # 坐席端点（T147 鉴权）
 )
 async def get_support_ticket(conversation_id: str) -> SupportTicketDetailResponse:
     """坐席工单详情：会话状态 + 完整 transcript（closed 会话可查作审计）。"""
@@ -187,7 +194,9 @@ async def get_support_ticket(conversation_id: str) -> SupportTicketDetailRespons
 
 
 @router.post(
-    "/tickets/{conversation_id}/reply", response_model=SupportTicketReplyResponse
+    "/tickets/{conversation_id}/reply",
+    response_model=SupportTicketReplyResponse,
+    dependencies=[Depends(require_staff)],  # 坐席端点（T147 鉴权）
 )
 async def reply_support_ticket(
     conversation_id: str, body: SupportTicketReplyRequest
@@ -206,7 +215,9 @@ async def reply_support_ticket(
 
 
 @router.post(
-    "/tickets/{conversation_id}/close", response_model=SupportTicketCloseResponse
+    "/tickets/{conversation_id}/close",
+    response_model=SupportTicketCloseResponse,
+    dependencies=[Depends(require_staff)],  # 坐席端点（T147 鉴权）
 )
 async def close_support_ticket(
     conversation_id: str, body: SupportTicketCloseRequest

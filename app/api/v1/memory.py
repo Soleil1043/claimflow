@@ -8,16 +8,22 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.api.dependencies import require_staff
 from app.core.logging import get_logger
 from services.case_store import get_default_recorder
 from services.memory.case_memory import delete_case_memory
 
 log = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/memory", tags=["memory"])
+router = APIRouter(
+    prefix="/api/v1/memory",
+    tags=["memory"],
+    # 高敏操作：坐席鉴权（T147）
+    dependencies=[Depends(require_staff)],
+)
 
 
 class MemoryDeleteRequest(BaseModel):
@@ -34,10 +40,16 @@ class MemoryDeleteResponse(BaseModel):
 
 @router.delete("/{user_id}/entries/{case_id}", response_model=MemoryDeleteResponse)
 async def delete_applicant_memory(
-    user_id: str, case_id: str, body: MemoryDeleteRequest | None = None
+    user_id: str,
+    case_id: str,
+    body: MemoryDeleteRequest | None = None,
+    staff: str | None = Depends(require_staff),
 ) -> MemoryDeleteResponse:
-    """删除一条申请人核赔档案：Store 条目删除 + CaseEvent human 审计留痕（fail-open）。"""
-    agent = (body.agent if body is not None else "") or "agent"
+    """删除一条申请人核赔档案：Store 条目删除 + CaseEvent human 审计留痕（fail-open）。
+
+    operator（T147）：staff_keys 已配置时由 Key 派生（可信），未配置回退 body 自报。
+    """
+    agent = staff or ((body.agent if body is not None else "") or "agent")
     deleted = await delete_case_memory(user_id, case_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="档案条目不存在（或已删除）")

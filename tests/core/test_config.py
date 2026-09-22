@@ -22,7 +22,10 @@ def test_database_url_switches_by_profile() -> None:
     assert dev.is_prod is False
     assert dev.database_url.startswith("sqlite+aiosqlite:///")
 
-    prod = Settings(_env_file=None, app_profile="prod", postgres_password="secret")
+    prod = Settings(
+        _env_file=None, app_profile="prod",
+        postgres_password="secret", staff_keys="smoke:k1",
+    )
     assert prod.is_prod is True
     assert prod.database_url.startswith("postgresql+asyncpg://")
     assert "secret" in prod.database_url
@@ -36,12 +39,14 @@ def test_settings_read_from_env_vars(monkeypatch) -> None:
     monkeypatch.setenv("LLM_MODEL", "deepseek-v4-pro")
     monkeypatch.setenv("APP_PROFILE", "prod")
     monkeypatch.setenv("APP_PORT", "9000")
+    monkeypatch.setenv("STAFF_KEYS", "smoke:k1")
 
     s = Settings(_env_file=None)
     assert s.llm_api_key == "sk-test-123"
     assert s.llm_model == "deepseek-v4-pro"
     assert s.app_profile == Profile.PROD
     assert s.app_port == 9000
+    assert s.staff_key_map == {"k1": "smoke"}
 
 
 def test_invalid_profile_rejected() -> None:

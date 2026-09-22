@@ -9,6 +9,7 @@
 from decimal import Decimal
 from enum import StrEnum
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from schemas import contract
@@ -148,6 +149,12 @@ class Settings(BaseSettings):
     # Agent 多轮记忆 replay 窗口：送入 LLM 的最近消息条数（含用户与 AI 双方，超出截断）
     support_history_window: int = 20
 
+    # ===== 坐席端点鉴权（T147，D067 路径 A：多 Key + Key 即身份） =====
+    # 格式 "名字:Key,名字:Key"（如 "alice:gu9x...,bob:tk3z..."）；
+    # 空 = 不校验（dev 默认开放）；prod 启动强制非空（model_validator）。
+    # 请求头 X-Staff-Key 携带 Key，校验通过后坐席身份由 Key 派生（忽略请求体自报）
+    staff_keys: str = ""
+
     # ===== OTel 追踪（T039，D015 后置项） =====
     # 开关（默认关：不起 tracing 栈时零开销）；OTLP gRPC 上报地址；采样率 0.0-1.0
     otel_enabled: bool = False
@@ -177,6 +184,31 @@ class Settings(BaseSettings):
     def is_prod(self) -> bool:
         """是否生产 profile。"""
         return self.app_profile == Profile.PROD
+
+    @property
+    def staff_key_map(self) -> dict[str, str]:
+        """坐席 Key → 身份映射（"alice:key1,bob:key2" → {"key1": "alice"}）。
+
+        解析容错：空段 / 缺冒号 / 空名字或空 Key 跳过，不抛错。
+        """
+        mapping: dict[str, str] = {}
+        for pair in self.staff_keys.split(","):
+            pair = pair.strip()
+            if not pair or ":" not in pair:
+                continue
+            name, _, key = pair.partition(":")
+            if name.strip() and key.strip():
+                mapping[key.strip()] = name.strip()
+        return mapping
+
+    @model_validator(mode="after")
+    def _staff_keys_required_in_prod(self) -> "Settings":
+        """prod 必须配置坐席鉴权（secure by default：忘了配 = 启动失败，非静默裸奔）。"""
+        if self.is_prod and not self.staff_key_map:
+            raise ValueError(
+                "prod profile 必须配置 STAFF_KEYS（坐席端点鉴权，格式 'alice:xxx,bob:yyy'）"
+            )
+        return self
 
     @property
     def database_url(self) -> str:

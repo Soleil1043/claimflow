@@ -232,15 +232,20 @@ uv run python -m evals.support_suite                            # 客服问答�
 | `/api/v1/cases/{id}` | GET | 案件详情：进度 / 结论 / 决定书版本 / 审计时间线（seq 回放） |
 | `/api/v1/cases/{id}/materials` | POST | 上传材料（图片/PDF/Word 两段式提取；补件挂起时自动恢复流程） |
 | `/api/v1/cases/material-catalog` | GET | 险种材料目录（pack 单源派生，新险种上线前端零改动） |
-| `/api/v1/cases/{id}/narrative-review` | POST | 决定书叙述抽评：pass / revise + 评语（落审计事件） |
+
+> 🔒 **坐席端点鉴权**（T147，D067 路径 A）：标注 🔒 的端点需请求头 `X-Staff-Key`。
+> 多 Key 配置（`STAFF_KEYS="alice:key1,bob:key2"`）+ **Key 即身份**——坐席名由 Key
+> 派生，审计 operator 不再依赖请求体自报；dev 未配置时放行（向后兼容），prod 启动
+> 强制非空。客户端点（案件 / 客服会话）无鉴权要求。
 
 ### HITL 工单
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/api/v1/interventions/cases` | GET | 核赔工单列表（补件 / 复核 / 升级挂起案件） |
-| `/api/v1/interventions/cases/{id}/resolve` | POST | 工单处理：签批 / 改判 / 补传 / 升级（坐席文本必过红线复审） |
-| `/api/v1/interventions/narrative-samples` | GET | 叙述抽评审队列（pending 样本 + 决定书全文 + 通过率统计） |
+| `/api/v1/interventions/cases` | GET | 核赔工单列表（补件 / 复核 / 升级挂起案件）🔒 |
+| `/api/v1/interventions/cases/{id}/resolve` | POST | 工单处理：签批 / 改判 / 补传 / 升级（坐席文本必过红线复审）🔒 |
+| `/api/v1/interventions/narrative-samples` | GET | 叙述抽评审队列（pending 样本 + 决定书全文 + 通过率统计）🔒 |
+| `/api/v1/interventions/cases/{id}/narrative-review` | POST | 叙述抽评：pass / revise + 评语（落审计事件）🔒 |
 
 ### 在线客服（门户 ↔ 坐席）
 
@@ -250,15 +255,16 @@ uv run python -m evals.support_suite                            # 客服问答�
 | `/api/v1/support/conversations/{id}` | GET | 会话状态（ai / escalated / closed，门户轮询入口） |
 | `/api/v1/support/conversations/{id}/messages` | GET | 三方消息时间线（user / assistant / agent） |
 | `/api/v1/support/conversations/{id}/messages` | POST | 发消息：ai 态 AI 应答；escalated 态坐席接管停答 |
-| `/api/v1/support/tickets` | GET | 坐席客服工单队列（escalated 会话倒序 + 最新消息预览） |
-| `/api/v1/support/tickets/{id}/reply` | POST | 坐席回复（role=agent 入时间线） |
-| `/api/v1/support/tickets/{id}/close` | POST | 关闭会话（备注先入时间线再流转终态） |
+| `/api/v1/support/tickets` | GET | 坐席客服工单队列（escalated 会话倒序 + 最新消息预览）🔒 |
+| `/api/v1/support/tickets/{id}` | GET | transcript 三方消息全文（closed 会话可查作审计）🔒 |
+| `/api/v1/support/tickets/{id}/reply` | POST | 坐席回复（role=agent 入时间线）🔒 |
+| `/api/v1/support/tickets/{id}/close` | POST | 关闭会话（备注先入时间线再流转终态）🔒 |
 
 ### 记忆治理
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/api/v1/memory/{user_id}/entries/{case_id}` | DELETE | 删除单条申请人记忆（adelete + human 审计事件） |
+| `/api/v1/memory/{user_id}/entries/{case_id}` | DELETE | 删除单条申请人记忆（adelete + human 审计事件）🔒 |
 
 ### 基础设施
 

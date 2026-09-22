@@ -17,6 +17,8 @@ def test_configure_logging_sets_root_level() -> None:
 def test_get_logger_emits_structured_json_in_prod(monkeypatch, capsys) -> None:
     """prod profile 下日志输出为 JSON 单行，且结构化字段保留。"""
     monkeypatch.setenv("APP_PROFILE", "prod")
+    # prod 校验要求坐席鉴权非空（T147）
+    monkeypatch.setenv("STAFF_KEYS", "smoke:k1")
     # 重新初始化使新 profile 生效
     import importlib
 

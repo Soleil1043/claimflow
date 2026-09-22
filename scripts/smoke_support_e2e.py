@@ -12,11 +12,20 @@ LLM 问答环节为非断言输出（供人工核对），状态机环节为硬�
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 
 import httpx
 
 BASE = "http://127.0.0.1:8000"
+
+
+def _staff_headers() -> dict[str, str]:
+    """坐席端点鉴权头（T147）：读 STAFF_KEYS 取首个 Key；未配置回退 compose 演示
+    栈默认值（与 docker-compose.yml 对齐）。本地 dev 直跑无 Key 时服务端不校验。"""
+    raw = os.environ.get("STAFF_KEYS") or "demo-staff:demo-key-2026"
+    key = raw.split(",")[0].strip().partition(":")[2].strip()
+    return {"X-Staff-Key": key} if key else {}
 
 
 def _head(text: str | None, n: int = 100) -> str:
@@ -26,7 +35,9 @@ def _head(text: str | None, n: int = 100) -> str:
 
 
 async def main() -> int:
-    async with httpx.AsyncClient(base_url=BASE, timeout=180.0) as c:
+    async with httpx.AsyncClient(
+        base_url=BASE, timeout=180.0, headers=_staff_headers()
+    ) as c:
         health = (await c.get("/health")).json()
         print(f"[0] health: {health['status']} (profile={health['profile']})")
 

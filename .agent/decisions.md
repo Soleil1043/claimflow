@@ -1703,3 +1703,29 @@ YAML 解析校验。
    内部阈值泄漏词（AUTO_APPROVE_LIMIT=5000 的三种写法）。
 
 **验证**：见 progress T146（判分单测 + 真实 LLM 全量门）。
+
+## D067（2026-09-23，T147）：坐席端点鉴权——多 Key + Key 即身份（路径 A）
+
+**背景**：P0 评估发现 18 个 API 端点零鉴权，坐席身份为请求体自报字符串——任何能
+访问端口的人都可签批 / 改判 / 删记忆。用户拍板路径 A（多 Key + 身份派生）。
+
+**决断**：
+
+1. **STAFF_KEYS 多 Key 配置**（`"alice:key1,bob:key2"`）+ 请求头 `X-Staff-Key`；
+   `require_staff` 依赖逐 Key `secrets.compare_digest`（防时序攻击），通过返回
+   Key 对应坐席身份。
+2. **Key 即身份**：resolve 的 `resolved_by`、抽评与记忆删除审计的 `operator`
+   由 Key 派生（可信），未配置（dev）回退请求体自报——审计归因从"自报"变"派生"。
+3. **dev 开放 / prod 强制**：staff_keys 为空 = 不校验（467 既有测试与冒烟零改动
+   向后兼容）；prod profile 启动时 model_validator 强制非空（忘了配 = 启动失败，
+   非 200 裸奔）。compose 演示栈默认注入公开演示账号 `demo-staff:demo-key-2026`
+   （与冒烟脚本 fallback 对齐；生产部署必须覆盖）。
+4. **挂载粒度**：interventions / memory 整 router 级（全部坐席端点）；support
+   的 /tickets 三件套端点级（同 router 混客户/坐席）；客户端点（cases / 客服
+   会话）零改动。
+5. **升级位**：多 Key 无个人吊销粒度与密码轮换——真多人使用时升账号表（登录换
+   token），Header 协议兼容，客户端零改动。
+
+**验证**：480 passed（+13 鉴权矩阵/身份派生/prod 校验单测，4 个既有 prod 构造
+测试补 STAFF_KEYS）；真实服务带 Key 实测 8/8 矩阵（无头 401/错 Key 401/对 Key
+200×3/客户端点 201/health 200）；workbench build 绿。

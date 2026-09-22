@@ -6,10 +6,17 @@
  */
 const API_BASE = process.env.WORKBENCH_API_TARGET ?? "http://localhost:8000";
 
+/** 坐席鉴权头（T147）：NEXT_PUBLIC_STAFF_KEY 配置时注入 X-Staff-Key；未配置（dev 开放态）不发 */
+const STAFF_KEY = process.env.NEXT_PUBLIC_STAFF_KEY ?? "";
+
+function staffHeaders(): Record<string, string> {
+  return STAFF_KEY ? { "X-Staff-Key": STAFF_KEY } : {};
+}
+
 /** JSON 请求封装：POST/PUT 等带 JSON 体请求统一走此处 */
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...staffHeaders() },
     cache: "no-store",
     ...init,
   });

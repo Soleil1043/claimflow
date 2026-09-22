@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_case_dispatcher, get_db_session
+from app.api.dependencies import get_case_dispatcher, get_db_session, require_staff
 from app.core.logging import get_logger
 from schemas.api import (
     CaseHumanInfo,
@@ -46,7 +46,12 @@ from services.db.models import Case, CaseEvent, DecisionDocument
 
 log = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/interventions", tags=["interventions"])
+router = APIRouter(
+    prefix="/api/v1/interventions",
+    tags=["interventions"],
+    # 本路由全部为坐席端点（T147 鉴权：X-Staff-Key；dev 未配置 Key 时放行）
+    dependencies=[Depends(require_staff)],
+)
 
 
 @router.get("/cases", response_model=CaseInterventionListResponse)
@@ -96,12 +101,16 @@ async def resolve_case_intervention(
     body: CaseResolveRequest,
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
     dispatcher=Depends(get_case_dispatcher),  # noqa: B008
+    staff: str | None = Depends(require_staff),
 ) -> CaseResolveResponse:
     """处理核赔工单：以 Command(resume=...) 恢复挂起的核赔流程。
 
     - supplement：补传材料 → 重跑材料审核 → 回 orchestrator（也可经 B03 上传自动触发）
     - review：confirm 签发 / rewrite 改判（坐席文本过红线复审，违规不签发）
     - escape：转专家线下，终态 referred
+
+    身份（T147）：staff_keys 已配置时 resolved_by 由 Key 派生（可信），
+    未配置（dev）回退请求体自报。
     """
     case = (
         await session.execute(select(Case).where(Case.id == case_id))
@@ -114,13 +123,15 @@ async def resolve_case_intervention(
             detail=f"案件状态为 {case.status}，无待处理工单",
         )
 
+    resolved_by = staff or body.resolved_by
+
     # kind 单源 = 交付回执（D047/D051：保守默认内建 human_info_from_job）
     kind = str(human_info_from_job(await latest_job(case_id), case.status)["kind"])
 
     if kind == "supplement":
         resolution = build_supplement_resolution(
             [m.model_dump() for m in body.added_materials or []],
-            resolved_by=body.resolved_by,
+            resolved_by=resolved_by,
         )
     else:
         resolution = build_agent_resolution(
@@ -131,7 +142,7 @@ async def resolve_case_intervention(
             reason=body.reason,
             body=body.body,
             note=body.note,
-            resolved_by=body.resolved_by,
+            resolved_by=resolved_by,
         )
 
     # 交付收口（D049）：恢复载荷同事务落库 → 派发 → 回快照；在飞冲突 → 409（防并发双签）
@@ -258,8 +269,12 @@ async def review_narrative(
     case_id: str,
     body: NarrativeReviewRequest,
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
+    staff: str | None = Depends(require_staff),
 ) -> NarrativeReviewResponse:
-    """坐席叙述抽评：pass/revise + 评语 → narrative_review 事件落审计。"""
+    """坐席叙述抽评：pass/revise + 评语 → narrative_review 事件落审计。
+
+    operator（T147）：staff_keys 已配置时由 Key 派生，未配置回退 body.agent。
+    """
     case = (
         await session.execute(select(Case).where(Case.id == case_id))
     ).scalar_one_or_none()
@@ -284,6 +299,10 @@ async def review_narrative(
     await get_default_recorder().event(
         case_id,
         NARRATIVE_REVIEW_KIND,
-        payload={"verdict": body.verdict, "comment": body.comment, "operator": body.agent},
+        payload={
+            "verdict": body.verdict,
+            "comment": body.comment,
+            "operator": staff or body.agent,
+        },
     )
     return NarrativeReviewResponse(case_id=case_id, verdict=body.verdict)

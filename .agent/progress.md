@@ -2199,3 +2199,26 @@ pytest **467 passed**（444+23）+ ruff 绿；主门 20 案冒烟 100% 不退化
 
 
 
+
+## 2026-09-23 T147 坐席端点鉴权（D067 路径 A）
+
+**做了什么**：P0-3 落地。①config 加 staff_keys（"alice:key1,bob:key2"）+
+staff_key_map 解析 property + prod model_validator 强制非空（忘了配=启动失败）；
+②dependencies 加 require_staff（X-Staff-Key 头，逐 Key secrets.compare_digest，
+通过返回 Key 对应身份）；③挂载 9 个坐席端点（interventions/memory router 级、
+support tickets 三件套端点级）；④Key 即身份：resolve 的 resolved_by、抽评与
+记忆删除审计的 operator 由 Key 派生，dev 未配置回退自报——审计归因从"自报"变
+"派生"；⑤compose 演示栈默认注入 demo-staff:demo-key-2026（生产必须覆盖），
+冒烟脚本 fallback 同值；⑥workbench lib/api.ts 统一注入 header（NEXT_PUBLIC_STAFF_KEY）；
+⑦README API 表 🔒 标注 + 修正 narrative-review 路径错误（实际在 interventions
+路由下）+ 补 GET /tickets/{id} 缺行。
+
+**踩坑**：①test_staff_auth 首版 _mk_client 对 settings 裸赋值后 monkeypatch
+记录的"原值"已是脏值，恢复时泄漏到后续测试——统一改为 monkeypatch 单点设置；
+②4 个既有 prod 构造测试（config 2 + logging 2）因新启动校验失败，补 STAFF_KEYS。
+
+**验证**：480 passed（+13 鉴权单测）；真实服务带 Key 实测矩阵 8/8（无头 401 /
+错 Key 401 / 对 Key 200×3 坐席端点 / 客户端点 201 / health 200）；ruff 绿；
+workbench build 绿；dev 默认（不配 Key）行为零变化。
+
+**Git**：`feat: T147 [坐席端点鉴权(路径A): 多Key+Key即身份+prod强制; 9端点挂载+审计operator派生+冒烟/前端透传; 480passed+实测8/8矩阵]`

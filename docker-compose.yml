@@ -92,6 +92,9 @@ services:
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379/0
       LLM_API_KEY: ${LLM_API_KEY:-}
+      # 坐席端点鉴权（T147）：演示栈默认注入公开演示账号（与冒烟脚本 fallback 对齐）；
+      # 生产部署必须显式覆盖 STAFF_KEYS（强随机 Key），否则 prod 校验会拒绝启动
+      STAFF_KEYS: ${STAFF_KEYS:-demo-staff:demo-key-2026}
       # 编排模式：默认 LLM 编排；CI 端到端冒烟设 false 走确定性编排（消除模型抖动，
       # 材料提取仍按 Key 有无决定走真实 LLM 或 Mock 兜底）
       ORCHESTRATOR_LLM_ENABLED: ${ORCHESTRATOR_LLM_ENABLED:-true}
