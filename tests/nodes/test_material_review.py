@@ -389,3 +389,45 @@ async def test_confidence_calibration_field_penalties(monkeypatch) -> None:
     # 0 元金额视同未提取（0 值发票）
     update = await _run(_node(), _mat({**full, "amount": 0}))
     assert update["material"]["confidence"] == 0.65
+
+
+# ---------- AI 审查口径（T143） ----------
+
+
+def test_ai_prompt_anomaly_semantics_tightened() -> None:
+    """anomalies 口径收紧：只有四类冲突算异常（回归守卫，文本即契约）。
+
+    根因：旧 prompt 只写"发现的问题列表"，模型把通过性陈述（"姓名一致""金额一致"）、
+    建议与辅助项缺失（hospital 为空/无自费标识/缺病历）一并列出 → anomalies 恒非空
+    → 置信度恒压 0.4 → 真实材料齐全的案子全部转人工（自动签发永不发生）。
+    """
+    prompt = mr_module.MATERIAL_REVIEW_AI_PROMPT
+    assert "{documents}" in prompt  # 占位符由节点填充（装配侧另有断言）
+    assert "空数组" in prompt  # 核验通过时必须是空数组
+    assert "禁止把通过性陈述写进" in prompt  # 一致/未见冲突不算异常
+    assert "hospital" in prompt and "medical_record" in prompt  # 非核赔必需项缺失不算异常
+    assert "自费" in prompt  # 自费/乙类标识缺失不算异常
+    assert "notes" in prompt  # 中性观察与建议的去处（不参与压分）
+    assert "数据边界" in prompt  # 注入面铁律（与 T131 路由 prompt 同口径）
+
+
+async def test_ai_reviewer_clean_pass_keeps_rule_confidence() -> None:
+    """审查通过（anomalies 空）→ 不压分：置信度维持规则层的 0.9。"""
+    async def clean_reviewer(state, documents):
+        return []  # 三份齐全且一致：观察与建议都进 notes，anomalies 空
+
+    full = {
+        "patient_name": "张伟", "diagnosis": "急性阑尾炎",
+        "amount": 15800.0, "date": "2026-08-10", "source": "text_model",
+    }
+    update = await _run(
+        _node(clean_reviewer),
+        [
+            {"file_name": "invoice.docx", "doc_type": "invoice", "extraction": dict(full)},
+            {"file_name": "diagnosis.docx", "doc_type": "diagnosis", "extraction": dict(full)},
+            {"file_name": "cost_list.docx", "doc_type": "cost_list", "extraction": dict(full)},
+        ],
+    )
+    material = update["material"]
+    assert material["completeness"] == "complete"
+    assert material["confidence"] == 0.9  # 未被 AI 审查误压（T143 前恒为 0.4）

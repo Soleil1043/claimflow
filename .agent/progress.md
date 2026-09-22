@@ -2055,3 +2055,35 @@ workbench `npm run build` 通过（T057 已验）。
 **验证**：test_liability_agent 参数化 +6（六案 verdict=not_covered + 除外名精确断言）；**对抗集确定性 14/14=100% 六门全绿；LLM 模式 14/14=100%（此前 8/14=57.1%）；主门 153 案 100% 零退化**；441 passed（+6）+ ruff 绿。对抗集自此全 tier 门禁化，双模式满分。
 
 **Git**：`feat: T142 [robustness六条同义词清账: pack关键词补六词+skill对齐; robustness升入对抗集硬门(D062); 对抗集双模式14/14满分; 主门零退化; 441绿]`
+
+## 2026-09-22 T143 端到端冒烟脚本口径更新 + 两个真实缺陷修复（D063）
+
+**做了什么**：用户要求"测试项目能否正常运行"→ 体检（pytest 441 绿 / ruff 绿 /
+dev 服务 health ok / 真实 LLM 全链路跑通）后，`scripts/verify_adjudication.py`
+5 组 9 项失败，逐条定位得两处脚本口径过期 + 两个真实生产缺陷。
+
+1. **缺陷① 连续补件上传 500**：`upload_case_material` 在 deliver 之后仍用
+   `case.id` 构造响应；deliver 的活跃任务冲突分支 `rollback()` 复位会话（rollback
+   无条件使 ORM 实例过期），async 上下文再读属性触发惰性加载 → `MissingGreenlet`
+   → 500。实测三份连续上传第 2/3 份全 500（日志 `case_job_delivery_conflict` +
+   ASGI 500）。修复：deliver 之后只用本地快照（路由参数 `case_id` + 早取的
+   `case_status`），成功路径仍读 `case.status`（未回滚可取最新状态）。
+2. **缺陷② AI 一致性审查恒压置信度 → 自动签发永不发生**：三份真实 docx 材料
+   （全部 text_model、字段齐全一致）仍 `referred`——`ai_anomalies` 全是"姓名一致"
+   "金额一致"这类**通过性陈述**与"hospital 为空/无自费标识/缺病历"的**建议**，
+   而节点只按 anomalies 非空压 0.4。修复：`MATERIAL_REVIEW_AI_PROMPT` 口径收紧
+   （异常只四类：姓名/诊断/金额/日期矛盾；通过必须空数组；中性观察与建议进
+   notes，notes 不参与压分；非核赔必需项缺失不算异常），并补数据边界铁律（与
+   T131 路由 prompt 同口径）。
+3. **脚本口径更新**：自动签发组改为"零材料提交 → 逐份上传 python-docx 现场生成
+   的 Word"（T140 后纯声明材料必经引用型兜底扣分 → 转人工是设计行为）；未上线
+   险种组改用 POL-2025-0002（重疾险 → unknown → escape，意外险 T120 已上线）；
+   user_id 加时间戳后缀（旧版二次运行必撞自然键幂等）；上传后等上一份 resume
+   任务结束再传下一份（background 档连击会撞活跃任务）。
+
+**验证**：**verify_adjudication 23/23 全过**（自动签发 4640.00 + 决定书、补件
+闭环、unknown escape、工单列表）；444 passed（+3：上传冲突静默吸收回归 + prompt
+口径断言 + 审查通过不压分）+ ruff 绿；主门 153 案六门 100% + 对抗门 14/14 100%
+零退化；真实 deepseek 链路无 500。
+
+**Git**：`fix: T143 [连续补件上传500(deliver冲突回滚后读ORM)+AI审查恒压置信度致自动签发永不发生; verify_adjudication口径更新; 23/23全过; 444绿+双门100%]`

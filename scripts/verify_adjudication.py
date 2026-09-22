@@ -1,10 +1,17 @@
 """T092 核赔平台端到端验证（容器内/宿主机均可运行）。
 
-对运行中的后端执行四阶段冒烟：
-1. 提交正常案 → 自动签发 + 核定金额 4640.00
-2. 查询案件详情 → 审计时间线 + 决定书版本
-3. 提交缺件案 → 补件挂起 → 上传补件 → 自动恢复签发
-4. 提交未上线险种案 → 受理转人工（escape）
+对运行中的后端执行五组冒烟：
+1. 自动签发主链路：提交（无材料）→ 补件挂起 → 上传三份 Word 材料 → 自动签发 4640.00
+2. 案件详情：审计时间线 + 决定书
+3. 补件闭环：缺件案补件挂起 → 上传补件后恢复流转
+4. 未上线险种（重疾险 → unknown）→ 受理转人工（escape）
+5. 工单列表
+
+口径说明（T140 置信度校准后）：材料只声明 file_name/doc_type 而无真实文件时走
+引用型兜底，关键字段（金额/诊断）缺失会扣分压低置信度 → 低于
+material_confidence_floor(0.6) → 转人工裁量，这是设计行为而非缺陷。因此
+自动签发路径必须上传真实可提取的文件——本脚本用 python-docx 现场生成 Word
+（走 text_model 提取，来源基准 0.9），不依赖 vision/扫描件。
 
 用法：
     uv run python -m scripts.verify_adjudication [--base-url http://localhost:8000]
@@ -15,7 +22,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import io
 import sys
+import time
 import urllib.request
 from decimal import Decimal
 
@@ -25,15 +34,81 @@ passed = 0
 failed = 0
 
 
-NON_TERMINAL = {"received", "in_progress"}
+# 运行态（图在跑）/ 挂起态（等补件或人工）/ 终态（auto_issued、referred、closed）
+RUNNING = {"received", "in_progress"}
+PENDING = {"supplement_pending"}
+TERMINAL = {"auto_issued", "referred", "closed"}
+_JOB_ACTIVE = {"queued", "running"}
+
+_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+# 医疗险必需材料三件（与 schemas.lines MEDICAL_PACK.required_docs 同口径）
+_MATERIAL_TEXTS: dict[str, list[str]] = {
+    "invoice": [
+        "医疗费用发票",
+        "患者姓名：张伟",
+        "诊断：急性阑尾炎",
+        "金额：15800 元",
+        "日期：2026-08-10",
+    ],
+    "diagnosis": [
+        "诊断证明",
+        "患者张伟，确诊急性阑尾炎，于 2026-08-10 住院手术治疗",
+        "住院费用合计 15800 元",
+    ],
+    "cost_list": [
+        "住院费用清单",
+        "姓名：张伟",
+        "项目：急性阑尾炎手术及住院治疗",
+        "总金额：15800 元",
+        "日期：2026-08-10",
+    ],
+}
 
 
-async def wait_terminal(ac: httpx.AsyncClient, case_id: str, timeout_s: float = 120) -> dict:
-    """轮询案件详情至终态（T103 异步交付：POST 受理即返回，终态经轮询）。"""
+def _make_docx_bytes(lines: list[str]) -> bytes:
+    """现场生成 Word 材料（python-docx 写内存流）：中文文本 → text_model 提取路径。"""
+    import docx
+
+    document = docx.Document()
+    for line in lines:
+        document.add_paragraph(line)
+    buf = io.BytesIO()
+    document.save(buf)
+    return buf.getvalue()
+
+
+async def wait_settled(ac: httpx.AsyncClient, case_id: str, timeout_s: float = 180) -> dict:
+    """轮询案件详情至"停稳"（非 received/in_progress）：挂起态或终态均返回。"""
     detail: dict = {}
     for _ in range(int(timeout_s / 0.5)):
         detail = (await ac.get(f"/api/v1/cases/{case_id}")).json()
-        if detail.get("status") not in NON_TERMINAL:
+        if detail.get("status") not in RUNNING:
+            return detail
+        await asyncio.sleep(0.5)
+    return detail
+
+
+async def wait_job_done(ac: httpx.AsyncClient, case_id: str, timeout_s: float = 180) -> dict:
+    """轮询至最近一个交付任务不再活跃（T103 background 档：避免连击上传撞车）。"""
+    detail: dict = {}
+    for _ in range(int(timeout_s / 0.5)):
+        detail = (await ac.get(f"/api/v1/cases/{case_id}")).json()
+        job = detail.get("job") or {}
+        if job.get("status") and job["status"] not in _JOB_ACTIVE:
+            return detail
+        if detail.get("status") in TERMINAL:
+            return detail
+        await asyncio.sleep(0.5)
+    return detail
+
+
+async def wait_terminal(ac: httpx.AsyncClient, case_id: str, timeout_s: float = 180) -> dict:
+    """轮询至终态（既不在跑也不挂起）。"""
+    detail: dict = {}
+    for _ in range(int(timeout_s / 0.5)):
+        detail = (await ac.get(f"/api/v1/cases/{case_id}")).json()
+        if detail.get("status") in TERMINAL:
             return detail
         await asyncio.sleep(0.5)
     return detail
@@ -49,34 +124,73 @@ def check(name: str, condition: bool, detail: str = "") -> None:
         print(f"  ❌ {name} {detail}")
 
 
+async def upload_material(
+    ac: httpx.AsyncClient, case_id: str, doc_type: str
+) -> tuple[int, dict]:
+    """上传一份生成的 Word 材料，返回 (状态码, 响应体)。"""
+    resp = await ac.post(
+        f"/api/v1/cases/{case_id}/materials",
+        files={
+            "file": (
+                f"{doc_type}.docx",
+                _make_docx_bytes(_MATERIAL_TEXTS[doc_type]),
+                _DOCX_MIME,
+            )
+        },
+        data={"doc_type": doc_type},
+    )
+    try:
+        body = resp.json()
+    except ValueError:
+        body = {}
+    return resp.status_code, body
+
+
 async def verify(base_url: str) -> None:
-    async with httpx.AsyncClient(base_url=base_url, timeout=30) as ac:
-        # ===== 1. 自动签发主链路 =====
+    # 幂等键含 user_id：加时间戳后缀，保证脚本可重复运行（否则二次运行命中 200）
+    tag = str(int(time.time()))
+    async with httpx.AsyncClient(base_url=base_url, timeout=60) as ac:
+        # ===== 1. 自动签发主链路（真实材料上传补齐）=====
         print("\n--- 1. 自动签发主链路 ---")
         body = {
-            "user_id": "verify-auto",
+            "user_id": f"verify-auto-{tag}",
             "policy_no": "POL-2025-0001",
             "claimed_amount": "15800.00",
             "incident_date": "2026-08-10",
             "incident_description": "急性阑尾炎住院手术，共花费15800元。",
-            "materials": [
-                {"file_name": "invoice.jpg", "doc_type": "invoice"},
-                {"file_name": "diagnosis.jpg", "doc_type": "diagnosis"},
-                {"file_name": "cost_list.pdf", "doc_type": "cost_list"},
-            ],
+            "materials": [],  # 零材料提交 → 补件挂起 → 逐份上传补齐（唯一能拿到真实提取的路径）
         }
         resp = await ac.post("/api/v1/cases", json=body)
         check("提交返回 201", resp.status_code == 201, f"got {resp.status_code}")
         data = resp.json()
         case_id = data.get("case_id", "")
         check("交付凭证存在", data.get("job") is not None)
-        data = await wait_terminal(ac, case_id)
-        check("案件状态 auto_issued", data.get("status") == "auto_issued")
-        check("final_decision approved", data.get("final_decision") == "approved")
-        approved = str(data.get("approved_amount") or "")
+
+        detail = await wait_settled(ac, case_id)
+        check("零材料提交挂起补件", detail.get("status") == "supplement_pending",
+              f"got {detail.get('status')}")
+
+        sources: dict[str, str] = {}
+        for doc_type in _MATERIAL_TEXTS:
+            if detail.get("status") != "supplement_pending":
+                break  # 已进终态，无需继续补件
+            code, up = await upload_material(ac, case_id, doc_type)
+            check(f"上传 {doc_type}.docx 200", code == 200, f"got {code}")
+            sources[doc_type] = str(up.get("source") or "")
+            # 等上一份的 resume 任务结束再传下一份（background 档下连击会撞活跃任务）
+            await wait_job_done(ac, case_id)
+            detail = await wait_settled(ac, case_id)
+        check("三份材料均走真实提取（text_model）",
+              all(s == "text_model" for s in sources.values()), f"sources={sources}")
+
+        detail = await wait_terminal(ac, case_id)
+        check("案件状态 auto_issued", detail.get("status") == "auto_issued",
+              f"got {detail.get('status')} / {detail.get('human')}")
+        check("final_decision approved", detail.get("final_decision") == "approved")
+        approved = str(detail.get("approved_amount") or "")
         check(f"核定金额 4640.00（实际 {approved}）",
               approved and Decimal(approved) == Decimal("4640.00"))
-        doc = data.get("decision_document")
+        doc = detail.get("decision_document")
         check("决定书存在", doc is not None and bool(doc.get("body")))
 
         # ===== 2. 案件详情 =====
@@ -84,51 +198,56 @@ async def verify(base_url: str) -> None:
         resp = await ac.get(f"/api/v1/cases/{case_id}")
         check("详情返回 200", resp.status_code == 200)
         detail = resp.json()
-        check("时间线非空", len(detail.get("timeline", [])) >= 8)
+        check("时间线非空", len(detail.get("timeline", [])) >= 8,
+              f"got {len(detail.get('timeline', []))}")
         kinds = {e["kind"] for e in detail.get("timeline", [])}
         check("审计事件种类齐", {"routing", "stage_result", "status_change"} <= kinds)
+        check("含材料上传审计", "material_upload" in kinds)
 
         # ===== 3. 补件闭环 =====
         print("\n--- 3. 补件闭环 ---")
         supp = {
             **body,
-            "user_id": "verify-supp",
+            "user_id": f"verify-supp-{tag}",
             "materials": [
-                {"file_name": "invoice.jpg", "doc_type": "invoice"},
-                {"file_name": "diagnosis.jpg", "doc_type": "diagnosis"},
+                {"file_name": "invoice.docx", "doc_type": "invoice"},
+                {"file_name": "diagnosis.docx", "doc_type": "diagnosis"},
             ],
         }
         resp = await ac.post("/api/v1/cases", json=supp)
         supp_id = resp.json().get("case_id", "")
-        supp_detail = await wait_terminal(ac, supp_id)
-        check("缺件案补件挂起", supp_detail.get("status") == "supplement_pending")
+        supp_detail = await wait_settled(ac, supp_id)
+        check("缺件案补件挂起", supp_detail.get("status") == "supplement_pending",
+              f"got {supp_detail.get('status')}")
+        check("缺件提示含费用清单",
+              "费用清单" in str(supp_detail.get("human", {}).get("missing")),
+              f"got {supp_detail.get('human')}")
 
-        # 上传缺失材料
-        resp = await ac.post(
-            f"/api/v1/cases/{supp_id}/materials",
-            files={"file": ("cost_list.pdf", b"%PDF-1.4 fake", "application/pdf")},
-            data={"doc_type": "cost_list"},
-        )
-        check("上传 200", resp.status_code == 200)
-        detail = await wait_terminal(ac, supp_id)
-        check("自动恢复 auto_issued", detail.get("status") == "auto_issued")
-        check("补件后核定 4640.00",
-              Decimal(str(detail.get("approved_amount") or "0")) == Decimal("4640.00"))
+        code, _ = await upload_material(ac, supp_id, "cost_list")
+        check("上传 200", code == 200, f"got {code}")
+        supp_detail = await wait_terminal(ac, supp_id)
+        # 另两份仅声明无文件 → 引用型兜底字段缺失 → 转人工裁量（T140 设计行为）：
+        # 闭环的验收点是"恢复流转且进入终态"，而非必然自动签发
+        check("补件后进终态（脱离挂起）",
+              supp_detail.get("status") in TERMINAL, f"got {supp_detail.get('status')}")
 
         # ===== 4. 未上线险种转人工 =====
         print("\n--- 4. 未上线险种 ---")
         offline = {
-            "user_id": "verify-offline",
-            "policy_no": "POL-2023-0004",
+            "user_id": f"verify-offline-{tag}",
+            "policy_no": "POL-2025-0002",  # 重疾险：不在任何险种 pack → unknown
             "claimed_amount": "8600.00",
             "incident_date": "2026-08-25",
-            "incident_description": "雨天摔倒骨折，费用8600元。",
-            "declared_case_type": "accident",
+            "incident_description": "确诊恶性肿瘤，申请重疾赔付。",
             "materials": [],
         }
         resp = await ac.post("/api/v1/cases", json=offline)
-        offline_detail = await wait_terminal(ac, resp.json().get("case_id", ""))
-        check("受理转人工", offline_detail.get("human", {}).get("kind") == "escape")
+        offline_detail = await wait_settled(ac, resp.json().get("case_id", ""))
+        check("受理转人工（escape）",
+              offline_detail.get("human", {}).get("kind") == "escape",
+              f"got {offline_detail.get('status')} / {offline_detail.get('human')}")
+        check("险种归类 unknown", offline_detail.get("case_type") == "unknown",
+              f"got {offline_detail.get('case_type')}")
 
         # ===== 5. 工单列表 =====
         print("\n--- 5. 工单列表 ---")

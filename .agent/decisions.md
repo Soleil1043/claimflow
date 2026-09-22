@@ -1567,3 +1567,43 @@ medical.md 的"隆鼻"——文本先于关键词层能力，与 T127 相反方�
 名称精确断言）；对抗集确定性 14/14=100% 六门全绿（t142_adversarial_gate.json）；
 对抗集 LLM 模式 14/14=100%（t142_adversarial_llm.json，此前 8/14=57.1%）；
 主门 153 案 100% 不退化；441 passed（+6）+ ruff 绿。
+
+## D063（2026-09-22，T143）：端到端冒烟脚本两处口径过期 + 两个真实缺陷
+
+**背景**：用户要求"测试项目能否正常运行"，体检发现 pytest 441 绿 / ruff 绿 /
+服务 health ok，但 `scripts/verify_adjudication.py`（T092 五组冒烟）9 项失败。
+逐条定位后，确认**两处脚本口径过期 + 两个真实生产缺陷**（不是脚本自己的问题）。
+
+**决断**：
+
+1. **缺陷①：连续补件上传 500（真实 bug）**——`upload_case_material` 在
+   `deliver_case_job` 之后仍读 `case.id` 构造响应；而 deliver 的**活跃任务冲突
+   分支会 rollback 复位会话**，rollback 无条件使 ORM 实例过期，async 上下文再
+   触碰属性即触发惰性加载 → `MissingGreenlet` → 500（实测：三份连续上传第 2、3
+   份全 500）。修复=deliver 之后只用本地快照（路由参数 `case_id` + 早取的
+   `case.status`），不再触碰 `case` 实例。**教训**：D049 把"会话复位"内化进
+   deliver 是正确的，但调用方必须假设"deliver 后 ORM 实例不可信"（接口文档味
+   的隐性契约，此前只写在注释里）。
+2. **缺陷②：AI 一致性审查恒压置信度 → 自动签发永不发生（真实 bug）**——
+   `MATERIAL_REVIEW_AI_PROMPT` 只说"anomalies：发现的问题列表"，模型把**通过性
+   陈述**（"姓名一致""金额一致""未见冲突"）与**建议/辅助项缺失**（hospital 为空、
+   无自费标识、缺 medical_record）一并写入 → anomalies 恒非空 → 节点压至 0.4
+   → 低于 `material_confidence_floor`(0.6) → 转人工。实测三份真实 docx 材料
+   （全部 text_model、字段齐全一致）仍 `referred`。修复=prompt 口径收紧：异常
+   **只**四类（姓名/诊断/金额/日期矛盾），通过必须空数组，中性观察与建议进
+   `notes`（notes 不参与压分），并明示非核赔必需项缺失不算异常；顺带补数据边界
+   铁律（与 T131 路由 prompt 同口径）。
+3. **脚本口径更新（两处过期）**：①自动签发组改为"零材料提交 → 逐份上传
+   python-docx 现场生成的 Word（走 text_model 提取，基准 0.9）"——T140 后纯声明
+   材料必经引用型兜底、字段缺失扣分 → 转人工是设计行为，旧脚本的"只声明不上传
+   即 auto_issued"已不成立；②未上线险种组改用 POL-2025-0002（重疾险 → unknown
+   → escape）——T120 四险种全上线后旧用例的"意外险 escape"已失效。另：user_id
+   加时间戳后缀，脚本可重复运行（旧版二次运行必撞自然键幂等返回 200）。
+4. **未做（留给后续决策）**：该脚本仍未进 CI（CI 只跑 ruff/pytest/compose
+   health/评测门），故口径腐烂三个月无人发现。是否把它接进 CI 需先解决"依赖
+   真实 LLM + 真实服务"的前置条件，本次不动。
+
+**验证**：444 passed（+3：上传冲突静默吸收 + prompt 口径断言 + 审查通过不压分）
++ ruff 绿；**verify_adjudication 23/23 全过**（自动签发 4640.00 + 决定书、
+补件闭环、unknown escape、工单列表）；主门 153 案六门 100% + 对抗门 14/14
+100% 零退化；真实 deepseek 全链路无 500。

@@ -1,12 +1,17 @@
 {
-  "task": "T089 核赔评测上线门",
-  "dataset": "adjudication",
-  "robustness": null,
-  "generated_at": "2026-09-22T18:39:46",
+  "task": "T124 核赔对抗回归门",
+  "dataset": "adversarial",
+  "robustness": {
+    "total": 6,
+    "matched": 6,
+    "consistency": 1.0,
+    "failures": []
+  },
+  "generated_at": "2026-09-22T18:40:19",
   "mode": "deterministic",
   "model": null,
-  "total_cases": 153,
-  "matched": 153,
+  "total_cases": 14,
+  "matched": 14,
   "consistency": 1.0,
   "gates": {
     "amount_accuracy": {
@@ -48,40 +53,20 @@
   },
   "overall_passed": true,
   "by_category": {
-    "normal": {
-      "total": 59,
-      "matched": 59
+    "injection": {
+      "total": 8,
+      "matched": 8
     },
-    "rejected": {
-      "total": 32,
-      "matched": 32
-    },
-    "partial": {
-      "total": 17,
-      "matched": 17
-    },
-    "fraud": {
-      "total": 16,
-      "matched": 16
-    },
-    "edge": {
-      "total": 13,
-      "matched": 13
-    },
-    "missing": {
-      "total": 14,
-      "matched": 14
-    },
-    "intake": {
-      "total": 2,
-      "matched": 2
+    "robustness": {
+      "total": 6,
+      "matched": 6
     }
   },
   "failures": [],
   "cost": {
     "tokens_total": 0,
     "tokens_per_case_avg": 0.0,
-    "duration_s_avg": 0.27,
-    "duration_s_p95": 0.25
+    "duration_s_avg": 1.28,
+    "duration_s_p95": 0.24
   }
 }

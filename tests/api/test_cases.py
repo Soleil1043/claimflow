@@ -14,8 +14,10 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 import app.api.v1.cases as cases_module
+import services.case_jobs as jobs_module
 import services.db.session as session_module
 from app.main import app
+from services.case_jobs import CaseJobConflictError
 from services.db.session import dispose_engine
 from services.materials import MaterialExtraction, detect_material_type
 from workflows.case_graph import create_default_case_graph
@@ -241,6 +243,52 @@ async def test_upload_material_appends_to_case(client: AsyncClient) -> None:
     # T095 seq 单一分配器回归：API 直写事件后图内继续追加，seq 不得重号
     seqs = [e["seq"] for e in detail["timeline"]]
     assert seqs == sorted(seqs) and len(seqs) == len(set(seqs)), f"seq 重号/乱序: {seqs}"
+
+
+async def test_upload_material_delivery_conflict_absorbed(client, monkeypatch) -> None:
+    """T143 回归：撞活跃 resume 任务（deliver 冲突回滚会话）→ 200 静默吸收，不 500。
+
+    根因：deliver 冲突分支 rollback 复位会话，rollback 无条件使 ORM 实例过期；
+    响应构造再读 case.id 触发 async 惰性加载 → MissingGreenlet → 500（连续
+    补件上传实测）。修复=deliver 之后只用本地快照（路由参数 case_id + 早取的
+    case.status），不再触碰 case 实例。
+    """
+    submitted = await client.post(
+        "/api/v1/cases",
+        json=_body(materials=[{"file_name": "invoice.jpg", "doc_type": "invoice"}]),
+    )
+    assert submitted.status_code == 201
+    case_id = submitted.json()["case_id"]
+    assert submitted.json()["status"] == "supplement_pending"
+
+    async def conflict_enqueue(session, *, case_id, action, payload, max_attempts=None):
+        """模拟活跃任务撞车：deliver 冲突分支 rollback 后返回 None。
+
+        expire_all 显式复现"会话复位 → 实例过期"这一决定性面——生产
+        MissingGreenlet 正源于此后触碰 ORM 属性（async 惰性加载）。
+        """
+        await session.rollback()
+        session.expire_all()
+        raise CaseJobConflictError(case_id)
+
+    monkeypatch.setattr(jobs_module, "enqueue_case_job", conflict_enqueue)
+
+    resp = await client.post(
+        f"/api/v1/cases/{case_id}/materials",
+        files={"file": ("费用清单.pdf", b"%PDF-1.4 fake", "application/pdf")},
+        data={"doc_type": "cost_list"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["case_id"] == case_id
+    assert body["materials_count"] == 2
+    # 静默吸收：未受理故无交付凭证与状态投影（前端继续轮询）
+    assert body["job"] is None and body["case_status"] is None
+
+    # 材料/审计在 deliver 前一事务已 commit，回滚不影响上传事实
+    detail = (await client.get(f"/api/v1/cases/{case_id}")).json()
+    assert len(detail["materials"]) == 2
+    assert detail["materials"][-1]["doc_type"] == "cost_list"
 
 
 async def test_upload_material_invalid_type_422(client: AsyncClient) -> None:

@@ -331,12 +331,17 @@ async def upload_case_material(
 
     # 补件闭环（T086/T103）：挂起案件 + 新材料 → resume 任务行。材料已在前一
     # 事务持久化，此处 deliver 独立事务；返回 None = 上一次恢复仍在飞（恢复
-    # 语义幂等，静默吸收——deliver 内已复位会话并告警）
+    # 语义幂等，静默吸收）。
+    # 注意（T143 修复）：冲突分支 deliver 内会 rollback 复位会话——rollback 无
+    # 条件使实例过期，此后在 async 上下文触碰 ORM 属性会触发惰性加载并抛
+    # MissingGreenlet（连续上传实测 500）。故 deliver 之后一律只用本地快照，
+    # 不再访问 case 实例。
+    case_status = case.status
     resume_job = None
-    if case.status == CaseStatus.SUPPLEMENT_PENDING:
+    if case_status == CaseStatus.SUPPLEMENT_PENDING:
         resume_job = await deliver_case_job(
             session,
-            case_id=case.id,
+            case_id=case_id,
             action=JobAction.RESUME,
             payload=build_supplement_resolution(
                 [materials[-1]], resolved_by="customer_upload"
@@ -345,7 +350,7 @@ async def upload_case_material(
         )
 
     return CaseMaterialUploadResponse(
-        case_id=case.id,
+        case_id=case_id,  # T143：路由参数，不读 case.id（冲突回滚后实例已过期）
         filename=filename,
         file_type=result.file_type,
         doc_type=doc_type,
@@ -355,6 +360,8 @@ async def upload_case_material(
         amount=result.amount,
         date=result.date,
         materials_count=len(materials),
+        # 成功路径：deliver 内已 refresh 同一 identity map 实例，读它拿最新状态；
+        # 冲突路径（resume_job None）：不触碰过期实例，状态留空由前端轮询
         case_status=case.status if resume_job is not None else None,
         job=job_envelope(resume_job) if resume_job is not None else None,
     )
