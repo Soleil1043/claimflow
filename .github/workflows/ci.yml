@@ -23,10 +23,41 @@ jobs:
         run: uv sync --frozen
 
       - name: Lint（ruff）
-        run: uv run ruff check app tests services schemas nodes agents tools workflows scripts ui
+        run: uv run ruff check app tests services schemas nodes tools workflows scripts evals
 
       - name: 测试（pytest）
         run: uv run pytest tests -q
+
+  # 前端门禁（T148）：两个 Next.js 应用的 lint + build——此前只靠本地手动验证
+  frontend:
+    name: 前端 Lint & Build（${{ matrix.dir }}）
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [chatui, workbench]
+    steps:
+      - name: 拉取项目代码到ubuntu
+        uses: actions/checkout@v4
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+
+      - name: 安装依赖（npm ci）
+        run: npm ci
+
+      - name: Lint（next lint）
+        run: npm run lint
+
+      - name: 构建（next build）
+        run: npm run build
 
   docker:
     name: Docker Build & Compose 校验
