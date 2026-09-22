@@ -204,3 +204,26 @@ def test_gold_exclusion_cases_caught_by_keyword_fallback(case_id: str, descripti
     output = _keyword_fallback(state)
     assert output.verdict == "not_covered", f"{case_id} 兜底未命中除外关键词"
     assert output.exclusions_triggered, f"{case_id} 应记录触发的除外项"
+
+
+# ---------- robustness 同义词清账（T142，D062：对抗集六案的关键词层覆盖） ----------
+
+
+@pytest.mark.parametrize(
+    "case_type, description, expected_exclusion",
+    [
+        ("medical", "隆鼻手术费用12000元。", "整形美容"),
+        ("medical", "牙齿矫治治疗费用12000元。", "牙科"),
+        ("medical", "近视激光摘镜手术费用12000元。", "矫正"),
+        ("auto", "喝了点酒开车撞了护栏，维修费8000元。", "酒后驾驶"),
+        ("accident", "参加深潜活动耳压受伤，治疗费3000元。", "高风险运动"),
+        ("property", "家中被盗，玉器挂件损失12000元。", "金银珠宝及有价证券"),
+    ],
+)
+def test_keyword_fallback_synonym_variants(
+    case_type: str, description: str, expected_exclusion: str
+) -> None:
+    """同义词变体命中既有除外项（对抗集 ADV-101~106 的确定性路径口径）。"""
+    output = _keyword_fallback(_state(case_type=case_type, incident_description=description))
+    assert output.verdict == "not_covered"
+    assert output.exclusions_triggered == [expected_exclusion]

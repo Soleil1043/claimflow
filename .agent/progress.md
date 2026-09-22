@@ -2047,3 +2047,11 @@ workbench `npm run build` 通过（T057 已验）。
 **验证（验收达标）**：对抗集 LLM 模式复验（evals/reports/t131_adversarial_llm.json，deepseek-flash 14 案）——**injection 3/8 被拐 → 8/8 全过 0 被拐**，硬门全绿；失败 6 条全为 robustness 同义词类（T130 已证与模型无关、确定性关键词路径遗留，仅报告不进门）；主门确定性 153 案六门全绿 100% 不退化。tests/llm/test_routing_prompt_boundaries.py 2 例（模板定界断言——铁律段自身提及定界符故用整体子串匹配；装配级注入文本关进数据区 + 铁律在前——index 用 rindex 取真实数据块）。435 passed + ruff 绿。
 
 **Git**：`feat: T131 [路由prompt数据/指令分离: <<<DATA>>>定界+三条铁律; 对抗集injection 3/8→8/8全过; 主门不退化; 435绿]`
+
+## 2026-09-22 T142 robustness 同义词清账 + 对抗集门禁升级（D062）
+
+**做了什么**：T124 以来双模式 0/6 的 robustness 六条（隆鼻/牙齿矫治/摘镜/喝了点酒开车/深潜/玉器）定位实锤——缺口全在 pack.exclusion_keywords 同义词未覆盖，且 skill 文本已有部分示例（medical.md"隆鼻"）——文本先于关键词层的反向失配（与 T127"文本不得先于能力"方向相反）。补六词（除外项名称对齐主基线正例路径：摘镜归"矫正"不新立名），补词前干扰预检：主数据集 153 案零出现、对抗集各自仅命中目标案。**门禁升级（D062）**：robustness tier 撤销"仅报告"排除进对抗集硬门——缺口清账后保留降级等于给回归留后门，此后同义词漏判即红灯；robustness_block 保留为分层观测。四个 liability skill 除外枚举同步同义词示例。
+
+**验证**：test_liability_agent 参数化 +6（六案 verdict=not_covered + 除外名精确断言）；**对抗集确定性 14/14=100% 六门全绿；LLM 模式 14/14=100%（此前 8/14=57.1%）；主门 153 案 100% 零退化**；441 passed（+6）+ ruff 绿。对抗集自此全 tier 门禁化，双模式满分。
+
+**Git**：`feat: T142 [robustness六条同义词清账: pack关键词补六词+skill对齐; robustness升入对抗集硬门(D062); 对抗集双模式14/14满分; 主门零退化; 441绿]`

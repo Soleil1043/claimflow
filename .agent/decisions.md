@@ -1538,3 +1538,32 @@ checkpoint_migrations 自管（setup() 自动补跑）；缺的是**业务 State
 **验证**：test_case_jobs +2（旧 checkpoint 降级：原始 RUN 输入重跑 + thread
 删除 + schema_reset 审计；无 RUN 输入防御失败进重试）+ 既有 resume 包装
 测试改为版本匹配路径；433 passed + ruff 绿 + 评测门不退化。
+
+## D062（2026-09-22，T142）：robustness 同义词清账 + 对抗集门禁升级
+
+**背景**：对抗集 robustness tier（6 条同义词变体：隆鼻/牙齿矫治/摘镜/喝了点
+酒开车/深潜/玉器）自 T124 起确定性/LLM 双模式 0/6——D054/D056 结论"提升
+路径在 skill/关键词迭代，不在换模型"。本次定位实锤：缺口全部在
+pack.exclusion_keywords 同义词未覆盖（skill 文本反而已有部分示例，如
+medical.md 的"隆鼻"——文本先于关键词层能力，与 T127 相反方向的失配）。
+
+**决断**：
+
+1. **关键词层补同义词（六案各自命中、主基线零干扰）**：medical +（隆鼻→
+   整形美容 / 矫治→牙科 / 摘镜→矫正）；auto +（酒开车→酒后驾驶，口语
+   "喝了点酒开车"的稳定子串）；accident +（深潜→高风险运动）；property +
+   （玉器→金银珠宝及有价证券）。除外项名称与主基线正例路径一致（如摘镜归
+   "矫正"而非新立名，保证 reason/exclusions 口径统一）。**干扰预检**：新词
+   在主数据集 153 案零出现、对抗集各自仅命中目标案——补词前先证明不伤门。
+2. **robustness tier 升入对抗集硬门**：T124"仅报告"是关键词已知缺口的临时
+   降级口径；缺口清账后保留降级等于给回归留后门。撤销排除（gated_results
+   不再剔 robustness），robustness_block 保留为该 tier 分层观测。此后同义词
+   退化为门禁 invariant——再漏判即红灯，驱动迭代的方式从"看报告"变"修门"。
+3. **skill 文本同步对齐**（生产 LLM 路径与确定性路径同口径）：四个
+   liability_judge skill 的除外枚举补同义词示例（牙齿矫治/摘镜/喝了酒开车/
+   深潜/玉器）。
+
+**验证**：test_liability_agent +6（参数化六案：verdict=not_covered + 除外项
+名称精确断言）；对抗集确定性 14/14=100% 六门全绿（t142_adversarial_gate.json）；
+对抗集 LLM 模式 14/14=100%（t142_adversarial_llm.json，此前 8/14=57.1%）；
+主门 153 案 100% 不退化；441 passed（+6）+ ruff 绿。

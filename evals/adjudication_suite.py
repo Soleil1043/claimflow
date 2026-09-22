@@ -304,13 +304,13 @@ async def _run_suite(
         return 1
 
     # 门禁计算（T107：六门纯函数 evals/gates.py，脚本与 CI 同 interface）
-    # 对抗集（T124）：injection 类进硬门（结构化字段与守卫不被操纵），
-    # robustness 类（同义词变体）仅报告——确定性关键词路径的已知缺口，驱动 skill 迭代
+    # 对抗集（T124）：全部 tier 进硬门——robustness 最初"仅报告"是确定性关键词
+    # 路径已知缺口的降级口径，T142 关键词清账后撤销（D062）；robustness_block
+    # 保留为该 tier 的分层观测（不参与门禁计算本身）
     robustness_block: dict[str, Any] | None = None
     gated_results = results
     if dataset_name == "adversarial":
         robust = [r for r in results if r.get("category") == "robustness"]
-        gated_results = [r for r in results if r.get("category") != "robustness"]
         if robust:
             def _dims_ok(r: dict[str, Any]) -> bool:
                 checks = r.get("checks") or {}
