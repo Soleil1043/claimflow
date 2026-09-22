@@ -208,11 +208,17 @@ uv run python -m evals.adjudication_suite                       # 主门 153 案
 uv run python -m evals.adjudication_suite --llm                 # LLM Orchestrator 全链（真实 LLM）
 uv run python -m evals.adjudication_suite --dataset adversarial # 对抗门 14 案
 uv run python -m evals.adjudication_suite --limit 20            # 子集冒烟（CI 即此口径）
+uv run python -m evals.support_suite                            # 客服问答门 15 案（真实 LLM，T146）
 ```
 
 **六门体系**：硬门（金额正确率 100% / 红线漏放 0 / 守卫旁路 0 / 对抗集全过）+
 软门（路由一致率 ≥95% / 责任一致率 ≥90%）+ 预算（调度调用 ≤15）。门禁阈值与运行时
 配置同源（`schemas/contract.py`）——评测门 = 运行时门，不会漂移。
+
+**客服问答门**（`evals/datasets/support_qa.json`，15 案五类：知识 / 进度 / 红线 /
+库外 / 转人工）：关键词组 + 禁止词 + 转人工终态三层确定性判分，硬门 100%；检索
+命中率为分层观测。客服 Agent 无确定性路径，本门需真 Key，定位本地手动门
+（CI 跑其数据集校验与判分单测）。
 
 ---
 

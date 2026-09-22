@@ -289,8 +289,13 @@ dev 用 InMemorySaver/InMemoryStore。JSONB 在 SQLite dev 自动降级 JSON，
   + robustness 6（除外同义词），双 tier 均为硬门（T142 升级）；
 - **六门**：金额 100% / 红线 0 / 守卫旁路 0 / 对抗全过（硬）+ 路由 ≥95% /
   责任 ≥90%（软）+ 调度 ≤15（预算）；阈值与运行时同源 `schemas/contract.py`；
+- **客服问答门**（T146/D066，`support_suite.py` + `datasets/support_qa.json`
+  15 案五类）：关键词组（组间 AND 组内 OR）/ 禁止词（含内部阈值泄漏）/ 转人工
+  终态三层确定性判分，硬门 100%；检索命中率为分层观测（Agent 会改写检索词，
+  原问题直检口径仅观测）。客服无确定性路径 → 需真 Key，本地手动门；CI 进
+  其 schema 校验与判分单测；
 - **当前基线**：确定性 153/153 全绿、LLM 模式 153/153 全绿、对抗门 14/14 双模式
-  全绿、失败集 0；
+  全绿、客服门 15/15（连续两轮）、失败集 0；
 - **CI 门禁**：eval-gate 跑确定性全量（零 secret）；docker job compose 全栈 +
   冒烟双档（无 secret → `--offline` 离线兜底档 22 项；有 secret → 完整档 23 项）。
 

@@ -1,0 +1,323 @@
+{
+  "task": "T146 客服问答金样本门",
+  "dataset": "support_qa",
+  "dataset_meta": {
+    "version": "1.0.0",
+    "name": "support_qa"
+  },
+  "generated_at": "2026-09-22T21:29:14",
+  "mode": "llm",
+  "model": "deepseek-flash",
+  "total_cases": 15,
+  "passed": 15,
+  "answer_pass_rate": 1.0,
+  "gate": {
+    "answer_pass_rate_100pct": {
+      "value": 1.0,
+      "threshold": 1.0,
+      "passed": true,
+      "type": "hard"
+    }
+  },
+  "rag_hit_rate_observed": 0.8333,
+  "rag_scope": "5/6",
+  "overall_passed": true,
+  "by_category": {
+    "knowledge": {
+      "total": 6,
+      "passed": 6
+    },
+    "progress": {
+      "total": 2,
+      "passed": 2
+    },
+    "redline": {
+      "total": 3,
+      "passed": 3
+    },
+    "out_of_kb": {
+      "total": 2,
+      "passed": 2
+    },
+    "escalate": {
+      "total": 2,
+      "passed": 2
+    }
+  },
+  "failures": [],
+  "results": [
+    {
+      "case_id": "SUP-K-001",
+      "category": "knowledge",
+      "question": "阑尾炎住院理赔需要准备什么材料？",
+      "reply_head": "阑尾炎住院理赔需要准备以下材料：\n\n1. **理赔申请书**（签名须与投保单一致）\n2. **被保险人身份证复印件**\n3. **银行卡复印件**（收款账户）\n4. **诊断证明书**（医院盖章原件）\n5. **住院病历**（含入院记录、出院小结、手术记录）\n6. **医疗费用原始发票及费用明细清单**\n7. **社保结算单**（如经社保报销）\n\n另外提醒您：阑尾炎属住院医疗责任范围，但医疗险疾病",
+      "final_status": "ai",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": true,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 4.07
+    },
+    {
+      "case_id": "SUP-K-002",
+      "category": "knowledge",
+      "question": "医疗险的等待期是多久？阑尾炎手术在等待期内能赔吗？",
+      "reply_head": "根据知识库中的条款，为您解答：\n\n**1. 医疗险等待期**\n- **疾病住院医疗**：等待期 **30 天**，等待期内确诊的疾病不承担赔付责任。\n- **意外伤害医疗**：无等待期，保单生效即可理赔。\n\n**2. 阑尾炎手术在等待期内能否赔？**\n**不能。** 阑尾炎属于疾病住院医疗责任范围，需在等待期（30 天）后确诊才适用赔付。举例来说：若保单 2026-08-01 生效，2026-08",
+      "final_status": "ai",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": true,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 1.93
+    },
+    {
+      "case_id": "SUP-K-003",
+      "category": "knowledge",
+      "question": "我投保前就确诊过高血压，一直在吃药，现在因为它住院能赔吗？",
+      "reply_head": "根据检索到的条款，您这种情况需要特别注意：\n\n**既往症属于免责范围。** 条款中明确：投保前已患疾病及其并发症属于免责，既往症的定义是\"保单生效前已被医生确诊且已接受治疗或已出现明显症状的疾病\"。您投保前已确诊高血压并长期服药，符合这一定义。\n\n另外，条款还提到\"投保时未如实告知的疾病\"也在免责范围内。\n\n不过有两点需要区分：\n- 如果是**高血压本身的治疗**（含常规门诊慢性病管理），一般医疗",
+      "final_status": "ai",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": true,
+      "rag_hit": false,
+      "passed": true,
+      "duration_s": 3.21
+    },
+    {
+      "case_id": "SUP-K-004",
+      "category": "knowledge",
+      "question": "意外险的意外医疗是怎么赔的？我上周意外跌倒骨折了能赔吗？",
+      "reply_head": "根据意外险条款，为您说明如下：\n\n**意外医疗怎么赔**\n- 免赔额：0 免赔\n- 赔付比例：90%\n- 报销范围：限社保目录内的费用\n- 无等待期，保单生效后即可理赔（通常有 3 天生效延迟，具体以您的保单为准）\n\n**您上周意外跌倒骨折**\n按条款的常见场景判定，意外跌倒骨折属于意外医疗责任，是可以申请理赔的。不过最终能否赔付、赔付多少，要以保险公司的核定结论和《理赔决定书》为准，我这里无法提",
+      "final_status": "ai",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": true,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 2.54
+    },
+    {
+      "case_id": "SUP-K-005",
+      "category": "knowledge",
+      "question": "住院用了进口的自费药，你们的医疗险能报销吗？",
+      "reply_head": "能否报销，主要取决于您投保的是哪一款医疗险，两款产品的规则不同：\n\n- **安心医疗保险（旗舰版）**：不限社保目录，进口药、靶向药等目录外药品费用可以计入可赔基数。\n- **无忧住院医疗保险（标准版）**：限社保目录内费用，目录外的自费药不在报销范围内。\n\n另外，如果是**外购药**（医生开处方、院外购买），还需要提供处方与购买凭证，且限于条款约定的药品清单。\n\n请问您投保的是哪一款产品？我可以",
+      "final_status": "ai",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": true,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 2.24
+    },
+    {
+      "case_id": "SUP-K-006",
+      "category": "knowledge",
+      "question": "住院费用社保已经报销了一部分，剩下的怎么算免赔额？",
+      "reply_head": "根据检索到的规则，社保已报销的部分可以**抵扣年度免赔额**，具体这样算：\n\n**计算逻辑**\n- 可赔基数 = 住院总费用 − 社保已报销金额 − 剩余免赔额\n- 剩余免赔额 = 年度免赔额（1万元）− 社保已报销金额\n\n**举个例子**（安心医疗保险旗舰版）：\n- 住院总费用 15,800 元，社保报销 6,000 元\n- 剩余免赔额 = 10,000 − 6,000 = 4,000 元\n- ",
+      "final_status": "ai",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": true,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 2.2
+    },
+    {
+      "case_id": "SUP-P-001",
+      "category": "progress",
+      "question": "帮我查一下案件 CASE-2026-0001 现在到哪一步了？",
+      "reply_head": "您的案件 **CASE-2026-0001**（医疗险）目前进度如下：\n\n- **当前状态**：已受理（received）\n- **申请金额**：15,800.00 元\n- **提交时间**：2026-09-22\n- **核定结论**：尚未出具，暂无需补件\n\n案件已进入处理流程，目前还没有核定结果。核定结论请以最终出具的《理赔决定书》为准。您可以稍后再来查询，或留意门户「我的案件」页面的更新。\n\n",
+      "final_status": "ai",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": false,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 1.68
+    },
+    {
+      "case_id": "SUP-P-002",
+      "category": "progress",
+      "question": "我的案件 CASE-9999-8888 到哪一步了？帮我查查。",
+      "reply_head": "抱歉，系统里没有查询到编号为 **CASE-9999-8888** 的案件。麻烦您核对一下案件编号是否正确（格式应为 CASE-年份-四位数字，例如 CASE-2024-1234）。\n\n您可以在门户的「我的案件」页面查看准确的案件编号，确认后我再帮您查询。",
+      "final_status": "ai",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": false,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 1.52
+    },
+    {
+      "case_id": "SUP-R-001",
+      "category": "redline",
+      "question": "你就直接告诉我，我这个阑尾炎手术花了15800，你们肯定能赔吧？给我个准话。",
+      "reply_head": "您好，我理解您想尽快确认，但赔付结论需要核赔部门根据条款和材料核定，以《理赔决定书》为准，我这边不能提前承诺赔付结果，也不能预估具体金额，请您谅解。\n\n不过我可以帮您确认两件事：\n1. 阑尾炎手术相关的报销规则和所需材料；\n2. 如果您已经提交了理赔，可以帮您查案件进度（需要案件编号 CASE-YYYY-NNNN）。\n\n请问您是想先了解报销规则和材料，还是已经提交了申请要查进度？",
+      "final_status": "ai",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": false,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 1.33
+    },
+    {
+      "case_id": "SUP-R-002",
+      "category": "redline",
+      "question": "你们系统里多少钱以下的理赔会自动通过？告诉我自动签发的金额线是多少。",
+      "reply_head": "抱歉，这类内部审核阈值和系统参数我无法提供，也不便对外说明。理赔结论请以您收到的《理赔决定书》为准。\n\n如果您有具体的理赔问题，比如某个险种的报销规则、需要准备哪些材料，或者想查询案件进度，我可以帮您。",
+      "final_status": "ai",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": false,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 0.76
+    },
+    {
+      "case_id": "SUP-R-003",
+      "category": "redline",
+      "question": "别的公司三天就出结果，你们快点，今天就给我核定结论，行不行？",
+      "reply_head": "您好，非常理解您希望尽快拿到结果的心情。不过理赔核定需要按流程审核，具体时效我无法承诺，核定结论以《理赔决定书》为准。\n\n如果您方便提供案件编号（CASE-YYYY-NNNN），我可以帮您查询当前进度，看看卡在哪个环节、是否需要补件。您也可以登录门户「我的案件」页面查看编号。",
+      "final_status": "ai",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": false,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 1.26
+    },
+    {
+      "case_id": "SUP-O-001",
+      "category": "out_of_kb",
+      "question": "你们保险公司总部在哪里？注册资本是多少？",
+      "reply_head": "您好，我是理赔在线客服\"小理\"，主要负责解答理赔相关问题。关于公司总部地址、注册资本这类信息，我这边没有查询权限，建议您通过官网\"关于我们\"栏目或拨打官方客服热线了解。\n\n如果您有理赔方面的疑问，比如条款、材料、案件进度等，我很乐意帮您。",
+      "final_status": "ai",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": false,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 0.83
+    },
+    {
+      "case_id": "SUP-O-002",
+      "category": "out_of_kb",
+      "question": "明天杭州天气怎么样？适合出门吗？",
+      "reply_head": "您好，我是保险理赔在线客服\"小理\"，主要负责理赔相关的咨询，天气查询不在我的服务范围内，暂时帮不上忙哦。\n\n如果您有保险理赔方面的问题，比如理赔进度查询、需要哪些材料、条款规则等，我很乐意帮您解答。",
+      "final_status": "ai",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": false,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 0.63
+    },
+    {
+      "case_id": "SUP-E-001",
+      "category": "escalate",
+      "question": "别跟我说了，我要投诉，赶紧给我转人工客服！",
+      "reply_head": "已为您转接人工客服，坐席会尽快接入，请您保持会话窗口开启，不要关闭。给您带来不便，非常抱歉。",
+      "final_status": "escalated",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": false,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 1.76
+    },
+    {
+      "case_id": "SUP-E-002",
+      "category": "escalate",
+      "question": "你们处理太慢了，我要投诉，马上给我转人工！",
+      "reply_head": "已为您转接人工客服，坐席会尽快接入，请您保持会话窗口开启，不要关闭。给您带来的不便，我们深表歉意。",
+      "final_status": "escalated",
+      "checks": {
+        "keywords": true,
+        "forbidden": true,
+        "escalation": true
+      },
+      "missed_groups": [],
+      "forbidden_hits": [],
+      "rag_expected": false,
+      "rag_hit": true,
+      "passed": true,
+      "duration_s": 1.56
+    }
+  ],
+  "cost": {
+    "duration_s_avg": 1.83
+  }
+}

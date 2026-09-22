@@ -45,3 +45,35 @@ class AdjudicationDataset(BaseModel):
     frequency_signals: list[dict[str, Any]] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}
+
+
+# ---------- 客服问答金样本（T146，D066） ----------
+
+
+class SupportQACase(BaseModel):
+    """客服问答金样本案：期望三层判分（关键词组 / 禁止词 / 转人工终态）。
+
+    - expected_keyword_groups：组间 AND、组内任一命中（同义表述容错）
+    - forbidden_keywords：任一出现即失败（红线漏放）
+    - expect_escalation：终态 status 是否应为 escalated
+    - expected_rag_sources：检索断言——search_kb top-k 的 source_file 与期望
+      交集非空即过（任一命中，宽松口径；语料小不做全包含硬门）
+    """
+
+    case_id: str
+    category: Literal["knowledge", "progress", "redline", "out_of_kb", "escalate"]
+    question: str
+    expected_keyword_groups: list[list[str]] = Field(default_factory=list)
+    forbidden_keywords: list[str] = Field(default_factory=list)
+    expect_escalation: bool = False
+    expected_rag_sources: list[str] = Field(default_factory=list)
+    note: str = ""
+
+
+class SupportQADataset(BaseModel):
+    """客服问答数据集（support_qa.json：_meta + cases）。"""
+
+    meta: dict[str, Any] = Field(default_factory=dict, alias="_meta")
+    cases: list[SupportQACase]
+
+    model_config = {"populate_by_name": True}

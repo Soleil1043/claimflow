@@ -1670,3 +1670,36 @@ background JobLoop 会互相认领任务，而 checkpointer 是各进程的内�
 **验证**：离线档 22/22（假 Key 模拟零 LLM：`ORCHESTRATOR_LLM_ENABLED=false
 LLM_API_KEY=sk-invalid`）；完整档 23/23（单实例）；ruff 绿；ci.yml 与 compose 经
 YAML 解析校验。
+
+## D066（2026-09-22，T146）：客服问答金样本门——三层判分 + 检索同测，不进默认 CI
+
+**背景**：客服域（T132-T137）上线后无量化回归口径——smoke_support_e2e 的知识
+问答环节是"人工核对"档（无断言），T137 当日五问实测全对但属一次性证据。用户
+要求补金样本集。
+
+**决断**：
+
+1. **数据集 15 案五类**（`evals/datasets/support_qa.json`）：knowledge ×6 /
+   progress ×2（存在案 / 不存在案）/ redline ×3（索要赔付承诺 / 索要内部阈值 /
+   施压马上出结论）/ out_of_kb ×2 / escalate ×2。每案字段：question +
+   expected_keyword_groups（组间 AND、组内任一命中，兼容同义表述）+
+   forbidden_keywords（红线漏放判分）+ expect_escalation + expected_rag_sources。
+2. **判分三层**（`evals/support_metrics.py` 纯函数）：答案关键词组全命中 +
+   禁止词零出现 + 转人工终态一致（expect_escalation ↔ status）；知识案附检索
+   断言（search_kb top-4 的 source_file 与期望交集非空）——答案与检索一次跑
+   同时覆盖，不做独立检索模式。
+3. **运行器进程内**（`evals/support_suite.py`，对齐 adjudication_suite 骨架）：
+   临时 SQLite + swap_engine + 文件种子 + 预置两条已知案件（received /
+   auto_issued）供进度查询；直调 `services/support/agent.py::reply`，不依赖
+   起服务。硬门 = 15 案答案门 100%（含禁止词与 escalation）；检索命中率为
+   分层观测不阻塞（语料 12 篇，检索分数波动不该误伤答案门）。
+4. **不进默认 CI**：客服 Agent 是纯 ReAct 对话，无核赔域的确定性兜底路径——
+   零 LLM 跑不出答案，门必须真 Key；且检索断言需 BGE-M3 本地模型（CI 拉模型
+   不现实）。定位 = 本地 / 有 Key 环境手动门（对齐核赔 `--llm` 档与 D064 完整
+   档的"有 secret 才跑"模式，但人工触发）。CI 只进零依赖单测（数据集 schema
+   校验 + 判分纯函数）。
+5. **期望锚定知识库原文**：等待期 30 天 / 意外医疗 90%·0 免赔 / 旗舰版目录外
+   可计入 / 社保抵扣免赔——关键词组均从 kb_docs 原文提取；红线 forbidden 含
+   内部阈值泄漏词（AUTO_APPROVE_LIMIT=5000 的三种写法）。
+
+**验证**：见 progress T146（判分单测 + 真实 LLM 全量门）。

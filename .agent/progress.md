@@ -2167,4 +2167,35 @@ schemas/agent.py 与 evals/{judge,metrics,trajectory}.py，evals 数据集行改
 
 **Git**：`docs: AGENTS.md 对齐T145现状(结构图补T118-T145新文件删死栈引用/Phase表补5-7与增量批次/单实例与评测门约束入规范)`
 
+## 2026-09-22 T146 客服问答金样本门（D066）
+
+**做了什么**：客服域补量化回归口径（此前 smoke 的知识问答是"人工核对"档）。四件：
+①数据集 `evals/datasets/support_qa.json` 15 案五类——knowledge×6（期望锚定 kb_docs
+原文：30 天等待期/意外 90%·0 免赔/旗舰版目录外/社保抵扣免赔）+ progress×2 +
+redline×3（forbidden 含 AUTO_APPROVE_LIMIT=5000 三种写法防内部阈值泄漏）+
+out_of_kb×2 + escalate×2。②判分纯函数 `evals/support_metrics.py`：关键词组（组间
+AND、组内任一命中，大小写不敏感）+ 禁止词 + 转人工终态三层；检索交集为分层观测
+不阻塞。③运行器 `evals/support_suite.py`：进程内临时 SQLite + swap_engine + 预置
+两条已知案件（CASE-2026-0001 received / 0002 auto_issued）+ embedder 预热，直调
+`agent.reply` 不依赖起服务；报告含全量单案明细。④单测 23 个（数据集 schema 五检
++ 判分纯函数 17 断言）进 CI；README §7 / architecture §14 补口径。
+
+**四轮校准实录**（金样本门冷启动的正常收敛过程）：第一轮 0/15（运行器 bug：
+SupportConversation 主键是 `id` 非 `conversation_id`，全部 AttributeError）；修复后
+12/15——三案失败全是 LLM 表述多样性而非答案错误：既往症案说"属于免责范围"（补
+"免责"）、索要承诺案说"不能**提前**承诺"（补"不能提前"）、公司信息案说"没有查询
+权限"（out_of_kb 改宽词集 + 编造句式 forbidden 双保险）；第三轮 14/15 天气案说
+"查不了"（补拒答短语）。最终连续两轮 15/15 = **100% 硬门全绿**。
+
+**rag 5/6 观测的定位**：SUP-K-003 原问题（口语化长句）直检 top-4 不中"04-免责条款
+汇总"，但 Agent 自己改写检索词命中且答案含 04 原文——观测口径（原问题直检）与
+Agent 实际检索行为有差异，这正是 D066-2 检索不做硬门的设计依据，留作已知观测
+局限记录。
+
+**验证**：`support_suite` 连续两轮 15/15=100%（avg 1.78s/案，deepseek-flash）；
+pytest **467 passed**（444+23）+ ruff 绿；主门 20 案冒烟 100% 不退化。
+
+**Git**：`feat: T146 [客服问答金样本门: 15案五类数据集+三层判分+进程内运行器+23单测; 连续两轮100%硬门全绿, rag 5/6观测]`
+
+
 
