@@ -2128,3 +2128,24 @@ T141 门卫判版本不匹配 → `schema_reset` 用 RUN 原始输入重跑 → 
 模拟零 LLM）；完整档 23/23（单实例）；ruff 绿；ci.yml 与 compose YAML 解析校验。
 
 **Git**：`ci: T145 [冒烟默认改离线兜底档(零API Key): 脚本加--offline档+CI两档互斥+确定性编排+审计断言分层; 离线22/22+完整23/23]`
+
+## 2026-09-22 文档全量刷新：根 README + docs/architecture.md + 19 份目录 README
+
+**做了什么**：用户指令"更新所有目录里的 readme，以及 docs/architecture.md"。
+①根 README 修正过时指标与新能力：测试 411→444、评测门 132→153 案六门全绿
+（金额/路由/责任均 100%，历史 97.73%/99.24%/93.18% 已被 T120-T130 清账）、
+对抗集 14/14 双模式全绿进成果表、LLM 模式 153/153 与 7,075.8 tokens/案 成本线、
+核心能力补客服/记忆治理/叙述抽评/对抗门四行、API 表重排五组（补 material-catalog /
+narrative-review / support 七端点 / memory 删除）、已知限制表清掉已修复两项并
+留历史清零注记、5.3 补客服冒烟命令。②新建 docs/architecture.md（核赔版，
+16 节：概览/分层/主图/Orchestrator/Worker+skill/pack/合规金额/HITL/客服域/
+申请人记忆/交付队列/数据模型 11 表/可观测/评测/部署/决策索引），与工程版设计
+文档互补定位"现状 vs 为什么"。③目录 README 20 份：新建 19（app/nodes/tools/
+services/workflows/schemas/evals/tests/scripts/data/alembic/chatui/workbench/
+docs/grafana/prometheus/otelcol）+ 更新 skills（删 T094 已清理的 A/B 框架引用，
+补四险种 21 份规程矩阵表）。所有数字与 T145 时点状态对齐。
+
+**验证**：全部文件经 Write/Read 回读核对；未改任何代码，pytest/riff 基线不受影响。
+
+**Git**：`docs: 全量文档刷新(根README指标对齐T145 + architecture.md核赔版16节 + 20份目录README)`
+

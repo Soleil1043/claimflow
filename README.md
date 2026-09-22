@@ -13,8 +13,9 @@
 > **TL;DR** — A multi-line insurance auto-adjudication platform: an LLM Orchestrator
 > dispatches six specialized workers over a case pipeline, with precondition guards in code,
 > a graph-enforced compliance gate that routing can never bypass, and deterministic fallback
-> on any LLM failure. HITL tickets (supplement / review / escape) via interrupt + resume.
-> All external systems are faithfully mocked; runs end-to-end on a real LLM.
+> on any LLM failure. HITL tickets (supplement / review / escape) via interrupt + resume,
+> plus an in-portal AI support agent with human escalation. All external systems are
+> faithfully mocked; runs end-to-end on a real LLM.
 
 ## 目录
 
@@ -52,19 +53,22 @@
 
 ## 2. 成果指标
 
-> 金样本评测门（确定性模式 132 案件，`evals/adjudication_suite.py` 六门体系）。
+> 金样本评测门（`evals/adjudication_suite.py` 六门体系）+ 独立对抗回归门。
 > 负向指标同样前置——它们证明评测门真的在工作。
 
 | 门 | 数值 | 说明 |
 |------|------|------|
+| 金额正确率（硬门） | **100%** | 153 案期望金额按规格公式精确到分逐一断言 |
 | 红线漏放（硬门） | **0** | 与运行时合规门同一实现（check_text）复验 |
 | 守卫旁路（硬门） | **0** | 必做集未全 done 而出决定书的案件数 |
-| 路由一致率（软门） | **99.24%** | 与金样本期望派发序列一致（门禁 ≥95%） |
-| 责任认定一致率（软门） | 93.18%（门禁 ≥90%） | 确定性前置 + 关键词兜底口径 |
+| 路由一致率（软门） | **100%**（门禁 ≥95%） | 与金样本期望派发序列一致 |
+| 责任认定一致率（软门） | **100%**（门禁 ≥90%） | 确定性前置 + ReAct + 关键词兜底三层口径 |
 | 调度预算 | 5 ≤ 15/案件 | orchestrator 防绕圈预算（D039） |
-| 金额正确率（硬门） | 97.73% ⚠️ | 已知限制：2 条除外案关键词未命中（见[已知限制](#10-已知限制与路线图)） |
+| 对抗集（硬门） | **14/14** | 注入/诱导 8 条 + 同义词鲁棒性 6 条，确定性与 LLM 双模式全绿（T142） |
 
-单元与集成测试：**411 passed**（含图结构断言 / 守卫注入 100% 拦截 / interrupt 跨重启恢复）。
+- LLM 模式全量：153/153 = **100%** 六门全绿（deepseek-flash 真实调度，T130）
+- 调度成本实测：**7,075.8 tokens/案**，延迟 6.22s/案（p95 7.68s）vs 确定性 0.25s
+- 单元与集成测试：**444 passed**（图结构断言 / 守卫注入 100% 拦截 / interrupt 跨重启恢复 / checkpoint 版本降级重跑）
 
 ---
 
@@ -79,6 +83,10 @@
 | 险种 pack | `schemas/lines.py` 一份 pack = 一个险种的全部知识；医疗/车险/财产险/意外险四线已上线（T120），产品类型不在任何 pack（unknown）受理转人工 |
 | StageSpec 单源 | 六阶段的名字 / 前置 / 快照 / 回边 / prompt 清单由一份注册表派生（加阶段只改一处） |
 | 金额安全设计 | 全链路 Decimal，正文金额三方断言不依赖 LLM，叙述段零金额注入 |
+| 在线客服（T132-T137） | 门户悬浮 AI 助手（RAG 问答 / 案件进度查询 / 报案链接预填）+ 转人工坐席闭环（escalated 状态机 + workbench 客服工单） |
+| 申请人记忆治理（T138） | 终态确定性渲染写入，置信度门控（< 0.6 不写）+ 应用层 TTL + 坐席删除链路 |
+| 决定书叙述抽评（T139） | 5% 确定性采样人工质检（种子 = case_id 可复算），workbench 抽评队列 + 通过率统计 |
+| 对抗回归门（T124/T142） | 注入 / 诱导 / PII / 同义词鲁棒性 14 案独立数据集，与主门同进 CI 门禁 |
 | 全链路可观测 | Prometheus/Grafana 8 面板（结案率 / 阶段 P95 / 调度健康 / 守卫纠错）+ OTel/Jaeger |
 
 ---
@@ -150,11 +158,12 @@ docker compose up -d && curl http://localhost:8000/health   # → {"status":"ok"
 ### 5.3 验证与测试
 
 ```bash
-uv run pytest -q                                   # 411 用例
+uv run pytest -q                                   # 444 用例
 uv run ruff check .
 uv run python -m evals.adjudication_suite          # 金样本评测门（确定性，零 LLM）
 uv run python -m scripts.verify_adjudication --offline   # 离线兜底档（零 API Key）
 uv run python -m scripts.verify_adjudication             # 完整档（需真 Key：自动签发+金额+决定书）
+uv run python scripts/smoke_support_e2e.py         # 客服全链路冒烟（需真 Key + dev 栈）
 ```
 
 冒烟脚本走真实链路：现场生成 Word 材料 → 提取 → 自动签发/补件闭环/未上线险种
@@ -177,8 +186,8 @@ CI 默认跑离线档（不需要任何 secret）；仓库配了 `LLM_API_KEY` s
 |------|------|------|
 | 监控栈（Prometheus + Grafana） | `docker compose --profile monitoring up -d` | Grafana `:3000`，自动加载核赔 8 面板：自动结案率 / 转人工率 / 调度调用 / 守卫纠错 / 阶段耗时 P95 / 端到端耗时 / 案件量 / 核定金额 |
 | 追踪栈（OTel + Jaeger） | `docker compose --profile tracing up -d`<br>`.env` 设 `OTEL_ENABLED=true` | Jaeger UI `:16686` |
-| 坐席工作台（HITL） | `cd workbench && npm install && npm run dev` | `:5173` 工单列表 + 详情（审计时间线 / 决定书版本卡 / 签批改判表单） |
-| 案件提交门户 | `cd chatui && npm install && npm run dev` | `:3000` 提交 + 进度时间线 + 决定书查看 + 补件上传 |
+| 坐席工作台（HITL + 客服） | `cd workbench && npm install && npm run dev` | `:5173` 核赔工单列表 + 详情（审计时间线 / 决定书版本卡 / 签批改判表单）+ 客服工单（transcript / 回复 / 关闭）+ 叙述抽评审队列 |
+| 案件提交门户 | `cd chatui && npm install && npm run dev` | `:3000` 提交 + 进度时间线 + 决定书查看 + 补件上传 + 悬浮 AI 客服（问答 / 查进度 / 转人工） |
 
 - 后端裸指标：`http://localhost:8000/metrics`（无需监控栈）
 
@@ -186,32 +195,70 @@ CI 默认跑离线档（不需要任何 secret）；仓库配了 `LLM_API_KEY` s
 
 ## 7. 评测体系
 
-**金样本评测集 150+ 案件**（`evals/datasets/adjudication.json`，生成器确定性枚举 +
+**金样本评测集 153 案件**（`evals/datasets/adjudication.json`，生成器确定性枚举 +
 24 手工底座）：正常签发 / 拒赔 / 部分责任 / 风控 / 边界 / 缺件 / 受理分类七类覆盖，
-期望金额按规格公式精确到分。
+医疗/车险/财产险/意外险四线，期望金额按规格公式精确到分。
+
+**对抗回归集 14 案**（`evals/datasets/adjudication_adversarial.json`）：注入 / 角色伪装 /
+虚构免责 / 红线诱导 / PII 诱导 / 施压翻转 / 事实伪造 / 字段注入 8 条 + 除外同义词
+鲁棒性 6 条——独立数据集不污染主基线，与主门同进 CI。
 
 ```bash
-uv run python -m evals.adjudication_suite            # 确定性模式（零 LLM，全量）
-uv run python -m evals.adjudication_suite --llm      # LLM Orchestrator 全链（真实 LLM）
-uv run python -m evals.adjudication_suite --limit 20 # 子集冒烟（CI 即此口径）
+uv run python -m evals.adjudication_suite                       # 主门 153 案（确定性，零 LLM）
+uv run python -m evals.adjudication_suite --llm                 # LLM Orchestrator 全链（真实 LLM）
+uv run python -m evals.adjudication_suite --dataset adversarial # 对抗门 14 案
+uv run python -m evals.adjudication_suite --limit 20            # 子集冒烟（CI 即此口径）
 ```
 
-**六门体系**：硬门（金额正确率 100% / 红线漏放 0 / 守卫旁路 0）+ 软门（路由一致率
-≥95% / 责任一致率 ≥90%）+ 预算（调度调用 ≤15）。门禁阈值与运行时配置同源
-（`schemas/contract.py`）——评测门 = 运行时门，不会漂移。
+**六门体系**：硬门（金额正确率 100% / 红线漏放 0 / 守卫旁路 0 / 对抗集全过）+
+软门（路由一致率 ≥95% / 责任一致率 ≥90%）+ 预算（调度调用 ≤15）。门禁阈值与运行时
+配置同源（`schemas/contract.py`）——评测门 = 运行时门，不会漂移。
 
 ---
 
 ## 8. API
 
+### 核赔案件
+
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/api/v1/cases` | POST | 提交案件（自然键幂等；同步驱动核赔管线，挂起时返回工单信息） |
+| `/api/v1/cases` | POST | 提交案件（自然键幂等；后台队列驱动核赔管线，受理即返回） |
 | `/api/v1/cases/{id}` | GET | 案件详情：进度 / 结论 / 决定书版本 / 审计时间线（seq 回放） |
 | `/api/v1/cases/{id}/materials` | POST | 上传材料（图片/PDF/Word 两段式提取；补件挂起时自动恢复流程） |
+| `/api/v1/cases/material-catalog` | GET | 险种材料目录（pack 单源派生，新险种上线前端零改动） |
+| `/api/v1/cases/{id}/narrative-review` | POST | 决定书叙述抽评：pass / revise + 评语（落审计事件） |
+
+### HITL 工单
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
 | `/api/v1/interventions/cases` | GET | 核赔工单列表（补件 / 复核 / 升级挂起案件） |
 | `/api/v1/interventions/cases/{id}/resolve` | POST | 工单处理：签批 / 改判 / 补传 / 升级（坐席文本必过红线复审） |
-| `/health` | GET | 健康检查 |
+| `/api/v1/interventions/narrative-samples` | GET | 叙述抽评审队列（pending 样本 + 决定书全文 + 通过率统计） |
+
+### 在线客服（门户 ↔ 坐席）
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/v1/support/conversations` | POST | 建立客服会话（201） |
+| `/api/v1/support/conversations/{id}` | GET | 会话状态（ai / escalated / closed，门户轮询入口） |
+| `/api/v1/support/conversations/{id}/messages` | GET | 三方消息时间线（user / assistant / agent） |
+| `/api/v1/support/conversations/{id}/messages` | POST | 发消息：ai 态 AI 应答；escalated 态坐席接管停答 |
+| `/api/v1/support/tickets` | GET | 坐席客服工单队列（escalated 会话倒序 + 最新消息预览） |
+| `/api/v1/support/tickets/{id}/reply` | POST | 坐席回复（role=agent 入时间线） |
+| `/api/v1/support/tickets/{id}/close` | POST | 关闭会话（备注先入时间线再流转终态） |
+
+### 记忆治理
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/v1/memory/{user_id}/entries/{case_id}` | DELETE | 删除单条申请人记忆（adelete + human 审计事件） |
+
+### 基础设施
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/health` | GET | 健康检查（postgres/qdrant/redis/llm 依赖状态） |
 | `/metrics` | GET | Prometheus 指标 |
 
 **提交响应结构**：
@@ -253,10 +300,14 @@ uv run python -m evals.adjudication_suite --limit 20 # 子集冒烟（CI 即此�
 
 | 限制 | 现状 | 下一步 |
 |------|------|--------|
-| 金额正确率 97.73% | 2 条除外案关键词兜底未命中（CASE-E-0056/0062），硬门 100% 未达 | 兜底规则补全 / LLM 模式复核 |
-| 单险种上线 | auto / property / accident pack 已声明未上线，受理期转人工 | 二期按 pack 扩充条款与材料清单 |
 | 交付单实例约束 | 任务队列单消费者（replicas=1），多实例需补租约认领（D044 已留升级位） | 容量/可用性触发时升级 SKIP LOCKED 认领 |
+| 客服无流式输出 | 门户轮询 3s 获取回复（无 SSE/WebSocket） | 需要 MVP 后迭代 |
 | 小语料 RAG 天花板 | 12 篇条款文档，检索增益有天花板 | 语料扩充后重开精排对比 |
+| 客服日期推断 | 用户只说"9月20日"时模型自行补年份（应为当前年） | prompt 补"日期以当前年份推算" |
+
+> 历史限制已清零：金额硬门 97.73%→100%（T122 等待期边界 + 日期 + frequency 信号三修）、
+> 单险种→四险种上线（T120）、对抗集 57.1%→100%（T142 同义词清账）、CI 冒烟依赖 secret→
+> 离线兜底档（T145）。演进记录见 [`.agent/progress.md`](.agent/progress.md)。
 
 ---
 
