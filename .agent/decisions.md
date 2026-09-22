@@ -1729,3 +1729,29 @@ YAML 解析校验。
 **验证**：480 passed（+13 鉴权矩阵/身份派生/prod 校验单测，4 个既有 prod 构造
 测试补 STAFF_KEYS）；真实服务带 Key 实测 8/8 矩阵（无头 401/错 Key 401/对 Key
 200×3/客户端点 201/health 200）；workbench build 绿。
+
+## D068（2026-09-23，T148/T149）：P0 工程收口——前端 CI 门禁 + 覆盖率阈值
+
+**背景**：P0 评估两项缺口：①两个 Next.js 应用（chatui/workbench）零 CI 门禁，
+前端改动只靠本地手动 build 验证；②pytest-cov 装了但从未跑，467+ 用例的模块盲区
+不可见。
+
+**决断**：
+
+1. **前端进 CI**（T148）：`frontend` matrix job（chatui/workbench × npm ci +
+   next lint + next build）。前置修复：两目录补 `.eslintrc.json`
+   （extends next/core-web-vitals）+ devDependencies 补 eslint@^9 +
+   eslint-config-next@15.1.0（**pin 15.1.0 必要**：v16 是 flat config 专属，
+   与 legacy eslintrc + next 15.1 的 next lint 循环引用崩溃）。
+2. **顺手修 CI 隐藏红**：lint-test job 的 ruff 命令仍含 T094 已删除的 `ui`
+   与更早删除的 `agents` 目录——本地复现 2 errors，T146 后任一 push 都会红 CI；
+   改为现存目录全集（app tests services schemas nodes tools workflows
+   scripts evals，evals 为首次纳入）。
+3. **覆盖率阈值**（T149）：基线实测 **88%**（4602 语句 / 552 未覆盖，480
+   用例），CI 阈值定 **85%**（3pp 缓冲防合理波动）。低覆盖区均为合理盲区：
+   reranker 0%（默认关）、tracing 62%（OTel 默认关）、ingest/qdrant_client
+   50-55%（CLI 型）、api/v1/cases 44%（部分错误分支）——留作后续补测方向，
+   不为凑数硬写。
+
+**验证**：chatui/workbench lint+build 本地双绿；CI 同款覆盖率命令本地通过
+（88% ≥ 85%，480 passed）；ci.yml YAML 解析校验。

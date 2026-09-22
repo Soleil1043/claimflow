@@ -2222,3 +2222,20 @@ support tickets 三件套端点级）；④Key 即身份：resolve 的 resolved_
 workbench build 绿；dev 默认（不配 Key）行为零变化。
 
 **Git**：`feat: T147 [坐席端点鉴权(路径A): 多Key+Key即身份+prod强制; 9端点挂载+审计operator派生+冒烟/前端透传; 480passed+实测8/8矩阵]`
+
+## 2026-09-23 T148 前端 CI 门禁 + T149 覆盖率阈值（D068）
+
+**做了什么**：P0 清单后两项。T148：ci.yml 加 frontend matrix job（chatui/workbench
+× npm ci + lint + build）；两目录补 .eslintrc.json 与 eslint 依赖（eslint-config-next
+必须 pin 15.1.0——v16 flat config 与 next 15.1 的 next lint 循环引用崩溃）；
+**顺手修 CI 隐藏红**：lint-test 的 ruff 命令仍查 T094 已删的 ui/agents 目录（本地
+复现 2 errors——T146 之后任一 push 都会红 CI，幸未 push），改为现存全集并首次
+纳入 evals。T149：覆盖率基线实测 88%（4602 语句 / 552 未覆盖），CI pytest 加
+--cov-fail-under=85；低覆盖区均为合理盲区（reranker/tracing 默认关、ingest CLI
+型、api 错误分支），盘点入 D068。
+
+**验证**：chatui/workbench lint+build 本地双绿；CI 同款覆盖率命令本地端到端通过
+（88% ≥ 85%，480 passed）；ci.yml YAML 解析校验（4 jobs：lint-test/frontend/
+docker/eval-gate）。
+
+**Git**：`ci: T149 [覆盖率基线88%+CI阈值85%; pytest --cov七包+fail-under]`
