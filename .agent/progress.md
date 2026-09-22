@@ -2149,3 +2149,22 @@ docs/grafana/prometheus/otelcol）+ 更新 skills（删 T094 已清理的 A/B �
 
 **Git**：`docs: 全量文档刷新(根README指标对齐T145 + architecture.md核赔版16节 + 20份目录README)`
 
+## 2026-09-22 AGENTS.md 对齐现状（文档刷新续）
+
+**做了什么**：用户指令"更新AGENTS.md"。五处：①第 1 节决策链/架构文档/任务清单行刷新
+（D001-D065、补 architecture.md 与 CONTEXT.md 指向、T001-T145 全交付表述）；②第 3 节
+技术栈 LLM 行补当前模型（deepseek-flash，D056/T130）；③第 5 节结构图全面对齐代码——
+补 nodes/guards.py、nodes/auto_adjudicate.py、app/api/v1/{support,memory}.py、
+services/support/、tools/support/、.github/workflows/ci.yml、CONTEXT.md，删已不存在的
+schemas/agent.py 与 evals/{judge,metrics,trajectory}.py，evals 数据集行改主门 153 +
+对抗 14，chatui/workbench/scripts/data/skills/docs 注释按现状更新；④第 7 节 Phase 表
+补 Phase 5-7（D021/D030/D033）与 T094-T145 六个增量批次摘要；⑤第 8 节注意事项补两条
+硬约束（本地冒烟单实例——T145 踩坑；改动守评测门）+ 6.3 节补 CASE_SCHEMA_VERSION
+递增、Command(resume) 单源、StageSpec 查表三条约定。结构图与实际文件经 Glob 逐一核对
+（ui/ 已确认不存在，不列）。
+
+**验证**：全文回读校验；纯文档改动，不触代码。
+
+**Git**：`docs: AGENTS.md 对齐T145现状(结构图补T118-T145新文件删死栈引用/Phase表补5-7与增量批次/单实例与评测门约束入规范)`
+
+

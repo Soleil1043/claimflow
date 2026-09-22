@@ -16,10 +16,11 @@
 - 多险种：case_type 枚举（medical/auto/property/accident），worker 按"险种 pack"承载——四险种已全部上线（T120），产品类型不在任何 pack（unknown）受理期转人工
 - 分级自动：阈值全部配置化（pydantic-settings）
 
-决策链见 `.agent/decisions.md`（D037-D039 为核赔平台方向决策）。
+决策链见 `.agent/decisions.md`（D001-D065；D037-D039 为核赔平台方向决策，D057 在线客服）。
 
-总体架构与实施依据：`docs/claimflow-新架构设计.md`（工程版）+ 同目录人话版导读。
-任务清单：`.agent/tasks.md` Phase 8（T077-T093）。
+架构文档：`docs/architecture.md`（现状总览，16 节）+ `docs/claimflow-新架构设计.md`（工程版设计依据）+ 同目录人话版导读。
+统一语言（领域术语表）：`CONTEXT.md`。
+任务清单：`.agent/tasks.md`（T001-T145 已全部交付；现状为维护期，新需求先入清单再实施）。
 
 ---
 
@@ -48,7 +49,7 @@
 | 关系数据库     | PostgreSQL + SQLAlchemy 2.0 async | LangGraph Checkpoint 用 PostgreSQLSaver |
 | 向量数据库     | Qdrant                            | 轻量单容器；开发期 local mode 零容器               |
 | 缓存        | Redis                             | 会话缓存 + 工具结果缓存                          |
-| LLM       | OpenAI 兼容接口                       | 通过配置切换模型                               |
+| LLM       | OpenAI 兼容接口                       | 通过配置切换模型（当前 deepseek-flash，D056/T130，原生多模态兼 vision） |
 | Embedding | BGE-M3                            | 本地部署或 API                              |
 | 包管理       | uv                                | `pyproject.toml` + `uv.lock`           |
 | 测试        | pytest + pytest-asyncio           | 核心逻辑必须有测试                              |
@@ -104,12 +105,17 @@ claimflow/
 │   ├── progress.md            ← 构建日志（全程追加）
 │   └── decisions.md           ← 决策记录（全程追加）
 │
+├── CONTEXT.md                 ← 领域术语表（统一语言）
+├── state.py                   # ClaimCaseState 主图共享状态
+│
 ├── app/
 │   ├── api/
 │   │   ├── dependencies.py    # 依赖注入
 │   │   └── v1/
-│   │       ├── cases.py           # 核赔案件：提交 / 详情 / 材料上传
-│   │       ├── interventions.py   # HITL 核赔工单
+│   │       ├── cases.py           # 核赔案件：提交 / 详情 / 材料上传 / 材料目录 / 叙述抽评
+│   │       ├── interventions.py   # HITL 核赔工单 + 抽评审队列
+│   │       ├── support.py         # 在线客服：会话 / 消息 / 坐席工单（T134/T135）
+│   │       ├── memory.py          # 申请人记忆删除（T138）
 │   │       └── health.py
 │   ├── core/                  # 配置、日志、异常、事件循环
 │   │   ├── config.py
@@ -120,69 +126,74 @@ claimflow/
 │
 ├── nodes/                     # 核赔主图节点
 │   ├── intake.py              # 受理论证（险种分类 + 未上线转人工）
-│   ├── orchestrator.py        # LLM 调度（RoutingDecision + Send 并行 + 守卫 + 兜底）
-│   ├── material_review.py     # 材料审核（提取 / 完整性 / AI 一致性）
+│   ├── orchestrator.py        # LLM 调度（RoutingDecision + Send 并行 + 审计）
+│   ├── guards.py              # 确定性守卫纯函数层（enforce_guards / default_route，T118）
+│   ├── material_review.py     # 材料审核（@task 并行提取 / 完整性 / AI 一致性）
 │   ├── policy_verify.py       # 保单核验
 │   ├── fraud_check.py         # 风控筛查
 │   ├── liability_judge.py     # 责任认定（确定性前置 + ReAct + 关键词兜底）
 │   ├── amount_calc.py         # 金额理算（纯确定性）
 │   ├── decision_generate.py   # 决定书生成（骨架渲染 + LLM 叙述）
 │   ├── compliance_gate.py     # 静态合规门（金额断言 + 红线 + 三态）
-│   └── human_gate.py          # 人工介入门（interrupt 挂起）
-│
-├── state.py                   # ClaimCaseState 主图共享状态
+│   ├── auto_adjudicate.py     # 分级自动签发 + 叙述 5% 采样（T139）
+│   └── human_gate.py          # 人工介入门（interrupt 挂起 + 三类工单决议）
 │
 ├── tools/                     # 工具层
 │   ├── base.py                # ClaimflowTool 基类（继承 langchain 官方 BaseTool）
 │   ├── guards.py              # 守卫：熔断/缓存/超时（GuardedTool，D021 自研保留项）
 │   ├── factory.py             # 工厂装配（.with_retry + 守卫）
-│   ├── claim/                 # 理赔类工具（policy_query / calculator / claim_rule_rag）
-│   ├── medical/               # 医疗类工具（record_query / diagnosis_matcher / ocr_extract）
-│   ├── compliance/            # 合规类工具（rule_check / sensitive_filter / risk_scoring）
+│   ├── claim/                 # 理赔工具（policy_query / calculator / claim_rule_rag / case_status / claim_draft）
+│   ├── medical/               # 医疗工具（record_query / diagnosis_matcher / ocr_extract）
+│   ├── compliance/            # 合规工具（rule_check / sensitive_filter / risk_scoring）
 │   ├── fraud/                 # 风控工具（blacklist / history / rules）
-│   └── document/              # 文档规则工具（classify / completeness）
+│   ├── document/              # 文档规则工具（classify / completeness）
+│   └── support/               # 客服工具（escalate 转人工标记，T133）
 │
 ├── services/                  # 服务层
-│   ├── case_service.py        # 案件领域服务（幂等 / 工单投影 / 决定书视图）
-│   ├── case_jobs.py           # 案件交付队列（任务表 + 常驻单消费者）
+│   ├── case_service.py        # 案件领域服务（幂等 / 工单投影 / 决定书视图 / resume 载荷单源）
+│   ├── case_jobs.py           # 案件交付队列（任务表 + 常驻单消费者 + checkpoint 版本门卫 T141）
 │   ├── case_store.py          # 案件 / 审计事件落库
 │   ├── amounts.py             # 金额理算（规格公式，Decimal）
 │   ├── decision_doc.py        # 决定书渲染与红线检查
 │   ├── skills.py              # skill 作业规程装载
-│   ├── materials.py           # 材料提取（图片/PDF/Word，T049）
-│   ├── worker_agent.py        # Worker 子图装配与执行（create_agent）
+│   ├── materials.py           # 材料提取（图片/PDF/Word 两段式）
+│   ├── worker_agent.py        # Worker 子图装配与执行（create_agent + 官方中间件栈）
+│   ├── support/               # 在线客服域（store 状态机 / agent 装配，T132-T135）
 │   ├── cache.py               # 工具结果缓存
 │   ├── llm/                   # LLM 封装（client / prompts）
 │   ├── rag/                   # RAG（embedder / retriever / reranker / knowledge_graph / graph_retriever / qdrant_client / ingest）
-│   ├── memory/                # 记忆（short_term / long_term / case_memory）
+│   ├── memory/                # 记忆（short_term / long_term / case_memory 申请人记忆治理）
 │   ├── observability/         # 可观测性（metrics / llm_metrics / token_tracker / tracing）
-│   └── db/                    # 数据库（models / session）
+│   └── db/                    # 数据库（models 11 表 / session 双后端引擎）
 │
 ├── workflows/
 │   └── case_graph.py          # 核赔主图定义与编译
 │
 ├── schemas/                   # Pydantic schema
 │   ├── api.py                 # API 请求/响应
-│   ├── case.py  stages.py     # 案件模型 / 阶段产出模型
+│   ├── case.py                # 案件模型 / 状态机单源
+│   ├── stages.py              # StageSpec 注册表（六阶段知识单源，D040）
 │   ├── contract.py            # 规格契约（阈值 / 金额公式单源）
-│   ├── lines.py               # 险种 pack
-│   ├── agent.py  tools.py     # Agent 类型 / 工具入参出参
+│   ├── lines.py               # 险种 pack（四线已上线，T120）
+│   └── tools.py               # 工具入参出参
 │
 ├── evals/                     # 金样本评测门
-│   ├── adjudication_suite.py  # 六门评测运行器（确定性 / --llm 两模式）
-│   ├── adjudication_metrics.py  gates.py  judge.py  metrics.py  trajectory.py  schemas.py
-│   └── datasets/adjudication.json
+│   ├── adjudication_suite.py  # 评测运行器（确定性 / --llm / --dataset adversarial）
+│   ├── adjudication_metrics.py  # 判分（路由 / 金额 Decimal / 责任 / 调度序列）
+│   ├── gates.py               # 六门纯函数（含对抗 tier）
+│   ├── schemas.py             # 评测数据模型
+│   └── datasets/              # 主门 153 案 + 对抗门 14 案（T124/T142）
 │
-├── skills/                    # 作业规程包（<stage>/<line>.md，准确率迭代改文本不改代码）
+├── skills/                    # 作业规程包（<stage>/<line>.md，四险种 21 份；改文本不改代码）
 │
-├── tests/                     # 单元测试（目录结构与源码对应）
+├── tests/                     # 单元测试（目录结构与源码对应，444 用例）
 │
-├── chatui/                    # 案件提交门户（Next.js 15 + Tailwind 4，端口 3000）
-├── workbench/                 # 坐席工作台（Next.js，工单列表 / 详情 / 签批改判）
-├── scripts/                   # 种子数据 / verify 验证脚本 / 知识图谱构建
-├── data/                      # 运行数据：mock 种子 / kb_docs 知识库 / graph / qdrant 本地存储
+├── chatui/                    # 案件提交门户（Next.js 15 + Tailwind 4，端口 3000；含悬浮 AI 客服）
+├── workbench/                 # 坐席工作台（Next.js：核赔工单 / 客服工单 / 叙述抽评审）
+├── scripts/                   # 种子 / 金样本生成 / 冒烟双档（verify_adjudication）/ 客服冒烟 / 专项验证 / 记忆重建
+├── data/                      # 运行数据：mock 种子 / kb_docs 知识库 / graph / qdrant 本地存储 / uploads 材料落盘
 │
-├── grafana/                   # Grafana dashboard JSON
+├── grafana/                   # Grafana dashboard JSON（核赔 8 面板）
 ├── prometheus/                # Prometheus 配置
 ├── otelcol/                   # OTel Collector 配置（T039）
 │
@@ -190,8 +201,9 @@ claimflow/
 │   ├── versions/
 │   └── env.py
 │
-├── docs/                      # 设计文档（claimflow-新架构设计.md 工程版 + 人话版导读）
+├── docs/                      # architecture.md（现状总览）+ 新架构设计（工程版/人话版）+ exercises 练习手册 + diagrams / screenshots
 │
+├── .github/workflows/ci.yml   # CI：ruff + pytest + 评测门 + docker 冒烟双档（T144/T145）
 ├── Dockerfile
 ├── docker-compose.yml
 ├── .env.example
@@ -236,9 +248,11 @@ Agent 不直接调工具，通过 Worker 子图（`services/worker_agent.py`）�
 ### 6.3 工作流约定
 
 - 主图定义在 `workflows/case_graph.py`，所有节点从 `nodes/` 导入
-- 状态定义在 `state.py`，新增状态字段必须同步更新所有相关节点
+- 状态定义在 `state.py`，新增状态字段必须同步更新所有相关节点，**并递增 `CASE_SCHEMA_VERSION`**（T141：checkpoint 版本门卫，旧 thread resume 时版本不匹配删旧重跑）
 - 决定书生成 → 合规门（compliance_gate）是图结构静态边，任何路由决策不可绕过
-- Checkpoint：prod 用 AsyncPostgresSaver、dev 用 InMemorySaver，支撑 interrupt 挂起与跨重启恢复
+- Checkpoint：prod 用 AsyncPostgresSaver、dev 用 InMemorySaver，thread_id = case_id，支撑 interrupt 挂起与跨重启恢复
+- 恢复一律经 `Command(resume=...)`；挂起工单信息以**交付回执**为单源派生（D047），禁止读 checkpoint 猜状态
+- 阶段知识（名字 / 前置 / 快照字段 / 回边）查 `schemas/stages.py` StageSpec 注册表，节点内不复制阶段清单
 - 图的入口和出口用 `__start__` / `__end__`
 
 ### 6.4 Prompt 约定
@@ -268,10 +282,21 @@ Agent 不直接调工具，通过 Worker 子图（`services/worker_agent.py`）�
 | Phase 2 | 多智能体协作                 | Orchestrator + 3 个 Worker Agent 协作 |
 | Phase 3 | 工程化与优化                 | 容错、监控、评测、性能优化                      |
 | Phase 4 | 深度亮点                   | GraphRAG、A/B 测试、高级特性               |
+| Phase 5 | LangGraph 标准构件对齐（D021）  | 工具/子图/结构化输出官方化（T044-T048）           |
+| Phase 6 | 三界面设计系统（D030）          | Apple Design 移植（T054-T058）         |
+| Phase 7 | 评测体系强化（D033）           | 评测台 / 趋势图 / 报告体系（T060-T076）         |
 | Phase 8 | 核赔平台重写（D037-D039）     | 案件驱动核赔管线 + 金样本评测门（T077-T093）       |
 
-上列 Phase 均已交付。当前为维护期：新需求先写入 `.agent/tasks.md` 再实施，
-历史决策链见 `.agent/decisions.md`。
+上列 Phase 均已交付。其后增量批次亦全部完结（T094-T145）：
+
+- **架构评审四轮收口**（T094-T112）：StageSpec 单源、死栈清除、三次读模型/挂起信息/交付生命周期单源化
+- **险种与模型**（T120/T130）：四险种一次上线、切换 deepseek-flash
+- **评测与安全**（T122-T127/T142）：失败集清零、对抗回归门 14 案进 CI
+- **客服域**（T132-T137，D057）：门户 AI 客服 + 转人工坐席闭环
+- **治理**（T138-T141）：记忆置信度门控/TTL/删除、叙述抽评、提取置信度校准、checkpoint 版本门卫
+- **CI**（T143-T145）：端到端冒烟双档接入（离线零 Key 默认）
+
+现状为维护期：新需求先写入 `.agent/tasks.md` 再实施，历史决策链见 `.agent/decisions.md`。
 
 ---
 
@@ -282,3 +307,5 @@ Agent 不直接调工具，通过 Worker 子图（`services/worker_agent.py`）�
 3. **先跑通再优化**：每个功能先做最简可运行版本，验证逻辑正确后再加优化（缓存、并发、性能调优等）。
 4. **遇到不确定的先问**：业务逻辑、技术选型有疑问时，不要自己猜，写到 `decisions.md` 并提示用户确认。
 5. **中文注释**：代码注释和文档用中文，和项目语境保持一致。
+6. **本地冒烟必须单实例**：dev 下多实例共用一个 SQLite 库时，交付队列互相认领任务而 checkpointer 各自内存隔离，resume 找不到 checkpoint 会触发版本门卫重跑（T145 实锤）。跑 `verify_adjudication` 前确认只起了一个服务实例。
+7. **改动守评测门**：任何涉及调度 / 理算 / 决定书的改动，合并前必跑 `evals/adjudication_suite`（主门 + 对抗门）与 `uv run pytest -q`，六门不退化才算过。
