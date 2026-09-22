@@ -153,13 +153,21 @@ docker compose up -d && curl http://localhost:8000/health   # → {"status":"ok"
 uv run pytest -q                                   # 411 用例
 uv run ruff check .
 uv run python -m evals.adjudication_suite          # 金样本评测门（确定性，零 LLM）
-uv run python -m scripts.verify_adjudication       # 五组全链冒烟（需服务已启动 + 真 LLM Key）
+uv run python -m scripts.verify_adjudication --offline   # 离线兜底档（零 API Key）
+uv run python -m scripts.verify_adjudication             # 完整档（需真 Key：自动签发+金额+决定书）
 ```
 
-冒烟脚本走真实链路：现场生成 Word 材料 → 真实提取 → 自动签发/补件闭环/未上线
-险种 escape/工单列表，共 23 项断言；材料只声明不上传会按设计转人工（T140 置信度
-校准），故必须上传真实文件才会走到自动签发。CI 里该步骤在 compose 全栈起好后
-执行，依赖仓库 secret `LLM_API_KEY`——未配置时自动跳过（fork PR 不阻塞）。
+冒烟脚本走真实链路：现场生成 Word 材料 → 提取 → 自动签发/补件闭环/未上线险种
+escape/工单列表。两种档位：
+
+| 档位 | 前置 | 覆盖 |
+|------|------|------|
+| `--offline`（默认兜底） | 零 API Key | 受理、上传落档、补件闭环、状态机、审计、escape、工单（材料提取降级 Mock → 置信度不足按设计转人工） |
+| 完整档 | 真 Key | 上述 + 自动签发 4640.00 + 决定书（签发与金额正确性另有零 LLM 的评测门 coverage） |
+
+CI 默认跑离线档（不需要任何 secret）；仓库配了 `LLM_API_KEY` secret 时自动升级
+为完整档。材料只声明不上传会按设计转人工（T140 置信度校准），故必须上传真实
+文件才会走到自动签发。
 
 ---
 

@@ -2105,3 +2105,26 @@ Key 非空，无 secret 时与既往口径一致；③新增冒烟步骤 `if: ${
 ci.yml 经 YAML 解析校验（docker job 8 步、env 与 if 条件齐全）；pytest 444 绿不变。
 
 **Git**：`ci: T144 [端到端冒烟接入CI: docker job补uv依赖+真Key secret(无则跳过)+down改always(); README补口径与前置; 双模式各23/23]`
+
+## 2026-09-22 T145 CI 冒烟默认改离线兜底档（D065）
+
+**做了什么**：用户改 Instr——默认路径不该依赖 secret。①脚本新增 `--offline`
+档位：零 Key 下材料提取必然降级 `mock_fallback`（基准 0.3 + 字段扣分）→ 低于
+floor 0.6 → 按设计转人工（T140 语义），故门禁改为守"上传落档/补件闭环/状态机/
+审计/escape/工单"，不断言自动签发与核定金额（那部分由零 LLM 的 eval-gate 153 案
+六门 coverage，两条门分工不重叠）。②CI 两档互斥二选一：无 secret → `--offline`
+（默认零依赖），有 secret → 完整档。③compose 新增 `ORCHESTRATOR_LLM_ENABLED`
+透传（默认 true，本地行为不变），CI 设 false，调度不依赖模型规划稳定性。④审计
+断言按档位分层：`status_change` 由 auto_adjudicate 写，离线档停在 human_gate
+挂起故只要求 routing+stage_result（如实反映既有行为，不为凑断言改产品事件）。
+⑤README 5.3 改双档位表。
+
+**踩坑**：dev 下**多实例共用一个 SQLite 库**时，background JobLoop 互相认领任务，
+而 checkpointer 是各进程内存 saver → 被他实例认领的 resume 找不到 checkpoint →
+T141 门卫判版本不匹配 → `schema_reset` 用 RUN 原始输入重跑 → 案件退回"缺三件"
+（完整档一度 5 项失败）。单实例复跑即 23/23。CI 是 compose 单实例无此风险。
+
+**验证**：离线档 22/22（`ORCHESTRATOR_LLM_ENABLED=false LLM_API_KEY=sk-invalid`
+模拟零 LLM）；完整档 23/23（单实例）；ruff 绿；ci.yml 与 compose YAML 解析校验。
+
+**Git**：`ci: T145 [冒烟默认改离线兜底档(零API Key): 脚本加--offline档+CI两档互斥+确定性编排+审计断言分层; 离线22/22+完整23/23]`

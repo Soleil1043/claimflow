@@ -146,12 +146,12 @@ async def upload_material(
     return resp.status_code, body
 
 
-async def verify(base_url: str) -> None:
+async def verify(base_url: str, offline: bool = False) -> None:
     # 幂等键含 user_id：加时间戳后缀，保证脚本可重复运行（否则二次运行命中 200）
     tag = str(int(time.time()))
     async with httpx.AsyncClient(base_url=base_url, timeout=60) as ac:
         # ===== 1. 自动签发主链路（真实材料上传补齐）=====
-        print("\n--- 1. 自动签发主链路 ---")
+        print(f"\n--- 1. 自动签发主链路{'（离线兜底档：只守落档与状态机）' if offline else ''} ---")
         body = {
             "user_id": f"verify-auto-{tag}",
             "policy_no": "POL-2025-0001",
@@ -180,18 +180,33 @@ async def verify(base_url: str) -> None:
             # 等上一份的 resume 任务结束再传下一份（background 档下连击会撞活跃任务）
             await wait_job_done(ac, case_id)
             detail = await wait_settled(ac, case_id)
-        check("三份材料均走真实提取（text_model）",
-              all(s == "text_model" for s in sources.values()), f"sources={sources}")
+        if offline:
+            # 零 Key：提取必然降级 mock_fallback（基准 0.3 + 字段扣分）→ 低于 floor
+            # 0.6 → 按设计转人工。门禁只守"上传链路与状态机"，不守签发结论
+            check("三份材料均降级 Mock 提取（零 Key 预期）",
+                  all(s == "mock_fallback" for s in sources.values()), f"sources={sources}")
+        else:
+            check("三份材料均走真实提取（text_model）",
+                  all(s == "text_model" for s in sources.values()), f"sources={sources}")
 
         detail = await wait_terminal(ac, case_id)
-        check("案件状态 auto_issued", detail.get("status") == "auto_issued",
-              f"got {detail.get('status')} / {detail.get('human')}")
-        check("final_decision approved", detail.get("final_decision") == "approved")
-        approved = str(detail.get("approved_amount") or "")
-        check(f"核定金额 4640.00（实际 {approved}）",
-              approved and Decimal(approved) == Decimal("4640.00"))
-        doc = detail.get("decision_document")
-        check("决定书存在", doc is not None and bool(doc.get("body")))
+        if offline:
+            # 离线档的终态即"材料置信度不足 → 转人工裁量"（T140 设计行为）
+            check("案件进终态", detail.get("status") in TERMINAL,
+                  f"got {detail.get('status')}")
+            check("零 Key 转人工裁量（置信度不足）", detail.get("status") == "referred",
+                  f"got {detail.get('status')} / {detail.get('human')}")
+            check("材料落档三份", len(detail.get("materials", [])) == 3,
+                  f"got {len(detail.get('materials', []))}")
+        else:
+            check("案件状态 auto_issued", detail.get("status") == "auto_issued",
+                  f"got {detail.get('status')} / {detail.get('human')}")
+            check("final_decision approved", detail.get("final_decision") == "approved")
+            approved = str(detail.get("approved_amount") or "")
+            check(f"核定金额 4640.00（实际 {approved}）",
+                  approved and Decimal(approved) == Decimal("4640.00"))
+            doc = detail.get("decision_document")
+            check("决定书存在", doc is not None and bool(doc.get("body")))
 
         # ===== 2. 案件详情 =====
         print("\n--- 2. 案件详情 ---")
@@ -201,7 +216,12 @@ async def verify(base_url: str) -> None:
         check("时间线非空", len(detail.get("timeline", [])) >= 8,
               f"got {len(detail.get('timeline', []))}")
         kinds = {e["kind"] for e in detail.get("timeline", [])}
-        check("审计事件种类齐", {"routing", "stage_result", "status_change"} <= kinds)
+        # status_change 由 auto_adjudicate 在签发/终态落库时写；离线档案件停在
+        # human_gate 挂起（interrupt），故只要求 routing + stage_result
+        expected_kinds = {"routing", "stage_result"}
+        if not offline:
+            expected_kinds.add("status_change")
+        check("审计事件种类齐", expected_kinds <= kinds, f"kinds={sorted(kinds)}")
         check("含材料上传审计", "material_upload" in kinds)
 
         # ===== 3. 补件闭环 =====
@@ -233,7 +253,7 @@ async def verify(base_url: str) -> None:
 
         # ===== 4. 未上线险种转人工 =====
         print("\n--- 4. 未上线险种 ---")
-        offline = {
+        offline_case = {
             "user_id": f"verify-offline-{tag}",
             "policy_no": "POL-2025-0002",  # 重疾险：不在任何险种 pack → unknown
             "claimed_amount": "8600.00",
@@ -241,7 +261,7 @@ async def verify(base_url: str) -> None:
             "incident_description": "确诊恶性肿瘤，申请重疾赔付。",
             "materials": [],
         }
-        resp = await ac.post("/api/v1/cases", json=offline)
+        resp = await ac.post("/api/v1/cases", json=offline_case)
         offline_detail = await wait_settled(ac, resp.json().get("case_id", ""))
         check("受理转人工（escape）",
               offline_detail.get("human", {}).get("kind") == "escape",
@@ -265,6 +285,13 @@ async def verify(base_url: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="核赔平台端到端验证")
     parser.add_argument("--base-url", default="http://localhost:8000", help="后端地址")
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="离线兜底档（零 API Key）：材料提取必然降级 Mock（0.3 < floor 0.6）→ "
+             "按设计转人工；只断言受理/上传落档/补件闭环/状态机/审计/escape/工单，"
+             "不断言自动签发与核定金额（那部分由零 LLM 的评测门 coverage）",
+    )
     args = parser.parse_args()
 
     # 健康检查
@@ -275,7 +302,8 @@ def main() -> None:
         print(f"后端不可达（{args.base_url}/health）：{e}")
         sys.exit(1)
 
-    asyncio.run(verify(args.base_url))
+    print(f"模式：{'离线兜底档（零 API Key）' if args.offline else '完整档（真实 LLM）'}")
+    asyncio.run(verify(args.base_url, offline=args.offline))
 
 
 

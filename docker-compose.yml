@@ -92,6 +92,9 @@ services:
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379/0
       LLM_API_KEY: ${LLM_API_KEY:-}
+      # 编排模式：默认 LLM 编排；CI 端到端冒烟设 false 走确定性编排（消除模型抖动，
+      # 材料提取仍按 Key 有无决定走真实 LLM 或 Mock 兜底）
+      ORCHESTRATOR_LLM_ENABLED: ${ORCHESTRATOR_LLM_ENABLED:-true}
       # 追踪接线：开关从 .env 透传；容器内 endpoint 固定服务名（.env 里的
       # localhost:4317 是宿主机直跑进程用的，透传进容器会指向容器自身）
       OTEL_ENABLED: ${OTEL_ENABLED:-false}

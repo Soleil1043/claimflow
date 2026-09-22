@@ -1637,3 +1637,36 @@ medical.md 的"隆鼻"——文本先于关键词层能力，与 T127 相反方�
 **验证**：本地双模式各跑一遍均 23/23（默认真实 LLM 编排 / ORCHESTRATOR_LLM_ENABLED
 =false 确定性编排）；ci.yml 经 YAML 解析校验（步骤/env/if 齐全）；README 5.3 补
 脚本口径说明与 secret 前置条件。
+
+## D065（2026-09-22，T145）：CI 冒烟默认改离线兜底档（零 API Key）
+
+**背景**：D064 落地后用户改主意——默认路径不该依赖仓库 secret（fork PR 永远
+跑不到，维护者还得配 Key 才有门禁，等于门禁形同虚设）。
+
+**决断**：
+
+1. **脚本加 `--offline` 档位**：零 Key 下材料提取必然降级 `mock_fallback`
+   （基准 0.3 + 字段扣分）→ 低于 floor 0.6 → **按设计转人工**（T140 语义），
+   因此门禁改为守"上传落档 / 补件闭环 / 状态机 / 审计 / escape / 工单"，
+   不断言自动签发与核定金额——那部分由零 LLM 的 eval-gate（153 案六门）coverage，
+   **两条门分工不重叠**，不重复也不留空档。
+2. **CI 默认离线、有 Key 自动升级**：无 secret → 跑 `--offline`；有 secret →
+   跑完整档（真实提取 + auto_issued 4640.00 + 决定书）。`if` 互斥，二选一，
+   默认路径零依赖。
+3. **CI 冒烟一律确定性编排**：compose 新增 `ORCHESTRATOR_LLM_ENABLED`
+   透传（默认 true，本地行为不变），CI 设 false——调度不依赖模型规划稳定性，
+   材料提取仍按 Key 有无决定走真实 LLM 或 Mock，两档语义都成立。
+4. **审计断言按档位分层**：`status_change` 事件由 `auto_adjudicate` 在签发/终态
+   落库时写入，离线档案件停在 human_gate 挂起（interrupt）故不产生——离线档只
+   要求 `routing + stage_result`，完整档三类齐全。这是既有行为的如实反映，
+   不为凑断言改产品事件。
+
+**踩坑（本地验证期，非 CI 问题）**：dev 下**多实例共用一个 SQLite 库**时，
+background JobLoop 会互相认领任务，而 checkpointer 是各进程的内存 saver →
+被别的实例认领的 resume 找不到 checkpoint → T141 门卫判定版本不匹配 →
+`schema_reset` 用 RUN 原始输入重跑 → 案件退回"缺三件"。表现是完整档 5 项失败。
+单实例即 23/23。CI 是 compose 单实例，无此风险，但本地并行调试须注意。
+
+**验证**：离线档 22/22（假 Key 模拟零 LLM：`ORCHESTRATOR_LLM_ENABLED=false
+LLM_API_KEY=sk-invalid`）；完整档 23/23（单实例）；ruff 绿；ci.yml 与 compose 经
+YAML 解析校验。
