@@ -153,8 +153,13 @@ docker compose up -d && curl http://localhost:8000/health   # → {"status":"ok"
 uv run pytest -q                                   # 411 用例
 uv run ruff check .
 uv run python -m evals.adjudication_suite          # 金样本评测门（确定性，零 LLM）
-uv run python scripts/verify_adjudication.py       # 容器/服务五阶段全链冒烟（需服务已启动）
+uv run python -m scripts.verify_adjudication       # 五组全链冒烟（需服务已启动 + 真 LLM Key）
 ```
+
+冒烟脚本走真实链路：现场生成 Word 材料 → 真实提取 → 自动签发/补件闭环/未上线
+险种 escape/工单列表，共 23 项断言；材料只声明不上传会按设计转人工（T140 置信度
+校准），故必须上传真实文件才会走到自动签发。CI 里该步骤在 compose 全栈起好后
+执行，依赖仓库 secret `LLM_API_KEY`——未配置时自动跳过（fork PR 不阻塞）。
 
 ---
 

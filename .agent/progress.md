@@ -2087,3 +2087,21 @@ dev 服务 health ok / 真实 LLM 全链路跑通）后，`scripts/verify_adjudi
 零退化；真实 deepseek 链路无 500。
 
 **Git**：`fix: T143 [连续补件上传500(deliver冲突回滚后读ORM)+AI审查恒压置信度致自动签发永不发生; verify_adjudication口径更新; 23/23全过; 444绿+双门100%]`
+
+## 2026-09-22 T144 端到端冒烟接入 CI（D064）
+
+**做了什么**：用户拍板"在 CI 起 compose 后带真 Key 跑"。改动集中在
+`.github/workflows/ci.yml` 的 docker job：①补 `setup-uv` + `uv sync --frozen`
+（原 job 无 Python 依赖，脚本根本跑不起来）；②compose 透传
+`LLM_API_KEY: ${{ secrets.LLM_API_KEY || 'sk-ci-placeholder' }}`——健康检查只校验
+Key 非空，无 secret 时与既往口径一致；③新增冒烟步骤 `if: ${{ secrets.LLM_API_KEY
+!= '' }}`，无 secret 自动跳过（fork PR 不阻塞）；④`docker compose down -v` 拆为
+独立步骤并加 `if: always()`（原写在 up 步骤末尾，健康检查失败会残留整栈）；
+⑤CI 注释写明稳定性兜底：加 `ORCHESTRATOR_LLM_ENABLED=false` 即切确定性编排
+（材料提取仍走真实 LLM，Key 仍必需）。README 5.3 补脚本口径（必须上传真实文件
+才会自动签发）与 secret 前置条件。
+
+**验证**：本地双模式各跑一遍 **23/23**（默认真实 LLM 编排 / 确定性编排兜底路径）；
+ci.yml 经 YAML 解析校验（docker job 8 步、env 与 if 条件齐全）；pytest 444 绿不变。
+
+**Git**：`ci: T144 [端到端冒烟接入CI: docker job补uv依赖+真Key secret(无则跳过)+down改always(); README补口径与前置; 双模式各23/23]`

@@ -1607,3 +1607,33 @@ medical.md 的"隆鼻"——文本先于关键词层能力，与 T127 相反方�
 + ruff 绿；**verify_adjudication 23/23 全过**（自动签发 4640.00 + 决定书、
 补件闭环、unknown escape、工单列表）；主门 153 案六门 100% + 对抗门 14/14
 100% 零退化；真实 deepseek 全链路无 500。
+
+## D064（2026-09-22，T144）：端到端冒烟接入 CI——compose 全栈 + 真 Key
+
+**背景**：D063 末尾挂账项——verify_adjudication 不在 CI 里，故口径腐烂三个月
+无人发现（T140 置信度校准、T120 四险种上线两次语义变更它都没跟上）。两个候选：
+①拆一个零 LLM 的确定性冒烟进 CI；②compose 起全栈后带真 Key 跑。用户拍板 ②。
+
+**决断**：
+
+1. **挂在既有 docker job**：compose 全栈（PG/Qdrant/Redis + init 迁移/种子/
+   ingest）已在该 job 起好，不新开 job——新开要重复拉起一套栈，成本翻倍。
+   该 job 原来没有 uv/依赖，补 `setup-uv` + `uv sync --frozen` 两步。
+2. **真 Key 走 secret，未配置必须跳过**：`LLM_API_KEY: ${{ secrets.LLM_API_KEY
+   || 'sk-ci-placeholder' }}` 供 compose 透传（健康检查只校验 Key 非空，无 secret
+   时口径与既往完全一致，不会让 fork PR 变红）；冒烟步骤加
+   `if: ${{ secrets.LLM_API_KEY != '' }}`——**无 secret 即跳过**，默认不阻塞。
+   这是"门禁"与"可用性"的取舍：有 Key 的 main/同仓 PR 才是真门禁，fork PR
+   保底靠 lint-test + eval-gate 两道。
+3. **清理必须是 `if: always()`**：原 `docker compose down -v` 写在 up 步骤末尾，
+   健康检查失败就留栈（CI 机器残留 + 端口占用）；拆成独立步骤并加 always。
+4. **稳定性兜底（写在 CI 注释里，不默认开启）**：真实 LLM 编排存在偶发抖动
+   风险，给冒烟步骤加 `ORCHESTRATOR_LLM_ENABLED=false` 即切确定性编排——材料
+   提取仍走真实 LLM（text_model 基准 0.9），Key 依然必需，但调度不再依赖模型
+   规划稳定性。本地已实测该模式 23/23。
+5. **成本**：每轮约十余次 flash 调用（五组案件，含三份材料提取），按 deepseek
+   定价可忽略；主要成本是 compose 起栈 + init 的 BGE-M3（缓存命中秒级）。
+
+**验证**：本地双模式各跑一遍均 23/23（默认真实 LLM 编排 / ORCHESTRATOR_LLM_ENABLED
+=false 确定性编排）；ci.yml 经 YAML 解析校验（步骤/env/if 齐全）；README 5.3 补
+脚本口径说明与 secret 前置条件。

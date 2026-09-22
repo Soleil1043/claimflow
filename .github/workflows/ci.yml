@@ -35,6 +35,15 @@ jobs:
       - name: 拉取项目代码到ubuntu
         uses: actions/checkout@v4
 
+      - name: 安装 uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: 安装依赖
+        run: uv sync --frozen
+
       - name: Compose 配置校验
         run: docker compose config -q
 
@@ -42,8 +51,12 @@ jobs:
         run: docker build -t claimflow:ci .
 
       - name: 启动全栈并验证健康检查
+        env:
+          # 端到端冒烟需真 Key（材料提取走真实 LLM）；未配置仓库 secret（fork PR）
+          # 时退回占位值——健康检查只校验 Key 非空，口径与既往一致
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY || 'sk-ci-placeholder' }}
         run: |
-          LLM_API_KEY=sk-ci-placeholder docker compose up -d --no-build
+          docker compose up -d --no-build
           # 等待 app 就绪（最多 60s）
           for i in $(seq 1 30); do
             if curl -sf http://localhost:8000/health > /tmp/health.json; then break; fi
@@ -51,7 +64,19 @@ jobs:
           done
           cat /tmp/health.json
           grep -q '"status":"ok"' /tmp/health.json
-          docker compose down -v
+
+      # 端到端冒烟（T092/T143）：对 compose 全栈跑五组真实链路——自动签发（含
+      # 决定书与核定金额）、审计时间线、补件闭环、未上线险种 escape、工单列表。
+      # 需 LLM_API_KEY secret 才执行（未配置则跳过，不阻塞无 secret 的 fork PR）。
+      # 稳定性兜底：若 LLM 编排出现偶发抖动，给本步加 env
+      # ORCHESTRATOR_LLM_ENABLED=false 即切确定性编排（材料提取仍走真实 LLM）。
+      - name: 端到端冒烟（真实 LLM，需 LLM_API_KEY secret）
+        if: ${{ secrets.LLM_API_KEY != '' }}
+        run: uv run python -m scripts.verify_adjudication --base-url http://localhost:8000
+
+      - name: 清理
+        if: always()
+        run: docker compose down -v
 
   eval-gate:
     name: 核赔评测门禁（金样本确定性回归，T094 改造）
