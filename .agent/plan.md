@@ -94,3 +94,67 @@ CircuitBreaker（官方无熔断）、ToolResultCache Redis 版（cache_policy �
 
 每任务全量 pytest + ruff；T115/T116 配负向用例（工具异常自愈 / 恢复短路）；删除类任务要求
 金样本评测门确定性模式指标零变化。
+
+---
+
+## 7. P1 工程完善批次（2026-09-24 追加，来源：完善度评估 P1 清单，用户指令执行）
+
+> 背景：P0 三项（坐席鉴权 T147 / 前端 CI T148 / 覆盖率阈值 T149）已收口。
+> 本批次补齐生产化差距，任务 T150-T154，每任务独立 commit + 回归验证。
+
+### 7.1 T150 负载测试（量化单消费者队列边界）
+
+- **目标**：量化交付队列（D044 单消费者）的吞吐上限、积压深度与端到端延迟分布，
+  为 SKIP LOCKED 多实例升级位提供触发证据（"什么负载下必须升"有数字）。
+- **做法**：`scripts/load_test.py`（httpx asyncio 并发，不引 locust 新依赖）——
+  N 案件并发提交（受理即返回路径）+ 逐案轮询终态；确定性编排
+  （ORCHESTRATOR_LLM_ENABLED=false）+ 零材料（挂起 supplement_pending 即终态，
+  走完 intake + 材料审核规则层 + 交付队列真实消费，零 LLM 零成本）。
+- **指标**：提交吞吐（RPS）/ 交付吞吐（案件/分钟）/ 峰值积压（pending 深度）/
+  端到端延迟 P50/P95 / 轮询 QPS。
+- **产出**：报告落 `evals/reports/`（t150_load_test.json）+ 结论写 decisions.md。
+
+### 7.2 T151 真实 LLM 门进 CI 夜间任务
+
+- **目标**：客服门 15 案 / 对抗门 LLM 档 14 案 / 主门 LLM 档抽样从"人记得跑"
+  变"每日自动跑"（回归靠日历不靠记性）。
+- **做法**：ci.yml 加 `nightly-llm` job（`schedule: cron` + workflow_dispatch 手动
+  触发口）；无 LLM_API_KEY secret 时 skip（fork 场景）；HF 模型走 actions/cache
+  （T072 先例），ingest 重建向量索引（data/qdrant 不入库）；三档顺序跑，
+  任一失败 exit 1。
+- **验收**：YAML 解析校验 + 本地等价命令可跑（真实跑等 push 后 GitHub 首夜验证）。
+
+### 7.3 T152 依赖漏洞审计进 CI
+
+- **后端**：lint-test job 加 `uv run pip-audit`（pyproject dev 依赖加 pip-audit）。
+- **前端**：frontend job 加 `npm audit --audit-level=high`（exit 非 0 才红）。
+- **验收**：本地 pip-audit / npm audit 跑通（如现有依赖有已知漏洞，如实记录并
+  评估升级，不为绿而忽略）。
+
+### 7.4 T153 超长文件拆分（有职责边界的两个）
+
+- **范围**：只拆有明确职责边界的两个——
+  `services/case_jobs.py` 500 行（checkpoint 版本门卫 T141 逻辑独立为
+  `services/case_resume_guard.py`）；
+  `evals/adjudication_suite.py` 484 行（临时库装配/种子逻辑独立为
+  `evals/adjudication_harness.py`，suite 保留编排与门禁）。
+- **豁免四个**（AGENTS.md 约定补充说明）：schemas/api.py 379 与 services/db/models.py 354
+  纯数据定义；app/api/v1/cases.py 367 与 services/memory/case_memory.py 315 略超线，
+  拆分收益低于 churn 风险。约定改为"逻辑模块超 300 行考虑拆分，纯模型/数据定义豁免"。
+- **验收**：拆后两文件 <300 行；全量 pytest + ruff + 主门 153 案 + 对抗门零退化
+  （纯移动无逻辑改动，diff 应只含 import 与函数搬家）。
+
+### 7.5 T154 Grafana 告警规则（无人值守的异常发现）
+
+- **目标**：/metrics 有数据没人看 → 三个业务关键告警规则声明式进 Grafana
+  provisioning（Grafana 11 unified alerting，不加独立 Alertmanager 容器——
+  演示场景无真实通知接收端，规则命中即 UI/邮件通道按部署方接入）。
+- **规则**：①自动结案率骤降（case 指标窗口对比）②交付队列积压（pending 深度
+  阈值）③LLM 调用失败率阈值。
+- **做法**：grafana/provisioning/alerting/ 规则 YAML + compose monitoring profile
+  挂载；本地起栈验证规则加载（Grafana API 查询确认）。
+
+### 7.6 批次验收
+
+T150/T153/T154 本地全验证；T151/T152 CI 侧本地等价验证（真实 GitHub 运行
+待 push）。每任务独立 commit（feat/ci/refactor 前缀）+ progress.md 追加。

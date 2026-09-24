@@ -13,8 +13,10 @@ background 档（默认）：POST 受理即返回，终态经 GET /cases/{id} �
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from pathlib import Path
+from weakref import WeakKeyDictionary
 
 from fastapi import (
     APIRouter,
@@ -68,6 +70,26 @@ log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/cases", tags=["cases"])
 
+# 提交临界区锁（T150 负载测试实锤的并发缺陷修复）：generate_case_id 是
+# "查 count → +1 → 查 exists"的读-判-写，无锁时并发提交会生成重复案号——
+# 后提交者撞 (case_id, active) 唯一约束落入 409"理论不可达"分支（实测 50 案
+# 并发 10 时 25 案 409，失败序号成对）。锁覆盖 幂等检查 → 案号生成 → 建档
+# 入队 commit 全临界区。单实例（D044 replicas=1）下完备；升多实例时案号生成
+# 需一并升级（DB 序列或 UUID），见 D044 SKIP LOCKED 升级位。
+#
+# 按事件循环惰性建锁（WeakKeyDictionary）：asyncio.Lock 绑定创建时的 loop，
+# 生产单进程单 loop 等价于模块级单锁；pytest 每测试新 loop 各持各锁不串台。
+_submit_locks: WeakKeyDictionary = WeakKeyDictionary()
+
+
+def _get_submit_lock() -> asyncio.Lock:
+    loop = asyncio.get_running_loop()
+    lock = _submit_locks.get(loop)
+    if lock is None:
+        lock = asyncio.Lock()
+        _submit_locks[loop] = lock
+    return lock
+
 
 async def _get_case_or_404(case_id: str, session: AsyncSession) -> Case:
     case = (
@@ -113,57 +135,63 @@ async def submit_case(
             detail=f"doc_type 取值非法：{', '.join(invalid_docs)}",
         )
 
-    # 自然键幂等（F01，service 收口）：重复提交返回既有案件，不重复执行
-    existing = await find_idempotent_case(
-        session,
-        user_id=body.user_id,
-        policy_no=body.policy_no,
-        claimed_amount=body.claimed_amount,
-        incident_date=body.incident_date,
-    )
-    if existing is not None:
-        log.info("case_submit_idempotent_hit", case_id=existing.id)
-        response.status_code = status.HTTP_200_OK
-        existing_doc, existing_issued = await decision_doc_view(session, existing)
-        return CaseSubmitResponse(
-            case_id=existing.id,
-            case_type=existing.case_type,
-            status=existing.status,
-            final_decision=existing.final_decision,
-            approved_amount=existing.approved_amount,
-            decision_document=decision_doc_payload(existing_doc),
-            decision_issued=existing_issued,
-            human=None,
-            idempotent=True,
+    # 提交临界区（T150）：幂等检查 + 案号生成（读 count→+1→查 exists）+ 建档入队
+    # 全程进锁——无锁时并发提交生成重复案号撞 (case_id, active) 唯一约束，
+    # 落入 409"理论不可达"分支（负载测试实锤：50 案并发 10，25 案 409 成对失败）；
+    # 同自然键并发双提交的幂等窗口竞态一并收口。单实例（D044）下完备，多实例
+    # 升级时案号与幂等需改 DB 序列/唯一约束兜底（见 D044 SKIP LOCKED 升级位）。
+    async with _get_submit_lock():
+        # 自然键幂等（F01，service 收口）：重复提交返回既有案件，不重复执行
+        existing = await find_idempotent_case(
+            session,
+            user_id=body.user_id,
+            policy_no=body.policy_no,
+            claimed_amount=body.claimed_amount,
+            incident_date=body.incident_date,
         )
+        if existing is not None:
+            log.info("case_submit_idempotent_hit", case_id=existing.id)
+            response.status_code = status.HTTP_200_OK
+            existing_doc, existing_issued = await decision_doc_view(session, existing)
+            return CaseSubmitResponse(
+                case_id=existing.id,
+                case_type=existing.case_type,
+                status=existing.status,
+                final_decision=existing.final_decision,
+                approved_amount=existing.approved_amount,
+                decision_document=decision_doc_payload(existing_doc),
+                decision_issued=existing_issued,
+                human=None,
+                idempotent=True,
+            )
 
-    case = new_case(
-        case_id=await generate_case_id(session),
-        user_id=body.user_id,
-        policy_no=body.policy_no,
-        claimed_amount=body.claimed_amount,
-        incident_date=body.incident_date,
-        incident_description=body.incident_description,
-        materials=[m.model_dump() for m in body.materials],
-    )
-    session.add(case)
-    # 交付收口（D049）：建档+任务行同事务（outbox）→ commit → 派发 → 回快照
-    job = await deliver_case_job(
-        session,
-        case_id=case.id,
-        action=JobAction.RUN,
-        payload={
-            "case_id": case.id,
-            "user_id": body.user_id,
-            "policy_id": body.policy_no,
-            "claimed_amount": body.claimed_amount,
-            "incident_date": body.incident_date,
-            "incident_description": body.incident_description,
-            "declared_case_type": body.declared_case_type,
-            "materials": [m.model_dump() for m in body.materials],
-        },
-        dispatcher=dispatcher,
-    )
+        # 交付收口（D049）：建档+任务行同事务（outbox）→ commit → 派发 → 回快照
+        case = new_case(
+            case_id=await generate_case_id(session),
+            user_id=body.user_id,
+            policy_no=body.policy_no,
+            claimed_amount=body.claimed_amount,
+            incident_date=body.incident_date,
+            incident_description=body.incident_description,
+            materials=[m.model_dump() for m in body.materials],
+        )
+        session.add(case)
+        job = await deliver_case_job(
+            session,
+            case_id=case.id,
+            action=JobAction.RUN,
+            payload={
+                "case_id": case.id,
+                "user_id": body.user_id,
+                "policy_id": body.policy_no,
+                "claimed_amount": body.claimed_amount,
+                "incident_date": body.incident_date,
+                "incident_description": body.incident_description,
+                "declared_case_type": body.declared_case_type,
+                "materials": [m.model_dump() for m in body.materials],
+            },
+            dispatcher=dispatcher,
+        )
     if job is None:  # 理论不可达（新建案号唯一）；与 resolve 同形防御
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

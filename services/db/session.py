@@ -47,7 +47,16 @@ def get_engine() -> AsyncEngine:
         if settings.database_url.startswith("sqlite"):
             db_path = settings.database_url.split("///")[-1]
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        _engine = create_async_engine(settings.database_url, echo=False)
+        # 池容量（T150 负载测试实锤）：SQLAlchemy 默认 pool_size=5 + max_overflow=10
+        # = 15 并发连接上限——门户 N 案并发轮询（每案一路 GET）+ 交付队列消费并发
+        # 超过 15 时，后续请求等池 30s 后 TimeoutError 500（50 案轮询实测 36 案 500）。
+        # 扩到 20+30：覆盖门户全量并发轮询；asyncpg 同配置适用。
+        _engine = create_async_engine(
+            settings.database_url,
+            echo=False,
+            pool_size=20,
+            max_overflow=30,
+        )
         log.info("db_engine_created", url=settings._url_for_log())
     return _engine
 

@@ -370,3 +370,43 @@ async def test_decision_doc_view_issued_vs_draft(client: AsyncClient) -> None:
     assert detail2["status"] == "auto_issued"
     assert detail2["decision_issued"] is True
     assert detail2["decision_document"]["version"] == 1
+
+
+async def test_concurrent_submit_unique_case_ids(client: AsyncClient) -> None:
+    """并发提交不撞号（T150 回归）：幂等键各异的 10 案并发提交全部 201 且案号唯一。
+
+    修复前实锤：generate_case_id 读-判-写无锁，并发读同 count 生成重复案号，
+    后者撞 (case_id, active) 唯一约束落 409"理论不可达"分支（50 案并发 10
+    时 25 案成对失败）。修复 = 幂等检查 + 案号生成 + 建档入队全临界区 asyncio.Lock。
+    """
+    import asyncio
+
+    bodies = [
+        _body(user_id=f"u-concurrent-{i}", materials=[]) for i in range(10)
+    ]
+
+    async def _submit(body: dict):
+        return await client.post("/api/v1/cases", json=body)
+
+    responses = await asyncio.gather(*(_submit(b) for b in bodies))
+    codes = [r.status_code for r in responses]
+    assert codes == [201] * 10, f"并发提交应全部 201，实得 {codes}"
+    case_ids = [r.json()["case_id"] for r in responses]
+    assert len(set(case_ids)) == 10, f"案号应唯一，实得 {case_ids}"
+
+
+async def test_concurrent_same_natural_key_idempotent(client: AsyncClient) -> None:
+    """同自然键并发双提交幂等收口（T150）：锁内二次查重，全部返回同一案号。"""
+    import asyncio
+
+    body = _body(user_id="u-dup-key", materials=[])
+
+    async def _submit():
+        return await client.post("/api/v1/cases", json=body)
+
+    responses = await asyncio.gather(*(_submit() for _ in range(5)))
+    codes = sorted(r.status_code for r in responses)
+    assert codes[0] in (200, 201), f"应 201/200，实得 {codes}"
+    case_ids = {r.json()["case_id"] for r in responses}
+    assert len(case_ids) == 1, f"同自然键应收敛为单一案件，实得 {case_ids}"
+
