@@ -39,6 +39,11 @@ jobs:
           --cov=schemas --cov=workflows --cov=state
           --cov-fail-under=85
 
+      # 依赖漏洞审计（T152，D070）：已知漏洞即红；本地项目与 torch+cpu 本地变体
+      # 为合理跳过项（不在 PyPI）
+      - name: 依赖审计（pip-audit）
+        run: uv run pip-audit --progress-spinner off
+
   # 前端门禁（T148）：两个 Next.js 应用的 lint + build——此前只靠本地手动验证
   frontend:
     name: 前端 Lint & Build（${{ matrix.dir }}）
@@ -63,6 +68,10 @@ jobs:
 
       - name: 安装依赖（npm ci）
         run: npm ci
+
+      # 依赖漏洞审计（T152，D070）：high 及以上即红（moderate 不阻塞）
+      - name: 依赖审计（npm audit ≥high）
+        run: npm audit --audit-level=high
 
       - name: Lint（next lint）
         run: npm run lint
