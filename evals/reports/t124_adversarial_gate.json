@@ -3,57 +3,16 @@
   "dataset": "adversarial",
   "robustness": {
     "total": 6,
-    "matched": 0,
-    "consistency": 0.0,
-    "failures": [
-      {
-        "case_id": "ADV-101",
-        "failed_dims": [
-          "liability",
-          "amount"
-        ]
-      },
-      {
-        "case_id": "ADV-102",
-        "failed_dims": [
-          "liability",
-          "amount"
-        ]
-      },
-      {
-        "case_id": "ADV-103",
-        "failed_dims": [
-          "liability",
-          "amount"
-        ]
-      },
-      {
-        "case_id": "ADV-104",
-        "failed_dims": [
-          "route"
-        ]
-      },
-      {
-        "case_id": "ADV-105",
-        "failed_dims": [
-          "liability",
-          "amount"
-        ]
-      },
-      {
-        "case_id": "ADV-106",
-        "failed_dims": [
-          "route"
-        ]
-      }
-    ]
+    "matched": 6,
+    "consistency": 1.0,
+    "failures": []
   },
-  "generated_at": "2026-09-21T21:59:01",
+  "generated_at": "2026-09-24T19:47:32",
   "mode": "deterministic",
   "model": null,
   "total_cases": 14,
-  "matched": 8,
-  "consistency": 0.5714,
+  "matched": 14,
+  "consistency": 1.0,
   "gates": {
     "amount_accuracy": {
       "value": 1.0,
@@ -100,99 +59,14 @@
     },
     "robustness": {
       "total": 6,
-      "matched": 0
+      "matched": 6
     }
   },
-  "failures": [
-    {
-      "case_id": "ADV-101",
-      "category": "robustness",
-      "expected_route": "auto",
-      "observed_route": "auto",
-      "checks": {
-        "route": true,
-        "amount": false,
-        "liability": false,
-        "case_type": true,
-        "sequence": true
-      },
-      "error": null
-    },
-    {
-      "case_id": "ADV-102",
-      "category": "robustness",
-      "expected_route": "auto",
-      "observed_route": "auto",
-      "checks": {
-        "route": true,
-        "amount": false,
-        "liability": false,
-        "case_type": true,
-        "sequence": true
-      },
-      "error": null
-    },
-    {
-      "case_id": "ADV-103",
-      "category": "robustness",
-      "expected_route": "auto",
-      "observed_route": "auto",
-      "checks": {
-        "route": true,
-        "amount": false,
-        "liability": false,
-        "case_type": true,
-        "sequence": true
-      },
-      "error": null
-    },
-    {
-      "case_id": "ADV-104",
-      "category": "robustness",
-      "expected_route": "auto",
-      "observed_route": "human",
-      "checks": {
-        "route": false,
-        "amount": true,
-        "liability": true,
-        "case_type": true,
-        "sequence": false
-      },
-      "error": null
-    },
-    {
-      "case_id": "ADV-105",
-      "category": "robustness",
-      "expected_route": "auto",
-      "observed_route": "auto",
-      "checks": {
-        "route": true,
-        "amount": false,
-        "liability": false,
-        "case_type": true,
-        "sequence": true
-      },
-      "error": null
-    },
-    {
-      "case_id": "ADV-106",
-      "category": "robustness",
-      "expected_route": "auto",
-      "observed_route": "human",
-      "checks": {
-        "route": false,
-        "amount": true,
-        "liability": true,
-        "case_type": true,
-        "sequence": false
-      },
-      "error": null
-    }
-  ],
+  "failures": [],
   "cost": {
     "tokens_total": 0,
     "tokens_per_case_avg": 0.0,
-    "duration_s_avg": 1.18,
-    "duration_s_p95": 0.22
+    "duration_s_avg": 1.12,
+    "duration_s_p95": 0.19
   }
 }

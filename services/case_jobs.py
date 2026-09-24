@@ -1,9 +1,14 @@
-"""案件交付队列（T103，D044 混合方案：任务表凭证 + 常驻单消费者，无租约装甲）。
+"""案件交付队列——生产半区（T103，D044 混合方案；T153 拆分后只承载入队与交付收口）。
 
 POST /cases 不再同步跑核赔管线：路由在与建档/材料同一事务里插入任务行
 （transactional outbox——"提交成功但任务丢失"在构造上不可能），常驻单消费者
 循环 CAS 认领执行；图异常退避重试，耗尽转 dead + 审计事件；interrupt 挂起是
 任务的**成功终态**（outcome=interrupted + 回执快照），恢复 = 插入新的 resume 任务。
+
+模块分工（T153）：
+- 本模块：JobAction / enqueue（outbox）/ job_envelope / latest_job / deliver_case_job
+- services/case_job_worker.py：消费半区（CAS 认领 / 执行 / 死信 / 派发器 / JobLoop）
+- services/case_resume_guard.py：RESUME 的 checkpoint 版本门卫（T141）
 
 砍掉的装甲（D044，相对完整 job-queue 方案）：租约/心跳/locked_by（崩溃恢复靠
 启动期把 running 孤儿回收回 queued，单实例契约 replicas=1）、SKIP LOCKED 认领
@@ -16,32 +21,19 @@ POST /cases 不再同步跑核赔管线：路由在与建档/材料同一事务�
 
 from __future__ import annotations
 
-import asyncio
 import datetime as dt
-import time
 from enum import StrEnum
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
-from langgraph.types import Command
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from services.case_store import CaseRecorder
 from services.db.models import CaseJob
 from services.db.session import get_session_factory
-from services.observability import metrics
-from services.observability.token_tracker import track_case
-from services.observability.tracing import traced_span
-from state import CASE_SCHEMA_VERSION
 
 log = get_logger(__name__)
-
-# 重试耗尽死信的审计事件 kind（坐席/运维可见的失败凭证）
-JOB_FAILED_EVENT = "job_failed"
-# checkpoint schema 版本不匹配、resume 降级全新重跑的审计事件 kind（T141，D061）
-SCHEMA_RESET_EVENT = "schema_reset"
 
 
 class JobAction(StrEnum):
@@ -55,7 +47,19 @@ class CaseJobConflictError(RuntimeError):
     """该案件已有活跃任务（queued/running）。路由映射 409。"""
 
 
-# ===== 生产半区：入队（outbox 语义） =====
+# 重新导出消费半区公开名（T153 拆分后既有 import 路径不变；新代码建议按模块导入）
+from services.case_job_worker import (  # noqa: E402,F401  (facade re-export)
+    JOB_FAILED_EVENT,
+    BackgroundDispatcher,
+    CaseJobDispatcher,
+    InlineDispatcher,
+    JobLoop,
+    claim_next,
+    execute_job,
+    make_case_dispatcher,
+    requeue_orphans,
+)
+from services.case_resume_guard import SCHEMA_RESET_EVENT  # noqa: E402,F401
 
 
 def _json_safe(value: Any) -> Any:
@@ -187,314 +191,3 @@ async def deliver_case_job(
         await session.refresh(case_obj)
     await session.refresh(job)
     return job
-
-
-# ===== 消费半区：CAS 认领 + 执行 =====
-
-
-async def claim_next() -> CaseJob | None:
-    """认领下一个到期任务（单语句 CAS：SELECT 到期最早 → 条件 UPDATE 抢占）。
-
-    rowcount=0 即被抢走（或状态已变），返回 None 由调用方重试/空转。
-    SQLite 与 PG 通吃（无 SKIP LOCKED 依赖，D044 单实例契约下排他性等价）。
-    """
-    factory = get_session_factory()
-    async with factory() as session:
-        row = (
-            await session.execute(
-                select(CaseJob.id)
-                .where(CaseJob.status == "queued", CaseJob.run_after <= dt.datetime.now())
-                .order_by(CaseJob.id)
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-        if row is None:
-            return None
-        result = await session.execute(
-            update(CaseJob)
-            .where(CaseJob.id == row, CaseJob.status == "queued")
-            .values(
-                status="running",
-                attempt=CaseJob.attempt + 1,
-                started_at=dt.datetime.now(),
-            )
-        )
-        await session.commit()
-        if result.rowcount == 0:
-            return None  # 抢输（并发认领窗口）
-        return await session.get(CaseJob, row)
-
-
-async def _resume_invocation(job: CaseJob, *, graph: Any, recorder: CaseRecorder) -> Any:
-    """RESUME 载荷构造（T141，D061 schema 门卫）。
-
-    checkpoint 的 schema_version 匹配 → Command(resume)；
-    不匹配（含旧 checkpoint 无此字段）→ 降级全新重跑：删旧 thread checkpoint，
-    取该案最近一次 RUN 任务的原始图输入重新执行（执行进度丢弃；案件事实权威
-    在 cases 表 D006，结果无损），schema_reset 审计事件留痕。
-    """
-    config = {"configurable": {"thread_id": job.case_id}}
-    version: int | None = None
-    try:
-        snapshot = await graph.aget_state(config)
-        values = getattr(snapshot, "values", None) if snapshot is not None else None
-        version = (values or {}).get("schema_version")
-    except Exception:  # noqa: BLE001 —— aget_state 不可用/失败：保守按不匹配降级
-        version = None
-
-    if version == CASE_SCHEMA_VERSION:
-        return Command(resume=job.payload)
-
-    log.warning(
-        "case_resume_schema_mismatch",
-        case_id=job.case_id,
-        expected=CASE_SCHEMA_VERSION,
-        found=version,
-    )
-    # 旧 thread 状态必须清掉——否则全新输入在既有 channel 上合并，旧阶段结论污染重跑
-    checkpointer = getattr(graph, "checkpointer", None)
-    delete_thread = getattr(checkpointer, "adelete_thread", None)
-    if delete_thread is not None:
-        await delete_thread(job.case_id)
-
-    factory = get_session_factory()
-    async with factory() as session:
-        run_job = (
-            await session.execute(
-                select(CaseJob)
-                .where(
-                    CaseJob.case_id == job.case_id,
-                    CaseJob.action == JobAction.RUN.value,
-                )
-                .order_by(CaseJob.id.desc())
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-    if run_job is None:
-        # 理论不可达（RESUME 必有前置 RUN）；显式失败进入重试/死信，不盲 resume 旧格式
-        msg = f"案件 {job.case_id} 的 resume 降级失败：找不到原始 RUN 图输入"
-        raise RuntimeError(msg)
-
-    await recorder.event(
-        job.case_id,
-        SCHEMA_RESET_EVENT,
-        payload={
-            "expected": CASE_SCHEMA_VERSION,
-            "found": version,
-            "action": "fresh_rerun",
-        },
-    )
-    return run_job.payload
-
-
-async def execute_job(job: CaseJob, *, graph: Any, recorder: CaseRecorder) -> None:
-    """执行一个已认领任务至终态（succeeded / queued 重试 / dead）。
-
-    行级状态更新走独立会话（与图内 recorder 会话互不干扰）；
-    观测（CASE_DURATION/CASE_TOKENS）随执行体——路由不再感知。
-    """
-    started = time.monotonic()
-    try:
-        with track_case(job.case_id):
-            if job.action == JobAction.RESUME.value:
-                invocation: Any = await _resume_invocation(job, graph=graph, recorder=recorder)
-            else:
-                invocation = job.payload
-            with traced_span("case.deliver", case_id=job.case_id, action=job.action):
-                result = await graph.ainvoke(
-                    invocation,
-                    config={
-                        "configurable": {"thread_id": job.case_id},
-                        "recursion_limit": 60,
-                    },
-                )
-        if job.action == JobAction.RUN.value:
-            metrics.record_case_duration(time.monotonic() - started)
-
-        interrupts = result.get("__interrupt__") if isinstance(result, dict) else None
-        if interrupts:
-            value = getattr(interrupts[0], "value", None)
-            payload = value if isinstance(value, dict) else {}
-            await _finish(
-                job.id,
-                status="succeeded",
-                outcome="interrupted",
-                interrupt_payload=payload,
-            )
-        else:
-            await _finish(job.id, status="succeeded", outcome="completed")
-    except Exception as exc:  # noqa: BLE001 —— 交付级异常：重试或死信，不向上抛
-        if job.attempt >= job.max_attempts:
-            await _finish(job.id, status="dead", outcome=None, error=str(exc)[:500])
-            try:
-                await recorder.event(
-                    job.case_id,
-                    JOB_FAILED_EVENT,
-                    payload={"attempts": job.attempt, "error": str(exc)[:300]},
-                )
-            except Exception:  # noqa: BLE001 —— 审计失败不掩盖死信状态
-                log.warning("job_failed_audit_missed", job_id=job.id)
-            log.warning("case_job_dead", job_id=job.id, case_id=job.case_id,
-                        attempts=job.attempt, error=str(exc)[:200])
-        else:
-            delay = settings.case_jobs_backoff_base_s * (2 ** (job.attempt - 1))
-            await _retry(job.id, error=str(exc)[:500], delay_s=delay)
-            log.warning("case_job_retry_scheduled", job_id=job.id,
-                        attempt=job.attempt, delay_s=delay, error=str(exc)[:200])
-
-
-async def _finish(
-    job_id: int,
-    *,
-    status: str,
-    outcome: str | None,
-    interrupt_payload: dict[str, Any] | None = None,
-    error: str | None = None,
-) -> None:
-    factory = get_session_factory()
-    async with factory() as session:
-        await session.execute(
-            update(CaseJob)
-            .where(CaseJob.id == job_id)
-            .values(
-                status=status,
-                outcome=outcome,
-                interrupt_payload=interrupt_payload,
-                last_error=error,
-                finished_at=dt.datetime.now(),
-            )
-        )
-        await session.commit()
-
-
-async def _retry(job_id: int, *, error: str, delay_s: float) -> None:
-    factory = get_session_factory()
-    async with factory() as session:
-        await session.execute(
-            update(CaseJob)
-            .where(CaseJob.id == job_id)
-            .values(
-                status="queued",
-                last_error=error,
-                run_after=dt.datetime.now() + dt.timedelta(seconds=delay_s),
-            )
-        )
-        await session.commit()
-
-
-async def requeue_orphans() -> int:
-    """启动期回收：崩溃遗留的 running 孤儿全部回 queued（单实例契约）。
-
-    返回回收行数。执行中途被杀的任务由重跑幂等承载（checkpoint 从上个
-    superstep 续跑；重放 superstep 的审计重复为已知噪声，D044 接受）。
-    """
-    factory = get_session_factory()
-    async with factory() as session:
-        result = await session.execute(
-            update(CaseJob)
-            .where(CaseJob.status == "running")
-            .values(status="queued", run_after=dt.datetime.now())
-        )
-        await session.commit()
-        if result.rowcount:
-            log.info("case_jobs_orphans_requeued", count=result.rowcount)
-        return result.rowcount or 0
-
-
-# ===== 派发器（seam：执行时机的两个真 adapter） =====
-
-
-@runtime_checkable
-class CaseJobDispatcher(Protocol):
-    """请求路径的交付触发点。"""
-
-    async def dispatch(self, job_id: int) -> None: ...
-
-
-class InlineDispatcher:
-    """同步执行 adapter（测试/兼容档）：dispatch 即执行到终态，响应保留同步语义。"""
-
-    def __init__(self, graph: Any, recorder: CaseRecorder):
-        self._graph = graph
-        self._recorder = recorder
-
-    async def dispatch(self, job_id: int) -> None:
-        factory = get_session_factory()
-        async with factory() as session:
-            job = await session.get(CaseJob, job_id)
-        if job is None:
-            msg = f"任务行 {job_id} 不存在（enqueue 未提交？）"
-            raise RuntimeError(msg)
-        await execute_job(job, graph=self._graph, recorder=self._recorder)
-
-
-class BackgroundDispatcher:
-    """后台循环 adapter（生产默认）：no-op——常驻消费者 ≤ poll_interval 内认领。"""
-
-    async def dispatch(self, job_id: int) -> None:
-        return None
-
-
-def make_case_dispatcher(graph: Any, recorder: CaseRecorder) -> CaseJobDispatcher:
-    """按 settings.case_jobs_execution 装配派发器（inline | background）。"""
-    if settings.case_jobs_execution == "inline":
-        return InlineDispatcher(graph, recorder)
-    return BackgroundDispatcher()
-
-
-class JobLoop:
-    """常驻单消费者循环（background 档，lifespan 持有）。
-
-    start()：先回收孤儿再拉起循环任务；stop()：停止认领 → 排水等待在飞任务
-    （超时放弃，行留 running 由下次启动回收）。tick() 独立暴露供确定性测试。
-    """
-
-    def __init__(
-        self,
-        graph: Any,
-        recorder: CaseRecorder,
-        *,
-        poll_interval_s: float | None = None,
-    ):
-        self._graph = graph
-        self._recorder = recorder
-        self._poll = poll_interval_s or settings.case_jobs_poll_interval_s
-        self._task: asyncio.Task | None = None
-        self._stopping = False
-
-    async def start(self) -> None:
-        await requeue_orphans()
-        self._stopping = False
-        self._task = asyncio.create_task(self._run(), name="case-job-loop")
-        log.info("case_job_loop_started", poll_interval_s=self._poll)
-
-    async def tick(self) -> CaseJob | None:
-        """处理至多一个到期任务（返回 None=队空）。"""
-        job = await claim_next()
-        if job is None:
-            return None
-        await execute_job(job, graph=self._graph, recorder=self._recorder)
-        return job
-
-    async def _run(self) -> None:
-        while not self._stopping:
-            try:
-                job = await self.tick()
-            except Exception as exc:  # noqa: BLE001 —— 循环永不因单任务逻辑退出
-                log.warning("case_job_loop_tick_error", error=str(exc)[:200])
-                job = None
-            if job is None:
-                await asyncio.sleep(self._poll)
-
-    async def stop(self, timeout_s: float | None = None) -> None:
-        """停止认领并排水。超时放弃在飞任务（行留 running，下次启动回收）。"""
-        self._stopping = True
-        if self._task is None:
-            return
-        timeout = timeout_s or settings.case_jobs_drain_timeout_s
-        try:
-            await asyncio.wait_for(asyncio.shield(self._task), timeout)
-        except (TimeoutError, asyncio.CancelledError):
-            self._task.cancel()
-            log.warning("case_job_loop_drain_timeout", timeout_s=timeout)
-        log.info("case_job_loop_stopped")

@@ -1,7 +1,7 @@
-"""核赔评测接入与上线门（Phase 8 T089，D037/D039）。
+"""核赔评测接入与上线门（Phase 8 T089，D037/D039；T153 拆分后保留编排与门禁接线）。
 
 用法：
-    uv run python -m evals.adjudication_suite                # 全量 150 案（确定性编排，零 LLM）
+    uv run python -m evals.adjudication_suite                # 全量 153 案（确定性编排，零 LLM）
     uv run python -m evals.adjudication_suite --limit 20     # 冒烟子集
     uv run python -m evals.adjudication_suite --llm          # 真实 LLM Orchestrator
 
@@ -16,177 +16,41 @@
 - 责任认定一致率 ≥90%
 预算：
 - 调度调用 ≤15 次/案件（routing_call_budget）
+
+模块分工（T153）：环境装配 / 观测提取 / 报告装配在 evals/adjudication_harness.py；
+门禁计算本体在 evals/gates.py；判分在 evals/adjudication_metrics.py。
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
-import datetime as dt
-import json
 import sys
 import tempfile
 import time
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 from langgraph.checkpoint.memory import InMemorySaver
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import services.db.session as session_module
 from app.core.config import settings
-from evals.adjudication_metrics import (
-    AdjudicationOutcome,
-    aggregate,
-    load_adjudication_dataset,
-    score_case,
+from evals.adjudication_harness import (
+    case_tokens_total,
+    emit_report,
+    error_result,
+    extract_outcome,
+    has_guard_bypass,
+    seed_eval_memories,
+    setup_eval_db,
 )
+from evals.adjudication_metrics import aggregate, load_adjudication_dataset, score_case
 from evals.gates import evaluate_gates, overall_passed
-from evals.schemas import AdjudicationCase
 from schemas import contract
-from schemas.contract import final_decision_from_verdict
 from tools.compliance.rule_check import check_text
 
 ROOT = Path(__file__).resolve().parent.parent
 REPORT_DIR = ROOT / "evals" / "reports"
-
-def _case_tokens_total() -> int:
-    """CASE_TOKENS 计数器当前累计值（全模型标签求和；差分得单案用量）。
-
-    注意读项目自定义 registry（services.observability.metrics.registry），
-    不是 prometheus_client 默认 REGISTRY——CASE_TOKENS 注册在自定义 registry 上。
-    """
-    from services.observability.metrics import registry
-
-    total = 0
-    for metric in registry.collect():
-        if metric.name == "claimflow_case_tokens":
-            total += int(sum(
-                sample.value for sample in metric.samples
-                if sample.name.endswith("_total")  # 排除 _created 时间戳样本
-            ))
-    return total
-
-
-def _p95(values: list[float]) -> float:
-    """最近秩法 P95（v1 指标口径延续）。"""
-    if not values:
-        return 0.0
-    ordered = sorted(values)
-    rank = max(1, round(0.95 * len(ordered)))
-    return round(ordered[rank - 1], 2)
-
-
-async def _setup_db(db_path: Path, freq_signals: list[dict[str, Any]] | None = None) -> None:
-    """建表 + 种子全量 mock 数据（保单/理赔记录/黑名单走文件）。"""
-    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path.as_posix()}")
-    async with engine.begin() as conn:
-        from services.db.models import Base
-
-        await conn.run_sync(Base.metadata.create_all)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
-    session_module.swap_engine(engine, factory)
-
-
-    from services.db.models import ClaimRecord, Policy
-
-    policies = json.loads(
-        (ROOT / "data" / "mock" / "policies.json").read_text(encoding="utf-8")
-    )
-    claim_records = json.loads(
-        (ROOT / "data" / "mock" / "claim_records.json").read_text(encoding="utf-8")
-    )
-    async with factory() as s:
-        for p in policies:
-            s.add(Policy(
-                policy_no=p["policy_no"],
-                holder_name=p["holder_name"],
-                holder_id_card=p["holder_id_card"],
-                product_name=p["product_name"],
-                product_type=p["product_type"],
-                coverage_amount=Decimal(p["coverage_amount"]),
-                deductible=Decimal(p["deductible"]),
-                payout_ratio=Decimal(p["payout_ratio"]),
-                effective_date=dt.date.fromisoformat(p["effective_date"]),
-                expiry_date=dt.date.fromisoformat(p["expiry_date"]),
-                status=p["status"],
-            ))
-        for cr in claim_records:
-            submitted = dt.datetime.fromisoformat(cr["submitted_at"])
-            s.add(ClaimRecord(
-                claim_no=cr["claim_no"],
-                policy_no=cr["policy_no"],
-                status=cr["status"],
-                applied_amount=Decimal(cr["applied_amount"]),
-                approved_amount=Decimal(cr["approved_amount"]),
-                submitted_at=submitted,
-                updated_at=submitted,
-            ))
-        # frequency_signals 相对天数换算（_meta 口径，T122 补实现）：信号保单的静态
-        # mock 记录替换为"now - days_ago"记录——"近 90 天"计数不随评测执行时间漂移
-        # （原实现只灌静态日期，T089 时窗内 2 条、随日历衰减到 1 条，medium 信号
-        # 静默失效，E-0086/88 由金额超线碰巧掩盖）
-        if freq_signals:
-            from sqlalchemy import delete as sa_delete
-
-            now = dt.datetime.now()
-            for sig in freq_signals:
-                await s.execute(
-                    sa_delete(ClaimRecord).where(
-                        ClaimRecord.policy_no == sig["policy_no"]
-                    )
-                )
-                for i, days_ago in enumerate(sig["claims_days_ago"]):
-                    submitted = now - dt.timedelta(days=days_ago)
-                    s.add(ClaimRecord(
-                        claim_no=f"EVAL-FREQ-{sig['policy_no']}-{i}",
-                        policy_no=sig["policy_no"],
-                        status="approved",
-                        applied_amount=Decimal("1000.00"),
-                        approved_amount=Decimal("800.00"),
-                        submitted_at=submitted,
-                        updated_at=submitted,
-                    ))
-        await s.commit()
-
-
-async def _seed_memories(cases: list[Any]) -> None:
-    """预置申请人记忆（T100 实验口径）：从数据集期望值渲染每用户至多 4 条终态档案。
-
-    分块评测时每进程独立 InMemoryStore——种子让记忆注入在每个分块都满载荷生效。
-    """
-    from services.memory.case_memory import put_case_memory, render_case_memory
-
-    per_user: dict[str, list[Any]] = {}
-    for c in cases:
-        seen = per_user.setdefault(c.user_id, [])
-        if len(seen) >= 4:
-            continue
-        seen.append(c)
-    for user_id, user_cases in per_user.items():
-        for c in user_cases:
-            exp = c.expected
-            outcome = "auto_issued" if exp.route == "auto" else "referred"
-            # 终态判定单源（T107）：与 auto_adjudicate 同一规则；转人工案（缺件/
-            # 受理分类）无自动终态——记忆终态即 referred
-            decision = (
-                "referred"
-                if outcome != "auto_issued"
-                else final_decision_from_verdict(exp.liability or "covered")
-            )
-            record, embed_text = render_case_memory(
-                case_id=c.case_id,
-                user_id=user_id,
-                case_type=c.declared_case_type or "medical",
-                outcome=outcome,
-                final_decision=decision,
-                approved_amount=exp.approved_amount,
-                reason=exp.note or exp.category,
-                incident_date=c.incident_date,
-            )
-            await put_case_memory(record, embed_text)
-    print(f"  已预置申请人记忆：{len(per_user)} 用户 × ≤4 条")
 
 
 async def _run_suite(
@@ -212,11 +76,11 @@ async def _run_suite(
 
     settings.memory_in_routing = memory_routing
     if seed_memories:
-        await _seed_memories(cases)
+        await seed_eval_memories(cases)
 
     engine = None
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-        await _setup_db(Path(tmp) / "eval.db", freq_signals)
+        await setup_eval_db(Path(tmp) / "eval.db", freq_signals)
         engine = session_module.get_engine()
 
         from nodes.orchestrator import make_llm_router
@@ -249,7 +113,7 @@ async def _run_suite(
             from services.observability.token_tracker import track_case
 
             started = time.perf_counter()
-            tokens_before = _case_tokens_total()
+            tokens_before = case_tokens_total()
             try:
                 # track_case：案件维度 token 归集上下文（与 case_jobs 交付同口径；
                 # 不包裹则 CASE_TOKENS 不记——评测成本量化 T123 补）
@@ -258,15 +122,15 @@ async def _run_suite(
                 state = graph.get_state(config).values
             except Exception as exc:  # noqa: BLE001
                 results.append(
-                    _error_result(case, str(exc)[:300]) | {
+                    error_result(case, str(exc)[:300]) | {
                         "duration_s": round(time.perf_counter() - started, 2),
-                        "tokens": _case_tokens_total() - tokens_before,
+                        "tokens": case_tokens_total() - tokens_before,
                     }
                 )
                 continue
 
             # 提取观测
-            outcome = _extract_outcome(graph, config, result, state)
+            outcome = extract_outcome(graph, config, result, state)
 
             # 红线漏放检查（T097）：与运行时合规门同一实现（check_text），不再用弱化子串
             doc = state.get("decision_document") or {}
@@ -274,7 +138,7 @@ async def _run_suite(
                 red_line_leaks += 1
 
             # 守卫旁路检查：state 里不应有前置条件未满足就写入的结论
-            if _has_guard_bypass(state):
+            if has_guard_bypass(state):
                 guard_bypasses += 1
 
             # 调度预算
@@ -289,7 +153,7 @@ async def _run_suite(
                 "case_type_observed": outcome.case_type,
                 "error": outcome.error,
                 "duration_s": round(time.perf_counter() - started, 2),
-                "tokens": _case_tokens_total() - tokens_before,
+                "tokens": case_tokens_total() - tokens_before,
             })
 
     # 释放 DB 连接（Windows 文件锁）
@@ -335,116 +199,26 @@ async def _run_suite(
     gate_results = evaluate_gates(
         gated_results, red_line_leaks=red_line_leaks, guard_bypasses=guard_bypasses
     )
-
     overall_pass = overall_passed(gate_results)
 
-    report = {
-        "task": "T124 核赔对抗回归门" if dataset_name == "adversarial" else "T089 核赔评测上线门",
-        "dataset": dataset_name,
-        "robustness": robustness_block,
-        "generated_at": dt.datetime.now().isoformat(timespec="seconds"),
-        "mode": "llm" if use_llm else "deterministic",
-        "model": settings.llm_model if use_llm else None,
-        "total_cases": total,
-        "matched": agg["matched"],
-        "consistency": agg["consistency"],
-        "gates": gate_results,
-        "overall_passed": overall_pass,
-        "by_category": agg["by_category"],
-        "failures": agg["failures"],
-        # 成本量化（T123，证据缺口#1）：tokens/延迟按案分布
-        "cost": {
-            "tokens_total": sum(r.get("tokens") or 0 for r in results),
-            "tokens_per_case_avg": round(
-                sum(r.get("tokens") or 0 for r in results) / total, 1
-            ),
-            "duration_s_avg": round(
-                sum(r.get("duration_s") or 0.0 for r in results) / total, 2
-            ),
-            "duration_s_p95": _p95([r.get("duration_s") or 0.0 for r in results]),
-        },
-    }
-
-    REPORT_DIR.mkdir(parents=True, exist_ok=True)
     default_report = (
         "t124_adversarial_gate.json" if dataset_name == "adversarial"
         else "t089_adjudication_gate.json"
     )
     report_path = Path(out_path) if out_path else REPORT_DIR / default_report
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    # 摘要
-    print(f"\n{'=' * 60}")
-    print(f"核赔评测上线门（{total} 案件，{'LLM' if use_llm else '确定性'}模式）")
-    print(f"{'=' * 60}")
-    for name, gate in gate_results.items():
-        mark = "✅" if gate["passed"] else "❌"
-        print(f"  {mark} {name}: {gate['value']} (阈值 {gate['threshold']}, {gate['type']})")
-    print(f"{'=' * 60}")
-    print(f"总一致率: {agg['consistency']:.1%} | 硬门: {'全绿' if overall_pass else '有未过'}")
-    print(f"报告 → {report_path}")
-
-    if agg["failures"]:
-        print(f"\n失败案件（{len(agg['failures'])} 条）：")
-        for f in agg["failures"][:10]:
-            failed_dims = [k for k, v in f["checks"].items() if not v]
-            print(f"  {f['case_id']} [{f['category']}] dim={failed_dims} "
-                  f"expected={f['expected_route']} observed={f['observed_route']}")
-
-    return 0 if overall_pass else 1
-
-
-def _extract_outcome(
-    graph, config: dict, result: dict, state: dict
-) -> AdjudicationOutcome:
-    """从图执行结果提取观测事实。"""
-    if "__interrupt__" in result:
-        payload = result["__interrupt__"][0].value
-        kind = str(payload.get("kind", "review"))
-        route = "supplement" if kind == "supplement" else "human"
-        return AdjudicationOutcome(route=route, kind=kind)
-
-    route = "auto"
-    # worker 序列从已完成的阶段 channel 推导（STAGE_SPECS 顺序 = 标准管线序）
-    from schemas.stages import STAGE_CHANNELS, WORKER_TARGETS
-
-    worker_sequence = [
-        str(w) for w in WORKER_TARGETS if state.get(STAGE_CHANNELS[w]) is not None
-    ]
-    return AdjudicationOutcome(
-        route=route,
-        final_decision=state.get("final_decision"),
-        approved_amount=str(state.get("approved_amount") or ""),
-        liability_verdict=str((state.get("liability") or {}).get("verdict") or ""),
-        case_type=str(state.get("case_type") or ""),
-        worker_sequence=worker_sequence,
+    emit_report(
+        results=results,
+        agg=agg,
+        gate_results=gate_results,
+        overall_pass=overall_pass,
+        robustness_block=robustness_block,
+        dataset_name=dataset_name,
+        use_llm=use_llm,
+        model=settings.llm_model if use_llm else None,
+        report_path=report_path,
     )
 
-
-def _error_result(case: AdjudicationCase, error: str) -> dict[str, Any]:
-    return {
-        "case_id": case.case_id,
-        "category": case.expected.category,
-        "expected_route": case.expected.route,
-        "observed_route": None,
-        "checks": {
-            "route": False, "amount": False, "liability": False,
-            "case_type": True, "sequence": False,
-        },
-        "matched": False,
-        "error": error,
-    }
-
-
-def _has_guard_bypass(state: dict) -> bool:
-    """守卫旁路检测：decision 存在但必做集不全 → 旁路。"""
-    from nodes.guards import stage_done
-    from schemas.stages import MUST_COMPLETE
-
-    if not state.get("decision"):
-        return False
-    return any(not stage_done(state, w) for w in MUST_COMPLETE)
+    return 0 if overall_pass else 1
 
 
 def main() -> None:

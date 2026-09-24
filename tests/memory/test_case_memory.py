@@ -204,7 +204,7 @@ async def test_seed_semantics_missing_case_referred(memory_store, monkeypatch) -
     """转人工案（route != auto）记忆终态 = referred，与 outcome 不再矛盾。"""
     from types import SimpleNamespace
 
-    from evals.adjudication_suite import _seed_memories
+    from evals.adjudication_harness import seed_eval_memories as _seed_memories
 
     def _case(case_id, user_id, route, category, liability, amount):
         return SimpleNamespace(
