@@ -2293,3 +2293,22 @@ init 已完成、hf_cache 卷保留→BGE 不重下），8000/8001 双档冒烟�
 
 **结果**：本地 `--boot --offline` 18/18 全绿（两轮复验）；498 passed + ruff 干净；
 compose replicas 组合本地 config 校验过（!override 合并正确：端口区间 + uploads 共享卷）。
+
+## 2026-09-27 T156 CI 接入实战：GitHub Actions 首次真跑 + 六轮修复全绿
+
+**背景**：推送后才发现上次成功 CI run 停在 2026-08-27——T143-T155 的 CI 演进从未在 GitHub 真跑过，本轮把积压问题全部清出。
+
+**修复链（按注解遥测逐轮定位）**：
+1. **工作流瞬败零 job**：step 级 `if:` 不可用 secrets context（GitHub 校验直接拒绝）——5 处（T143/T151/T156 积累）改 job 级 env 承接档位判定（91172bc）
+2. **lint-test flake**：test_metrics_endpoint 用 TestClient with 上下文拉起完整 lifespan 含 BGE 预下载，本地 HF 热缓存掩盖 → 改 ASGITransport（7aed8b6）；test_submit_background_mode_reaches_terminal 轮询竞态（图写 auto_issued 先于任务行 _finish 提交，50ms 轮询踩进中间窗）→ break 双条件+预算 30s（621dff4）；pytest 失败行进 annotations 的观测口（cf39f13）立功一次
+3. **模型获取**（最深的坑，五轮）：
+   - 冷自举官方匿名下载限速 ~1MB/s（本地冷栈实测 977M/12min）→ 超健康窗
+   - hf-mirror 从 Azure runner 不稳（本机 curl 也 000，疑似宕机）
+   - 剥成仓库脚本 scripts/download_bge_ci.py（YAML 内联 Python 缩进陷阱根除）
+   - **ModelScope 兜底双根因**：校验只认 safetensors 误拒（仓内是 pytorch_model.bin）+ `uv run` exact-sync 当场卸载刚装的 modelscope 包 → 双修（4598e3e）
+   - **幽灵快照**：失败 hub 下载留悬空 symlink 快照被 CMD 守卫字典序选中 → prune + config.json 口径（23079dd）
+   - **ST v5 Pooling 签名变更**：ModelScope 快照携带 1_Pooling/config.json 旧键名 word_embedding_dimension vs 新签名 embedding_dimension → TypeError（CI traceback 实锤）→ 剥离 ST 组装配置对齐 HF 官方快照的自动装配路径（b4df101）
+4. **缓存策略**：actions/cache 拆 restore/save（save 挂 always()，失败 run 也持久化模型）
+
+**结果**：run 36269355575 全绿——lint-test / 评测门 / 前端×2 / **docker job（含双副本多实例冒烟 prod 真形态）**。模型缓存已持久化，后续 run 秒级。
+**方法论沉淀**：匿名拿不到 Actions 日志时，`::error::`/`::warning::` annotations 是匿名可读的唯一观测口；本地 Linux 容器（独立 venv）复现 Linux 专属失败；每轮失败必须转化成下一轮的观测数据。
