@@ -31,16 +31,31 @@ _SNAP_ROOT = _HF_CACHE / "hub" / "models--BAAI--bge-m3" / "snapshots"
 _WEIGHT_FILES = ("model.safetensors", "pytorch_model.bin")
 
 
-def _verify() -> bool:
-    """快照完整性：任一快照目录含权重文件即可用（EMBEDDING_MODEL_PATH 口径）。
+def _verified_dirs() -> list[pathlib.Path]:
+    """含真实可读权重文件的快照目录（is_file 穿透符号链接——悬空链接为 False）。
 
-    HF 官方仓是 model.safetensors；ModelScope 镜像仓只有 pytorch_model.bin
-    （本地下载清单实测，无 safetensors）——两种权重 transformers 均可离线加载。
+    两种权重均可离线加载：HF 官方仓 model.safetensors；ModelScope 镜像仓
+    pytorch_model.bin（本地下载清单实测无 safetensors）。
     """
-    hits = [h for w in _WEIGHT_FILES for h in _SNAP_ROOT.glob(f"*/{w}")]
-    for hit in hits:
+    hits = [h.parent for w in _WEIGHT_FILES for h in _SNAP_ROOT.glob(f"*/{w}") if h.is_file()]
+    for hit in sorted(set(hits)):
         print(f"[download_bge] snapshot ok: {hit}")
-    return bool(hits)
+    return sorted(set(hits))
+
+
+def _prune_unverified() -> None:
+    """清理未验证快照目录（自愈脏缓存）。
+
+    实锤场景：hub 通道失败的尝试会在 $HOME/.cache 留下幽灵快照（仅有指向
+    不存在 blobs 的悬空符号链接）；CMD 守卫 find|head -1 按字典序选中它 →
+    容器内加载空壳崩溃。入口处先清理，持久化进 actions/cache 的即是净版。
+    """
+    if not _SNAP_ROOT.is_dir():
+        return
+    for d in _SNAP_ROOT.iterdir():
+        if d.is_dir() and not any((d / w).is_file() for w in _WEIGHT_FILES):
+            shutil.rmtree(d, ignore_errors=True)
+            print(f"[download_bge] pruned unverified snapshot: {d.name}")
 
 
 def _hub_download() -> bool:
@@ -52,7 +67,8 @@ def _hub_download() -> bool:
     except Exception as exc:  # noqa: BLE001 —— 各尝试的失败是预期路径，交由下一手
         print(f"[download_bge] hub download failed: {exc}", file=sys.stderr)
         return False
-    return _verify()
+    _prune_unverified()
+    return bool(_verified_dirs())
 
 
 def _modelscope_download() -> bool:
@@ -85,7 +101,8 @@ def _modelscope_download() -> bool:
         if f.is_file():
             shutil.copy2(f, manual / f.name)
     print(f"[download_bge] modelscope files -> {manual}")
-    return _verify()
+    _prune_unverified()
+    return bool(_verified_dirs())
 
 
 def main() -> int:
@@ -99,10 +116,12 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="只校验本地快照，不下载")
     args = parser.parse_args()
 
-    if args.check:
-        return 0 if _verify() else 1
+    _prune_unverified()
 
-    if _verify():
+    if args.check:
+        return 0 if _verified_dirs() else 1
+
+    if _verified_dirs():
         print("[download_bge] cache hit")
         return 0
 
