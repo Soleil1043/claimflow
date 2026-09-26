@@ -487,7 +487,7 @@ async def test_heartbeat_extends_lease_during_long_run(jobs_db, monkeypatch) -> 
 
     # patch worker 模块视角的 settings（tests/core/test_logging 会 reload config，
     # 运行期 from app.core.config import settings 拿到的可能是新对象——见 conftest 惯例）
-    monkeypatch.setattr(worker_module.settings, "case_jobs_lease_ttl_s", 0.15)  # 心跳 0.05s
+    monkeypatch.setattr(worker_module.settings, "case_jobs_lease_ttl_s", 0.9)  # 心跳 0.3s（慢 runner 余量）
     case = await _make_case(jobs_db)
     async with jobs_db() as s:
         job = await enqueue_case_job(s, case_id=case.id, action=JobAction.RUN, payload={})
@@ -499,10 +499,10 @@ async def test_heartbeat_extends_lease_during_long_run(jobs_db, monkeypatch) -> 
     class SlowGraph(FakeGraph):
         async def ainvoke(self, invocation: Any, config: dict | None = None) -> dict:
             self.calls.append((invocation, config or {}))
-            await asyncio.sleep(0.2)  # 跨过至少两次心跳窗口
+            await asyncio.sleep(0.8)  # 跨过至少两次心跳窗口（慢 runner 余量）
             async with jobs_db() as s:
                 mid_run_lease.append((await s.get(CaseJob, job_id)).lease_expires_at)
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.2)
             return self._result
 
     claimed = await claim_next()

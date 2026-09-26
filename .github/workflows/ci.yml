@@ -118,10 +118,11 @@ jobs:
           ORCHESTRATOR_LLM_ENABLED: "false"
         run: |
           docker compose up -d --no-build
-          # 等待 app 就绪（最多 60s）
-          for _ in $(seq 1 30); do
+          # 等待 app 就绪：app 容器等 init（首次下载 BGE-M3 ~2.3G + 2 vCPU ingest）
+          # 完成才启动——冷 runner 上 init 需数分钟，窗口给足 15 分钟
+          for _ in $(seq 1 180); do
             if curl -sf http://localhost:8000/health > /tmp/health.json; then break; fi
-            sleep 2
+            sleep 5
           done
           cat /tmp/health.json
           grep -q '"status":"ok"' /tmp/health.json
@@ -152,7 +153,7 @@ jobs:
         run: |
           for port in 8000 8001; do
             ok=0
-            for _ in $(seq 1 45); do
+            for _ in $(seq 1 90); do
               if curl -sf http://localhost:$port/health > /dev/null; then ok=1; break; fi
               sleep 2
             done
