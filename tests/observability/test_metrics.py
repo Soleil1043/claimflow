@@ -200,3 +200,37 @@ def test_metrics_endpoint() -> None:
     assert "claimflow_tool_calls_total" in body
     assert "claimflow_llm_calls_total" in body
     assert resp.headers["content-type"].startswith("text/plain")
+
+
+def test_set_queue_depth_updates_gauge() -> None:
+    """队列深度 Gauge（T154）：set_queue_depth 更新 queued/running 两列。"""
+    from services.observability.metrics import (
+        QUEUE_DEPTH,
+        registry,
+        set_queue_depth,
+    )
+
+    set_queue_depth(queued=3, running=1)
+
+    def _value(status: str) -> float:
+        for metric in registry.collect():
+            if metric.name == "claimflow_case_jobs_queue_depth":
+                for sample in metric.samples:
+                    if sample.labels.get("status") == status:
+                        return sample.value
+        raise AssertionError("queue_depth 指标未注册")
+
+    assert _value("queued") == 3
+    assert _value("running") == 1
+    assert QUEUE_DEPTH is not None
+
+
+def test_set_queue_depth_swallows_errors(monkeypatch) -> None:
+    """打点失败静默（不抛错不影响消费循环）。"""
+    from services.observability import metrics as m
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("registry down")
+
+    monkeypatch.setattr(m.QUEUE_DEPTH, "labels", boom)
+    m.set_queue_depth(queued=1, running=0)  # 不抛错即过

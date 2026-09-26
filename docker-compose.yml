@@ -71,6 +71,9 @@ services:
       POSTGRES_PASSWORD: claimpass
       POSTGRES_DB: claim_agent
       QDRANT_URL: http://qdrant:6333
+      # 坐席鉴权（T147）：init 也是 prod profile——prod 启动强制校验 STAFF_KEYS
+      # 非空（D067），漏配会让初始化容器直接失败（T154 实测逮到）
+      STAFF_KEYS: ${STAFF_KEYS:-demo-staff:demo-key-2026}
     volumes:
       - hf_cache:/root/.cache/huggingface
     depends_on:

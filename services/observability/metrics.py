@@ -141,6 +141,23 @@ CASE_TOKENS = Counter(
     registry=registry,
 )
 
+# 交付队列深度（T154 告警信号）：JobLoop 每 tick 刷新（queued/running 分列）
+QUEUE_DEPTH = Gauge(
+    "claimflow_case_jobs_queue_depth",
+    "交付队列深度（按任务状态分列；queued 持续高位 = 积压告警信号，T154）",
+    labelnames=["status"],
+    registry=registry,
+)
+
+
+def set_queue_depth(queued: int, running: int) -> None:
+    """刷新队列深度 Gauge（JobLoop 每 tick 调用；打点失败不影响消费循环）。"""
+    try:
+        QUEUE_DEPTH.labels(status="queued").set(queued)
+        QUEUE_DEPTH.labels(status="running").set(running)
+    except Exception:  # noqa: BLE001 埋点容错
+        pass
+
 
 def _safe_inc(counter: Counter | Gauge | None, amount: float = 1.0, **labels: Any) -> None:
     """打点失败不抛错：观测层异常不允许影响业务链路。"""

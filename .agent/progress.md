@@ -2239,3 +2239,24 @@ workbench build 绿；dev 默认（不配 Key）行为零变化。
 docker/eval-gate）。
 
 **Git**：`ci: T149 [覆盖率基线88%+CI阈值85%; pytest --cov七包+fail-under]`
+
+## 2026-09-26 T154 Grafana 告警规则（D070，P1 批次收官）
+
+**做了什么**：①新增队列深度指标 `claimflow_case_jobs_queue_depth`（Gauge，
+queued/running 分列；JobLoop 每 tick 刷新，打点失败静默不影响消费循环）+ 指标
+单测 2；②`grafana/provisioning/alerting/rules.yml` 三条业务告警（自动结案率
+骤降 / 队列积压 / LLM 失败率），datasource uid 固化引用；③不加独立 Alertmanager
+（演示无通知接收端，UI 呈现 + 部署方接通道）。**顺带修 T147 遗留真缺陷**：init
+服务漏配 STAFF_KEYS，prod 启动强制校验（D067）把初始化容器挡死——起栈实测逮到，
+compose init 环境补齐。
+
+**验证（全栈实测）**：compose monitoring profile 起全栈（重建 app 镜像加载新
+指标代码）——3 条规则经 Grafana provisioning API 全部加载确认；queue_depth 两
+series 经 Prometheus 抓取可见（queued=0/running=0）；栈用后 down 保卷。全量
+482 passed + 覆盖率 88% 此前已绿。
+
+**P1 批次收官**：T150 负载测试 / T151 夜间 LLM 门 / T152 依赖审计 / T153 拆分 /
+T154 告警五项全交付（D069/D070）。CI 现为 5 jobs（lint-test 含覆盖率+审计 /
+frontend 含审计 / docker 双档冒烟 / eval-gate 双门 / nightly-llm 夜间真 LLM）。
+
+**Git**：`feat: T154 [Grafana告警: 队列深度Gauge+三规则provisioning(结案率骤降/积压/LLM失败率); 全栈实测3规则加载+指标抓取; 修T147遗留init漏配STAFF_KEYS]`

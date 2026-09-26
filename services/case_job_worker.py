@@ -16,7 +16,7 @@ import datetime as dt
 import time
 from typing import Any, Protocol, runtime_checkable
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -26,6 +26,7 @@ from services.case_store import CaseRecorder
 from services.db.models import CaseJob
 from services.db.session import get_session_factory
 from services.observability import metrics
+from services.observability.metrics import set_queue_depth
 from services.observability.token_tracker import track_case
 from services.observability.tracing import traced_span
 
@@ -33,6 +34,27 @@ log = get_logger(__name__)
 
 # 重试耗尽死信的审计事件 kind（坐席/运维可见的失败凭证）
 JOB_FAILED_EVENT = "job_failed"
+
+
+async def refresh_queue_depth() -> None:
+    """查询并刷新队列深度 Gauge（T154 告警信号；查询失败静默保持旧值）。"""
+    factory = get_session_factory()
+    try:
+        async with factory() as session:
+            rows = (
+                await session.execute(
+                    select(CaseJob.status, func.count(CaseJob.id))
+                    .where(CaseJob.status.in_(("queued", "running")))
+                    .group_by(CaseJob.status)
+                )
+            ).all()
+        by_status = dict(rows)
+        set_queue_depth(
+            queued=by_status.get("queued", 0),
+            running=by_status.get("running", 0),
+        )
+    except Exception:  # noqa: BLE001 埋点容错：观测查询失败不影响消费循环
+        pass
 
 
 async def claim_next() -> CaseJob | None:
@@ -260,6 +282,7 @@ class JobLoop:
     async def _run(self) -> None:
         while not self._stopping:
             try:
+                await refresh_queue_depth()  # T154：积压告警信号每 tick 刷新
                 job = await self.tick()
             except Exception as exc:  # noqa: BLE001 —— 循环永不因单任务逻辑退出
                 log.warning("case_job_loop_tick_error", error=str(exc)[:200])

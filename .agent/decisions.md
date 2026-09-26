@@ -1792,3 +1792,32 @@ LLM 全链 6.2s/案（T123 口径）折算 LLM 模式约 **10 案/min**——日
 
 **验证**：三轮压测收敛至 50/50 与 100/100 全稳定；482 passed（+2 并发回归）+
 覆盖率 88% + ruff 绿。
+
+## D070（2026-09-24/26，T151-T154）：P1 工程完善批次四项决断
+
+**1. 夜间真实 LLM 门（T151）**：CI 触发器补 schedule（北京 04:00 = UTC 20:00）+
+workflow_dispatch 手动口；nightly-llm job 事件级 if 限定（push/PR 自动 skip 不红），
+无 secret 检查步骤 exit 1（该跑没 key = 配置错误应红）；BGE-M3 走 actions/cache、
+ingest 重建索引（data/qdrant 不入库）；三档顺序：对抗 LLM 14 / 客服 15 / 主门
+LLM 抽样 20，任一失败 exit 1。回归从"人记得跑"变"每日自动跑"。
+
+**2. 依赖审计（T152）**：pip-audit 入 dev 组 + lint-test 步骤；npm audit
+--audit-level=high 进 frontend job（moderate 不阻塞）。审计实锤修两处：
+postcss ≤8.5.22 high（next 15 内嵌带入）→ package.json overrides 强制 ^8.5.23
+免升 next 16 大版本；workbench sharp <0.35.4 → npm audit fix 非破坏。原则：
+不为绿而忽略，风险有据可查。
+
+**3. 拆分口径（T153）**：只拆有职责边界的——case_jobs 500→三分（生产 189/
+消费 281/门卫 84，facade re-export 保持既有 import 零改动）；adjudication_suite
+485→二分（编排 258/harness 280）。纯模型/数据定义文件豁免（AGENTS.md 4.1 已
+补口径）。验收 = 纯移动 diff + 双评测门零退化。
+
+**4. 告警规则（T154）**：Grafana 11 unified alerting provisioning（不加独立
+Alertmanager——演示场景无真实通知接收端，UI 呈现 + 部署方接通知通道）。
+三规则：自动结案率骤降（1h 有量 >5 案且 auto_issued 占比 <30% 持续 10m）/
+队列积压（queued >20 持续 5m——阈值锚定 D069 排空口径）/ LLM 失败率（15m
+有量 >10 次且错误占比 >50%）。新增 QUEUE_DEPTH Gauge（JobLoop 每 tick 刷新，
+打点失败静默）。**全栈实测**（compose monitoring profile）：3 规则经
+provisioning API 全部加载、queue_depth 两 series 经 Prometheus 抓取可见。
+**顺带修 T147 遗留**：init 服务漏配 STAFF_KEYS——prod 启动强制校验把初始化
+容器挡死（T154 起栈实测逮到），compose init 环境补齐对齐 app。

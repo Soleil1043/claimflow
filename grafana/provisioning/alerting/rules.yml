@@ -1,0 +1,217 @@
+# Grafana 告警规则自动配置（T154，D070）：/metrics 有数据没人看 → 三条业务关键告警。
+#
+# - 加载即生效（compose monitoring profile 挂载 grafana/provisioning → alerting/）
+# - 不加独立 Alertmanager 容器：演示场景无真实通知接收端，规则命中在 Grafana
+#   UI 呈现；生产部署在 Grafana 配置通知通道（邮件/钉钉/Alertmanager）即可
+# - 数据源 uid 引用 datasources/prometheus.yml 的 claimflow-prometheus
+#
+# 阈值口径（保守起步，避免演示环境误报）：
+# 1. 自动结案率骤降：近 1h 有量（>5 案）且自动签发占比 <30% 持续 10m
+# 2. 交付队列积压：queued 深度 >20 持续 5m（单消费者确定性排空 ~140 案/min，
+#    20 案 ≈ 10s 排空量；持续 5m 说明消费停滞而非瞬时尖峰——D069 口径）
+# 3. LLM 调用失败率：近 15m 有调用（>10 次）且错误占比 >50% 持续 5m
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: claimflow-adjudication
+    folder: claimflow
+    interval: 1m
+    rules:
+      - uid: claimflow-auto-issue-rate
+        title: 自动结案率骤降（1h 自动签发占比 <30% 且有量）
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: claimflow-prometheus
+            model:
+              editorMode: code
+              expr: >-
+                sum(increase(claimflow_cases_total{final_status="auto_issued"}[1h]))
+                / clamp_min(sum(increase(claimflow_cases_total[1h])), 1)
+                and sum(increase(claimflow_cases_total[1h])) > 5
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - B
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - "0.3"
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+
+      - uid: claimflow-queue-backlog
+        title: 交付队列积压（queued >20 持续 5m，消费停滞信号）
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: claimflow-prometheus
+            model:
+              editorMode: code
+              expr: claimflow_case_jobs_queue_depth{status="queued"}
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - B
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - "20"
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+
+      - uid: claimflow-llm-error-rate
+        title: LLM 调用失败率过高（15m 错误占比 >50% 且有量）
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: claimflow-prometheus
+            model:
+              editorMode: code
+              expr: >-
+                sum(increase(claimflow_llm_calls_total{status="error"}[15m]))
+                / clamp_min(sum(increase(claimflow_llm_calls_total[15m])), 1)
+                and sum(increase(claimflow_llm_calls_total[15m])) > 10
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - B
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - "0.5"
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 5m
