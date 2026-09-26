@@ -148,14 +148,26 @@ jobs:
             exit 0
           fi
           ok=0
-          if HF_ENDPOINT=https://hf-mirror.com uv run python -m scripts.download_bge_ci --channel hub; then
+          if HF_ENDPOINT=https://hf-mirror.com uv run python -m scripts.download_bge_ci --channel hub              2>/tmp/err-mirror.txt; then
             ok=1
-          elif uv run python -m scripts.download_bge_ci --channel hub; then
-            ok=1
-          elif uv pip install -p .venv/bin/python --quiet modelscope             && uv run python -m scripts.download_bge_ci --channel modelscope; then
-            ok=1
+          else
+            echo "::warning title=镜像通道失败::$(tail -1 /tmp/err-mirror.txt | tail -c 300)"
           fi
-          [ "$ok" = "1" ] || { echo "::error title=模型获取失败::镜像/官方/ModelScope 全部失败"; exit 1; }
+          if [ "$ok" != "1" ]; then
+            if uv run python -m scripts.download_bge_ci --channel hub 2>/tmp/err-official.txt; then
+              ok=1
+            else
+              echo "::warning title=官方通道失败::$(tail -1 /tmp/err-official.txt | tail -c 300)"
+            fi
+          fi
+          if [ "$ok" != "1" ]; then
+            if uv pip install -p .venv/bin/python --quiet modelscope               && uv run python -m scripts.download_bge_ci --channel modelscope 2>/tmp/err-ms.txt; then
+              ok=1
+            else
+              echo "::warning title=ModelScope通道失败::$(tail -1 /tmp/err-ms.txt | tail -c 300)"
+            fi
+          fi
+          [ "$ok" = "1" ] || { echo "::error title=模型获取失败::三通道 stderr 尾见上方 warning"; exit 1; }
 
       - name: 预灌 hf_cache 卷
         run: |
