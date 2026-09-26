@@ -331,9 +331,13 @@ async def test_submit_background_mode_reaches_terminal(client, monkeypatch) -> N
         case_id = body["case_id"]
 
         detail: dict = {}
-        for _ in range(400):  # ≤20s
+        for _ in range(600):  # ≤30s（慢 runner 余量）
             detail = (await client.get(f"/api/v1/cases/{case_id}")).json()
-            if detail.get("status") == "auto_issued":
+            # 必须两者齐活才 break：案件状态由图内写入先落库，任务行 _finish 在
+            # ainvoke 返回之后才提交——只看案件状态会踩进中间窗（CI 慢机实锤）
+            if detail.get("status") == "auto_issued" and detail.get("job", {}).get(
+                "status"
+            ) == "succeeded":
                 break
             await asyncio.sleep(0.05)
         assert detail["status"] == "auto_issued"
