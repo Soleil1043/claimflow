@@ -151,20 +151,22 @@ jobs:
           if HF_ENDPOINT=https://hf-mirror.com uv run python -m scripts.download_bge_ci --channel hub              2>/tmp/err-mirror.txt; then
             ok=1
           else
-            echo "::warning title=镜像通道失败::$(tail -1 /tmp/err-mirror.txt | tail -c 300)"
+            echo "::warning title=镜像通道失败::$(grep download_bge /tmp/err-mirror.txt | tail -2 | tail -c 350)"
           fi
           if [ "$ok" != "1" ]; then
             if uv run python -m scripts.download_bge_ci --channel hub 2>/tmp/err-official.txt; then
               ok=1
             else
-              echo "::warning title=官方通道失败::$(tail -1 /tmp/err-official.txt | tail -c 300)"
+              echo "::warning title=官方通道失败::$(grep download_bge /tmp/err-official.txt | tail -2 | tail -c 350)"
             fi
           fi
           if [ "$ok" != "1" ]; then
-            if uv pip install -p .venv/bin/python --quiet modelscope               && uv run python -m scripts.download_bge_ci --channel modelscope 2>/tmp/err-ms.txt; then
+            if ! uv pip install -p .venv/bin/python modelscope 2>/tmp/err-mspip.txt; then
+              echo "::warning title=modelscope安装失败::$(tail -3 /tmp/err-mspip.txt | tail -c 350)"
+            elif uv run python -m scripts.download_bge_ci --channel modelscope 2>/tmp/err-ms.txt; then
               ok=1
             else
-              echo "::warning title=ModelScope通道失败::$(tail -1 /tmp/err-ms.txt | tail -c 300)"
+              echo "::warning title=ModelScope通道失败::$(grep download_bge /tmp/err-ms.txt | tail -2 | tail -c 350)"
             fi
           fi
           [ "$ok" = "1" ] || { echo "::error title=模型获取失败::三通道 stderr 尾见上方 warning"; exit 1; }
