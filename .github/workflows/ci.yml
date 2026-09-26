@@ -135,28 +135,27 @@ jobs:
       # runner 亦不稳）：缓存命中先离线校验，未命中按 镜像→官方→镜像 轮换重试。
       # 官方源匿名限速 ~1MB/s（首跑 ~30min），成功后进 actions/cache，后续离线秒过。
       # init/app 从此零网络依赖（卷内快照直载，本地热卷栈全绿同路径）
-      - name: 下载并校验 BGE-M3（离线校验→镜像/官方轮换重试）
+      # 确定性获取模型（T156 实锤三连：官方对 Azure 匿名重限流 / hf-mirror 对
+      # 数据中心 IP 不稳 / 容器内下载受健康窗牵连）：脚本化四通道——缓存离线校验
+      # → 镜像 → 官方（HF_TOKEN secret 存在则认证限速放宽）→ ModelScope（阿里
+      # CDN 匿名兜底）。首跑成功后 actions/cache 持久化，后续 run 离线秒过
+      - name: 下载并校验 BGE-M3（镜像→官方→ModelScope）
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN || '' }}
         run: |
-          PY_SNAP="from huggingface_hub import snapshot_download; snapshot_download('BAAI/bge-m3')"
-          export HF_HUB_OFFLINE=1
-          if uv run python -c "$PY_SNAP"; then
+          if uv run python -m scripts.download_bge_ci --check; then
             echo "缓存命中且快照完整"
-          else
-            unset HF_HUB_OFFLINE
-            ok=0
-            for attempt in 1 2 3; do
-              case $attempt in
-                1) export HF_ENDPOINT=https://hf-mirror.com ;;
-                2) unset HF_ENDPOINT ;;
-                3) export HF_ENDPOINT=https://hf-mirror.com ;;
-              esac
-              echo "attempt $attempt（endpoint=${HF_ENDPOINT:-official}）"
-              if uv run python -c "$PY_SNAP"; then ok=1; break; fi
-              sleep 20
-            done
-            [ "$ok" = "1" ] || { echo "::error title=模型下载失败::3 次重试后仍失败"; exit 1; }
+            exit 0
           fi
-          find "$HOME/.cache/huggingface/hub/models--BAAI--bge-m3/snapshots" -name model.safetensors | grep -q .             || { echo "::error title=模型不完整::快照缺 model.safetensors"; exit 1; }
+          ok=0
+          if HF_ENDPOINT=https://hf-mirror.com uv run python -m scripts.download_bge_ci --channel hub; then
+            ok=1
+          elif uv run python -m scripts.download_bge_ci --channel hub; then
+            ok=1
+          elif uv pip install -p .venv/bin/python --quiet modelscope             && uv run python -m scripts.download_bge_ci --channel modelscope; then
+            ok=1
+          fi
+          [ "$ok" = "1" ] || { echo "::error title=模型获取失败::镜像/官方/ModelScope 全部失败"; exit 1; }
 
       - name: 预灌 hf_cache 卷
         run: |
