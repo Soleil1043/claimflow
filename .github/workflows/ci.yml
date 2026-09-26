@@ -82,6 +82,10 @@ jobs:
   docker:
     name: Docker Build & Compose 校验
     runs-on: ubuntu-latest
+    env:
+      # step 级 if 不可用 secrets context（GitHub 工作流校验直接拒绝、run 瞬时失败
+      # 零 job——push 后 actionlint 实锤）：job 级 env 承接档位判定，step 条件读 env
+      HAS_LLM_KEY: ${{ secrets.LLM_API_KEY != '' }}
     steps:
       - name: 拉取项目代码到ubuntu
         uses: actions/checkout@v4
@@ -115,7 +119,7 @@ jobs:
         run: |
           docker compose up -d --no-build
           # 等待 app 就绪（最多 60s）
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -sf http://localhost:8000/health > /tmp/health.json; then break; fi
             sleep 2
           done
@@ -128,13 +132,13 @@ jobs:
       # 不足按设计转人工，门禁守"上传落档/状态机/审计/escape/工单"；签发结论与
       # 核定金额由零 LLM 的评测门（eval-gate）coverage，两条门分工不重叠。
       - name: 端到端冒烟（离线兜底档，零 API Key）
-        if: ${{ secrets.LLM_API_KEY == '' }}
+        if: ${{ env.HAS_LLM_KEY != 'true' }}
         run: uv run python -m scripts.verify_adjudication --base-url http://localhost:8000 --offline
 
       # 配了 LLM_API_KEY secret 才升级为完整档（真实 LLM 提取 + 自动签发 4640.00
       # + 决定书）；未配置则跳过，不阻塞无 secret 的 fork PR
       - name: 端到端冒烟（完整档，真实 LLM，需 secret）
-        if: ${{ secrets.LLM_API_KEY != '' }}
+        if: ${{ env.HAS_LLM_KEY == 'true' }}
         run: uv run python -m scripts.verify_adjudication --base-url http://localhost:8000
 
       # 多实例 live 冒烟（T156，D072）：同栈不清理直接扩双副本（只 recreate app，
@@ -148,7 +152,7 @@ jobs:
         run: |
           for port in 8000 8001; do
             ok=0
-            for i in $(seq 1 45); do
+            for _ in $(seq 1 45); do
               if curl -sf http://localhost:$port/health > /dev/null; then ok=1; break; fi
               sleep 2
             done
@@ -156,11 +160,11 @@ jobs:
           done
 
       - name: 多实例冒烟（离线兜底档，零 API Key）
-        if: ${{ secrets.LLM_API_KEY == '' }}
+        if: ${{ env.HAS_LLM_KEY != 'true' }}
         run: uv run python -m scripts.verify_multiinstance --base-url-a http://localhost:8000 --base-url-b http://localhost:8001 --offline
 
       - name: 多实例冒烟（完整档，真实 LLM，需 secret）
-        if: ${{ secrets.LLM_API_KEY != '' }}
+        if: ${{ env.HAS_LLM_KEY == 'true' }}
         run: uv run python -m scripts.verify_multiinstance --base-url-a http://localhost:8000 --base-url-b http://localhost:8001
 
       - name: 清理
@@ -209,13 +213,16 @@ jobs:
     name: 夜间真实 LLM 门（客服/对抗/主门抽样）
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
+    env:
+      # 同 docker job：secrets 不能进 step-if，job 级 env 承接
+      HAS_LLM_KEY: ${{ secrets.LLM_API_KEY != '' }}
     steps:
       - name: 拉取项目代码到ubuntu
         uses: actions/checkout@v4
 
       - name: 检查 LLM secret
         id: has_key
-        if: ${{ secrets.LLM_API_KEY == '' }}
+        if: ${{ env.HAS_LLM_KEY != 'true' }}
         run: |
           echo "LLM_API_KEY secret 未配置，跳过夜间门（fork 场景）"
           exit 1
