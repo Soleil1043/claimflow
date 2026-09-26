@@ -31,6 +31,27 @@ _SNAP_ROOT = _HF_CACHE / "hub" / "models--BAAI--bge-m3" / "snapshots"
 _WEIGHT_FILES = ("model.safetensors", "pytorch_model.bin")
 
 
+def _strip_st_assembly_config() -> None:
+    """剥离 sentence-transformers 组装配置（modules.json / 1_Pooling 等）。
+
+    实锤（CI init 崩溃）：ModelScope 快照携带的 1_Pooling/config.json 用旧键名
+    word_embedding_dimension，ST v5 的 Pooling 签名已更名 embedding_dimension
+    → cls(**config) TypeError。HF 官方快照本就没有 modules.json——ST 走自动
+    装配（prod 栈已验证路径），剥离后两条通道行为一致。
+    """
+    for snap in _SNAP_ROOT.glob("*/"):
+        for name in ("modules.json", "config_sentence_transformers.json",
+                     "sentence_bert_config.json"):
+            f = snap / name
+            if f.exists():
+                f.unlink()
+                print(f"[download_bge] stripped {name} from {snap.name}")
+        pooling = snap / "1_Pooling"
+        if pooling.is_dir():
+            shutil.rmtree(pooling, ignore_errors=True)
+            print(f"[download_bge] stripped 1_Pooling/ from {snap.name}")
+
+
 def _verified_dirs() -> list[pathlib.Path]:
     """含真实可读权重文件的快照目录（is_file 穿透符号链接——悬空链接为 False）。
 
@@ -101,6 +122,7 @@ def _modelscope_download() -> bool:
         if f.is_file():
             shutil.copy2(f, manual / f.name)
     print(f"[download_bge] modelscope files -> {manual}")
+    _strip_st_assembly_config()
     _prune_unverified()
     return bool(_verified_dirs())
 
@@ -117,6 +139,7 @@ def main() -> int:
     args = parser.parse_args()
 
     _prune_unverified()
+    _strip_st_assembly_config()
 
     if args.check:
         return 0 if _verified_dirs() else 1

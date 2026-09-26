@@ -61,7 +61,7 @@ services:
       [
         "sh",
         "-c",
-        "MODEL_DIR=$$(find /root/.cache/huggingface/hub/models--BAAI--bge-m3/snapshots -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n 1); if [ -n \"$$MODEL_DIR\" ]; then export EMBEDDING_MODEL_PATH=\"$$MODEL_DIR\" HF_OFFLINE=1; fi; uv run --no-dev alembic upgrade head && uv run --no-dev python -m scripts.seed && uv run --no-dev python -m services.rag.ingest",
+        "MODEL_DIR=$$(find /root/.cache/huggingface/hub/models--BAAI--bge-m3/snapshots -mindepth 2 -maxdepth 2 -name config.json 2>/dev/null | head -n 1 | xargs -r dirname); if [ -n \"$$MODEL_DIR\" ]; then export EMBEDDING_MODEL_PATH=\"$$MODEL_DIR\" HF_OFFLINE=1; fi; uv run --no-dev alembic upgrade head && uv run --no-dev python -m scripts.seed && uv run --no-dev python -m services.rag.ingest",
       ]
     environment:
       APP_PROFILE: prod
