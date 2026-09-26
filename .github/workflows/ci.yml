@@ -31,18 +31,34 @@ jobs:
         run: uv run ruff check app tests services schemas nodes tools workflows scripts evals
 
       # 覆盖率门禁（T149）：基线 88%（2026-09-23 实测），阈值 85% 留 3pp 缓冲；
-      # 低覆盖区为可选模块（reranker/tracing 默认关、ingest CLI 型），记录于 D068
+      # 低覆盖区为可选模块（reranker/tracing 默认关、ingest CLI 型），记录于 D068。
+      # 失败时把 FAILED/ERROR 行打进 annotations（匿名可读——环境级 flake 的唯一观测口）
       - name: 测试（pytest + 覆盖率 ≥85%）
-        run: >
-          uv run pytest tests -q
-          --cov=app --cov=nodes --cov=services --cov=tools
-          --cov=schemas --cov=workflows --cov=state
-          --cov-fail-under=85
+        run: |
+          uv run pytest tests -q \
+            --cov=app --cov=nodes --cov=services --cov=tools \
+            --cov=schemas --cov=workflows --cov=state \
+            --cov-fail-under=85 2>&1 | tee /tmp/pytest.log
+          exit "${PIPESTATUS[0]}"
+
 
       # 依赖漏洞审计（T152，D070）：已知漏洞即红；本地项目与 torch+cpu 本地变体
       # 为合理跳过项（不在 PyPI）
       - name: 依赖审计（pip-audit）
         run: uv run pip-audit --progress-spinner off
+
+      - name: pytest 失败遥测（annotations）
+        if: failure()
+        run: |
+          grep -E "^(FAILED|ERROR) " /tmp/pytest.log | head -10 > /tmp/fails.txt || true
+          if [ -s /tmp/fails.txt ]; then
+            while IFS= read -r line; do
+              echo "::error title=pytest失败::$line"
+            done < /tmp/fails.txt
+          else
+            echo "::error title=pytest失败::无 FAILED 行（可能是覆盖率门或收集错误）"
+            echo "::error title=输出尾::$(tail -c 500 /tmp/pytest.log | awk '{printf "%s ", $0}')"
+          fi
 
   # 前端门禁（T148）：两个 Next.js 应用的 lint + build——此前只靠本地手动验证
   frontend:
@@ -120,15 +136,33 @@ jobs:
           path: ~/.cache/huggingface
           key: huggingface-bge-m3
 
-      - name: 预灌 hf_cache 卷（缓存命中时）
+      # 确定性获取模型（T156 实锤：容器内在线下载不可靠——官方匿名限速 ~1MB/s
+      # 超 30 分钟，镜像下载也会偶发断流）：job 内先下到 runner 缓存目录，镜像+
+      # 重试+产物校验三保险；缓存命中时离线秒过。init/app 不再有任何网络依赖
+      - name: 下载并校验 BGE-M3（镜像+重试）
+        env:
+          HF_ENDPOINT: https://hf-mirror.com
         run: |
-          if [ -d "$HOME/.cache/huggingface/hub/models--BAAI--bge-m3" ]; then
-            docker volume create claimflow_hf_cache
-            docker run --rm -v "$HOME/.cache/huggingface/hub:/src:ro"               -v claimflow_hf_cache:/dst alpine cp -r /src /dst/hub
-            echo "hf_cache seeded from actions cache"
-          else
-            echo "cache miss——init 容器在线下载自举（成功后回填）"
+          if find "$HOME/.cache/huggingface/hub/models--BAAI--bge-m3/snapshots" -name model.safetensors 2>/dev/null | grep -q .; then
+            echo "缓存命中，离线校验快照完整性"
+            export HF_HUB_OFFLINE=1
           fi
+          ok=0
+          for attempt in 1 2 3; do
+            if uv run python -c "from huggingface_hub import snapshot_download; snapshot_download('BAAI/bge-m3')"; then
+              ok=1; break
+            fi
+            echo "attempt $attempt failed，30s 后重试"
+            sleep 30
+          done
+          [ "$ok" = "1" ] || { echo "::error title=模型下载失败::3 次重试后仍失败（含镜像）"; exit 1; }
+          find "$HOME/.cache/huggingface/hub/models--BAAI--bge-m3/snapshots" -name model.safetensors | grep -q .             || { echo "::error title=模型不完整::快照缺 model.safetensors"; exit 1; }
+
+      - name: 预灌 hf_cache 卷
+        run: |
+          docker volume create claimflow_hf_cache
+          docker run --rm -v "$HOME/.cache/huggingface/hub:/src:ro"             -v claimflow_hf_cache:/dst alpine sh -c             'rm -rf /dst/hub/models--BAAI--bge-m3; cp -r /src/models--BAAI--bge-m3 /dst/hub/ 2>/dev/null || { mkdir -p /dst/hub && cp -r /src/models--BAAI--bge-m3 /dst/hub/; }'
+          echo "hf_cache seeded（init/app 全离线）"
 
 
       - name: 启动全栈并验证健康检查
@@ -204,15 +238,6 @@ jobs:
         if: ${{ env.HAS_LLM_KEY == 'true' }}
         run: uv run python -m scripts.verify_multiinstance --base-url-a http://localhost:8000 --base-url-b http://localhost:8001
 
-      - name: 回填模型缓存（完整快照才回填）
-        if: always()
-        run: |
-          ok=$(docker run --rm -v claimflow_hf_cache:/src:ro alpine sh -c             'find /src/hub/models--BAAI--bge-m3/snapshots -name model.safetensors 2>/dev/null | head -1' || true)
-          if [ -n "$ok" ]; then
-            mkdir -p "$HOME/.cache/huggingface/hub"
-            docker run --rm -v claimflow_hf_cache:/src:ro               -v "$HOME/.cache/huggingface/hub:/dst" alpine sh -c               'rm -rf /dst/models--BAAI--bge-m3 && cp -r /src/hub/models--BAAI--bge-m3 /dst/'
-            echo "cache backfilled"
-          fi
 
       - name: 清理
         if: always()
