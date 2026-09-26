@@ -1,0 +1,20 @@
+# 多实例扩副本 override（T155，D071）——用法：
+#   docker compose -f docker-compose.yml -f docker-compose.replicas.yml up -d --scale app=2
+#
+# 前提：compose ≥2.24（!override 标签语法）。两处覆盖：
+# 1. 固定宿主端口 8000 → 区间映射，副本自动分配 8000/8001
+# 2. uploads 共享卷——补件材料落盘（B03 storage_path）多副本必须共享文件系统，
+#    否则 A 副本上传的材料 B 副本读不到（默认栈单副本无此问题，但材料也是
+#    容器生命周期内 ephemeral，跨机部署需换网络存储）
+# 共享的 postgres/redis/qdrant/init 不受影响；多实例下交付队列靠租约互斥（D071），
+# checkpoint 走共享 PostgreSQL——均无需额外配置。
+services:
+  app:
+    ports: !override
+      - "8000-8001:8000"
+    volumes: !override
+      - hf_cache:/root/.cache/huggingface
+      - uploads:/app/data/uploads
+
+volumes:
+  uploads:

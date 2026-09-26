@@ -312,7 +312,7 @@ uv run python -m evals.support_suite                            # 客服问答�
 
 | 限制 | 现状 | 下一步 |
 |------|------|--------|
-| 交付单实例约束 | 任务队列单消费者（replicas=1），多实例需补租约认领（D044 已留升级位） | 容量/可用性触发时升级 SKIP LOCKED 认领 |
+| dev 记忆/缓存仍进程内 | 交付队列与 checkpoint 已多实例安全（T155 租约 + sqlite 共享后端）；dev 的长期记忆 InMemoryStore 与工具内存缓存不跨实例共享 | 多实例 dev 对记忆为旁路降级；prod 用 PostgresStore/Redis 共享 |
 | 客服无流式输出 | 门户轮询 3s 获取回复（无 SSE/WebSocket） | 需要 MVP 后迭代 |
 | 小语料 RAG 天花板 | 12 篇条款文档，检索增益有天花板 | 语料扩充后重开精排对比 |
 | 客服日期推断 | 用户只说"9月20日"时模型自行补年份（应为当前年） | prompt 补"日期以当前年份推算" |

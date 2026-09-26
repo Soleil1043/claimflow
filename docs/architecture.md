@@ -240,11 +240,11 @@ T132-T137（D057）新增，与核赔主图**完全正交**的独立 ReAct Agent
 
 - **受理即返回**：POST /cases 建档 + 入队即返回，前端轮询终态（inline / background
   双档，小数据量直接 inline 驱动）；
-- **常驻单消费者**：JobLoop 认领 CaseJob 表任务执行图；`deliver_case_job` 三入口
+- **常驻消费者循环**：JobLoop 认领 CaseJob 表任务执行图（T155 起每实例一循环、租约互斥）；`deliver_case_job` 三入口
   （提交/补件/工单处理）收口单一生命周期函数（D049）；
 - **幂等**：自然键（user_id, policy_no, claimed_amount, incident_date）唯一约束，
   重复提交返回既有结论；
-- **单实例约束**：当前 replicas=1；多实例需补 SKIP LOCKED 租约认领（D044 留位）；
+- **多实例（T155，D071）**：认领带租约（locked_by/lease_expires_at + 心跳续租），崩溃实例任务由租约到期接管；dev 多实例须 `CHECKPOINT_BACKEND=sqlite` 共享 checkpoint；
 - **状态机**：received → 补件挂起 / 转人工挂起 / auto_issued / referred / closed…
   （`schemas/case.py` CaseStatus；终态集合单源）。
 
@@ -330,3 +330,5 @@ dev 用 InMemorySaver/InMemoryStore。JSONB 在 SQLite dev 自动降级 JSON，
 | D057 | 在线客服四决断（独立 Agent / 标记式转人工 / 轮询无 SSE） |
 | D060/D061 | 置信度校准函数；checkpoint schema 版本门卫 |
 | D064/D065 | 冒烟进 CI 双档（secret 可选，默认离线零依赖） |
+| D066-D070 | Grafana 告警 / 负载测试 / 夜间 LLM 门 / 覆盖率基线（D070 批次） |
+| D071 | 多实例横向扩展：租约队列 + dev 共享 SQLite checkpoint + 案件号计数行 |

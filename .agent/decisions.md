@@ -1821,3 +1821,50 @@ Alertmanager——演示场景无真实通知接收端，UI 呈现 + 部署方�
 provisioning API 全部加载、queue_depth 两 series 经 Prometheus 抓取可见。
 **顺带修 T147 遗留**：init 服务漏配 STAFF_KEYS——prod 启动强制校验把初始化
 容器挡死（T154 起栈实测逮到），compose init 环境补齐对齐 app。
+
+## D071：多实例横向扩展——租约队列 + dev 共享 SQLite checkpoint + 案件号计数行（T155，2026-09-26）
+
+**背景**：
+用户要求 dev/prod 多实例运行不出问题。盘点出三个独立断点（均为 D044 单实例契约的已知预留位）：
+1. **交付队列无租约**：CAS 认领本身跨实例排他（条件 UPDATE 单语句通吃 SQLite/PG），但
+   ①启动期孤儿回收（requeue_orphans 全量 running→queued）会误伤他实例在飞任务——滚动发布
+   场景必现双跑；②实例崩溃后其 running 行要等"某实例重启"才被回收，多实例下无人重启；
+   ③无归属标识，无法区分"活任务"与"孤儿"。
+2. **dev checkpointer 进程内存**（InMemorySaver）：checkpoint 不共享，他实例认领 RESUME 后
+   aget_state 落空 → 版本门卫误判降级全新重跑、人工决议蒸发（T145 实锤，AGENTS.md 注意事项 6）。
+   prod 的 AsyncPostgresSaver 共享无此问题。
+3. **案件号生成读-判-写**（读 count→+1→查 exists，进程内 asyncio.Lock 串行）：跨实例并发
+   提交双方算出同一号 → 撞 cases 主键 IntegrityError → 500（T150 修的是单实例临界区，
+   cases.py 注释里已标注多实例升级位）。
+
+**方案与选项**：
+
+*租约（断点 1）*：
+- A. 完整乙方案装甲：租约 + 心跳 + SKIP LOCKED 认领 + 并发闸门
+- B. **只补租约三件**：locked_by/lease_expires_at 两列 + 认领谓词扩"queued 到期 ∨ running 租约过期（含 NULL=旧版本孤儿）" + 执行期心跳续租 + 终态/重试清租约 + stop 超时释放己方行
+→ 选 B。SKIP LOCKED 不加：CAS 条件 UPDATE 在两方言下同样排他，多消费者竞争窗口已由
+rowcount=0 收敛；并发闸门不加：消费者仍单并发，水平扩消费者数是后续位。
+
+*dev 共享 checkpoint（断点 2）*：
+- A. 维持 InMemory + 文档单实例
+- B. **新增可配后端 CHECKPOINT_BACKEND=sqlite**：AsyncSqliteSaver + WAL + busy_timeout=5000s 多写并发；默认 auto（dev=memory/prod=postgres）保持零变化，多实例 dev 显式开启
+- C. dev 默认也切 sqlite
+→ 选 B。默认行为零漂移（评测/测试套件不受影响），多实例是显式 opt-in；C 会改变全部 dev
+语义且单实例 dev 无收益。
+
+*案件号（断点 3）*：
+- A. PG 序列（dev SQLite 无对应物，两套逻辑）
+- B. **计数行表 case_id_counters + upsert-returning 原子自增**：INSERT ... ON CONFLICT(year)
+  DO UPDATE SET last_no=last_no+1 RETURNING，插入分支从存量 cases 懒自播种（免迁移种子，
+  旧库/新库同路径）；SQLite/PG 同构 SQL（substr/cast/like 两边原生）
+- C. UUID（丢 CASE-YYYY-NNNN 展示格式）
+→ 选 B。保留编号格式；进程内提交锁保留（降争用），不再承担正确性职责。
+
+**已知边界（记录不扩）**：dev 长期记忆仍 InMemoryStore（旁路路径，prod 用共享 AsyncPostgresStore）；
+dev 工具缓存进程内（仅命中率影响，prod Redis 共享）；申请人自然键幂等检查跨实例存在理论双击
+窗口（非系统性，双提交才有）；compose 多副本需端口区间（提供 docker-compose.replicas.yml
+override 示例，compose ≥2.24 的 !override 语法）。
+
+**验收**：租约语义单测（活租约不抢/过期接管/NULL 孤儿接管/终态清租约/心跳只续己方）；
+T145 场景回归（双 saver 共享 sqlite 文件跨实例 resume 成功不重跑）；案件号并发唯一 + 存量播种；
+全量 pytest + 评测门（主门+对抗门）+ ruff 零退化。

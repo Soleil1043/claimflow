@@ -136,9 +136,11 @@ def test_migration_up_down(tmp_path, monkeypatch) -> None:
     acfg = AlembicConfig()
     acfg.set_main_option("script_location", str(root / "alembic"))
 
-    # 空库直接 stamp 到上一版（b7d2e6f9a3c1 只依赖 support 两表自身，无前置表）
+    # 空库直接 stamp 到上一版（b7d2e6f9a3c1 只依赖 support 两表自身，无前置表）；
+    # upgrade 目标显式钉 b7d2 而非 head——后续迁移（如 f3a7 改 case_jobs）依赖
+    # 本 scratch 库不存在的表，钉版本保持本用例只测 support 迁移自身
     command.stamp(acfg, "d9a5c1e8f3b7")
-    command.upgrade(acfg, "head")
+    command.upgrade(acfg, "b7d2e6f9a3c1")
     engine = create_engine(f"sqlite:///{db_path}")
     tables = set(inspect(engine).get_table_names())
     assert {"support_conversations", "support_messages"} <= tables

@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     app.state.case_graph: Any = create_default_case_graph(checkpointer=checkpointer)
 
-    # T103 案件交付队列（D044 混合方案）：派发器 + 常驻单消费者（background 档）
+    # T103 案件交付队列（D044 混合方案）：派发器 + 常驻消费者循环（background 档）
     from services.case_jobs import JobLoop, make_case_dispatcher
     from services.case_store import get_default_recorder
 
@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     job_loop: Any = None
     if settings.case_jobs_execution == "background":
         job_loop = JobLoop(app.state.case_graph, get_default_recorder())
-        await job_loop.start()  # 含启动期孤儿回收
+        await job_loop.start()  # 多实例安全（T155 租约）：无全局回收，孤儿由租约到期接管
     log.info("app_started", profile=str(settings.app_profile),
              case_jobs=str(settings.case_jobs_execution))
     yield

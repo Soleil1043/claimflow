@@ -267,8 +267,9 @@ class CaseJob(Base):
     唯一交点是 outcome/interrupt_payload 交付回执快照（HTTP 响应与轮询免读
     checkpoint 的投影，永远不是权威事实）。
 
-    砍掉的装甲（D044）：无租约/心跳/locked_by 列——崩溃恢复靠启动期把 running
-    孤儿回收回 queued（单实例契约，replicas=1）；多实例需求出现时再补租约列。
+    租约（T155，D071）：locked_by/lease_expires_at 承载认领归属——活租约行不可被
+    其他实例接管，过期（含 NULL=旧版本遗留孤儿）即可 CAS 抢占；崩溃实例的任务
+    由租约到期自然回流通池，不再依赖启动期全量回收。
     """
 
     __tablename__ = "case_jobs"
@@ -278,7 +279,7 @@ class CaseJob(Base):
     # run（全新核赔，payload=图 input）| resume（恢复，payload=Command(resume) 载荷）
     action: Mapped[str] = mapped_column(String(16))
     payload: Mapped[dict[str, Any]] = mapped_column(_jsonb_or_json())
-    # queued → running →（成功）succeeded ｜（重试耗尽）dead；崩溃孤儿启动期回收回 queued
+    # queued → running →（成功）succeeded ｜（重试耗尽）dead
     status: Mapped[str] = mapped_column(String(16), default="queued", index=True)
     # 仅 succeeded 有值：completed（跑完无挂起）| interrupted（图 interrupt 挂起=成功）
     outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
@@ -291,6 +292,9 @@ class CaseJob(Base):
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
     started_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
     finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    # 租约（T155 多实例）：认领者实例标识 + 过期时间；执行期心跳续租，终态/重试清空
+    locked_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lease_expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
 
     # 同一案件至多一行活跃任务（防双跑）：PG 与 SQLite 均支持 partial index
     __table_args__ = (
@@ -305,6 +309,23 @@ class CaseJob(Base):
 
     def __repr__(self) -> str:
         return f"<CaseJob {self.id} case={self.case_id} {self.action} {self.status}>"
+
+
+class CaseIdCounter(Base):
+    """案件号年度计数行（T155，D071：跨实例原子自增）。
+
+    一行 = 一个年份的当前最大流水号。案号生成走 upsert-returning 单语句
+    （INSERT 懒自播种存量 CASE-YYYY-NNNN / ON CONFLICT DO UPDATE 自增 +1 RETURNING），
+    SQLite 与 PG 同构——多实例并发提交不撞号，取代 T150 的进程内锁读-判-写。
+    """
+
+    __tablename__ = "case_id_counters"
+
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    last_no: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<CaseIdCounter {self.year} last={self.last_no}>"
 
 
 class SupportConversation(Base):

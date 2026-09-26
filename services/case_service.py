@@ -15,11 +15,11 @@ import datetime as dt
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas.case import ISSUED_CASE_STATUSES, PENDING_CASE_STATUSES, CaseStatus
-from services.db.models import Case, CaseEvent, CaseJob, DecisionDocument
+from services.db.models import Case, CaseEvent, CaseIdCounter, CaseJob, DecisionDocument
 from services.db.session import get_session_factory
 
 # 自然键幂等（F01）：重复提交返回既有案件，不重复执行核赔
@@ -48,22 +48,34 @@ async def find_idempotent_case(
 
 
 async def generate_case_id(session: AsyncSession) -> str:
-    """按年生成业务案件号 CASE-YYYY-NNNN（PoC 口径：当年计数 + 1，撞号重试）。"""
+    """按年生成业务案件号 CASE-YYYY-NNNN（计数行原子自增，T155 跨实例安全）。
+
+    单条 upsert-returning：INSERT 分支懒自播种（首号取存量 CASE-YYYY-* 最大
+    流水 +1，旧库免迁移种子），ON CONFLICT(year) DO UPDATE 自增 +1 RETURNING。
+    SQLite 与 PG 同构（substr/cast/like 均原生）。取代 T150 前的"读 count→+1→
+    查 exists"读-判-写——那是进程内锁才守得住的临界区，多实例并发必撞号。
+    """
     year = dt.date.today().year
-    for _ in range(5):
-        count = (
-            await session.execute(
-                select(func.count(Case.id)).where(Case.id.like(f"CASE-{year}-%"))
-            )
-        ).scalar_one()
-        candidate = f"CASE-{year}-{count + 1:04d}"
-        exists = (
-            await session.execute(select(Case.id).where(Case.id == candidate))
-        ).scalar_one_or_none()
-        if exists is None:
-            return candidate
-    msg = "案件号生成失败"
-    raise RuntimeError(msg)
+    # 存量最大流水（仅 INSERT 播种分支消费；计数行已存在时不参与）
+    max_existing = select(
+        func.coalesce(func.max(cast(func.substr(Case.id, 11), Integer)), 0)
+    ).where(Case.id.like(f"CASE-{year}-%")).scalar_subquery()
+
+    dialect = session.bind.dialect.name if session.bind is not None else "sqlite"
+    if dialect == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        stmt: Any = pg_insert(CaseIdCounter).values(year=year, last_no=max_existing + 1)
+    else:
+        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+        stmt = sqlite_insert(CaseIdCounter).values(year=year, last_no=max_existing + 1)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[CaseIdCounter.year],
+        set_={"last_no": CaseIdCounter.last_no + 1},
+    )
+    no = (await session.execute(stmt.returning(CaseIdCounter.last_no))).scalar_one()
+    return f"CASE-{year}-{no:04d}"
 
 
 def new_case(

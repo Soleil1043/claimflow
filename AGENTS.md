@@ -151,7 +151,7 @@ claimflow/
 │
 ├── services/                  # 服务层
 │   ├── case_service.py        # 案件领域服务（幂等 / 工单投影 / 决定书视图 / resume 载荷单源）
-│   ├── case_jobs.py           # 案件交付队列（任务表 + 常驻单消费者 + checkpoint 版本门卫 T141）
+│   ├── case_jobs.py           # 案件交付队列（任务表 + 租约认领多实例 + checkpoint 版本门卫 T141/T155）
 │   ├── case_store.py          # 案件 / 审计事件落库
 │   ├── amounts.py             # 金额理算（规格公式，Decimal）
 │   ├── decision_doc.py        # 决定书渲染与红线检查
@@ -307,5 +307,5 @@ Agent 不直接调工具，通过 Worker 子图（`services/worker_agent.py`）�
 3. **先跑通再优化**：每个功能先做最简可运行版本，验证逻辑正确后再加优化（缓存、并发、性能调优等）。
 4. **遇到不确定的先问**：业务逻辑、技术选型有疑问时，不要自己猜，写到 `decisions.md` 并提示用户确认。
 5. **中文注释**：代码注释和文档用中文，和项目语境保持一致。
-6. **本地冒烟必须单实例**：dev 下多实例共用一个 SQLite 库时，交付队列互相认领任务而 checkpointer 各自内存隔离，resume 找不到 checkpoint 会触发版本门卫重跑（T145 实锤）。跑 `verify_adjudication` 前确认只起了一个服务实例。
+6. **dev 多实例须共享 checkpoint**：交付队列已多实例安全（T155 租约认领，D071），但 dev 默认 checkpointer 是进程内存——多实例（多端口/多进程共享同一 data 目录）必须显式设 `CHECKPOINT_BACKEND=sqlite`，否则他实例认领 RESUME 后找不到 checkpoint 会触发版本门卫全新重跑（T145 实锤）。不设该变量时仍须单实例跑 `verify_adjudication`。
 7. **改动守评测门**：任何涉及调度 / 理算 / 决定书的改动，合并前必跑 `evals/adjudication_suite`（主门 + 对抗门）与 `uv run pytest -q`，六门不退化才算过。

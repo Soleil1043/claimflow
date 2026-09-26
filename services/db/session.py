@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -86,11 +88,39 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 
 
 async def init_db() -> None:
-    """建表。dev 用 create_all（便捷）；prod 应走 alembic（此方法仅幂等兜底）。"""
+    """建表 + 存量库补列。dev 用 create_all（便捷）；prod 应走 alembic（此方法仅幂等兜底）。
+
+    create_all 只建新表不动旧表（T155 实锤：存量 dev 库缺 case_jobs 租约列，
+    JobLoop 认领即 no such column）——建表后对已存在表补齐 metadata 里新增的
+    可空列（ALTER ADD COLUMN，SQLite/PG 均支持无默认值可空列），旧库平滑升级。
+    """
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_add_missing_columns)
     log.info("db_tables_created", tables=list(Base.metadata.tables))
+
+
+def _add_missing_columns(sync_conn: Any) -> None:
+    """对已存在的表补 metadata 中缺失的可空列（幂等；仅 dev 便捷路径）。"""
+
+    from sqlalchemy import inspect
+
+    inspector = inspect(sync_conn)
+    for table_name, table in Base.metadata.tables.items():
+        if not inspector.has_table(table_name):
+            continue  # create_all 刚建的新表
+        existing = {col["name"] for col in inspector.get_columns(table_name)}
+        missing = [
+            col for name, col in table.columns.items()
+            if name not in existing and col.nullable and col.server_default is None
+        ]
+        for col in missing:
+            col_type = col.type.compile(sync_conn.dialect)
+            sync_conn.execute(
+                text(f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type}")
+            )
+            log.info("db_column_backfilled", table=table_name, column=col.name)
 
 
 async def dispose_engine() -> None:

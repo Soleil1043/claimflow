@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     postgres_password: str = "claimpass"
     postgres_db: str = "claim_agent"
 
+    # ===== LangGraph checkpoint 后端（T155 多实例，D071） =====
+    # auto=按 profile（dev=memory 进程内 / prod=postgres 共享）——默认行为零漂移；
+    # sqlite=共享 checkpoint 文件（WAL + busy_timeout）。**dev 多实例必须显式设
+    # sqlite**：各实例内存隔离时，他实例认领 RESUME 后找不到 checkpoint，版本
+    # 门卫会误判降级全新重跑、人工决议蒸发（T145 实锤）；prod 多实例走 postgres 无此问题
+    checkpoint_backend: str = "auto"
+    checkpoint_sqlite_path: str = "./data/checkpoints.sqlite"
+
     # ===== Qdrant =====
     qdrant_url: str = "http://localhost:6333"
     # dev profile 下生效的 local mode 路径（D001/ADR-004）
@@ -142,6 +150,9 @@ class Settings(BaseSettings):
     case_jobs_backoff_base_s: float = 2.0
     # 关停排水超时（秒）：超时放弃在飞任务（行留 running，下次启动回收）
     case_jobs_drain_timeout_s: float = 30.0
+    # 认领租约时长（秒，T155 多实例）：执行期每 ttl/3 心跳续租；实例崩溃后
+    # 租约到期任务即可被其他实例接管——须大于单案最长执行时长的心跳间隔余量
+    case_jobs_lease_ttl_s: float = 120.0
     # 案件材料上传落盘目录（B03；storage_path 供材料审核真实提取）
     case_materials_dir: str = "./data/uploads"
 
@@ -227,7 +238,6 @@ class Settings(BaseSettings):
             f"postgresql://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
-
     def _url_for_log(self) -> str:
         """日志用的脱敏连接串（隐藏密码）。"""
         if self.is_prod:

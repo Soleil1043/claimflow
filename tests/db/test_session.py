@@ -103,6 +103,7 @@ async def test_init_db_creates_all_tables(tmp_path, monkeypatch) -> None:
         "case_events",
         "decision_documents",
         "case_jobs",
+        "case_id_counters",
         "support_conversations",
         "support_messages",
     }

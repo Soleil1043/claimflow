@@ -1,8 +1,9 @@
-"""案件交付队列（T103，D044 混合方案）测试：outbox 凭证 / CAS 认领 / 退避重试 / 死信审计 / 启动回收。
+"""案件交付队列（T103，D044 混合方案）测试：outbox 凭证 / 租约认领 / 退避重试 / 死信审计。
 
 写于实现之前（TDD 红→绿）。这批测试保护的正是"案件不丢/不重跑"的交付语义——
 enqueue 不 commit（outbox）、活跃唯一（防双跑）、interrupt=成功终态、
-重试耗尽死信 + 审计、崩溃孤儿启动回收。
+重试耗尽死信 + 审计。T155 增补租约语义：活租约不可抢 / 过期（含 NULL 孤儿）
+可接管 / 心跳只续己方 / 终态清租约 / 停止释放己方行。
 """
 
 from __future__ import annotations
@@ -20,6 +21,11 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import services.db.session as session_module
+from services.case_job_worker import (
+    INSTANCE_ID,
+    _extend_lease,
+    _release_own,
+)
 from services.case_jobs import (
     CaseJobConflictError,
     InlineDispatcher,
@@ -28,7 +34,6 @@ from services.case_jobs import (
     enqueue_case_job,
     execute_job,
     job_envelope,
-    requeue_orphans,
 )
 from services.case_service import new_case
 from services.db.models import Base, Case, CaseJob
@@ -347,18 +352,201 @@ async def test_claim_due_order_and_skip_future(jobs_db) -> None:
 
 
 async def test_requeue_orphans_startup_recovery(jobs_db) -> None:
-    """启动回收：崩溃遗留的 running 行 → 全部回 queued（单实例契约）。"""
+    """（T155 语义改写）启动不再全量回收：他实例在飞（活租约）不可被抢。"""
     case = await _make_case(jobs_db)
     async with jobs_db() as s:
         job = await enqueue_case_job(s, case_id=case.id, action=JobAction.RUN, payload={})
         await s.commit()
         job_id = job.id
     async with jobs_db() as s:
-        await s.execute(update(CaseJob).where(CaseJob.id == job_id).values(status="running"))
+        # 模拟他实例在飞：running + 活租约
+        await s.execute(
+            update(CaseJob).where(CaseJob.id == job_id).values(
+                status="running",
+                locked_by="other-host:1:abc",
+                lease_expires_at=dt.datetime.now() + dt.timedelta(minutes=10),
+            )
+        )
         await s.commit()
 
-    assert await requeue_orphans() == 1
-    assert (await _job(jobs_db, job_id)).status == "queued"
+    assert await claim_next() is None  # 活租约不可接管——不会双跑
+    assert (await _job(jobs_db, job_id)).status == "running"
+
+
+async def test_claim_reclaims_expired_lease(jobs_db) -> None:
+    """崩溃接管：他实例租约过期的 running 行可被本实例 CAS 抢占。"""
+    case = await _make_case(jobs_db)
+    async with jobs_db() as s:
+        job = await enqueue_case_job(s, case_id=case.id, action=JobAction.RUN, payload={})
+        await s.commit()
+        job_id = job.id
+    async with jobs_db() as s:
+        await s.execute(
+            update(CaseJob).where(CaseJob.id == job_id).values(
+                status="running",
+                locked_by="dead-host:9:zzz",
+                lease_expires_at=dt.datetime.now() - dt.timedelta(seconds=1),
+                attempt=1,
+            )
+        )
+        await s.commit()
+
+    claimed = await claim_next()
+    assert claimed is not None and claimed.id == job_id
+    row = await _job(jobs_db, job_id)
+    assert row.locked_by == INSTANCE_ID  # 归属转移
+    assert row.attempt == 2  # 接管计一次新尝试
+    assert row.lease_expires_at is not None and row.lease_expires_at > dt.datetime.now()
+
+
+async def test_claim_reclaims_null_lease_legacy_orphan(jobs_db) -> None:
+    """旧版本遗留（running + NULL 租约，滚动升级期）视同过期孤儿可接管。"""
+    case = await _make_case(jobs_db)
+    async with jobs_db() as s:
+        job = await enqueue_case_job(s, case_id=case.id, action=JobAction.RUN, payload={})
+        await s.commit()
+        job_id = job.id
+    async with jobs_db() as s:
+        await s.execute(
+            update(CaseJob).where(CaseJob.id == job_id).values(status="running")
+        )
+        await s.commit()
+
+    claimed = await claim_next()
+    assert claimed is not None and claimed.id == job_id
+    assert (await _job(jobs_db, job_id)).locked_by == INSTANCE_ID
+
+
+async def test_claim_sets_lease_fields(jobs_db) -> None:
+    """认领即持租：locked_by + 未来到期时间落行。"""
+    case = await _make_case(jobs_db)
+    async with jobs_db() as s:
+        job = await enqueue_case_job(s, case_id=case.id, action=JobAction.RUN, payload={})
+        await s.commit()
+        job_id = job.id
+
+    claimed = await claim_next()
+    assert claimed is not None
+    row = await _job(jobs_db, job_id)
+    assert row.locked_by == INSTANCE_ID
+    assert row.lease_expires_at is not None
+
+
+async def test_finish_clears_lease(jobs_db) -> None:
+    """终态清租约：succeeded 行不再持有归属（审计/运维可读）。"""
+    case = await _make_case(jobs_db)
+    async with jobs_db() as s:
+        job = await enqueue_case_job(s, case_id=case.id, action=JobAction.RUN, payload={"case_id": case.id})
+        await s.commit()
+        job_id = job.id
+
+    claimed = await claim_next()
+    assert claimed is not None
+    await execute_job(claimed, graph=FakeGraph(), recorder=FakeRecorder())
+    row = await _job(jobs_db, job_id)
+    assert row.status == "succeeded"
+    assert row.locked_by is None and row.lease_expires_at is None
+
+
+async def test_extend_lease_only_own_running(jobs_db) -> None:
+    """心跳只续己方 running 行：被接管/终态后不再续（防僵尸写）。"""
+    case = await _make_case(jobs_db)
+    async with jobs_db() as s:
+        job = await enqueue_case_job(s, case_id=case.id, action=JobAction.RUN, payload={})
+        await s.commit()
+        job_id = job.id
+
+    # 他实例持有 → 本实例续租无效
+    async with jobs_db() as s:
+        await s.execute(
+            update(CaseJob).where(CaseJob.id == job_id).values(
+                status="running", locked_by="other:1:x",
+                lease_expires_at=dt.datetime.now() + dt.timedelta(seconds=1),
+            )
+        )
+        await s.commit()
+    await _extend_lease(job_id)
+    assert (await _job(jobs_db, job_id)).locked_by == "other:1:x"
+
+    # 己方持有 → 续租生效
+    async with jobs_db() as s:
+        await s.execute(
+            update(CaseJob).where(CaseJob.id == job_id).values(locked_by=INSTANCE_ID)
+        )
+        await s.commit()
+    before = (await _job(jobs_db, job_id)).lease_expires_at
+    await asyncio.sleep(0.01)
+    await _extend_lease(job_id)
+    after = (await _job(jobs_db, job_id)).lease_expires_at
+    assert after is not None and before is not None and after > before
+
+
+async def test_heartbeat_extends_lease_during_long_run(jobs_db, monkeypatch) -> None:
+    """执行期心跳：长任务运行中租约被后台续期（图未结束租约未到期）。"""
+    import services.case_job_worker as worker_module
+
+    # patch worker 模块视角的 settings（tests/core/test_logging 会 reload config，
+    # 运行期 from app.core.config import settings 拿到的可能是新对象——见 conftest 惯例）
+    monkeypatch.setattr(worker_module.settings, "case_jobs_lease_ttl_s", 0.15)  # 心跳 0.05s
+    case = await _make_case(jobs_db)
+    async with jobs_db() as s:
+        job = await enqueue_case_job(s, case_id=case.id, action=JobAction.RUN, payload={})
+        await s.commit()
+        job_id = job.id
+
+    mid_run_lease: list[dt.datetime | None] = []
+
+    class SlowGraph(FakeGraph):
+        async def ainvoke(self, invocation: Any, config: dict | None = None) -> dict:
+            self.calls.append((invocation, config or {}))
+            await asyncio.sleep(0.2)  # 跨过至少两次心跳窗口
+            async with jobs_db() as s:
+                mid_run_lease.append((await s.get(CaseJob, job_id)).lease_expires_at)
+            await asyncio.sleep(0.1)
+            return self._result
+
+    claimed = await claim_next()
+    assert claimed is not None
+    lease_at_claim = (await _job(jobs_db, job_id)).lease_expires_at
+    await execute_job(claimed, graph=SlowGraph(), recorder=FakeRecorder())
+
+    assert len(mid_run_lease) == 1
+    assert lease_at_claim is not None and mid_run_lease[0] is not None
+    assert mid_run_lease[0] > lease_at_claim  # 运行中租约被心跳推后
+    row = await _job(jobs_db, job_id)
+    assert row.status == "succeeded" and row.lease_expires_at is None  # 终态清空
+
+
+async def test_release_own_on_stop(jobs_db) -> None:
+    """停止排水超时：己方在飞行释放回 queued（立即可被接管）；他方行不动。"""
+    case_a = await _make_case(jobs_db, "CASE-J-0001")
+    case_b = await _make_case(jobs_db, "CASE-J-0002")
+    ids = []
+    for c in (case_a, case_b):
+        async with jobs_db() as s:
+            job = await enqueue_case_job(s, case_id=c.id, action=JobAction.RUN, payload={})
+            await s.commit()
+            ids.append(job.id)
+    async with jobs_db() as s:
+        await s.execute(
+            update(CaseJob).where(CaseJob.id == ids[0]).values(
+                status="running", locked_by=INSTANCE_ID,
+                lease_expires_at=dt.datetime.now() + dt.timedelta(minutes=10),
+            )
+        )
+        await s.execute(
+            update(CaseJob).where(CaseJob.id == ids[1]).values(
+                status="running", locked_by="other:1:x",
+                lease_expires_at=dt.datetime.now() + dt.timedelta(minutes=10),
+            )
+        )
+        await s.commit()
+
+    await _release_own(ids[0])
+    mine = await _job(jobs_db, ids[0])
+    assert mine.status == "queued" and mine.locked_by is None and mine.lease_expires_at is None
+    other = await _job(jobs_db, ids[1])
+    assert other.status == "running" and other.locked_by == "other:1:x"
 
 
 # ===== 派发器与信封 =====
@@ -402,7 +590,7 @@ def test_job_envelope_fields() -> None:
 
 
 async def test_job_loop_end_to_end_background(jobs_db) -> None:
-    """background 档全回路：loop.start（含孤儿回收）→ 入队 → 循环消费到终态 → stop 排水。"""
+    """background 档全回路：loop.start → 入队 → 循环消费到终态 → stop 排水。"""
     import services.case_jobs as cj
 
     case = await _make_case(jobs_db)

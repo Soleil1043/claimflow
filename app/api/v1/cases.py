@@ -70,12 +70,11 @@ log = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/cases", tags=["cases"])
 
-# 提交临界区锁（T150 负载测试实锤的并发缺陷修复）：generate_case_id 是
-# "查 count → +1 → 查 exists"的读-判-写，无锁时并发提交会生成重复案号——
-# 后提交者撞 (case_id, active) 唯一约束落入 409"理论不可达"分支（实测 50 案
-# 并发 10 时 25 案 409，失败序号成对）。锁覆盖 幂等检查 → 案号生成 → 建档
-# 入队 commit 全临界区。单实例（D044 replicas=1）下完备；升多实例时案号生成
-# 需一并升级（DB 序列或 UUID），见 D044 SKIP LOCKED 升级位。
+# 提交临界区锁（T150 负载测试实锤的并发缺陷修复；T155 后职责收缩）：案号生成
+# 已改计数行原子自增（case_id_counters upsert-returning，跨实例安全，D071），
+# 本锁不再承担正确性职责，仅串行化同实例并发提交以降低幂等检查/案号争用。
+# 多实例下幂等检查仍存在理论双击窗口（同自然键跨实例同时首提，无 DB 唯一约束
+# 兜底，非系统性——双击场景才有），已知边界见 D071。
 #
 # 按事件循环惰性建锁（WeakKeyDictionary）：asyncio.Lock 绑定创建时的 loop，
 # 生产单进程单 loop 等价于模块级单锁；pytest 每测试新 loop 各持各锁不串台。

@@ -14,7 +14,7 @@ from langgraph.types import Command
 from sqlalchemy import select
 
 from app.core.logging import get_logger
-from services.case_jobs import JobAction
+from services.case_job_worker import JobAction
 from services.case_store import CaseRecorder
 from services.db.models import CaseJob
 from services.db.session import get_session_factory

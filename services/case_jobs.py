@@ -1,18 +1,20 @@
 """案件交付队列——生产半区（T103，D044 混合方案；T153 拆分后只承载入队与交付收口）。
 
 POST /cases 不再同步跑核赔管线：路由在与建档/材料同一事务里插入任务行
-（transactional outbox——"提交成功但任务丢失"在构造上不可能），常驻单消费者
+（transactional outbox——"提交成功但任务丢失"在构造上不可能），常驻消费者
 循环 CAS 认领执行；图异常退避重试，耗尽转 dead + 审计事件；interrupt 挂起是
 任务的**成功终态**（outcome=interrupted + 回执快照），恢复 = 插入新的 resume 任务。
 
+多实例（T155，D071）：认领带租约（locked_by + lease_expires_at），活租约行
+不可被他实例接管、过期自然回流；每实例各持一个 JobLoop 并存消费同一任务表。
+
 模块分工（T153）：
 - 本模块：JobAction / enqueue（outbox）/ job_envelope / latest_job / deliver_case_job
-- services/case_job_worker.py：消费半区（CAS 认领 / 执行 / 死信 / 派发器 / JobLoop）
+- services/case_job_worker.py：消费半区（租约认领 / 执行 / 心跳 / 派发器 / JobLoop）
 - services/case_resume_guard.py：RESUME 的 checkpoint 版本门卫（T141）
 
-砍掉的装甲（D044，相对完整 job-queue 方案）：租约/心跳/locked_by（崩溃恢复靠
-启动期把 running 孤儿回收回 queued，单实例契约 replicas=1）、SKIP LOCKED 认领
-（CAS 单语句在 SQLite/PG 通吃，多实例需求出现时再升级）、并发闸门（单消费者）。
+砍掉的装甲（D044，多实例需求已由 T155 租约兑现）：SKIP LOCKED 认领
+（CAS 单语句在 SQLite/PG 通吃）、并发闸门（每消费者仍单并发）。
 
 口径：本模块只承载交付生命周期（queued→running→succeeded|dead），案件业务状态机
 权威仍在 cases 表（D006）；回执快照（outcome/interrupt_payload）是 HTTP 响应与
@@ -22,7 +24,6 @@ POST /cases 不再同步跑核赔管线：路由在与建档/材料同一事务�
 from __future__ import annotations
 
 import datetime as dt
-from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import select
@@ -36,28 +37,24 @@ from services.db.session import get_session_factory
 log = get_logger(__name__)
 
 
-class JobAction(StrEnum):
-    """交付动作：run 全新核赔（payload=图 input）｜ resume 恢复（payload=resume 载荷）。"""
-
-    RUN = "run"
-    RESUME = "resume"
-
-
 class CaseJobConflictError(RuntimeError):
     """该案件已有活跃任务（queued/running）。路由映射 409。"""
 
 
-# 重新导出消费半区公开名（T153 拆分后既有 import 路径不变；新代码建议按模块导入）
+# 重新导出消费半区公开名（T153 拆分后既有 import 路径不变；新代码建议按模块导入）。
+# JobAction 定义在消费半区（T155 迁入）：worker 对本模块的模块级反向引用会与
+# 本 re-export 成环，依赖保持严格单向 case_jobs → worker；此处导入即再导出，
+# `from services.case_jobs import JobAction` 的既有调用点零改动。
 from services.case_job_worker import (  # noqa: E402,F401  (facade re-export)
     JOB_FAILED_EVENT,
     BackgroundDispatcher,
     CaseJobDispatcher,
     InlineDispatcher,
+    JobAction,
     JobLoop,
     claim_next,
     execute_job,
     make_case_dispatcher,
-    requeue_orphans,
 )
 from services.case_resume_guard import SCHEMA_RESET_EVENT  # noqa: E402,F401
 

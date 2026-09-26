@@ -2260,3 +2260,14 @@ T154 告警五项全交付（D069/D070）。CI 现为 5 jobs（lint-test 含覆�
 frontend 含审计 / docker 双档冒烟 / eval-gate 双门 / nightly-llm 夜间真 LLM）。
 
 **Git**：`feat: T154 [Grafana告警: 队列深度Gauge+三规则provisioning(结案率骤降/积压/LLM失败率); 全栈实测3规则加载+指标抓取; 修T147遗留init漏配STAFF_KEYS]`
+
+## 2026-09-26 T155 多实例横向扩展（D071）
+
+**做了什么**：交付队列与 dev/prod 多实例安全收口，三个独立断点各一对症：
+1. **租约队列**——case_jobs 加 locked_by/lease_expires_at（迁移 f3a7c2d9e4b1，scratch 验证升/降干净且保住 partial 唯一索引）；认领谓词扩"queued 到期 ∨ running 租约过期(含 NULL=旧版本孤儿)"；执行期每 ttl/3 心跳续租；终态/重试清租约；stop 排水超时释放己方行；**删启动期全量孤儿回收**（多实例下会误伤他实例在飞任务）
+2. **dev 共享 checkpoint**——CHECKPOINT_BACKEND=sqlite（AsyncSqliteSaver + WAL + busy_timeout，默认 auto 零漂移），多实例 dev 显式开启即修 T145 根因
+3. **案件号原子自增**——case_id_counters 计数行 upsert-returning（INSERT 分支懒自播种存量），跨实例并发不撞号；进程内提交锁降级为争用控制
+4. **连带修复**——JobAction 迁入消费半区根治 facade 循环导入（ruff isort 实锤）；init_db 对存量 dev 库补缺失可空列（真机冒烟逮到 no such column，create_all 不 ALTER 旧表）；新增 langgraph-checkpoint-sqlite 依赖；docker-compose.replicas.yml（端口区间 + uploads 共享卷）
+**关键改动**：services/case_job_worker.py（租约全套）、services/case_jobs.py（facade）、services/memory/short_term.py（sqlite 后端）、services/case_service.py（计数行）、services/db/session.py（补列）、services/db/models.py、alembic/versions/f3a7c2d9e4b1、app/core/config.py（checkpoint_backend/lease_ttl）、docker-compose.replicas.yml（新）
+**测试**：租约语义 7 用例（活租约不抢/过期接管/NULL 孤儿/认领持租/终态清租/心跳只续己方/长跑续租/停止释放）；T145 场景回归（双 saver 共享 sqlite 文件跨"实例"resume 成功）；案件号 4 用例（递增/存量播种/回滚还号/双连接池并发不撞号）。**498 passed + ruff 干净 + 评测门主门/对抗门 100% 全绿**；真机冒烟：存量 dev 库（333 案）列补齐→提交得 CASE-2026-0334→任务租约生命周期完整→supplement_pending 挂起正常
+**测试坑位**：tests/core/test_logging 的 importlib.reload(config) 会置换 settings 对象——运行期 `from app.core.config import settings` 拿到的可能是新对象，patch 必须 module-view（conftest 既有惯例）
