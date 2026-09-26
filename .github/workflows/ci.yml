@@ -86,6 +86,9 @@ jobs:
       # step 级 if 不可用 secrets context（GitHub 工作流校验直接拒绝、run 瞬时失败
       # 零 job——push 后 actionlint 实锤）：job 级 env 承接档位判定，step 条件读 env
       HAS_LLM_KEY: ${{ secrets.LLM_API_KEY != '' }}
+      # 冷自举 BGE 下载走镜像（T156 实锤：官方匿名限速 ~1MB/s，2.3G 超 30 分钟）；
+      # compose 经 ${HF_ENDPOINT:-} 透传给 init/app，本地/生产不设不受影响
+      HF_ENDPOINT: https://hf-mirror.com
     steps:
       - name: 拉取项目代码到ubuntu
         uses: actions/checkout@v4
@@ -127,15 +130,6 @@ jobs:
             echo "cache miss——init 容器在线下载自举（成功后回填）"
           fi
 
-      - name: 回填模型缓存（完整快照才回填）
-        if: always()
-        run: |
-          ok=$(docker run --rm -v claimflow_hf_cache:/src:ro alpine sh -c             'find /src/hub/models--BAAI--bge-m3/snapshots -name model.safetensors 2>/dev/null | head -1' || true)
-          if [ -n "$ok" ]; then
-            mkdir -p "$HOME/.cache/huggingface/hub"
-            docker run --rm -v claimflow_hf_cache:/src:ro               -v "$HOME/.cache/huggingface/hub:/dst" alpine sh -c               'rm -rf /dst/models--BAAI--bge-m3 && cp -r /src/hub/models--BAAI--bge-m3 /dst/'
-            echo "cache backfilled"
-          fi
 
       - name: 启动全栈并验证健康检查
         env:
@@ -149,9 +143,9 @@ jobs:
           docker compose up -d --no-build
           # 等待 app 就绪：app 容器等 init（首次下载 BGE-M3 ~2.3G + 2 vCPU ingest）
           # 完成才启动——冷 runner 上 init 需数分钟，窗口给足 15 分钟
-          for _ in $(seq 1 180); do
+          for _ in $(seq 1 120); do
             if curl -sf http://localhost:8000/health > /tmp/health.json; then break; fi
-            sleep 5
+            sleep 10
           done
           cat /tmp/health.json || true
           if ! grep -q '"status":"ok"' /tmp/health.json 2>/dev/null; then
@@ -204,6 +198,16 @@ jobs:
         if: ${{ env.HAS_LLM_KEY == 'true' }}
         run: uv run python -m scripts.verify_multiinstance --base-url-a http://localhost:8000 --base-url-b http://localhost:8001
 
+      - name: 回填模型缓存（完整快照才回填）
+        if: always()
+        run: |
+          ok=$(docker run --rm -v claimflow_hf_cache:/src:ro alpine sh -c             'find /src/hub/models--BAAI--bge-m3/snapshots -name model.safetensors 2>/dev/null | head -1' || true)
+          if [ -n "$ok" ]; then
+            mkdir -p "$HOME/.cache/huggingface/hub"
+            docker run --rm -v claimflow_hf_cache:/src:ro               -v "$HOME/.cache/huggingface/hub:/dst" alpine sh -c               'rm -rf /dst/models--BAAI--bge-m3 && cp -r /src/hub/models--BAAI--bge-m3 /dst/'
+            echo "cache backfilled"
+          fi
+
       - name: 清理
         if: always()
         run: docker compose down -v
@@ -253,6 +257,8 @@ jobs:
     env:
       # 同 docker job：secrets 不能进 step-if，job 级 env 承接
       HAS_LLM_KEY: ${{ secrets.LLM_API_KEY != '' }}
+      # BGE 下载镜像（cache 未命中首跑的 ingest 提速；命中时无感）
+      HF_ENDPOINT: https://hf-mirror.com
     steps:
       - name: 拉取项目代码到ubuntu
         uses: actions/checkout@v4

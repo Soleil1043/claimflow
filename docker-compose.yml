@@ -74,6 +74,9 @@ services:
       # 坐席鉴权（T147）：init 也是 prod profile——prod 启动强制校验 STAFF_KEYS
       # 非空（D067），漏配会让初始化容器直接失败（T154 实测逮到）
       STAFF_KEYS: ${STAFF_KEYS:-demo-staff:demo-key-2026}
+      # HF 下载镜像（可选，T156）：冷自举匿名下载 BGE 2.3G 会被官方限速
+      # （实测 ~1MB/s，30 分钟+）；CI 设 HF_ENDPOINT=https://hf-mirror.com 提速
+      HF_ENDPOINT: ${HF_ENDPOINT:-}
     volumes:
       - hf_cache:/root/.cache/huggingface
     depends_on:
@@ -105,6 +108,8 @@ services:
       # localhost:4317 是宿主机直跑进程用的，透传进容器会指向容器自身）
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
       OTEL_ENDPOINT: http://otel-collector:4317
+      # 同 init：HF 镜像透传（仅在卷内无快照需要在线补拉时生效）
+      HF_ENDPOINT: ${HF_ENDPOINT:-}
     ports:
       - "8000:8000"
     volumes:
