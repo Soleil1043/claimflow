@@ -10,7 +10,9 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
+from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
@@ -63,12 +65,16 @@ class CheckpointManager:
             path = Path(settings.checkpoint_sqlite_path)
             path.parent.mkdir(parents=True, exist_ok=True)
             conn = await aiosqlite.connect(path)
-            # 多实例多写并发：WAL 读写不互斥 + 写锁等待（默认 0 会直接报 database is locked）
-            await conn.execute("PRAGMA journal_mode=WAL")
+            # 多实例多写并发：busy 等待 + WAL 读写不互斥。注意次序——busy_timeout
+            # 必须先设（WAL 切换需要短暂排他锁，双实例同时开文件时若对方正在
+            # setup() DDL 会立刻 BUSY，T156 双实例 boot 实锤），且切换/建表带重试
             await conn.execute("PRAGMA busy_timeout=5000")
             await conn.commit()
+            await self._retry_busy(conn, "PRAGMA journal_mode=WAL")
+            await conn.commit()
             checkpointer = AsyncSqliteSaver(conn)
-            await checkpointer.setup()
+            # setup() 建表幂等，双实例并发开文件时可能撞锁——同样重试
+            await self._retry_call(checkpointer.setup)
             self._sqlite_conn = conn
             self._checkpointer = checkpointer
             log.info("checkpointer_initialized", mode="sqlite", path=str(path))
@@ -85,6 +91,34 @@ class CheckpointManager:
         self._checkpointer = checkpointer
         log.info("checkpointer_initialized", mode="postgres")
         return self._checkpointer
+
+    @staticmethod
+    async def _retry_busy(conn: Any, sql: str, *, attempts: int = 8, delay_s: float = 0.5) -> None:
+        """执行 PRAGMA，database is locked 时退避重试（双实例同时开文件的启动窗口）。"""
+        import aiosqlite
+
+        for attempt in range(attempts):
+            try:
+                await conn.execute(sql)
+                return
+            except aiosqlite.OperationalError:
+                if attempt == attempts - 1:
+                    raise
+                await asyncio.sleep(delay_s)
+
+    @staticmethod
+    async def _retry_call(func: Any, *, attempts: int = 8) -> None:
+        """执行无参可调用（协程工厂），OperationalError 撞锁时退避重试。"""
+        import aiosqlite
+
+        for attempt in range(attempts):
+            try:
+                await func()
+                return
+            except aiosqlite.OperationalError:
+                if attempt == attempts - 1:
+                    raise
+                await asyncio.sleep(0.5)
 
     @property
     def checkpointer(self) -> BaseCheckpointSaver:

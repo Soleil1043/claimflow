@@ -1868,3 +1868,41 @@ override 示例，compose ≥2.24 的 !override 语法）。
 **验收**：租约语义单测（活租约不抢/过期接管/NULL 孤儿接管/终态清租约/心跳只续己方）；
 T145 场景回归（双 saver 共享 sqlite 文件跨实例 resume 成功不重跑）；案件号并发唯一 + 存量播种；
 全量 pytest + 评测门（主门+对抗门）+ ruff 零退化。
+
+## D072：双实例 live 冒烟脚本化进 CI（T156，2026-09-26）
+
+**背景**：
+T155 交付多实例横向扩展（租约队列 + sqlite 共享 checkpoint + 案件号计数行），验证停在
+单测层（租约语义 7 用例 + T145 双 saver 回归）+ 单实例真机冒烟。用户要求把"起两个端口 +
+跨实例补件恢复实测"脚本化并进 CI——多实例的正确性从此靠门禁不靠记性。
+
+**方案与选项**：
+
+*脚本形态*：
+- A. 复用 verify_adjudication 全部 helper（docx 生成/轮询/双档口径），新脚本
+  scripts/verify_multiinstance.py 只承载"双实例"差异：A 提交 → B 补件 → 终态 +
+  **timeline 无 schema_reset**（checkpoint 未共享时 resume 会触发版本门卫降级全新重跑
+  → schema_reset 落审计且案件回 supplement_pending 到不了终态，故"终态 + 零
+  schema_reset"即跨实例证明，无需感知任务被哪个实例认领）+ A/B 双向对称一组 +
+  跨实例可见性（A 提交 B 可查）
+- B. 停一个实例制造确定性 failover——compose 编排复杂，收益等价（认领本就无归属假设）
+→ 选 A。
+
+*运行载体*：
+- A. CI docker job 复用同一栈追加阶段：单实例冒烟后**不 down**，直接带
+  docker-compose.replicas.yml `up -d --scale app=2`（只 recreate app 容器；init 已
+  completed、hf_cache 卷保留 → BGE 不重下），8000/8001 跑 verify_multiinstance，
+  最后统一 down -v。测的是 **prod 多实例**（PG checkpoint + 租约在真 PG）
+- B. 新增 ubuntu 裸进程 job（dev profile 双 uvicorn）——BGE 下载/缓存、dev 库路径
+  硬编码、qdrant local 双进程共享等问题一箩筐
+→ 选 A。另给脚本加 `--boot` 模式（本地自起两个 uvicorn：同 cwd 共享业务库/uploads，
+  每实例独立 QDRANT_LOCAL_PATH 避免 qdrant local 双进程文件冲突，
+  CHECKPOINT_BACKEND=sqlite 共享 checkpoint，ORCHESTRATOR_LLM_ENABLED=false 对齐
+  CI 离线口径），本地一条命令复现 T145 场景。
+
+**断言口径**：与 verify_adjudication 双档同构——离线档（零 Key）：三份材料 mock_fallback
+→ 终态 referred + 零 schema_reset；完整档（有 Key）：auto_issued 4640.00 + 零
+schema_reset。CI 沿用 secret 有无双分支。
+
+**验收**：本地 `--boot --offline` 实测双实例全绿（含跨实例补件恢复）；CI docker job
+新增阶段（replicas 双副本 + 双档分支）；pytest + ruff 零退化。

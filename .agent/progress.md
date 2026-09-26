@@ -2271,3 +2271,25 @@ frontend 含审计 / docker 双档冒烟 / eval-gate 双门 / nightly-llm 夜间
 **关键改动**：services/case_job_worker.py（租约全套）、services/case_jobs.py（facade）、services/memory/short_term.py（sqlite 后端）、services/case_service.py（计数行）、services/db/session.py（补列）、services/db/models.py、alembic/versions/f3a7c2d9e4b1、app/core/config.py（checkpoint_backend/lease_ttl）、docker-compose.replicas.yml（新）
 **测试**：租约语义 7 用例（活租约不抢/过期接管/NULL 孤儿/认领持租/终态清租/心跳只续己方/长跑续租/停止释放）；T145 场景回归（双 saver 共享 sqlite 文件跨"实例"resume 成功）；案件号 4 用例（递增/存量播种/回滚还号/双连接池并发不撞号）。**498 passed + ruff 干净 + 评测门主门/对抗门 100% 全绿**；真机冒烟：存量 dev 库（333 案）列补齐→提交得 CASE-2026-0334→任务租约生命周期完整→supplement_pending 挂起正常
 **测试坑位**：tests/core/test_logging 的 importlib.reload(config) 会置换 settings 对象——运行期 `from app.core.config import settings` 拿到的可能是新对象，patch 必须 module-view（conftest 既有惯例）
+
+## 2026-09-26 T156 双实例 live 冒烟脚本化进 CI（D072）
+
+**做了什么**：T155 多实例能力的 live 级验收闭环——scripts/verify_multiinstance.py（复用
+verify_adjudication 的材料/轮询 helper）：A 提交→B 补件→终态 + **timeline 零 schema_reset**
+（checkpoint 未共享时 resume 会触发版本门卫降级重跑且案件回挂起态，故"终态+零 reset"即
+跨实例证明，无需感知认领方）+ B→A 双向对称 + 对端可见性。`--boot` 模式本地自起双实例
+（同 cwd 共享库/uploads、sqlite 共享 checkpoint、每实例独立 qdrant local、离线口径清 Key）。
+CI docker job 追加 replicas 阶段：**同栈不 down 直接 `--scale app=2`**（只 recreate app，
+init 已完成、hf_cache 卷保留→BGE 不重下），8000/8001 双档冒烟，测的是 prod 多实例（真 PG）。
+
+**过程中连修三个真缺陷（全部 boot 实测逮到）**：
+1. 双实例同时开 checkpoint 文件：WAL 切换撞对方 setup DDL 即 database is locked 启动失败
+   ——busy_timeout 先行 + WAL/setup 撞锁退避重试（short_term），业务库引擎 connect_args
+   timeout 30s（session）
+2. Windows 下 terminate() 只命中 `uv run` 包装进程，uvicorn 孙进程变孤儿占端口且冒充新实例
+   应答 health——改 `sys.executable -m uvicorn` 直起单进程 + boot 前端口占用预检
+3. boot 离线档未压掉 .env 真 Key（材料走真实提取致"零 Key 转人工"断言必挂）——offline 时
+   注入 LLM_API_KEY=""，并补 sources 断言（mock_fallback/text_model 与单实例冒烟同口径）
+
+**结果**：本地 `--boot --offline` 18/18 全绿（两轮复验）；498 passed + ruff 干净；
+compose replicas 组合本地 config 校验过（!override 合并正确：端口区间 + uploads 共享卷）。

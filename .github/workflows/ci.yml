@@ -96,7 +96,10 @@ jobs:
         run: uv sync --frozen
 
       - name: Compose 配置校验
-        run: docker compose config -q
+        run: |
+          docker compose config -q
+          # 多副本组合（T156）一并校验：runner compose 版本过旧不支持 !override 时在此显式失败
+          docker compose -f docker-compose.yml -f docker-compose.replicas.yml config -q
 
       - name: 构建应用镜像
         run: docker build -t claimflow:ci .
@@ -133,6 +136,32 @@ jobs:
       - name: 端到端冒烟（完整档，真实 LLM，需 secret）
         if: ${{ secrets.LLM_API_KEY != '' }}
         run: uv run python -m scripts.verify_adjudication --base-url http://localhost:8000
+
+      # 多实例 live 冒烟（T156，D072）：同栈不清理直接扩双副本（只 recreate app，
+      # init 已完成、hf_cache 卷保留→BGE 不重下）——8000/8001 两端口，跨实例
+      # 补件恢复实测（A 提交→B 补件→终态+零 schema_reset=共享 checkpoint 证明，
+      # 双向对称）。测的是 prod 多实例形态（PG checkpoint + 租约在真 PostgreSQL）
+      - name: 扩至双副本（replicas override）
+        run: docker compose -f docker-compose.yml -f docker-compose.replicas.yml up -d --no-build --scale app=2
+
+      - name: 等待双副本就绪
+        run: |
+          for port in 8000 8001; do
+            ok=0
+            for i in $(seq 1 45); do
+              if curl -sf http://localhost:$port/health > /dev/null; then ok=1; break; fi
+              sleep 2
+            done
+            if [ "$ok" != "1" ]; then echo "端口 $port 未就绪"; exit 1; fi
+          done
+
+      - name: 多实例冒烟（离线兜底档，零 API Key）
+        if: ${{ secrets.LLM_API_KEY == '' }}
+        run: uv run python -m scripts.verify_multiinstance --base-url-a http://localhost:8000 --base-url-b http://localhost:8001 --offline
+
+      - name: 多实例冒烟（完整档，真实 LLM，需 secret）
+        if: ${{ secrets.LLM_API_KEY != '' }}
+        run: uv run python -m scripts.verify_multiinstance --base-url-a http://localhost:8000 --base-url-b http://localhost:8001
 
       - name: 清理
         if: always()

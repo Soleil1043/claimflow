@@ -58,6 +58,9 @@ def get_engine() -> AsyncEngine:
             echo=False,
             pool_size=20,
             max_overflow=30,
+            # SQLite 多写方（dev 多实例共享一个库文件）：busy 等待而非立刻
+            # database is locked（T156 双实例 boot 实锤，默认 5s 偏紧）
+            connect_args={"timeout": 30} if settings.database_url.startswith("sqlite") else {},
         )
         log.info("db_engine_created", url=settings._url_for_log())
     return _engine

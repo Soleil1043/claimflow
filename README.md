@@ -162,6 +162,7 @@ uv run pytest -q                                   # 444 用例
 uv run ruff check .
 uv run python -m evals.adjudication_suite          # 金样本评测门（确定性，零 LLM）
 uv run python -m scripts.verify_adjudication --offline   # 离线兜底档（零 API Key）
+uv run python -m scripts.verify_multiinstance --boot --offline   # 双实例 live 冒烟（自起 8010/8011，跨实例补件恢复）
 uv run python -m scripts.verify_adjudication             # 完整档（需真 Key：自动签发+金额+决定书）
 uv run python scripts/smoke_support_e2e.py         # 客服全链路冒烟（需真 Key + dev 栈）
 ```

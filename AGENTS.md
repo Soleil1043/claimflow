@@ -190,7 +190,7 @@ claimflow/
 │
 ├── chatui/                    # 案件提交门户（Next.js 15 + Tailwind 4，端口 3000；含悬浮 AI 客服）
 ├── workbench/                 # 坐席工作台（Next.js：核赔工单 / 客服工单 / 叙述抽评审）
-├── scripts/                   # 种子 / 金样本生成 / 冒烟双档（verify_adjudication）/ 客服冒烟 / 专项验证 / 记忆重建
+├── scripts/                   # 种子 / 金样本生成 / 冒烟双档（verify_adjudication / verify_multiinstance 双实例）/ 客服冒烟 / 专项验证 / 记忆重建
 ├── data/                      # 运行数据：mock 种子 / kb_docs 知识库 / graph / qdrant 本地存储 / uploads 材料落盘
 │
 ├── grafana/                   # Grafana dashboard JSON（核赔 8 面板）
@@ -203,7 +203,7 @@ claimflow/
 │
 ├── docs/                      # architecture.md（现状总览）+ 新架构设计（工程版/人话版）+ exercises 练习手册 + diagrams / screenshots
 │
-├── .github/workflows/ci.yml   # CI：ruff + pytest + 评测门 + docker 冒烟双档（T144/T145）
+├── .github/workflows/ci.yml   # CI：ruff + pytest + 评测门 + docker 冒烟双档 + 双副本多实例冒烟（T144/T145/T156）
 ├── Dockerfile
 ├── docker-compose.yml
 ├── .env.example
@@ -294,7 +294,7 @@ Agent 不直接调工具，通过 Worker 子图（`services/worker_agent.py`）�
 - **评测与安全**（T122-T127/T142）：失败集清零、对抗回归门 14 案进 CI
 - **客服域**（T132-T137，D057）：门户 AI 客服 + 转人工坐席闭环
 - **治理**（T138-T141）：记忆置信度门控/TTL/删除、叙述抽评、提取置信度校准、checkpoint 版本门卫
-- **CI**（T143-T145）：端到端冒烟双档接入（离线零 Key 默认）
+- **CI**（T143-T145/T156）：端到端冒烟双档 + 双副本多实例冒烟接入（离线零 Key 默认）
 
 现状为维护期：新需求先写入 `.agent/tasks.md` 再实施，历史决策链见 `.agent/decisions.md`。
 
@@ -307,5 +307,5 @@ Agent 不直接调工具，通过 Worker 子图（`services/worker_agent.py`）�
 3. **先跑通再优化**：每个功能先做最简可运行版本，验证逻辑正确后再加优化（缓存、并发、性能调优等）。
 4. **遇到不确定的先问**：业务逻辑、技术选型有疑问时，不要自己猜，写到 `decisions.md` 并提示用户确认。
 5. **中文注释**：代码注释和文档用中文，和项目语境保持一致。
-6. **dev 多实例须共享 checkpoint**：交付队列已多实例安全（T155 租约认领，D071），但 dev 默认 checkpointer 是进程内存——多实例（多端口/多进程共享同一 data 目录）必须显式设 `CHECKPOINT_BACKEND=sqlite`，否则他实例认领 RESUME 后找不到 checkpoint 会触发版本门卫全新重跑（T145 实锤）。不设该变量时仍须单实例跑 `verify_adjudication`。
+6. **dev 多实例须共享 checkpoint**：交付队列已多实例安全（T155 租约认领，D071），但 dev 默认 checkpointer 是进程内存——多实例（多端口/多进程共享同一 data 目录）必须显式设 `CHECKPOINT_BACKEND=sqlite`，否则他实例认领 RESUME 后找不到 checkpoint 会触发版本门卫全新重跑（T145 实锤）。本地一条命令复现双实例：`uv run python -m scripts.verify_multiinstance --boot --offline`（自起 8010/8011，离线口径）；prod 多副本冒烟在 CI docker job 以 `docker-compose.replicas.yml --scale app=2` 执行。
 7. **改动守评测门**：任何涉及调度 / 理算 / 决定书的改动，合并前必跑 `evals/adjudication_suite`（主门 + 对抗门）与 `uv run pytest -q`，六门不退化才算过。
