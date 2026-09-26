@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 from prometheus_client import REGISTRY
 from pydantic import BaseModel
 
@@ -186,14 +186,20 @@ async def test_observed_ainvoke_error_reraised() -> None:
 # ===== /metrics 端点 =====
 
 
-def test_metrics_endpoint() -> None:
-    """/metrics 返回 Prometheus 文本协议，含核心指标名。"""
+async def test_metrics_endpoint() -> None:
+    """/metrics 返回 Prometheus 文本协议，含核心指标名。
+
+    ASGITransport 不触发 lifespan（项目 API 测试惯例）——TestClient 的 with
+    上下文会拉起完整启动流程含 BGE-M3 预下载，本地热缓存掩盖、CI 冷环境
+    OSError 实锤（huggingface.co 不可达/2.3GB 下载不属于单测职责）。
+    """
     from app.main import app
 
     metrics.record_tool_call("policy_query", "success", 0.1)
 
-    with TestClient(app) as client:
-        resp = client.get("/metrics")
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.get("/metrics")
 
     assert resp.status_code == 200
     body = resp.text
