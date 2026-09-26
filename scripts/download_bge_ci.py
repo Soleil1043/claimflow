@@ -28,9 +28,16 @@ _HF_CACHE = pathlib.Path(os.environ.get("CI_HF_CACHE", "~/.cache/huggingface")).
 _SNAP_ROOT = _HF_CACHE / "hub" / "models--BAAI--bge-m3" / "snapshots"
 
 
+_WEIGHT_FILES = ("model.safetensors", "pytorch_model.bin")
+
+
 def _verify() -> bool:
-    """快照完整性：任一快照目录含 model.safetensors 即可用（EMBEDDING_MODEL_PATH 口径）。"""
-    hits = list(_SNAP_ROOT.glob("*/model.safetensors"))
+    """快照完整性：任一快照目录含权重文件即可用（EMBEDDING_MODEL_PATH 口径）。
+
+    HF 官方仓是 model.safetensors；ModelScope 镜像仓只有 pytorch_model.bin
+    （本地下载清单实测，无 safetensors）——两种权重 transformers 均可离线加载。
+    """
+    hits = [h for w in _WEIGHT_FILES for h in _SNAP_ROOT.glob(f"*/{w}")]
     for hit in hits:
         print(f"[download_bge] snapshot ok: {hit}")
     return bool(hits)
@@ -56,8 +63,18 @@ def _modelscope_download() -> bool:
         print("[download_bge] modelscope 未安装（CI 步骤负责预装），跳过该通道", file=sys.stderr)
         return False
 
+    # 只取 配置/tokenizer/pytorch 权重——仓里还有 2.27G onnx 变体纯属浪费；
+    # 旧版 SDK 不认 allow_patterns（TypeError）则退全量
     try:
-        src = pathlib.Path(ms_download(REPO_ID))
+        src = pathlib.Path(
+            ms_download(REPO_ID, allow_patterns=["*.json", "*.model", "*.bin", "*.pt"])
+        )
+    except TypeError:
+        try:
+            src = pathlib.Path(ms_download(REPO_ID))
+        except Exception as exc:  # noqa: BLE001
+            print(f"[download_bge] modelscope download failed: {exc}", file=sys.stderr)
+            return False
     except Exception as exc:  # noqa: BLE001
         print(f"[download_bge] modelscope download failed: {exc}", file=sys.stderr)
         return False
