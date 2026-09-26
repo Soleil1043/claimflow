@@ -140,9 +140,15 @@ jobs:
           # 决定走真实 LLM 或 Mock 兜底），避免偶发抖动让 CI 变红
           ORCHESTRATOR_LLM_ENABLED: "false"
         run: |
-          docker compose up -d --no-build
+          # compose up 阻塞等 init 完成（run-once 依赖）；init 非零退出时 up 直接
+          # 报错——失败详情进 annotations（匿名可读），不再盲猜
+          if ! docker compose up -d --no-build 2>&1 | tee /tmp/up.log; then
+            echo "::error title=compose-up失败::$(tail -c 600 /tmp/up.log | awk '{printf "%s ", $0}')"
+            echo "::error title=init日志尾::$(docker compose logs init 2>&1 | tail -c 800 | awk '{printf "%s ", $0}')"
+            exit 1
+          fi
           # 等待 app 就绪：app 容器等 init（首次下载 BGE-M3 ~2.3G + 2 vCPU ingest）
-          # 完成才启动——冷 runner 上 init 需数分钟，窗口给足 15 分钟
+          # 完成才启动——冷 runner 上 init 需数分钟，窗口给足 20 分钟
           for _ in $(seq 1 120); do
             if curl -sf http://localhost:8000/health > /tmp/health.json; then break; fi
             sleep 10
