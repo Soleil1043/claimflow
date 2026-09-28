@@ -305,9 +305,10 @@ jobs:
             evals/reports/t124_adversarial_gate.json
 
   # 夜间真实 LLM 门（T151，D070）：客服门 15 案 / 对抗门 LLM 档 14 案 / 主门 LLM
-  # 档抽样 20 案——回归靠日历不靠记性。需 LLM_API_KEY secret（无则整 job skip，
-  # fork 场景不红）；BGE-M3 模型走 cache（~2.3GB，模型不变则命中），ingest 重建
-  # 向量索引（data/qdrant 不入库）。北京 04:00 = UTC 20:00。
+  # 档抽样 20 案——回归靠日历不靠记性。需 LLM_API_KEY secret（无则所有实质步骤
+  # skip，只发 notice 注解——fork/未配置场景不红；secret 已配但门失败仍会红）；
+  # BGE-M3 模型走 cache（~2.3GB，模型不变则命中），ingest 重建向量索引
+  # （data/qdrant 不入库）。北京 04:00 = UTC 20:00。
   nightly-llm:
     name: 夜间真实 LLM 门（客服/对抗/主门抽样）
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
@@ -322,22 +323,23 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 检查 LLM secret
-        id: has_key
         if: ${{ env.HAS_LLM_KEY != 'true' }}
-        run: |
-          echo "LLM_API_KEY secret 未配置，跳过夜间门（fork 场景）"
-          exit 1
+        # 无 key 只说明原因（notice 注解），不 exit 1——跳过 ≠ 失败（run #32/#33 实锤）
+        run: echo "::notice title=夜间LLM门跳过::LLM_API_KEY secret 未配置，本 job 空跑跳过（fork/未配置场景）。在 Settings → Secrets and variables → Actions 配置 LLM_API_KEY 后夜间门自动生效"
 
       - name: 安装 uv
+        if: ${{ env.HAS_LLM_KEY == 'true' }}
         uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
           enable-cache: true
 
       - name: 安装依赖
+        if: ${{ env.HAS_LLM_KEY == 'true' }}
         run: uv sync --frozen
 
       - name: 缓存 BGE-M3 模型
+        if: ${{ env.HAS_LLM_KEY == 'true' }}
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
@@ -345,27 +347,31 @@ jobs:
           lookup-only: false
 
       - name: 重建知识库向量索引
+        if: ${{ env.HAS_LLM_KEY == 'true' }}
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: uv run python -m services.rag.ingest
 
       - name: 对抗门（LLM 模式 14 案）
+        if: ${{ env.HAS_LLM_KEY == 'true' }}
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: uv run python -m evals.adjudication_suite --dataset adversarial --llm
 
       - name: 客服问答门（15 案）
+        if: ${{ env.HAS_LLM_KEY == 'true' }}
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: uv run python -m evals.support_suite
 
       - name: 主门 LLM 档抽样（20 案）
+        if: ${{ env.HAS_LLM_KEY == 'true' }}
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: uv run python -m evals.adjudication_suite --llm --limit 20
 
       - name: 上传夜间报告产物
-        if: always()
+        if: ${{ !cancelled() && env.HAS_LLM_KEY == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: nightly-llm-report

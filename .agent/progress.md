@@ -2312,3 +2312,19 @@ compose replicas 组合本地 config 校验过（!override 合并正确：端口
 
 **结果**：run 36269355575 全绿——lint-test / 评测门 / 前端×2 / **docker job（含双副本多实例冒烟 prod 真形态）**。模型缓存已持久化，后续 run 秒级。
 **方法论沉淀**：匿名拿不到 Actions 日志时，`::error::`/`::warning::` annotations 是匿名可读的唯一观测口；本地 Linux 容器（独立 venv）复现 Linux 专属失败；每轮失败必须转化成下一轮的观测数据。
+
+## 2026-09-28 T156 夜间 LLM 门跳过语义修复：schedule 触发持续红的根因
+
+**现象**：push 触发 run #31 全绿后，同 commit 7ec42cd 的 schedule 触发 run #32/#33 连续红——用户侧表现即"CI 始终 fail"（每日 UTC 20:00 定时跑一次每次都红）。
+
+**定位**（匿名 Actions API 逐 job 排查）：五 job 中四绿，唯一失败 job = 夜间真实 LLM 门（nightly-llm），挂在第一步「检查 LLM secret」。根因：T151 落地时该步骤注释与意图均为"无 secret 则整 job skip（fork 场景不红）"，实现却是 `exit 1`——**跳过语义误写成失败**。本仓库未配置 LLM_API_KEY secret，job 级 env `HAS_LLM_KEY: ${{ secrets.LLM_API_KEY != '' }}` 判 false → 检查步骤必跑必 exit 1 → job 红 → 整 run 红。
+
+**修复**（.github/workflows/ci.yml nightly-llm job）：
+1. 「检查 LLM secret」去掉 `exit 1`，改为 `::notice::` 注解说明跳过原因与启用路径（step success，run 不红）；
+2. 全部实质步骤（安装 uv / 安装依赖 / BGE 缓存 / ingest / 三评测门 / 上传产物）加 `if: env.HAS_LLM_KEY == 'true'` 门控——无 key 时全 skip 空 job 绿，secret 配置后自动生效；
+3. 上传产物由 `always()` 收紧为 `!cancelled() && HAS_LLM_KEY == 'true'`（避免无文件 warn 噪音）。
+4. job 级 env 承接模式保留不动（step-if 不可用 secrets context，91172bc 口径不变）。
+
+**边界澄清**：secret 已配置但评测门真失败仍会红（夜间门的价值所在）；只有"未配置"才空跑跳过。docker job 的 exit 1（compose 起不来/健康检查不过）为真实失败分支，不动。
+
+**结果**：YAML 校验过（uv+pyyaml 解析 5 job 结构正确）；push 触发 run 全绿即闭环，夜间门行为待下一次 schedule / 手动 workflow_dispatch 验证。
