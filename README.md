@@ -183,14 +183,14 @@ CI 默认跑离线档（不需要任何 secret）；仓库配了 `LLM_API_KEY` s
 
 ## 6. 可选组件
 
-| 组件 | 启动 | 入口 |
-|------|------|------|
+| 组件                           | 启动 | 入口 |
+|--------------------------------|------|------|
 | 监控栈（Prometheus + Grafana） | `docker compose --profile monitoring up -d` | Grafana `:3000`，自动加载核赔 8 面板：自动结案率 / 转人工率 / 调度调用 / 守卫纠错 / 阶段耗时 P95 / 端到端耗时 / 案件量 / 核定金额 |
-| 追踪栈（OTel + Jaeger） | `docker compose --profile tracing up -d`<br>`.env` 设 `OTEL_ENABLED=true` | Jaeger UI `:16686` |
-| 坐席工作台（HITL + 客服） | `cd workbench && npm install && npm run dev` | `:5173` 核赔工单列表 + 详情（审计时间线 / 决定书版本卡 / 签批改判表单）+ 客服工单（transcript / 回复 / 关闭）+ 叙述抽评审队列 |
-| 案件提交门户 | `cd chatui && npm install && npm run dev` | `:3000` 提交 + 进度时间线 + 决定书查看 + 补件上传 + 悬浮 AI 客服（问答 / 查进度 / 转人工） |
+| 追踪栈（OTel + Jaeger）        | `docker compose --profile tracing up -d`<br>`.env` 设 `OTEL_ENABLED=true` | Jaeger UI `:16686` |
+| 坐席工作台（HITL + 客服）      | `cd workbench && npm install && npm run dev` | `:5173` 核赔工单列表 + 详情（审计时间线 / 决定书版本卡 / 签批改判表单）+ 客服工单（transcript / 回复 / 关闭）+ 叙述抽评审队列 |
+| 案件提交门户                   | `cd chatui && npm install && npm run dev` | `:3000` 提交 + 进度时间线 + 决定书查看 + 补件上传 + 悬浮 AI 客服（问答 / 查进度 / 转人工） |
 
-- 后端裸指标：`http://localhost:8000/metrics`（无需监控栈）
+- 后端裸指标：`http://localhost:8000/metrics` (无需监控栈)
 
 ---
 
