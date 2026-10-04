@@ -2328,3 +2328,13 @@ compose replicas 组合本地 config 校验过（!override 合并正确：端口
 **边界澄清**：secret 已配置但评测门真失败仍会红（夜间门的价值所在）；只有"未配置"才空跑跳过。docker job 的 exit 1（compose 起不来/健康检查不过）为真实失败分支，不动。
 
 **结果**：YAML 校验过（uv+pyyaml 解析 5 job 结构正确）；push 触发 run 全绿即闭环，夜间门行为待下一次 schedule / 手动 workflow_dispatch 验证。
+
+## 2026-10-04 T157 pip-audit 漏洞升级：pypdf 八漏洞 + urllib3 三漏洞
+
+**现象**：CI lint-test job 依赖审计步骤（T152 接入，"已知漏洞即红"）报 11 漏洞 2 包——pypdf 6.16.2 八枚（PYSEC-2026-4153/4154/4155/4156/4157/4158/4159/4160，修复版横跨 6.17.0-6.19.0）+ urllib3 2.7.0 三枚（PYSEC-2026-4175/4176/4177，修复版 2.8.0）。跳过表两项（claimflow 本地项目 / torch+cpu 本地变体不在 PyPI）为 T152 既有合理项，非本次红因。
+
+**修复**：pypdf 是直接依赖（services/materials.py PDF 提取），pyproject floor 6.16.2→6.19.0（八漏洞修复版最高者，单点覆盖全部 CVE）；urllib3 是传递依赖（qdrant-client/requests 带入），pyproject 不显式声明，用 `uv lock --upgrade-package pypdf --upgrade-package urllib3` 定点重锁（Resolved 168 packages，pypdf 6.16.2→6.19.0 + urllib3 2.7.0→2.8.0），不牵动其余 166 包。
+
+**验证**：`uv sync --frozen` 后本地复跑 `uv run pip-audit` exit 0 清零（env -u HTTP(S)_PROXY 绕本机隧道 502，T152 同口径）；pypdf 跨三个小版本，全量 pytest 守门 498 passed 零退化（未涉调度/理算/决定书，评测门按 §8.7 口径不强制，pytest 已覆盖材料提取路径）。
+
+**结果**：pyproject.toml + uv.lock 两文件改动，push 后 CI lint-test job pip-audit 步骤应转绿。
