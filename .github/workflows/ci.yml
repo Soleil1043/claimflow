@@ -85,9 +85,34 @@ jobs:
       - name: 安装依赖（npm ci）
         run: npm ci
 
-      # 依赖漏洞审计（T152，D070）：high 及以上即红（moderate 不阻塞）
-      - name: 依赖审计（npm audit ≥high）
-        run: npm audit --audit-level=high
+      # 依赖漏洞审计（T152，D070）：high 及以上即红（moderate 不阻塞）。
+      # T158：npm audit 无官方豁免参数（--ignore 会被 npm 展开成 ignore-scripts 静默失效，实测实锤），
+      # 改为 JSON 报告 + 过滤器判定；豁免清单只收"上游无修复版"的公告，修复版发布后应移除：
+      # - GHSA-vfj7-8cjw-p6xm（braces 栈耗尽 DoS，CWE-674/CVSS 7.5）：影响 <=3.0.3 含最新发布版，无补丁可升；
+      #   整条链（micromatch/fast-glob/@next/eslint-plugin-next/eslint-config-next）均为 devDependencies
+      #   的 lint/构建期工具，不进 Next.js 运行时产物；npm 建议的 --force 修复=降级 eslint-config-next 到 14，不可取。
+      - name: 依赖审计（npm audit ≥high，豁免无补丁公告）
+        run: |
+          npm audit --json > /tmp/npm-audit.json || true
+          node -e '
+            const raw = require("fs").readFileSync("/tmp/npm-audit.json", "utf8");
+            if (!raw.trim()) { console.error("npm audit JSON 为空（端点失败?），拒绝放行"); process.exit(1); }
+            const exempt = {
+              "GHSA-vfj7-8cjw-p6xm": "braces: 无补丁版(<=3.0.3含最新), dev-only eslint链, 上游修复后移除",
+            };
+            const a = JSON.parse(raw);
+            const bad = [];
+            for (const v of Object.values(a.vulnerabilities || {}))
+              for (const via of v.via || [])
+                if (typeof via === "object" && !exempt[(via.url || "").split("/").pop()]
+                    && (via.severity === "high" || via.severity === "critical"))
+                  bad.push(via);
+            if (bad.length) {
+              for (const b of bad) console.error(b.severity + ": " + b.title + " " + b.url);
+              process.exit(1);
+            }
+            console.log("npm audit 高危清零（豁免 " + Object.keys(exempt).length + " 条无补丁公告）");
+          '
 
       - name: Lint（next lint）
         run: npm run lint

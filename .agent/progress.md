@@ -2338,3 +2338,15 @@ compose replicas 组合本地 config 校验过（!override 合并正确：端口
 **验证**：`uv sync --frozen` 后本地复跑 `uv run pip-audit` exit 0 清零（env -u HTTP(S)_PROXY 绕本机隧道 502，T152 同口径）；pypdf 跨三个小版本，全量 pytest 守门 498 passed 零退化（未涉调度/理算/决定书，评测门按 §8.7 口径不强制，pytest 已覆盖材料提取路径）。
 
 **结果**：pyproject.toml + uv.lock 两文件改动，push 后 CI lint-test job pip-audit 步骤应转绿。
+
+## 2026-10-07 T158 审计门二轮红：langgraph-sdk 新 CVE + 前端 npm audit 三漏洞（含一条无补丁公告）
+
+**背景**：T157 后 10-06 夜间 run 三 job 红。诊断实锤两类独立根因：①lint-test 红在 pip-audit 新通报 langgraph-sdk 0.4.3 CVE-2026-104873（T157 当天 Lint & Test 全绿，属数据库滚动更新非复发）；pytest 498 passed/覆盖率 87.05% 实际全过——失败遥测步骤打"无 FAILED 行（可能是覆盖率门）"属误导输出（job 内任一步失败都会触发，它只认得测试日志）。②双前端 npm audit 红：braces GHSA-vfj7-8cjw-p6xm 栈耗尽 DoS（5 条 high 全是同一公告沿 eslint-config-next→@next/eslint-plugin-next→fast-glob→micromatch→braces 的依赖树计数）。
+
+**关键取证**：braces 锁定 3.0.3=npm 最新发布版（2024-09 后无更新），公告 vulnerable_versions="<=3.0.3"——**无补丁可升**；npm 的 --force 修复=降级 eslint-config-next 到 14（会撞回 T148 的 flat config 循环引用）不可取；受影响链全部 devDependencies，不进 Next.js 运行时产物。
+
+**修复**：①uv lock --upgrade-package langgraph-sdk → 0.4.5（≥修复版 0.4.4），pytest 守门绿。②本地复测审计发现报告已涨至 7 high（sharp/source-map-js 两条为 10-06 CI 之后新披露）→ npm audit fix 无破坏升级双 lockfile（sharp 0.35.5、source-map-js 1.2.2）。③braces 无补丁 → ci.yml 前端审计步骤改 JSON 过滤器豁免（npm audit 无官方 --ignore：实测被展开成 ignore-scripts 静默失效）：提取 via.url 的 GHSA id 比对豁免清单，清单外 high/critical 才红、报告为空拒放行；空豁免反向实测 exit 1 咬住 braces、豁免后 exit 0（双目录）；npm ci/lint/build 双前端全绿验收。
+
+**踩坑实录**：Windows 本地验证 npm audit 必须走代理——env -u 绕代理后端点静默失败仍 exit 0（假绿），与 T152 pip-audit"绕代理才能跑"正相反；用 curl 带/不带代理对照实锤（不带=空响应，带=200 且公告仍在案）。另 Git Bash /tmp 与 Windows node.exe 的 /tmp 解析不一致，本地测试脚本需路径覆盖参数。
+
+**结果**：后端审计门与前端审计门本地双清零（前端为"豁免 1 条无补丁公告"语义），CI 待 push 确认五 job 全绿。
