@@ -2350,3 +2350,15 @@ compose replicas 组合本地 config 校验过（!override 合并正确：端口
 **踩坑实录**：Windows 本地验证 npm audit 必须走代理——env -u 绕代理后端点静默失败仍 exit 0（假绿），与 T152 pip-audit"绕代理才能跑"正相反；用 curl 带/不带代理对照实锤（不带=空响应，带=200 且公告仍在案）。另 Git Bash /tmp 与 Windows node.exe 的 /tmp 解析不一致，本地测试脚本需路径覆盖参数。
 
 **结果**：后端审计门与前端审计门本地双清零（前端为"豁免 1 条无补丁公告"语义），CI 待 push 确认五 job 全绿。
+
+**T158 续篇（2026-10-07）：首推 CI 实锤第四个红点——npm 11/10 锁文件兼容性**
+
+T158 首推（537cd13）后端与 Docker job 绿（langgraph-sdk 修复生效），但双前端 job 死在**审计步骤之前**：npm ci 7 秒即红，EUSAGE "package.json and package-lock.json are in sync"——Missing @emnapi/runtime@1.11.3、@emnapi/core@1.11.3/@1.10.0、wasi-threads 1.2.1 不满足 1.2.3 要求。
+
+**根因**：npm 11.6 的 npm audit fix 从锁文件删除了 @emnapi/core 与 @emnapi/runtime 包条目，但树内悬空引用未清（消费方=@tailwindcss/oxide-wasm32-wasi 的 optional 依赖链）；npm 11 自身对这种残缺树放行（本地 npm ci/lint/build 三连绿全是假象），CI 的 npm 10（Node 22 捆绑）严格校验拒绝。教训：**本地改锁文件用的 npm 大版本必须与 CI 一致**，"本地 npm ci 过"不等于"CI npm ci 过"。
+
+**修复**：双目录 `npx npm@10 install --package-lock-only` 按 CI 大版本重生成锁文件（@emnapi 系列补齐为 1.11.3/1.2.3，oxide-wasm32-wasi 嵌套条目恢复），`npx npm@10 ci` 全量安装实测通过；audit 过滤器（braces 豁免）复验绿、sharp 0.35.5/source-map-js 1.2.2 修复保留、双前端 lint/build 复验绿。
+
+**次要发现**：本机 env 无 HTTP(S)_PROXY（此前对"走代理"的归因有误）——npm 11/24 能通是因为 Node 24 原生系统代理感知，npm 10/Node 偶发直连失败为瞬时网络抖动，重跑即过。
+
+**结果**：本地四道验收全绿（npm10 ci/审计过滤器/lint/build），CI 待 push 确认五 job 全绿。
