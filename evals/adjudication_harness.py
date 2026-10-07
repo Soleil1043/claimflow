@@ -232,7 +232,11 @@ def emit_report(
     """报告 dict 装配 + 落盘 + 摘要打印（T089/T124 口径不变）。"""
     total = agg["total"]
     report = {
-        "task": "T124 核赔对抗回归门" if dataset_name == "adversarial" else "T089 核赔评测上线门",
+        "task": (
+            "T124 核赔对抗回归门" if dataset_name == "adversarial"
+            else "T159 对抗 hold-out 盲测门" if dataset_name == "adversarial_holdout"
+            else "T089 核赔评测上线门"
+        ),
         "dataset": dataset_name,
         "robustness": robustness_block,
         "generated_at": dt.datetime.now().isoformat(timespec="seconds"),

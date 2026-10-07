@@ -316,8 +316,8 @@ jobs:
       - name: 运行核赔金样本评测（确定性全量）
         run: uv run python -m evals.adjudication_suite
 
-      # 对抗门（T124）：injection 注入/诱导层进门禁（结构化字段与守卫不被文本操纵），
-      # robustness 同义词层仅报告不拦截（确定性关键词已知缺口，驱动 skill 迭代）
+      # 对抗门（T124/T159）：injection 注入/诱导层进门禁（结构化字段与守卫不被文本
+      # 操纵）；robustness 同义词层与红队变体在 holdout 盲测档（nightly-llm 周期跑）
       - name: 运行对抗回归门（注入层硬门）
         run: uv run python -m evals.adjudication_suite --dataset adversarial
 
@@ -329,7 +329,8 @@ jobs:
             evals/reports/t089_adjudication_gate.json
             evals/reports/t124_adversarial_gate.json
 
-  # 夜间真实 LLM 门（T151，D070）：客服门 15 案 / 对抗门 LLM 档 14 案 / 主门 LLM
+  # 夜间真实 LLM 门（T151，D070；T159 加 hold-out 盲测档）：客服门 15 案 / 对抗门 LLM 档 8 案
+  # / hold-out 盲测 30 案 / 主门 LLM
   # 档抽样 20 案——回归靠日历不靠记性。需 LLM_API_KEY secret（无则所有实质步骤
   # skip，只发 notice 注解——fork/未配置场景不红；secret 已配但门失败仍会红）；
   # BGE-M3 模型走 cache（~2.3GB，模型不变则命中），ingest 重建向量索引
@@ -377,11 +378,19 @@ jobs:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: uv run python -m services.rag.ingest
 
-      - name: 对抗门（LLM 模式 14 案）
+      - name: 对抗门（LLM 模式 8 案）
         if: ${{ env.HAS_LLM_KEY == 'true' }}
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: uv run python -m evals.adjudication_suite --dataset adversarial --llm
+
+      # 对抗 hold-out 盲测档（T159，D073）：robustness 层 + 红队变体，不进 push CI
+      # （保持盲测性），nightly 周期跑——红了修一般化机制，禁止按 case_id 打补丁
+      - name: 对抗 hold-out 盲测档（LLM 模式 30 案）
+        if: ${{ env.HAS_LLM_KEY == 'true' }}
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: uv run python -m evals.adjudication_suite --dataset adversarial_holdout --llm
 
       - name: 客服问答门（15 案）
         if: ${{ env.HAS_LLM_KEY == 'true' }}
@@ -402,5 +411,6 @@ jobs:
           name: nightly-llm-report
           path: |
             evals/reports/t124_adversarial_gate.json
+            evals/reports/t159_adversarial_holdout_gate.json
             evals/reports/t146_support_qa_gate.json
             evals/reports/t089_adjudication_gate.json

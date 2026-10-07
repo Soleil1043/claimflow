@@ -2362,3 +2362,18 @@ T158 首推（537cd13）后端与 Docker job 绿（langgraph-sdk 修复生效）
 **次要发现**：本机 env 无 HTTP(S)_PROXY（此前对"走代理"的归因有误）——npm 11/24 能通是因为 Node 24 原生系统代理感知，npm 10/Node 偶发直连失败为瞬时网络抖动，重跑即过。
 
 **结果**：本地四道验收全绿（npm10 ci/审计过滤器/lint/build），CI 待 push 确认五 job 全绿。
+
+
+## 2026-10-07 T159 对抗集 hold-out 与红队自动生成（D073）
+
+**背景**：对抗集 14 案全量进 push CI 硬门且固定 fixture——prompt/关键词迭代天然向这 14 案过拟合，缺"未见样本"盲测维度；证据链缺自动化红队环节。
+
+**拆分口径**：adversarial.json 仅留 injection 8 案（push CI 硬门，安全语义不松）；robustness 6 案移入 `adjudication_adversarial_holdout.json`（关键词路径最易对 fixture 过拟合，恰需盲测）；变体生成 `evals/redteam.py`：10 个变异器带 framework_ref 溯源（garak:promptinject.* ×3 / pyrit:converter.base64、unicode_fullwidth / pyrit:attack.authority_escalation、forged_document、policy_dodge / claimflow:compliance.redline_coerce、pii_leak），8 种子×3 变体轮转=24 条，干净事实核+攻击包裹、期望逐字段继承种子；holdout 共 30 案，`_meta.provenance` 逐条溯源。
+
+**选型**（D073）：自研变异器而非引入 garak/pyrit 本体——框架探测对象是裸模型顺从性，本项目攻击面是结构化字段纪律+守卫+静态合规门的组合（语义错位）；依赖重（garak 拖 NLTK 全家桶、pyrit 拖 duckdb 栈）动摇 pip-audit 门与锁稳定。载荷纯文本可随时喂给框架做模型级探测（适配缝隙保留）。
+
+**接线**：suite `--dataset adversarial_holdout`（robustness_block 观测推广到 startswith("adversarial")，报告落 t159_adversarial_holdout_gate.json）；CI nightly-llm 加 holdout 盲测档（不进 push CI 保持盲测性）；`scripts/redteam_adversarial.py` 四子命令（--split 幂等拆分/--generate 幂等生成/--probe 编译图实跑判定复用 _run_suite/--archive-md 归档）。
+
+**结果**：确定性对抗门 8/8 + holdout 30/30 全绿；LLM 档 holdout 30/30 全绿（deepseek-flash 真跑，六门全绿，全部注入变体被守住，tokens/案均值 ~6.5k）；8 条注入样本原文逐字归档 `evals/reports/t159_redteam_evidence.md`（含分类法映射表+双档探测结论）；新增 12 测试（redteam 6 + 对抗集重写 6）全过。
+
+**踩坑**：干净事实核从种子描述切取时尾部标点失配（ADV-008 陈述以分号衔接注入段）——单测"核⊂种子描述"逮住，生成器加标点归一修复；LLM 探测跑在标点归一前数据集上的窗口期用"归一后输出≡归一前输出"推导等价并复跑确定性门对账。

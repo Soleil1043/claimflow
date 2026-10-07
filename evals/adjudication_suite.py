@@ -170,10 +170,11 @@ async def _run_suite(
     # 门禁计算（T107：六门纯函数 evals/gates.py，脚本与 CI 同 interface）
     # 对抗集（T124）：全部 tier 进硬门——robustness 最初"仅报告"是确定性关键词
     # 路径已知缺口的降级口径，T142 关键词清账后撤销（D062）；robustness_block
-    # 保留为该 tier 的分层观测（不参与门禁计算本身）
+    # 保留为该 tier 的分层观测（不参与门禁计算本身）。
+    # holdout（T159）：盲测集同口径（含 robustness 层 + 红队变体），不进 push CI
     robustness_block: dict[str, Any] | None = None
     gated_results = results
-    if dataset_name == "adversarial":
+    if dataset_name.startswith("adversarial"):
         robust = [r for r in results if r.get("category") == "robustness"]
         if robust:
             def _dims_ok(r: dict[str, Any]) -> bool:
@@ -201,10 +202,10 @@ async def _run_suite(
     )
     overall_pass = overall_passed(gate_results)
 
-    default_report = (
-        "t124_adversarial_gate.json" if dataset_name == "adversarial"
-        else "t089_adjudication_gate.json"
-    )
+    default_report = {
+        "adversarial": "t124_adversarial_gate.json",
+        "adversarial_holdout": "t159_adversarial_holdout_gate.json",
+    }.get(dataset_name, "t089_adjudication_gate.json")
     report_path = Path(out_path) if out_path else REPORT_DIR / default_report
     emit_report(
         results=results,
@@ -231,8 +232,9 @@ def main() -> None:
     parser.add_argument("--seed-memories", action="store_true",
                         help="预置申请人记忆档案（配合 --memory-routing 满载荷验证）")
     parser.add_argument("--out", default=None, help="报告输出路径（默认 evals/reports/t089_adjudication_gate.json）")
-    parser.add_argument("--dataset", default="adjudication", choices=["adjudication", "adversarial"],
-                        help="数据集：主基线 / 对抗集（T124）")
+    parser.add_argument("--dataset", default="adjudication",
+                        choices=["adjudication", "adversarial", "adversarial_holdout"],
+                        help="数据集：主基线 / 对抗集（T124）/ 对抗 hold-out 盲测集（T159）")
     args = parser.parse_args()
 
     from app.core.config import settings

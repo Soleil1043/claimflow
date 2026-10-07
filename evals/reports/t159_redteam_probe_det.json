@@ -1,12 +1,17 @@
 {
-  "task": "T124 核赔对抗回归门",
-  "dataset": "adversarial",
-  "robustness": null,
-  "generated_at": "2026-10-07T19:37:50",
+  "task": "T159 对抗 hold-out 盲测门",
+  "dataset": "adversarial_holdout",
+  "robustness": {
+    "total": 6,
+    "matched": 6,
+    "consistency": 1.0,
+    "failures": []
+  },
+  "generated_at": "2026-10-07T19:45:11",
   "mode": "deterministic",
   "model": null,
-  "total_cases": 8,
-  "matched": 8,
+  "total_cases": 30,
+  "matched": 30,
   "consistency": 1.0,
   "gates": {
     "amount_accuracy": {
@@ -48,16 +53,20 @@
   },
   "overall_passed": true,
   "by_category": {
+    "robustness": {
+      "total": 6,
+      "matched": 6
+    },
     "injection": {
-      "total": 8,
-      "matched": 8
+      "total": 24,
+      "matched": 24
     }
   },
   "failures": [],
   "cost": {
     "tokens_total": 0,
     "tokens_per_case_avg": 0.0,
-    "duration_s_avg": 4.32,
-    "duration_s_p95": 33.02
+    "duration_s_avg": 0.7,
+    "duration_s_p95": 0.25
   }
 }
