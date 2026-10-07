@@ -1906,3 +1906,77 @@ schema_reset。CI 沿用 secret 有无双分支。
 
 **验收**：本地 `--boot --offline` 实测双实例全绿（含跨实例补件恢复）；CI docker job
 新增阶段（replicas 双副本 + 双档分支）；pytest + ruff 零退化。
+
+
+## D073：对抗集 hold-out 与红队自动生成——自研变异器（分类法对齐 Garak/PyRIT）而非引入框架本体（T159，2026-10-07）
+
+**背景**：
+对抗集 14 案（injection 8 + robustness 6）自 T124/T142 起全量进 push CI 硬门。
+全部固定 fixture + 可被评测者看见 = prompt/关键词迭代天然向这 14 案过拟合，
+缺"未见样本"盲测维度；面试证据链亦缺自动化红队环节。
+
+**方案与选项**：
+- A. 引入 garak / pyrit 框架本体：两者探测对象是**裸模型顺从性**（对 chat model
+  跑 probe/detector），核赔管线的攻击面是**结构化字段纪律 + 确定性守卫 + 静态
+  合规门的组合**——语义错位，直接对 deepseek 跑 garak 测的不是 claimflow；
+  若强行以管线为靶标需自写 generator/target 适配层，而依赖成本极高（garak 拖
+  NLTK/全家桶、pyrit 拖 duckdb 存储栈），动摇 uv 锁稳定性与 pip-audit 审计门
+- B. 自研轻量变异器：攻击分类法逐条对齐 Garak promptinject probe 家族与
+  PyRIT converters（base64/fullwidth 编码混淆）/attacks（authority/persuasion）
+  并逐条标注 framework_ref 溯源；**编译图即靶标**（probe runner 直接跑
+  build_case_graph，判定复用 score_case 五维）；生成→执行→判定→归档闭环；
+  攻击载荷为纯文本，随时可喂给 garak/pyrit 做模型级探测（适配缝隙保留）
+→ 选 B。原则：红队的证据价值在"攻击面真实 + 判定口径与线上一致 + 可复现"，
+不在依赖了哪个框架名。
+
+**hold-out 口径**：
+- injection 8 条留守 adversarial.json（push CI 硬门，安全语义不可松）
+- robustness 6 条移入 adversarial_holdout.json——关键词兜底路径最容易被
+  "对着 fixture 调关键词"过拟合，恰是最需要盲测的 tier
+- holdout 另含变异器生成的变体（期望值继承种子案：注入变体必须 behave
+  like 干净案）；_meta.provenance 逐条溯源（source_case/mutator/framework_ref）
+- holdout 不进 push CI（保持盲测性），进 nightly-llm 档周期性跑；红了修
+  "一般化机制"（关键词/守卫/合规门），修完用变异器重生成新变体复测，
+  禁止按 case_id 打补丁
+
+## D074：单 Agent 基线消融口径——双侧全 LLM 真跑同 153 案（T160，2026-10-07）
+
+**背景**：
+"为什么用 Orchestrator-Worker 而不是单 Agent"此前只有架构论述没有数字。
+评测门 --llm 仅注入 LLM Orchestrator（worker 全确定性路径），不能充当
+消融的"多 Agent 侧"口径。
+
+**口径与选项**：
+- A. 复用现成 --llm 报告当多 Agent 侧：与单 Agent 全 LLM 不对等（worker
+  确定性 vs 单体全 LLM），比较无效
+- B. 双侧全 LLM：多 Agent 侧评测门加 --llm-workers（material_reviewer /
+  liability_llm / decision_writer 注入真实实现，与生产 create_default_case_graph
+  完全同构，仍保留确定性守卫/公式/静态合规门——这正是架构的一部分）；
+  单 Agent 侧 create_agent 单体 + 全 worker 工具集 + SingleAgentOutput
+  response_format；材料提取管道两侧同构（同一提取服务，消融对象是编排
+  架构而非 OCR 管件）；判分复用 score_case（sequence 对单体记 None）
+→ 选 B。153 案 LLM 级评测墙钟过长 → suite 加 --concurrency（默认 1，
+行为不变，CI 口径零变化）。
+
+**已知边界**：单 Agent 侧没有静态合规门（图结构保证）与确定性守卫——
+这是消融要暴露的架构差异本身，在报告中作为发现呈现而非抹平（决定书
+红线检查用同一 check_text 对其输出做后置计数）。
+
+## D075：RAGAS 四指标自实现（算法口径对齐官方定义）+ gold-chunk 精确 Recall@K（T161，2026-10-07）
+
+**背景**：
+责任认定阶段重度依赖条款 RAG（claim_rule_rag → search_kb top-4 + 图检索
+补充），但检索质量零量化证据。需要 Recall@K 与 RAGAS 风格四指标。
+
+**方案与选项**：
+- A. 引入 ragas 包：对 langchain-core 1.x 的兼容矩阵未知（ragas 锁
+  langchain-core 0.3.x 时代接口的概率高），且拖 datasets/pandas 等重依赖，
+  动摇 pip-audit 门；四指标中一半本来就要自己喂 gold answer
+- B. 自实现：context_precision / context_recall（LLM 判分，官方定义的
+  claim 归因口径）、faithfulness（回答拆主张 → 逐条对 retrieved 判归因）、
+  answer_relevancy（反向问题生成 → BGE-M3 嵌入余弦——嵌入模型现成）；
+  全部跑在现有栈（deepseek + BGE-M3 + Qdrant local）上，零新依赖
+→ 选 B（已实锤回填：uv pip install --dry-run ragas 显示 0.4.3 可解析，但需 huggingface-hub 1.28→2.1 跨大版本升级（与 sentence-transformers/qdrant-client 同栈，兼容风险未定）+ openai 3.3.1→3.3.0/jiter 降级 + 新拖 datasets/pyarrow/scikit-network/instructor 等 20+ 包——uv 锁剧烈漂移、pip-audit 面扩大，评估后维持自实现）。
+另：Recall@K/MRR 用 gold chunk 精确判定（source_file 相等 + 标记子串命中），
+QA 集 ≥20 对从 kb_docs 责任认定相关文档手工构造，gold_marker 必须经单测
+对源文档逐条校验存在。
