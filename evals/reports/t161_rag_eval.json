@@ -1,0 +1,526 @@
+{
+  "task": "T161 责任认定 RAG 评测（D075）",
+  "model": "deepseek-flash",
+  "embedder": "BAAI/bge-m3",
+  "total": 24,
+  "recall": {
+    "recall_at_1": 0.5417,
+    "recall_at_2": 0.7917,
+    "recall_at_4": 0.9583,
+    "recall_at_8": 1.0,
+    "mrr": 0.7236
+  },
+  "ragas_mean": {
+    "context_precision": 0.8681,
+    "context_recall": 0.8056,
+    "faithfulness": 0.9294,
+    "answer_relevancy": 0.9087
+  },
+  "duration_s_total": 162.2,
+  "rows": [
+    {
+      "id": "QA-001",
+      "category": "coverage",
+      "query": "阑尾炎手术属于保险责任范围吗？",
+      "gold_source_file": "03-医疗险理赔规则手册.md",
+      "gold_rank": 1,
+      "retrieved_titles": [
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册",
+        "10-ICD10与保障范围对照.md::ICD10与保障范围对照",
+        "05-等待期规则详解.md::等待期规则详解",
+        "10-ICD10与保障范围对照.md::ICD10与保障范围对照"
+      ],
+      "answer": "属于。依据片段1，阑尾炎手术（ICD-10: K35）属住院医疗责任范围，腹腔镜或开腹均可赔付；片段2亦载明K35属医疗险住院责任范围，手术与住院费用可赔。但须注意等待期30天，等待期内确诊不赔（片段3）。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9068
+      },
+      "duration_s": 21.88
+    },
+    {
+      "id": "QA-002",
+      "category": "waiting",
+      "query": "医疗险的疾病等待期从什么时候开始算？",
+      "gold_source_file": "05-等待期规则详解.md",
+      "gold_rank": 4,
+      "retrieved_titles": [
+        "05-等待期规则详解.md::等待期规则详解",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "05-等待期规则详解.md::等待期规则详解",
+        "05-等待期规则详解.md::等待期规则详解"
+      ],
+      "answer": "结论：医疗险疾病等待期自保单生效日零时起算，按自然日计算。\n\n依据：片段4明确“等待期自保单生效日零时起算，自然日计算”；片段1、2均载明医疗险疾病等待期为30天。",
+      "ragas": {
+        "context_precision": 0.25,
+        "context_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9583
+      },
+      "duration_s": 5.83
+    },
+    {
+      "id": "QA-003",
+      "category": "waiting",
+      "query": "重疾险的等待期是多少天？",
+      "gold_source_file": "05-等待期规则详解.md",
+      "gold_rank": 1,
+      "retrieved_titles": [
+        "05-等待期规则详解.md::等待期规则详解",
+        "02-康宁重大疾病保险条款要点.md::康宁重大疾病保险条款要点",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "05-等待期规则详解.md::等待期规则详解"
+      ],
+      "answer": "结论：重疾险等待期为90天。\n\n依据：片段1、片段2均明确“康宁系列”重疾险等待期90天；片段2补充，等待期内确诊重疾退还已交保费、合同终止，意外导致重疾无等待期。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 0.5,
+        "faithfulness": 0.8333,
+        "answer_relevancy": 0.8905
+      },
+      "duration_s": 6.11
+    },
+    {
+      "id": "QA-004",
+      "category": "waiting",
+      "query": "续保的话还需要重新过等待期吗？",
+      "gold_source_file": "05-等待期规则详解.md",
+      "gold_rank": 3,
+      "retrieved_titles": [
+        "05-等待期规则详解.md::等待期规则详解",
+        "05-等待期规则详解.md::等待期规则详解",
+        "05-等待期规则详解.md::等待期规则详解",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点"
+      ],
+      "answer": "结论：续保保单无等待期。依据片段3：续保保单无等待期（保证续保期间内）。但若超出保证续保期间或非保证续保情形，条款中未明确。",
+      "ragas": {
+        "context_precision": 0.3333,
+        "context_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9646
+      },
+      "duration_s": 6.38
+    },
+    {
+      "id": "QA-005",
+      "category": "exclusion",
+      "query": "投保前的旧病（既往症）能赔吗？",
+      "gold_source_file": "04-免责条款汇总医疗险.md",
+      "gold_rank": 1,
+      "retrieved_titles": [
+        "04-免责条款汇总医疗险.md::免责条款汇总医疗险",
+        "12-理赔审核疑点与核查标准.md::理赔审核疑点与核查标准",
+        "07-常见问题FAQ保单与保障.md::常见问题FAQ保单与保障",
+        "02-康宁重大疾病保险条款要点.md::康宁重大疾病保险条款要点"
+      ],
+      "answer": "结论：不能赔。依据片段1，既往症属免责范围，指保单生效前已确诊并接受治疗或已出现明显症状的疾病；片段3亦明确既往症属免责范围。但具体险种适用及核保结论，条款中未明确。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "faithfulness": 0.7143,
+        "answer_relevancy": 0.9077
+      },
+      "duration_s": 5.9
+    },
+    {
+      "id": "QA-006",
+      "category": "exclusion",
+      "query": "做整容手术保险报销吗？",
+      "gold_source_file": "04-免责条款汇总医疗险.md",
+      "gold_rank": 1,
+      "retrieved_titles": [
+        "04-免责条款汇总医疗险.md::免责条款汇总医疗险",
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册"
+      ],
+      "answer": "结论：不报销。依据片段1“特定医疗行为免责”，非医疗必需的整容、矫形手术属免责范围，仅意外伤害导致的除外。若为意外伤害所致，条款中未明确具体报销规则。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 0.5,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8899
+      },
+      "duration_s": 7.32
+    },
+    {
+      "id": "QA-007",
+      "category": "exclusion",
+      "query": "近视激光手术在保障范围内吗？",
+      "gold_source_file": "04-免责条款汇总医疗险.md",
+      "gold_rank": 1,
+      "retrieved_titles": [
+        "04-免责条款汇总医疗险.md::免责条款汇总医疗险",
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点"
+      ],
+      "answer": "结论：不在保障范围内。依据片段1“特定医疗行为免责”，视力矫正手术（近视、远视、散光）属免责；片段3保障责任未含视力矫正。故近视激光手术不赔。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 0.5,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9422
+      },
+      "duration_s": 5.52
+    },
+    {
+      "id": "QA-008",
+      "category": "exclusion",
+      "query": "潜水受伤的治疗费能赔吗？",
+      "gold_source_file": "04-免责条款汇总医疗险.md",
+      "gold_rank": 5,
+      "retrieved_titles": [
+        "09-意外险理赔规则.md::意外险理赔规则",
+        "09-意外险理赔规则.md::意外险理赔规则",
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册",
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册"
+      ],
+      "answer": "结论：不赔。依据片段1，高风险运动（含潜水）导致的意外不赔。片段2、3、4未涉及潜水受伤治疗费的赔付规定。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9488
+      },
+      "duration_s": 5.62
+    },
+    {
+      "id": "QA-009",
+      "category": "exclusion",
+      "query": "酒后开车出事故保险赔吗？",
+      "gold_source_file": "04-免责条款汇总医疗险.md",
+      "gold_rank": 3,
+      "retrieved_titles": [
+        "09-意外险理赔规则.md::意外险理赔规则",
+        "09-意外险理赔规则.md::意外险理赔规则",
+        "04-免责条款汇总医疗险.md::免责条款汇总医疗险",
+        "12-理赔审核疑点与核查标准.md::理赔审核疑点与核查标准"
+      ],
+      "answer": "不赔。依据片段2“酒驾、无证驾驶不赔”，片段3“酒后驾驶……导致的伤害”属免责，片段1也明确“全责且涉及酒驾不赔”。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.91
+      },
+      "duration_s": 5.52
+    },
+    {
+      "id": "QA-010",
+      "category": "exclusion",
+      "query": "生孩子分娩的费用能报销吗？",
+      "gold_source_file": "04-免责条款汇总医疗险.md",
+      "gold_rank": 2,
+      "retrieved_titles": [
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册",
+        "04-免责条款汇总医疗险.md::免责条款汇总医疗险",
+        "12-理赔审核疑点与核查标准.md::理赔审核疑点与核查标准",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点"
+      ],
+      "answer": "结论：不能报销。依据片段2“生育相关费用（分娩、剖腹产、产前检查）”属免责，但“妊娠并发症治疗除外”。片段4保障责任未列分娩。故分娩费用不赔；妊娠并发症治疗是否赔，片段未明确其具体赔付条件。",
+      "ragas": {
+        "context_precision": 0.5,
+        "context_recall": 0.5,
+        "faithfulness": 0.8,
+        "answer_relevancy": 0.8665
+      },
+      "duration_s": 7.13
+    },
+    {
+      "id": "QA-011",
+      "category": "coverage",
+      "query": "安心医疗旗舰版的住院保额是多少？",
+      "gold_source_file": "01-安心医疗保险旗舰版条款要点.md",
+      "gold_rank": 1,
+      "retrieved_titles": [
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "11-医保目录与自费药说明.md::医保目录与自费药说明"
+      ],
+      "answer": "住院保额是100万元。依据片段1“住院医疗费用保险金：年度保额100万元”。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9052
+      },
+      "duration_s": 6.22
+    },
+    {
+      "id": "QA-012",
+      "category": "amount",
+      "query": "免赔额是多少？社保报销的部分能抵免赔额吗？",
+      "gold_source_file": "01-安心医疗保险旗舰版条款要点.md",
+      "gold_rank": 1,
+      "retrieved_titles": [
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "11-医保目录与自费药说明.md::医保目录与自费药说明",
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册",
+        "09-意外险理赔规则.md::意外险理赔规则"
+      ],
+      "answer": "免赔额1万元；社保报销部分可以抵扣免赔额。依据片段1、2：年度免赔额1万元，社保已报销部分可抵扣免赔额。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9583
+      },
+      "duration_s": 6.86
+    },
+    {
+      "id": "QA-013",
+      "category": "amount",
+      "query": "经过社保报销后的赔付比例是多少？",
+      "gold_source_file": "01-安心医疗保险旗舰版条款要点.md",
+      "gold_rank": 2,
+      "retrieved_titles": [
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "11-医保目录与自费药说明.md::医保目录与自费药说明",
+        "02-康宁重大疾病保险条款要点.md::康宁重大疾病保险条款要点"
+      ],
+      "answer": "结论：经社保报销后赔付比例为80%。依据片段2：“经社保报销后赔付比例80%；未经社保报销赔付比例60%”；片段1示例亦按80%计算。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9803
+      },
+      "duration_s": 6.08
+    },
+    {
+      "id": "QA-014",
+      "category": "amount",
+      "query": "没走社保结算的话赔付比例是多少？",
+      "gold_source_file": "01-安心医疗保险旗舰版条款要点.md",
+      "gold_rank": 2,
+      "retrieved_titles": [
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "09-意外险理赔规则.md::意外险理赔规则",
+        "09-意外险理赔规则.md::意外险理赔规则"
+      ],
+      "answer": "结论：未经社保报销赔付比例为60%。依据片段2：安心医疗保险（旗舰版）条款要点明确“经社保报销后赔付比例80%；未经社保报销赔付比例60%”。片段3意外医疗为90%，但问题未限定险种，若指医疗险则按60%。",
+      "ragas": {
+        "context_precision": 0.5,
+        "context_recall": 1.0,
+        "faithfulness": 0.6,
+        "answer_relevancy": 0.8658
+      },
+      "duration_s": 5.74
+    },
+    {
+      "id": "QA-015",
+      "category": "amount",
+      "query": "阑尾炎住院总费用15800元、社保报了6000元，最后能赔多少？",
+      "gold_source_file": "03-医疗险理赔规则手册.md",
+      "gold_rank": 1,
+      "retrieved_titles": [
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册",
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册",
+        "10-ICD10与保障范围对照.md::ICD10与保障范围对照",
+        "05-等待期规则详解.md::等待期规则详解"
+      ],
+      "answer": "结论：无法仅凭现有片段确定最终赔付额。片段1示例中可赔4,640元，但需先确认确诊日已过30天等待期（片段2、4）；若在等待期内则不赔。免赔额、比例等是否适用该保单，条款中未明确。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7909
+      },
+      "duration_s": 6.22
+    },
+    {
+      "id": "QA-016",
+      "category": "catalog",
+      "query": "进口药、靶向药这类目录外的药能报吗？",
+      "gold_source_file": "11-医保目录与自费药说明.md",
+      "gold_rank": 2,
+      "retrieved_titles": [
+        "11-医保目录与自费药说明.md::医保目录与自费药说明",
+        "11-医保目录与自费药说明.md::医保目录与自费药说明",
+        "11-医保目录与自费药说明.md::医保目录与自费药说明",
+        "10-ICD10与保障范围对照.md::ICD10与保障范围对照"
+      ],
+      "answer": "结论：取决于险种。依据片段2：安心医疗保险（旗舰版）不限社保目录，目录外药品（如进口药、靶向药）可计入可赔基数；无忧住院医疗保险（标准版）限社保目录内，目录外自费。片段1另载靶向药需基因检测报告支持用药指征方可赔。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8362
+      },
+      "duration_s": 6.17
+    },
+    {
+      "id": "QA-017",
+      "category": "catalog",
+      "query": "甲类药和乙类药社保报销有什么区别？",
+      "gold_source_file": "11-医保目录与自费药说明.md",
+      "gold_rank": 1,
+      "retrieved_titles": [
+        "11-医保目录与自费药说明.md::医保目录与自费药说明",
+        "11-医保目录与自费药说明.md::医保目录与自费药说明",
+        "11-医保目录与自费药说明.md::医保目录与自费药说明",
+        "11-医保目录与自费药说明.md::医保目录与自费药说明"
+      ],
+      "answer": "甲类药社保100%纳入报销范围；乙类药社保部分报销，需自付10%-30%。依据片段1。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "faithfulness": 0.75,
+        "answer_relevancy": 0.9593
+      },
+      "duration_s": 6.62
+    },
+    {
+      "id": "QA-018",
+      "category": "icd",
+      "query": "肺炎住院医疗险能赔吗？",
+      "gold_source_file": "10-ICD10与保障范围对照.md",
+      "gold_rank": 1,
+      "retrieved_titles": [
+        "10-ICD10与保障范围对照.md::ICD10与保障范围对照",
+        "10-ICD10与保障范围对照.md::ICD10与保障范围对照",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册"
+      ],
+      "answer": "能赔。依据片段1：J18肺炎“住院治疗可赔”；片段3：住院医疗费用保险金在保障责任内。具体赔付金额需结合免赔额、社保报销及赔付比例计算，片段4仅提供阑尾炎示例，肺炎未明确。",
+      "ragas": {
+        "context_precision": 0.8333,
+        "context_recall": 1.0,
+        "faithfulness": 0.8571,
+        "answer_relevancy": 0.8463
+      },
+      "duration_s": 6.12
+    },
+    {
+      "id": "QA-019",
+      "category": "exclusion",
+      "query": "人突然猝死了，意外险会赔吗？",
+      "gold_source_file": "09-意外险理赔规则.md",
+      "gold_rank": 2,
+      "retrieved_titles": [
+        "09-意外险理赔规则.md::意外险理赔规则",
+        "09-意外险理赔规则.md::意外险理赔规则",
+        "09-意外险理赔规则.md::意外险理赔规则",
+        "09-意外险理赔规则.md::意外险理赔规则"
+      ],
+      "answer": "不赔。依据片段1“猝死：不赔，属疾病范畴”；片段2明确“猝死属于疾病范畴”，且本产品不含猝死责任。故意外险不赔猝死。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 0.6667,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9641
+      },
+      "duration_s": 5.57
+    },
+    {
+      "id": "QA-020",
+      "category": "coverage",
+      "query": "意外医疗的免赔额和赔付比例是多少？",
+      "gold_source_file": "09-意外险理赔规则.md",
+      "gold_rank": 4,
+      "retrieved_titles": [
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册",
+        "09-意外险理赔规则.md::意外险理赔规则",
+        "09-意外险理赔规则.md::意外险理赔规则"
+      ],
+      "answer": "意外医疗免赔额为0，赔付比例90%，限社保目录内费用。依据片段4“出行无忧意外伤害保险条款要点”：意外医疗“0免赔，90%赔付比例，限社保目录内费用”。",
+      "ragas": {
+        "context_precision": 0.9167,
+        "context_recall": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9103
+      },
+      "duration_s": 5.95
+    },
+    {
+      "id": "QA-021",
+      "category": "process",
+      "query": "交通事故对方全责，保险公司怎么赔？",
+      "gold_source_file": "12-理赔审核疑点与核查标准.md",
+      "gold_rank": 2,
+      "retrieved_titles": [
+        "09-意外险理赔规则.md::意外险理赔规则",
+        "12-理赔审核疑点与核查标准.md::理赔审核疑点与核查标准",
+        "09-意外险理赔规则.md::意外险理赔规则",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点"
+      ],
+      "answer": "结论：商业保险先赔，再向全责方追偿。依据片段2：意外案件存在第三方责任（如交通事故对方全责）的，商业保险先赔后向责任方追偿（代位求偿），被保险人需签署权益转让书。具体赔付比例及免赔额，条款中未明确。",
+      "ragas": {
+        "context_precision": 0.5,
+        "context_recall": 1.0,
+        "faithfulness": 0.75,
+        "answer_relevancy": 0.8981
+      },
+      "duration_s": 6.32
+    },
+    {
+      "id": "QA-022",
+      "category": "process",
+      "query": "单次住院花了超过5万，理赔会被特殊审核吗？",
+      "gold_source_file": "12-理赔审核疑点与核查标准.md",
+      "gold_rank": 1,
+      "retrieved_titles": [
+        "12-理赔审核疑点与核查标准.md::理赔审核疑点与核查标准",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "03-医疗险理赔规则手册.md::医疗险理赔规则手册",
+        "10-ICD10与保障范围对照.md::ICD10与保障范围对照"
+      ],
+      "answer": "会。依据片段1，单次住院费用超过5万元的案件属“高额费用合理性”疑点，需核查费用明细，包括床位费超标部分、非医疗必需增值服务费、药品用量与诊断匹配性。具体审核结论条款中未明确。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8742
+      },
+      "duration_s": 5.28
+    },
+    {
+      "id": "QA-023",
+      "category": "waiting",
+      "query": "等待期内体检有异常，等待期后才确诊的病赔不赔？",
+      "gold_source_file": "05-等待期规则详解.md",
+      "gold_rank": 1,
+      "retrieved_titles": [
+        "05-等待期规则详解.md::等待期规则详解",
+        "01-安心医疗保险旗舰版条款要点.md::安心医疗保险旗舰版条款要点",
+        "05-等待期规则详解.md::等待期规则详解",
+        "05-等待期规则详解.md::等待期规则详解"
+      ],
+      "answer": "条款中未明确。片段1仅称需根据具体条款判断、一般以确诊时间为准，并会重点核查投保前症状；片段3称等待期内出现症状、等待期后确诊的，以确诊时间判断。是否赔付仍取决于具体条款及核查结果。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 0.6667,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8869
+      },
+      "duration_s": 5.93
+    },
+    {
+      "id": "QA-024",
+      "category": "icd",
+      "query": "确诊恶性肿瘤，重疾险怎么赔？",
+      "gold_source_file": "10-ICD10与保障范围对照.md",
+      "gold_rank": 1,
+      "retrieved_titles": [
+        "10-ICD10与保障范围对照.md::ICD10与保障范围对照",
+        "02-康宁重大疾病保险条款要点.md::康宁重大疾病保险条款要点",
+        "02-康宁重大疾病保险条款要点.md::康宁重大疾病保险条款要点",
+        "02-康宁重大疾病保险条款要点.md::康宁重大疾病保险条款要点"
+      ],
+      "answer": "结论：确诊即按基本保额100%给付。依据：片段1、2，恶性肿瘤（C00-C97）需组织病理学确诊，属重疾；片段4，重疾确诊即赔100%基本保额；片段3，给付型无免赔，与医疗费支出无关。",
+      "ragas": {
+        "context_precision": 1.0,
+        "context_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9485
+      },
+      "duration_s": 5.96
+    }
+  ]
+}

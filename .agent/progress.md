@@ -2412,3 +2412,35 @@ contextvar 拷贝共享引用、langgraph 内部任务天然归集，token/调�
 (结论, messages) 元组——structured_response 提取/降级逻辑须自行复刻（首次冒烟
 AttributeError 逮住）；CASE_TOKENS 无 case_id 标签（只有 model），并发归集必须走
 contextvar 累加器而非计数器差分。
+
+
+## 2026-10-07 T161 RAG 评测 Recall@K + RAGAS 四指标（D075，责任认定阶段）
+
+**构造**：QA 集 24 对（evals/datasets/rag_qa_liability.json）——从 kb_docs 14 篇中
+责任认定高频文档（免责汇总/等待期/条款要点/ICD10/医保目录/审核疑点）手工出题，
+category 七类（coverage/exclusion/waiting/amount/icd/catalog/process）分布贴近
+责任认定问法；gold 用 source_file + 逐字标记子串钉住唯一知识块，
+test_gold_markers_exist_in_source_docs 强制文档改写后先红。
+
+**实现**（D075 自实现路线，ragas 包 dry-run 实锤锁漂移后放弃引入）：
+evals/rag_metrics.py 四指标算法口径对齐 RAGAS 官方定义——context_precision（LLM
+逐块有用性 AP）、context_recall（基准答案拆主张归因）、faithfulness（生成答案拆
+主张核对）、answer_relevancy（反向问题 BGE-M3 嵌入余弦）；判召回纯函数
+（gold_rank/recall@k/MRR）；判分 prompt 按 6.4 约定集中 prompts.py；
+scripts/eval_rag.py 运行器（并发 4，报告 json+md 双落盘）。
+
+**结果**（deepseek-flash 判分 + 重灌后索引）：
+- **Recall@1=54.2% / @2=79.2% / @4=95.8% / @8=100%，MRR=0.724**——责任认定
+  Agent 实际窗口 top-4 命中 23/24
+- **RAGAS：CP=0.868 / CR=0.806 / FA=0.929 / AR=0.909**——忠实度最高（答案
+  紧扣片段），context_recall 偏低（免责类 gold 答案多句、单片段归因不全）
+- 唯一 top-4 miss：QA-008 潜水免责——04/09 两文档同答案，gold 钉单文档判严，
+  归因段已注明；@4→@8 扩窗有增益（分块/排序是瓶颈不是召回）
+- 分类弱项：waiting CP=0.646（等待期规则详解多小节混排，单块有用性稀释）、
+  exclusion CR=0.595（多句 gold 归因口径偏严）——改进项写入报告
+
+**测试**：+6 用例（数据集加载/gold 逐字校验/gold_rank 命中与失配/recall 数学
+含空集/JSON 解析健壮性——围栏+前后杂讯用 raw_decode 容忍）；全量 pytest + ruff 绿。
+
+**踩坑**：ruff --fix 改 import 名不同步改调用处（F821 暴露）；report md 由 JSON
+重生成而非重跑 LLM（判分有方差，落盘快照即证据）。

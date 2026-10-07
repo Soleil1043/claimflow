@@ -1,0 +1,201 @@
+{
+  "_meta": {
+    "task": "T161 责任认定阶段 RAG 评测集（Recall@K + RAGAS 四指标，D075）",
+    "matching": "gold 命中 = 检索 chunk 的 source_file 相等且 gold_marker 为 chunk 文本子串（逐字，防改动漂移由单测校验）",
+    "categories": "coverage/exclusion/waiting/amount/icd/catalog/process——责任认定高频问法分布"
+  },
+  "cases": [
+    {
+      "id": "QA-001",
+      "query": "阑尾炎手术属于保险责任范围吗？",
+      "gold_source_file": "03-医疗险理赔规则手册.md",
+      "gold_marker": "阑尾炎手术（ICD-10: K35）：属住院医疗责任范围",
+      "gold_answer": "属住院医疗责任范围，腹腔镜或开腹手术均可赔付，等待期 30 天后确诊的适用",
+      "category": "coverage"
+    },
+    {
+      "id": "QA-002",
+      "query": "医疗险的疾病等待期从什么时候开始算？",
+      "gold_source_file": "05-等待期规则详解.md",
+      "gold_marker": "等待期自保单生效日零时起算，自然日计算",
+      "gold_answer": "自保单生效日零时起算，按自然日计算；续保保单（保证续保期间内）无等待期",
+      "category": "waiting"
+    },
+    {
+      "id": "QA-003",
+      "query": "重疾险的等待期是多少天？",
+      "gold_source_file": "05-等待期规则详解.md",
+      "gold_marker": "重疾险（康宁系列）：等待期 90 天",
+      "gold_answer": "90 天，意外导致重疾无等待期",
+      "category": "waiting"
+    },
+    {
+      "id": "QA-004",
+      "query": "续保的话还需要重新过等待期吗？",
+      "gold_source_file": "05-等待期规则详解.md",
+      "gold_marker": "续保保单无等待期（保证续保期间内）",
+      "gold_answer": "保证续保期间内续保无等待期",
+      "category": "waiting"
+    },
+    {
+      "id": "QA-005",
+      "query": "投保前的旧病（既往症）能赔吗？",
+      "gold_source_file": "04-免责条款汇总医疗险.md",
+      "gold_marker": "投保前已患疾病及其并发症",
+      "gold_answer": "不赔。投保前已患疾病及并发症、投保时未如实告知的疾病属免责",
+      "category": "exclusion"
+    },
+    {
+      "id": "QA-006",
+      "query": "做整容手术保险报销吗？",
+      "gold_source_file": "04-免责条款汇总医疗险.md",
+      "gold_marker": "非医疗必需的整容、矫形手术（意外伤害导致的除外）",
+      "gold_answer": "非医疗必需的整容矫形不赔，意外伤害导致的除外",
+      "category": "exclusion"
+    },
+    {
+      "id": "QA-007",
+      "query": "近视激光手术在保障范围内吗？",
+      "gold_source_file": "04-免责条款汇总医疗险.md",
+      "gold_marker": "视力矫正手术（近视、远视、散光）",
+      "gold_answer": "不在范围内，属特定医疗行为免责",
+      "category": "exclusion"
+    },
+    {
+      "id": "QA-008",
+      "query": "潜水受伤的治疗费能赔吗？",
+      "gold_source_file": "04-免责条款汇总医疗险.md",
+      "gold_marker": "职业体育运动、潜水、攀岩、跳伞等高风险活动导致的伤害",
+      "gold_answer": "不赔，属高风险活动免责",
+      "category": "exclusion"
+    },
+    {
+      "id": "QA-009",
+      "query": "酒后开车出事故保险赔吗？",
+      "gold_source_file": "04-免责条款汇总医疗险.md",
+      "gold_marker": "酒后驾驶、无证驾驶机动车导致的伤害",
+      "gold_answer": "不赔，酒后驾驶/无证驾驶属免责",
+      "category": "exclusion"
+    },
+    {
+      "id": "QA-010",
+      "query": "生孩子分娩的费用能报销吗？",
+      "gold_source_file": "04-免责条款汇总医疗险.md",
+      "gold_marker": "生育相关费用（分娩、剖腹产、产前检查）",
+      "gold_answer": "不赔，但妊娠并发症治疗除外",
+      "category": "exclusion"
+    },
+    {
+      "id": "QA-011",
+      "query": "安心医疗旗舰版的住院保额是多少？",
+      "gold_source_file": "01-安心医疗保险旗舰版条款要点.md",
+      "gold_marker": "住院医疗费用保险金：年度保额 100 万元",
+      "gold_answer": "住院医疗年度保额 100 万元",
+      "category": "coverage"
+    },
+    {
+      "id": "QA-012",
+      "query": "免赔额是多少？社保报销的部分能抵免赔额吗？",
+      "gold_source_file": "01-安心医疗保险旗舰版条款要点.md",
+      "gold_marker": "年度免赔额 1 万元（社保已报销部分可抵扣免赔额）",
+      "gold_answer": "年度免赔额 1 万元，社保已报销部分可抵扣",
+      "category": "amount"
+    },
+    {
+      "id": "QA-013",
+      "query": "经过社保报销后的赔付比例是多少？",
+      "gold_source_file": "01-安心医疗保险旗舰版条款要点.md",
+      "gold_marker": "经社保报销后赔付比例 80%",
+      "gold_answer": "经社保报销后赔付比例 80%",
+      "category": "amount"
+    },
+    {
+      "id": "QA-014",
+      "query": "没走社保结算的话赔付比例是多少？",
+      "gold_source_file": "01-安心医疗保险旗舰版条款要点.md",
+      "gold_marker": "未经社保报销赔付比例 60%",
+      "gold_answer": "未经社保报销赔付比例 60%",
+      "category": "amount"
+    },
+    {
+      "id": "QA-015",
+      "query": "阑尾炎住院总费用15800元、社保报了6000元，最后能赔多少？",
+      "gold_source_file": "03-医疗险理赔规则手册.md",
+      "gold_marker": "5,800 × 80% = 4,640 元",
+      "gold_answer": "预估赔付 4,640 元：15,800-6,000（社保）-4,000（剩余免赔）=5,800 可赔基数 × 80%",
+      "category": "amount"
+    },
+    {
+      "id": "QA-016",
+      "query": "进口药、靶向药这类目录外的药能报吗？",
+      "gold_source_file": "11-医保目录与自费药说明.md",
+      "gold_marker": "不限社保目录，目录外药品（如进口药、靶向药）费用可计入可赔基数",
+      "gold_answer": "安心旗舰版不限社保目录，目录外药品可计入可赔基数；无忧住院标准版限社保目录内",
+      "category": "catalog"
+    },
+    {
+      "id": "QA-017",
+      "query": "甲类药和乙类药社保报销有什么区别？",
+      "gold_source_file": "11-医保目录与自费药说明.md",
+      "gold_marker": "甲类药品：临床必需、价格低",
+      "gold_answer": "甲类社保 100% 纳入报销；乙类部分报销（自付 10%-30%）；丙类/目录外全额自费",
+      "category": "catalog"
+    },
+    {
+      "id": "QA-018",
+      "query": "肺炎住院医疗险能赔吗？",
+      "gold_source_file": "10-ICD10与保障范围对照.md",
+      "gold_marker": "J18 肺炎：住院治疗可赔",
+      "gold_answer": "能赔，J18 肺炎属住院责任范围",
+      "category": "icd"
+    },
+    {
+      "id": "QA-019",
+      "query": "人突然猝死了，意外险会赔吗？",
+      "gold_source_file": "09-意外险理赔规则.md",
+      "gold_marker": "中暑、猝死属于疾病范畴",
+      "gold_answer": "不赔。猝死属疾病范畴（本产品不含猝死责任）",
+      "category": "exclusion"
+    },
+    {
+      "id": "QA-020",
+      "query": "意外医疗的免赔额和赔付比例是多少？",
+      "gold_source_file": "09-意外险理赔规则.md",
+      "gold_marker": "意外医疗：0 免赔，90% 赔付比例",
+      "gold_answer": "0 免赔、90% 赔付比例，限社保目录内费用",
+      "category": "coverage"
+    },
+    {
+      "id": "QA-021",
+      "query": "交通事故对方全责，保险公司怎么赔？",
+      "gold_source_file": "12-理赔审核疑点与核查标准.md",
+      "gold_marker": "代位求偿",
+      "gold_answer": "商业保险先赔后向责任方追偿（代位求偿），被保险人需签署权益转让书",
+      "category": "process"
+    },
+    {
+      "id": "QA-022",
+      "query": "单次住院花了超过5万，理赔会被特殊审核吗？",
+      "gold_source_file": "12-理赔审核疑点与核查标准.md",
+      "gold_marker": "单次住院费用超过 5 万元的案件核查费用明细",
+      "gold_answer": "会核查费用明细：床位费超标、非医疗必需增值服务、药品用量与诊断匹配性",
+      "category": "process"
+    },
+    {
+      "id": "QA-023",
+      "query": "等待期内体检有异常，等待期后才确诊的病赔不赔？",
+      "gold_source_file": "05-等待期规则详解.md",
+      "gold_marker": "等待期内体检发现异常指标",
+      "gold_answer": "以确诊时间为判断时点，一般可赔，但会重点核查投保前症状",
+      "category": "waiting"
+    },
+    {
+      "id": "QA-024",
+      "query": "确诊恶性肿瘤，重疾险怎么赔？",
+      "gold_source_file": "10-ICD10与保障范围对照.md",
+      "gold_marker": "C00-C97 恶性肿瘤：重疾险确诊即赔",
+      "gold_answer": "重疾险确诊即赔（需组织病理学确诊），医疗险治疗费用也可赔",
+      "category": "icd"
+    }
+  ]
+}
