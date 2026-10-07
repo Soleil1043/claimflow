@@ -7,8 +7,9 @@
     "consistency": 1.0,
     "failures": []
   },
-  "generated_at": "2026-10-07T19:45:11",
+  "generated_at": "2026-10-07T20:31:30",
   "mode": "deterministic",
+  "llm_workers": false,
   "model": null,
   "total_cases": 30,
   "matched": 30,
@@ -66,7 +67,8 @@
   "cost": {
     "tokens_total": 0,
     "tokens_per_case_avg": 0.0,
-    "duration_s_avg": 0.7,
+    "llm_calls_avg": 0.0,
+    "duration_s_avg": 0.78,
     "duration_s_p95": 0.25
   }
 }
