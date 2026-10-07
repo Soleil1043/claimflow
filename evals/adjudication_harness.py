@@ -37,10 +37,13 @@ def case_tokens_total() -> int:
     total = 0
     for metric in registry.collect():
         if metric.name == "claimflow_case_tokens":
-            total += int(sum(
-                sample.value for sample in metric.samples
-                if sample.name.endswith("_total")  # 排除 _created 时间戳样本
-            ))
+            total += int(
+                sum(
+                    sample.value
+                    for sample in metric.samples
+                    if sample.name.endswith("_total")  # 排除 _created 时间戳样本
+                )
+            )
     return total
 
 
@@ -63,41 +66,42 @@ async def setup_eval_db(db_path: Path, freq_signals: list[dict[str, Any]] | None
     factory = async_sessionmaker(engine, expire_on_commit=False)
     session_module.swap_engine(engine, factory)
 
-
     from services.db.models import ClaimRecord, Policy
 
-    policies = json.loads(
-        (ROOT / "data" / "mock" / "policies.json").read_text(encoding="utf-8")
-    )
+    policies = json.loads((ROOT / "data" / "mock" / "policies.json").read_text(encoding="utf-8"))
     claim_records = json.loads(
         (ROOT / "data" / "mock" / "claim_records.json").read_text(encoding="utf-8")
     )
     async with factory() as s:
         for p in policies:
-            s.add(Policy(
-                policy_no=p["policy_no"],
-                holder_name=p["holder_name"],
-                holder_id_card=p["holder_id_card"],
-                product_name=p["product_name"],
-                product_type=p["product_type"],
-                coverage_amount=Decimal(p["coverage_amount"]),
-                deductible=Decimal(p["deductible"]),
-                payout_ratio=Decimal(p["payout_ratio"]),
-                effective_date=dt.date.fromisoformat(p["effective_date"]),
-                expiry_date=dt.date.fromisoformat(p["expiry_date"]),
-                status=p["status"],
-            ))
+            s.add(
+                Policy(
+                    policy_no=p["policy_no"],
+                    holder_name=p["holder_name"],
+                    holder_id_card=p["holder_id_card"],
+                    product_name=p["product_name"],
+                    product_type=p["product_type"],
+                    coverage_amount=Decimal(p["coverage_amount"]),
+                    deductible=Decimal(p["deductible"]),
+                    payout_ratio=Decimal(p["payout_ratio"]),
+                    effective_date=dt.date.fromisoformat(p["effective_date"]),
+                    expiry_date=dt.date.fromisoformat(p["expiry_date"]),
+                    status=p["status"],
+                )
+            )
         for cr in claim_records:
             submitted = dt.datetime.fromisoformat(cr["submitted_at"])
-            s.add(ClaimRecord(
-                claim_no=cr["claim_no"],
-                policy_no=cr["policy_no"],
-                status=cr["status"],
-                applied_amount=Decimal(cr["applied_amount"]),
-                approved_amount=Decimal(cr["approved_amount"]),
-                submitted_at=submitted,
-                updated_at=submitted,
-            ))
+            s.add(
+                ClaimRecord(
+                    claim_no=cr["claim_no"],
+                    policy_no=cr["policy_no"],
+                    status=cr["status"],
+                    applied_amount=Decimal(cr["applied_amount"]),
+                    approved_amount=Decimal(cr["approved_amount"]),
+                    submitted_at=submitted,
+                    updated_at=submitted,
+                )
+            )
         # frequency_signals 相对天数换算（_meta 口径，T122 补实现）：信号保单的静态
         # mock 记录替换为"now - days_ago"记录——"近 90 天"计数不随评测执行时间漂移
         # （原实现只灌静态日期，T089 时窗内 2 条、随日历衰减到 1 条，medium 信号
@@ -108,21 +112,21 @@ async def setup_eval_db(db_path: Path, freq_signals: list[dict[str, Any]] | None
             now = dt.datetime.now()
             for sig in freq_signals:
                 await s.execute(
-                    sa_delete(ClaimRecord).where(
-                        ClaimRecord.policy_no == sig["policy_no"]
-                    )
+                    sa_delete(ClaimRecord).where(ClaimRecord.policy_no == sig["policy_no"])
                 )
                 for i, days_ago in enumerate(sig["claims_days_ago"]):
                     submitted = now - dt.timedelta(days=days_ago)
-                    s.add(ClaimRecord(
-                        claim_no=f"EVAL-FREQ-{sig['policy_no']}-{i}",
-                        policy_no=sig["policy_no"],
-                        status="approved",
-                        applied_amount=Decimal("1000.00"),
-                        approved_amount=Decimal("800.00"),
-                        submitted_at=submitted,
-                        updated_at=submitted,
-                    ))
+                    s.add(
+                        ClaimRecord(
+                            claim_no=f"EVAL-FREQ-{sig['policy_no']}-{i}",
+                            policy_no=sig["policy_no"],
+                            status="approved",
+                            applied_amount=Decimal("1000.00"),
+                            approved_amount=Decimal("800.00"),
+                            submitted_at=submitted,
+                            updated_at=submitted,
+                        )
+                    )
         await s.commit()
 
 
@@ -164,9 +168,7 @@ async def seed_eval_memories(cases: list[Any]) -> None:
     print(f"  已预置申请人记忆：{len(per_user)} 用户 × ≤4 条")
 
 
-def extract_outcome(
-    graph: Any, config: dict, result: dict, state: dict
-) -> AdjudicationOutcome:
+def extract_outcome(graph: Any, config: dict, result: dict, state: dict) -> AdjudicationOutcome:
     """从图执行结果提取观测事实。"""
     if "__interrupt__" in result:
         payload = result["__interrupt__"][0].value
@@ -178,9 +180,7 @@ def extract_outcome(
     # worker 序列从已完成的阶段 channel 推导（STAGE_SPECS 顺序 = 标准管线序）
     from schemas.stages import STAGE_CHANNELS, WORKER_TARGETS
 
-    worker_sequence = [
-        str(w) for w in WORKER_TARGETS if state.get(STAGE_CHANNELS[w]) is not None
-    ]
+    worker_sequence = [str(w) for w in WORKER_TARGETS if state.get(STAGE_CHANNELS[w]) is not None]
     return AdjudicationOutcome(
         route=route,
         final_decision=state.get("final_decision"),
@@ -199,8 +199,11 @@ def error_result(case: Any, error: str) -> dict[str, Any]:
         "expected_route": case.expected.route,
         "observed_route": None,
         "checks": {
-            "route": False, "amount": False, "liability": False,
-            "case_type": True, "sequence": False,
+            "route": False,
+            "amount": False,
+            "liability": False,
+            "case_type": True,
+            "sequence": False,
         },
         "matched": False,
         "error": error,
@@ -228,19 +231,24 @@ def emit_report(
     use_llm: bool,
     model: str | None,
     report_path: Path,
+    llm_workers: bool = False,
 ) -> None:
     """报告 dict 装配 + 落盘 + 摘要打印（T089/T124 口径不变）。"""
     total = agg["total"]
+    mode = "deterministic" if not use_llm else ("llm+workers" if llm_workers else "llm")
     report = {
         "task": (
-            "T124 核赔对抗回归门" if dataset_name == "adversarial"
-            else "T159 对抗 hold-out 盲测门" if dataset_name == "adversarial_holdout"
+            "T124 核赔对抗回归门"
+            if dataset_name == "adversarial"
+            else "T159 对抗 hold-out 盲测门"
+            if dataset_name == "adversarial_holdout"
             else "T089 核赔评测上线门"
         ),
         "dataset": dataset_name,
         "robustness": robustness_block,
         "generated_at": dt.datetime.now().isoformat(timespec="seconds"),
-        "mode": "llm" if use_llm else "deterministic",
+        "mode": mode,
+        "llm_workers": llm_workers,
         "model": model,
         "total_cases": total,
         "matched": agg["matched"],
@@ -249,15 +257,12 @@ def emit_report(
         "overall_passed": overall_pass,
         "by_category": agg["by_category"],
         "failures": agg["failures"],
-        # 成本量化（T123，证据缺口#1）：tokens/延迟按案分布
+        # 成本量化（T123，证据缺口#1；T160 加 llm_calls 并发精确口径）：tokens/延迟按案分布
         "cost": {
             "tokens_total": sum(r.get("tokens") or 0 for r in results),
-            "tokens_per_case_avg": round(
-                sum(r.get("tokens") or 0 for r in results) / total, 1
-            ),
-            "duration_s_avg": round(
-                sum(r.get("duration_s") or 0.0 for r in results) / total, 2
-            ),
+            "tokens_per_case_avg": round(sum(r.get("tokens") or 0 for r in results) / total, 1),
+            "llm_calls_avg": round(sum(r.get("llm_calls") or 0 for r in results) / total, 1),
+            "duration_s_avg": round(sum(r.get("duration_s") or 0.0 for r in results) / total, 2),
             "duration_s_p95": p95([r.get("duration_s") or 0.0 for r in results]),
         },
     }
@@ -280,5 +285,7 @@ def emit_report(
         print(f"\n失败案件（{len(agg['failures'])} 条）：")
         for f in agg["failures"][:10]:
             failed_dims = [k for k, v in f["checks"].items() if not v]
-            print(f"  {f['case_id']} [{f['category']}] dim={failed_dims} "
-                  f"expected={f['expected_route']} observed={f['observed_route']}")
+            print(
+                f"  {f['case_id']} [{f['category']}] dim={failed_dims} "
+                f"expected={f['expected_route']} observed={f['observed_route']}"
+            )

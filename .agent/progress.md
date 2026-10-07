@@ -2377,3 +2377,38 @@ T158 首推（537cd13）后端与 Docker job 绿（langgraph-sdk 修复生效）
 **结果**：确定性对抗门 8/8 + holdout 30/30 全绿；LLM 档 holdout 30/30 全绿（deepseek-flash 真跑，六门全绿，全部注入变体被守住，tokens/案均值 ~6.5k）；8 条注入样本原文逐字归档 `evals/reports/t159_redteam_evidence.md`（含分类法映射表+双档探测结论）；新增 12 测试（redteam 6 + 对抗集重写 6）全过。
 
 **踩坑**：干净事实核从种子描述切取时尾部标点失配（ADV-008 陈述以分号衔接注入段）——单测"核⊂种子描述"逮住，生成器加标点归一修复；LLM 探测跑在标点归一前数据集上的窗口期用"归一后输出≡归一前输出"推导等价并复跑确定性门对账。
+
+
+## 2026-10-07 T160 单 Agent 基线消融实验（D074）
+
+**口径**：同主门 153 案、同模型 deepseek-flash、同判分 score_case，双侧全 LLM 真跑。
+多 Agent 侧 = 评测门新开关 `--llm-workers`（material_reviewer/liability_llm/decision_writer
+注入真实实现，与生产 create_default_case_graph 同构；此前 --llm 仅 LLM 调度、worker 全
+确定性，不能当消融对照）；单 Agent 侧 = evals/single_agent_baseline.py（create_agent
+单体 + 11 工具并集 + SingleAgentOutput response_format，调用上限 16 vs 多 Agent 6×9，
+判分复用 score_case，sequence 维度 N/A）。
+
+**基础设施修复**：①track_case 加上下文累加器（CaseTokenAccumulator）——原全局
+CASE_TOKENS 差分法在并发下串案（case_tokens_total 是进程级计数器），累加器随
+contextvar 拷贝共享引用、langgraph 内部任务天然归集，token/调用次数并发精确；
+②suite 加 --concurrency（默认 1 行为不变，确定性门前后比对一致）。
+
+**结果**（evals/reports/t160_ablation_report.md）：
+- 一致率：多 Agent 88.9%（136/153）vs 单 Agent 60.8%（93/153），-28.1pp
+- 硬门：多 Agent 三件全绿（金额 100%/红线 0/守卫 100%）；单 Agent 金额失守（88.9%）
+- 失败模式（消融核心）：多 Agent 17 例失败全部是责任置信度 0.72<floor 0.8 按设计
+  转人工（方向一律过严 fail-safe，单案 trace 实锤：E-0006 责任判定 covered 正确但
+  置信度不足）；单 Agent 60 例双向失守——partial 理算 17/17 全灭（无确定性公式节点）、
+  27 例错误 auto（无前置守卫/置信度门）、12 例漏转补件
+- 成本：tokens/案 13,670 vs 23,272（+70%，六阶段中间结果挤同一上下文）；LLM 调用/案
+  7.8 vs 5.0（单 Agent 次数少但每次更贵）；红线双侧均 0（单 Agent 靠 prompt+自检工具，
+  多 Agent 靠图结构保证——"这次没漏"vs"漏不了"）
+
+**测试**：+6 用例（工具名可解析/AgentDefinition 接线/route 折叠映射/非结构化降级/
+指令携带案情/错误行形状）；全量 518 passed + ruff 绿；确定性评测门（--limit 20 顺序
+与并发 8）与改造前结果一致。
+
+**踩坑**：create_agent 的 ainvoke 返回图状态 dict 而非 invoke_worker 的
+(结论, messages) 元组——structured_response 提取/降级逻辑须自行复刻（首次冒烟
+AttributeError 逮住）；CASE_TOKENS 无 case_id 标签（只有 model），并发归集必须走
+contextvar 累加器而非计数器差分。

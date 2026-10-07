@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import Any
 
 from langchain_core.callbacks import BaseCallbackHandler
@@ -30,6 +31,10 @@ log = get_logger(__name__)
 _current_phase: ContextVar[str] = ContextVar("claimflow_llm_phase", default="other")
 # 当前案件上下文：置位时 LLM 用量按案件维度记 CASE_TOKENS
 _current_case: ContextVar[str | None] = ContextVar("claimflow_case_id", default=None)
+# 当前案件的 token 累加器（track_case 创建；并发下各案件独立，见 record_usage_to_tracker）
+_case_acc: ContextVar[CaseTokenAccumulator | None] = ContextVar(
+    "claimflow_case_token_acc", default=None
+)
 
 
 # ===== 上下文管理 =====
@@ -58,10 +63,19 @@ def current_phase() -> str:
 
 
 def record_usage_to_tracker(model: str, prompt_tokens: int, completion_tokens: int) -> None:
-    """observed_ainvoke 回调：案件上下文置位时记 CASE_TOKENS{model} 指标。"""
+    """observed_ainvoke 回调：案件上下文置位时记 CASE_TOKENS{model} 指标。
+
+    并发归集（T160）：除全局指标外同步累加进当前案件的上下文累加器——
+    contextvar 拷贝共享同一累加器对象（langgraph 内部任务全部继承 track_case
+    上下文），并发案件的 token 各归各账；全局 Counter 差分法在并发下会串案。
+    """
     case_id = _current_case.get()
     if case_id is not None:
         metrics.record_case_tokens(model, prompt_tokens + completion_tokens)
+        acc = _case_acc.get()
+        if acc is not None:
+            acc.tokens += prompt_tokens + completion_tokens
+            acc.calls += 1
 
 
 class UsageRecordingHandler(BaseCallbackHandler):
@@ -88,13 +102,27 @@ class UsageRecordingHandler(BaseCallbackHandler):
             pass  # 非标准响应（测试假件等）：记账跳过，不影响执行
 
 
+@dataclass
+class CaseTokenAccumulator:
+    """案件内 token/调用次数累加器（track_case 创建，并发安全：上下文共享引用）。"""
+
+    tokens: int = 0
+    calls: int = 0
+
+
 @contextmanager
 def track_case(case_id: str):
-    """案件维度 token 归集上下文（案件交付在图调用外包裹）。"""
+    """案件维度 token 归集上下文（案件交付在图调用外包裹）。
+
+    用法：`with track_case(cid) as acc:` 后读 acc.tokens / acc.calls——
+    并发案件的精确归集口径（全局 Counter 差分仅顺序执行下正确）。
+    """
     token = _current_case.set(case_id)
+    acc_token = _case_acc.set(CaseTokenAccumulator())
     try:
-        yield
+        yield _case_acc.get()
     finally:
+        _case_acc.reset(acc_token)
         _current_case.reset(token)
 
 

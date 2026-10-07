@@ -36,7 +36,6 @@ from langgraph.checkpoint.memory import InMemorySaver
 import services.db.session as session_module
 from app.core.config import settings
 from evals.adjudication_harness import (
-    case_tokens_total,
     emit_report,
     error_result,
     extract_outcome,
@@ -62,11 +61,14 @@ async def _run_suite(
     seed_memories: bool = False,
     out_path: str | None = None,
     dataset_name: str = "adjudication",
+    llm_workers: bool = False,
+    concurrency: int = 1,
 ) -> int:
     # 数据集选择：adjudication 主基线 / adversarial 对抗集（T124，独立不污染主基线）
     dataset_path = (
         ROOT / "evals" / "datasets" / f"adjudication_{dataset_name}.json"
-        if dataset_name != "adjudication" else None
+        if dataset_name != "adjudication"
+        else None
     )
     cases, meta, freq_signals = load_adjudication_dataset(dataset_path)
     if offset:
@@ -92,19 +94,35 @@ async def _run_suite(
         )
 
         router = make_llm_router() if use_llm else None
+        # --llm-workers（T160，D074）：worker 层全 LLM，与生产 create_default_case_graph
+        # 同构（材料 AI 审查 / 责任 ReAct / 决定书叙述；工厂内部按 settings 开关门控）。
+        # 缺省 False 保持既有口径（仅 LLM 调度，worker 确定性）。
+        worker_kwargs: dict[str, Any] = {}
+        if llm_workers:
+            from nodes.decision_generate import make_decision_writer
+            from nodes.material_review import make_material_ai_reviewer
+            from services.worker_agent import invoke_worker
+
+            worker_kwargs = {
+                "material_reviewer": make_material_ai_reviewer(),
+                "liability_llm": invoke_worker,
+                "decision_writer": make_decision_writer(),
+            }
         graph = build_case_graph(
             recorder=DbCaseRecorder(),
             policy_lookup=db_policy_lookup,
             fraud_lookup=db_fraud_lookup,
             checkpointer=InMemorySaver(),
             orchestrator_router=router,
+            **worker_kwargs,
         )
 
         results: list[dict[str, Any]] = []
         red_line_leaks = 0
         guard_bypasses = 0
 
-        for case in cases:
+        async def _run_one(case: Any) -> tuple[dict[str, Any], bool, bool]:
+            """单案执行+观测（顺序/并发共路径；返回判分行与红线/守卫旁路命中）。"""
             case_id = case.case_id
             body = {k: v for k, v in case.model_dump().items() if k != "expected"}
             body["policy_id"] = body.pop("policy_no", body.get("policy_id", ""))
@@ -113,33 +131,35 @@ async def _run_suite(
             from services.observability.token_tracker import track_case
 
             started = time.perf_counter()
-            tokens_before = case_tokens_total()
+            acc = None
             try:
-                # track_case：案件维度 token 归集上下文（与 case_jobs 交付同口径；
-                # 不包裹则 CASE_TOKENS 不记——评测成本量化 T123 补）
-                with track_case(case_id):
+                # track_case：案件维度 token 归集（累加器口径，并发精确各归各账；
+                # 上下文累加器随 langgraph 内部任务共享引用，全局差分法并发下会串案）
+                with track_case(case_id) as acc_ctx:
+                    acc = acc_ctx
                     result = await graph.ainvoke(body, config)
                 state = graph.get_state(config).values
             except Exception as exc:  # noqa: BLE001
-                results.append(
-                    error_result(case, str(exc)[:300]) | {
+                return (
+                    error_result(case, str(exc)[:300])
+                    | {
                         "duration_s": round(time.perf_counter() - started, 2),
-                        "tokens": case_tokens_total() - tokens_before,
-                    }
+                        "tokens": acc.tokens if acc else 0,
+                        "llm_calls": acc.calls if acc else 0,
+                    },
+                    False,
+                    False,
                 )
-                continue
 
             # 提取观测
             outcome = extract_outcome(graph, config, result, state)
 
             # 红线漏放检查（T097）：与运行时合规门同一实现（check_text），不再用弱化子串
             doc = state.get("decision_document") or {}
-            if doc.get("body") and check_text(doc["body"]):
-                red_line_leaks += 1
+            redline_hit = bool(doc.get("body") and check_text(doc["body"]))
 
             # 守卫旁路检查：state 里不应有前置条件未满足就写入的结论
-            if has_guard_bypass(state):
-                guard_bypasses += 1
+            bypass_hit = has_guard_bypass(state)
 
             # 调度预算
             routing_calls = state.get("routing_calls", 0)
@@ -148,13 +168,33 @@ async def _run_suite(
                     f"routing_calls={routing_calls} 超预算 {contract.ROUTING_CALL_BUDGET}"
                 )
 
-            results.append(score_case(case, outcome) | {
+            row = score_case(case, outcome) | {
                 "routing_calls": routing_calls,
                 "case_type_observed": outcome.case_type,
                 "error": outcome.error,
                 "duration_s": round(time.perf_counter() - started, 2),
-                "tokens": case_tokens_total() - tokens_before,
-            })
+                "tokens": acc.tokens if acc else 0,
+                "llm_calls": acc.calls if acc else 0,
+            }
+            return row, redline_hit, bypass_hit
+
+        if concurrency <= 1:
+            for case in cases:
+                row, redline_hit, bypass_hit = await _run_one(case)
+                results.append(row)
+                red_line_leaks += int(redline_hit)
+                guard_bypasses += int(bypass_hit)
+        else:
+            sem = asyncio.Semaphore(concurrency)
+
+            async def _bounded(c: Any) -> tuple[dict[str, Any], bool, bool]:
+                async with sem:
+                    return await _run_one(c)
+
+            for row, redline_hit, bypass_hit in await asyncio.gather(*(_bounded(c) for c in cases)):
+                results.append(row)
+                red_line_leaks += int(redline_hit)
+                guard_bypasses += int(bypass_hit)
 
     # 释放 DB 连接（Windows 文件锁）
     if engine:
@@ -177,6 +217,7 @@ async def _run_suite(
     if dataset_name.startswith("adversarial"):
         robust = [r for r in results if r.get("category") == "robustness"]
         if robust:
+
             def _dims_ok(r: dict[str, Any]) -> bool:
                 checks = r.get("checks") or {}
                 return all(checks.get(k) is True for k in ("route", "liability", "amount"))
@@ -190,11 +231,13 @@ async def _run_suite(
                     {
                         "case_id": r.get("case_id"),
                         "failed_dims": [
-                            k for k in ("route", "liability", "amount")
+                            k
+                            for k in ("route", "liability", "amount")
                             if (r.get("checks") or {}).get(k) is not True
                         ],
                     }
-                    for r in robust if not _dims_ok(r)
+                    for r in robust
+                    if not _dims_ok(r)
                 ],
             }
     gate_results = evaluate_gates(
@@ -217,6 +260,7 @@ async def _run_suite(
         use_llm=use_llm,
         model=settings.llm_model if use_llm else None,
         report_path=report_path,
+        llm_workers=llm_workers,
     )
 
     return 0 if overall_pass else 1
@@ -227,14 +271,33 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None, help="只跑前 N 个案件")
     parser.add_argument("--offset", type=int, default=0, help="跳过前 N 个案件（分块评测）")
     parser.add_argument("--llm", action="store_true", help="启用 LLM Orchestrator")
-    parser.add_argument("--memory-routing", action="store_true",
-                        help="路由快照注入申请人历史（memory_in_routing，T100 实验口径）")
-    parser.add_argument("--seed-memories", action="store_true",
-                        help="预置申请人记忆档案（配合 --memory-routing 满载荷验证）")
-    parser.add_argument("--out", default=None, help="报告输出路径（默认 evals/reports/t089_adjudication_gate.json）")
-    parser.add_argument("--dataset", default="adjudication",
-                        choices=["adjudication", "adversarial", "adversarial_holdout"],
-                        help="数据集：主基线 / 对抗集（T124）/ 对抗 hold-out 盲测集（T159）")
+    parser.add_argument(
+        "--llm-workers",
+        action="store_true",
+        help="worker 层全 LLM（与生产 create_default_case_graph 同构，T160 消融口径）",
+    )
+    parser.add_argument(
+        "--concurrency", type=int, default=1, help="案件并发数（默认 1=顺序，行为与历史完全一致）"
+    )
+    parser.add_argument(
+        "--memory-routing",
+        action="store_true",
+        help="路由快照注入申请人历史（memory_in_routing，T100 实验口径）",
+    )
+    parser.add_argument(
+        "--seed-memories",
+        action="store_true",
+        help="预置申请人记忆档案（配合 --memory-routing 满载荷验证）",
+    )
+    parser.add_argument(
+        "--out", default=None, help="报告输出路径（默认 evals/reports/t089_adjudication_gate.json）"
+    )
+    parser.add_argument(
+        "--dataset",
+        default="adjudication",
+        choices=["adjudication", "adversarial", "adversarial_holdout"],
+        help="数据集：主基线 / 对抗集（T124）/ 对抗 hold-out 盲测集（T159）",
+    )
     args = parser.parse_args()
 
     from app.core.config import settings
@@ -243,17 +306,21 @@ def main() -> None:
         print("LLM_API_KEY 未配置，无法启用 LLM Orchestrator")
         sys.exit(1)
 
-    sys.exit(asyncio.run(
-        _run_suite(
-            args.limit,
-            args.llm,
-            offset=args.offset,
-            memory_routing=args.memory_routing,
-            seed_memories=args.seed_memories,
-            out_path=args.out,
-            dataset_name=args.dataset,
+    sys.exit(
+        asyncio.run(
+            _run_suite(
+                args.limit,
+                args.llm,
+                offset=args.offset,
+                memory_routing=args.memory_routing,
+                seed_memories=args.seed_memories,
+                out_path=args.out,
+                dataset_name=args.dataset,
+                llm_workers=args.llm_workers,
+                concurrency=args.concurrency,
+            )
         )
-    ))
+    )
 
 
 if __name__ == "__main__":

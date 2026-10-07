@@ -47,6 +47,48 @@ class AdjudicationDataset(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class SingleAgentOutput(BaseModel):
+    """单 Agent 基线终局输出（T160，D074）——response_format 结构化。
+
+    与图版 ClaimCaseState 的终局字段对齐：route=auto 时 approved_amount 必填；
+    route=refer 时 refer_kind 区分 review / supplement（映射 human / supplement）。
+    """
+
+    case_type: str | None = None  # medical / auto / property / accident / unknown
+    route: Literal["auto", "refer"]
+    refer_kind: Literal["review", "supplement"] | None = None
+    liability: Literal["covered", "partial", "not_covered"] | None = None
+    approved_amount: str | None = None  # 精确到分；非 auto 留空
+    decision_summary: str = ""  # 决定书正文叙述（红线检查对象）
+
+
+# ---------- RAG 评测金样本（T161，D075） ----------
+
+
+class RagQACase(BaseModel):
+    """责任认定 RAG 评测对：gold 用 source_file + 逐字标记子串钉住唯一知识块。
+
+    gold_marker 必须逐字存在于 data/kb_docs/<gold_source_file>（单测强制校验，
+    防止文档改写后 gold 静默失配）。
+    """
+
+    id: str
+    query: str
+    gold_source_file: str
+    gold_marker: str
+    gold_answer: str  # RAGAS context_recall 的归因基准
+    category: str = "coverage"
+
+
+class RagQADataset(BaseModel):
+    """RAG 评测数据集（rag_qa_liability.json：_meta + cases）。"""
+
+    meta: dict[str, Any] = Field(default_factory=dict, alias="_meta")
+    cases: list[RagQACase]
+
+    model_config = {"populate_by_name": True}
+
+
 # ---------- 客服问答金样本（T146，D066） ----------
 
 
