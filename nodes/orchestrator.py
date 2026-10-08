@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END
 from langgraph.types import Send
 from pydantic import BaseModel, Field
@@ -102,12 +102,15 @@ def make_llm_router():
             records = await search_case_memories(str(state.get("user_id") or ""))
             if records:
                 snapshot_data["applicant_history"] = format_case_memories(records)
+        # T165：system 只留静态规程/原则（保住 DeepSeek 缓存前缀），快照移入 user message——
+        # <<<DATA…>>>DATA 定界随数据移位，D131注入防线不丢（对抗集硬门验）
         system = build_system_prompt(
             CASE_ORCHESTRATOR_ROUTING_PROMPT,
             "orchestrator",
             state.get("case_type") or "_shared",
-            snapshot=json.dumps(snapshot_data, ensure_ascii=False, default=str)[:3000],
         )
+        snapshot = json.dumps(snapshot_data, ensure_ascii=False, default=str)[:3000]
+        user = f"## 案件快照\n<<<DATA\n{snapshot}\n>>>DATA"
         model = get_chat_model(temperature=0.0)
         structured = model.with_structured_output(RoutingDecision, method="function_calling")
         from services.observability.token_tracker import phase_ainvoke
@@ -116,7 +119,7 @@ def make_llm_router():
         # 模型名经 _model_name 从 RunnableSequence 内层自动探测
         return await phase_ainvoke(
             structured,
-            [HumanMessage(content=system)],
+            [SystemMessage(content=system), HumanMessage(content=user)],
             phase="orchestrator",
         )
 

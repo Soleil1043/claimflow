@@ -231,4 +231,3 @@ class LlmUsageCallbackHandler(BaseCallbackHandler):
     def on_llm_error(self, error: BaseException, **kwargs: Any) -> None:
         duration = time.perf_counter() - self._started if self._started else 0.0
         metrics.record_llm_call(self._model_name, "error", duration, stage=self._stage)
-

@@ -2,7 +2,7 @@
   "task": "T124 核赔对抗回归门",
   "dataset": "adversarial",
   "robustness": null,
-  "generated_at": "2026-10-07T20:31:02",
+  "generated_at": "2026-10-09T03:31:24",
   "mode": "deterministic",
   "llm_workers": false,
   "model": null,
@@ -59,7 +59,7 @@
     "tokens_total": 0,
     "tokens_per_case_avg": 0.0,
     "llm_calls_avg": 0.0,
-    "duration_s_avg": 2.26,
-    "duration_s_p95": 16.42
+    "duration_s_avg": 2.87,
+    "duration_s_p95": 18.17
   }
 }

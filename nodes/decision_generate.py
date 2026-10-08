@@ -16,7 +16,7 @@ import json
 from decimal import Decimal
 from typing import Any
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -54,18 +54,21 @@ def make_decision_writer():
         return None
 
     async def writer(state: ClaimCaseState) -> str | None:
+        # T165：system 只留静态规程（保住缓存前缀），每案唯一的事实移入 user message
         system = build_system_prompt(
             DECISION_NARRATIVE_PROMPT,
             "decision_writer",
             state.get("case_type") or "_shared",
-            facts=_narrative_facts(state),
         )
+        user = "## 事实\n" + _narrative_facts(state)
         model = get_chat_model(temperature=0.0)
         from services.observability.token_tracker import phase_ainvoke
 
         # T164：接入 observed_ainvoke（缓存/用量按 stage=decision_writer 分列）
         response = await phase_ainvoke(
-            model, [HumanMessage(content=system)], phase="decision_writer"
+            model,
+            [SystemMessage(content=system), HumanMessage(content=user)],
+            phase="decision_writer",
         )
         text = str(response.content or "").strip()
         return text or None

@@ -402,13 +402,16 @@ def test_ai_prompt_anomaly_semantics_tightened() -> None:
     → 置信度恒压 0.4 → 真实材料齐全的案子全部转人工（自动签发永不发生）。
     """
     prompt = mr_module.MATERIAL_REVIEW_AI_PROMPT
-    assert "{documents}" in prompt  # 占位符由节点填充（装配侧另有断言）
+    # T165：documents 占位符已移出 system（随材料结果走 user message）——
+    # 断言改为「prompt 内无动态占位符 + 数据边界铁律指向用户消息」
+    assert "{documents}" not in prompt  # 动态数据不再嵌入 system（缓存前缀要求）
     assert "空数组" in prompt  # 核验通过时必须是空数组
     assert "禁止把通过性陈述写进" in prompt  # 一致/未见冲突不算异常
     assert "hospital" in prompt and "medical_record" in prompt  # 非核赔必需项缺失不算异常
     assert "自费" in prompt  # 自费/乙类标识缺失不算异常
     assert "notes" in prompt  # 中性观察与建议的去处（不参与压分）
     assert "数据边界" in prompt  # 注入面铁律（与 T131 路由 prompt 同口径）
+    assert "<<<DATA" in prompt and "用户消息" in prompt  # 定界随数据移入 user message
 
 
 async def test_ai_reviewer_clean_pass_keeps_rule_confidence() -> None:

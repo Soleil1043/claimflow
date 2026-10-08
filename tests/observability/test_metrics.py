@@ -320,23 +320,64 @@ async def test_observed_ainvoke_cache_stage_dimension() -> None:
 
 
 async def test_observed_ainvoke_accepts_structured_wrapper() -> None:
-    """T164：model 为 with_structured_output 包装产物时按内层取模型名 + stage 仍生效。"""
+    """T164/T165：结构化输出包装（无 model_name，靠 .first 内层探测）走回调分支取用量。
 
-    class _WrappedModel(_DeepSeekCacheModel):
-        """模拟 RunnableSequence：.first 指回内层真实模型。"""
+    with_structured_output 产物为 RunnableSequence，无 model_name 属性且返回
+    纯 Pydantic 对象（无 usage metadata）——必须经 LlmUsageCallbackHandler 从
+    llm_output 取值。本替身模拟该形态：自身无model_name/.first 指向内层模型。
+    """
 
-        @property
-        def first(self) -> Any:
-            return _DeepSeekCacheModel()
+    class _Inner:
+        model_name = "fake-deepseek-cache"
+
+    class _StructuredRunnable:
+        """模拟 RunnableSequence：自身无模型身份，靠 .first 探测 + 回调取 usage。"""
+
+        def __init__(self) -> None:
+            self.first = _Inner()
+
+        async def ainvoke(self, messages: Any, config: Any = None) -> Any:
+            # 真实 RunnableSequence 内部经 callback manager 触发 handler；
+            # 替身直接显式触发以验证 handler 挂载路径（不调内层模型，避免二次计数）
+            callbacks = (config or {}).get("callbacks") or []
+            for cb in callbacks:
+                on_start = getattr(cb, "on_llm_start", None)
+                if callable(on_start):
+                    on_start({}, [], config=config)
+            from langchain_core.outputs import LLMResult
+
+            for cb in callbacks:
+                on_end = getattr(cb, "on_llm_end", None)
+                if callable(on_end):
+                    on_end(
+                        LLMResult(
+                            generations=[],
+                            llm_output={
+                                "token_usage": {
+                                    "prompt_tokens": 100,
+                                    "completion_tokens": 50,
+                                    "prompt_cache_hit_tokens": 80,
+                                    "prompt_cache_miss_tokens": 20,
+                                }
+                            },
+                        ),
+                        config=config,
+                    )
+            return {"next": ["material_review"]}
 
     from services.observability.token_tracker import track_phase
 
     with track_phase("material_review"):
-        await observed_ainvoke(_WrappedModel(), [])  # type: ignore[arg-type]
+        result = await observed_ainvoke(_StructuredRunnable(), [])  # type: ignore[arg-type]
+    assert result == {"next": ["material_review"]}
+    # 用量由 handler 记（stage 来自 track_phase 上下文）
     assert _counter_value(
         "claimflow_llm_cache_tokens_total",
         model="fake-deepseek-cache", stage="material_review", result="hit",
     ) >= 80.0
+    assert _counter_value(
+        "claimflow_llm_calls_total", model="fake-deepseek-cache", status="success"
+    ) >= 1.0
 
 
 def test_model_name_recursive_probe() -> None:

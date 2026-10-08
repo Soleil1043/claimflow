@@ -24,7 +24,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.func import task as graph_task
 from langgraph.types import RetryPolicy
 from pydantic import BaseModel, Field
@@ -181,17 +181,20 @@ def make_material_ai_reviewer():
 
     async def ai_reviewer(state: ClaimCaseState, documents: list[dict[str, Any]]) -> list[str]:
         line = state.get("case_type") or "_shared"
-        system = build_system_prompt(
-            MATERIAL_REVIEW_AI_PROMPT, "material_review", line,
-            documents=json.dumps(documents, ensure_ascii=False, default=str)[:2500],
-        )
+        # T165：system 只留静态规程/审查要点（保住缓存前缀），材料提取结果移入 user message
+        system = build_system_prompt(MATERIAL_REVIEW_AI_PROMPT, "material_review", line)
+        user = "## 提取结果\n<<<DATA\n" + json.dumps(
+            documents, ensure_ascii=False, default=str
+        )[:2500] + "\n>>>DATA"
         model = get_chat_model(temperature=0.0)
         structured = model.with_structured_output(MaterialAiReview, method="function_calling")
         from services.observability.token_tracker import phase_ainvoke
 
         # T164：接入 observed_ainvoke（缓存/用量按 stage=material_review 分列）
         review = await phase_ainvoke(
-            structured, [HumanMessage(content=system)], phase="material_review"
+            structured,
+            [SystemMessage(content=system), HumanMessage(content=user)],
+            phase="material_review",
         )
         return review.anomalies
 
