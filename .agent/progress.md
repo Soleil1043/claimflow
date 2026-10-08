@@ -2444,3 +2444,67 @@ scripts/eval_rag.py 运行器（并发 4，报告 json+md 双落盘）。
 
 **踩坑**：ruff --fix 改 import 名不同步改调用处（F821 暴露）；report md 由 JSON
 重生成而非重跑 LLM（判分有方差，落盘快照即证据）。
+
+### [T162] LLM Prompt Caching 命中指标 — 2026-10-08
+
+**操作**：
+- metrics.py 新增 LLM_CACHE_TOKENS Counter（claimflow_llm_cache_tokens_total，model×result=hit|miss 分维）；record_llm_call 增 cache_hit_tokens/cache_miss_tokens 可选参数（None 不记，宁缺勿假）
+- llm_metrics.py 新增 _extract_cache_usage：双来源提取（①response_metadata.token_usage 的 DeepSeek 非标字段 prompt_cache_hit_tokens/miss——探针实测唯一存活路径 ②usage_metadata.input_token_details.cache_read 标准字段回退）；observed_ainvoke 接入并给 OTel span 加 cache_read/miss 属性
+- scripts/probe_deepseek_cache_usage.py：诊断脚本固化探针结论（全 mock 免 Key，langchain-openai 升级后可回归）
+- tests/observability/test_metrics.py +4 用例（record 两路/optional/DeepSeek 路径/标准回退/无字段不记）
+
+**涉及文件**：services/observability/metrics.py、services/observability/llm_metrics.py、scripts/probe_deepseek_cache_usage.py（新）、tests/observability/test_metrics.py、.agent/tasks.md
+
+**关键结论**：langchain usage_metadata 丢弃 DeepSeek 非标缓存字段（_create_usage_metadata 只映射标准字段），但 ainvoke 路径的 run manager 把 llm_output 原始 usage dict 原样写进 message.response_metadata——提取第一来源；命中率经 PromQL 派生（hit/(hit+miss)），无需额外 Gauge
+
+**验证方式**：uv run pytest -q → 523 passed（+4）；ruff check 零告警；探针脚本复跑确认存活路径
+
+**状态**：完成（Grafana 面板 + 真实命中率数字留待有 Key 环境实跑）
+
+---
+
+## T163 · Grafana Prompt Caching 面板 + 真实命中率实测（2026-10-08）
+
+**做了什么**：claimflow-overview.json 加 4 个缓存面板（10 → 14）；新增 scripts/measure_cache_hit_rate.py 打真实 DeepSeek API 测命中率；带 key 跑 verify_adjudication（23/0）与 30 案 LLM 评测（六门全绿）
+
+**关键结论（真实数字，非 mock）**：
+- **稳态Prompt Cache 命中率 77.8%**（640 hit / 183 miss，单轮 823 input tokens）；首轮冷启动 0%（全miss，符合 DeepSeek 硬盘缓存语义）
+- 4/4 轮均成功从 `response_metadata.token_usage` 提取到 DeepSeek 非标字段——T162 的提取策略在真实 API（不只 mock 探针）上验证通过
+- 30 案 LLM 评测：六门全绿、一致率 100%，成本 234,066 tokens / 7,802 tokens·案⁻¹ / 4.4 次 LLM 调用·案⁻¹
+
+**踩坑记录**：
+1. 面板 13 初版 promql 引用 `claimflow_llm_cache_hit_tokens_bucket` —— 该指标不存在（缓存 token 是 Counter 不是 Histogram），Grafana 会返回 No data。改为 Counter 速率比值（hit 速率 / llm_calls 速率）
+2. compose 起栈后 `/metrics` 查不到缓存指标 —— 容器跑的是 T162 之前的旧镜像。`docker compose exec app grep -c LLM_CACHE_TOKENS /app/services/observability/metrics.py` 返回 0 确诊；须 `docker compose build app` 重建。**教训：加指标后必须重建镜像，光 up -d 不生效**
+3. 面板 15（输入 Token 构成）与面板 12（缓存 Token 量堆叠）语义重复，已删
+
+**验证方式**：JSON 解析校验 + promql 标签名逐一比对 metrics.py 定义（model/result 双标签一致）；真实 API 四轮实测；Grafana provisioning API 确认面板加载；Prometheus targets 确认 claimflow-app up
+
+**状态**：完成
+
+---
+
+## T164/T165 · LLM 观测补全 + Prompt 布局改造（2026-10-09）
+
+**做了什么**：T163 归因纠偏后分两层修复——T164 补齐观测（stage 维度 + 四个裸调节点接入），T165 改 prompt 布局（动态数据移出 system）。真实 API before/after 对比。
+
+**T163 归因纠偏（重要）**：T163 的 1845 miss 实为**材料提取**数据（prompt 主体即唯一文档内容，天然 miss 属预期）——路由/审查/叙述/责任认定四个调用点**从未被观测**（裸调不经observed_ainvoke）。归因错误在于把材料提取的 miss 归到了路由布局上。
+
+**T164 观测补全**：
+- metrics.py LLM_CACHE_TOKENS 加 stage label；record_llm_call 加 stage 参数（默认 other 向后兼容）
+- observed_ainvoke 泛化：model 接受 with_structured_output 包装 Runnable（_model_name沿 .bound/.first 递归探测，实测 RunnableSequence→deepseek-flash 命中）
+- orchestrator 路由 / material_review AI 审查 / decision 叙述三处接phase_ainvoke
+- worker_agent（create_agent 子图）经 LlmUsageCallbackHandler 回调观测——**实测 langgraph config.callbacks 会传播到节点内 chat model**（探针假模型失败后改真实模型验证，liability_judge stage hit=4352/miss=1608 = 73.0%）
+
+**T165 布局改造**：
+- 三 prompt 模板删动态占位段（CASE_ORCHESTRATOR_ROUTING_PROMPT {snapshot} / MATERIAL_REVIEW_AI_PROMPT {documents} / DECISION_NARRATIVE_PROMPT {facts}）
+- 三节点改 SystemMessage(全静态) + HumanMessage(动态数据) 双消息；<<<DATA>>>定界随数据移位
+- **实测路由命中率 0% → 86.8%**（三轮不同快照 86.7%/86.8%/86.8% 稳定，证明 system 前缀逐字一致）
+- 遇到并解决：with_structured_output 返回**纯 Pydantic 对象**（无 usage_metadata / response_metadata），usage 只能经 on_llm_end 的 llm_output 取→ observed_ainvoke 结构化分支自动挂 handler，判据用"是否自带模型身份属性"而非 isinstance（测试替身同非 BaseChatModel 但直返 AIMessage）
+
+**验收结果**：
+- 528 passed + ruff 全绿零退化
+- 确定性主门 153 案六门全绿、一致率 100%
+- **注入对抗确定性 8/8 + LLM 档 8/8 全绿**（防线位置从 system 移到 user 后仍守住，D131 治本项未丢）
+- 30 案 LLM 评测六门全绿一致率 100%；tokens/案 7802 → 7659（prompt 变短），真实收益在命中部分计费折扣 1/10
+
+**关键认识**：材料提取（ocr）0% 命中不是缺陷——prompt 主体即唯一文档内容，前缀天然短。布局改造只对"静态规程 + 动态数据"形态的调用点有效（路由/审查/叙述），这四类才是优化对象。

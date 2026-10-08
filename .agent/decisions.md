@@ -1980,3 +1980,38 @@ schema_reset。CI 沿用 secret 有无双分支。
 另：Recall@K/MRR 用 gold chunk 精确判定（source_file 相等 + 标记子串命中），
 QA 集 ≥20 对从 kb_docs 责任认定相关文档手工构造，gold_marker 必须经单测
 对源文档逐条校验存在。
+
+## D076 · Prompt 缓存修复：观测补全与布局改造的分层方案（T164/T165，2026-10-09）
+
+**背景**：T163 实测（真实案件 11 调用全 miss）引出两个独立缺陷——①观测缺口：
+observed_ainvoke 只覆盖材料提取/OCR，orchestrator 路由、material_review AI 审查、
+decision 叙述、worker_agent（create_agent）四处裸调，缓存命中率从未被观测，
+T163 的 1845 miss 实为材料提取数据（文档内容天然唯一，miss 属预期）；②布局缺陷：
+build_system_prompt 先 format 动态占位符（snapshot/documents/facts）再拼静态 skill，
+prompt 形态为 [短稳定前缀][每案唯一数据][静态规程]，DeepSeek 前缀缓存的分叉点
+落在唯一数据开头，其后全部 miss。
+
+**选项**：
+- A. 只改布局：直接把快照移 user message——快，但改动效果无法验证（无分 stage 观测），且无法区分"布局收益"与"天然 miss 场景"（材料提取）
+- B. 只补观测：全部调用点接入指标——拿到数据但不动布局，命中率不会变
+- C. 分层：先 T164 观测补全（stage 维度 + 四调用点接入），跑真实案件拿**改造前基线**；再 T165 布局改造，同样跑法拿**改造后对比**——before/after 数据闭环
+
+→ 选 C。理由：改布局的验收标准就是命中率变化，没有基线就没有验收；且材料提取
+这类天然 miss 场景（prompt 主体即唯一数据）与布局缺陷场景必须用 stage 维度区分，
+否则会误判"改造无效"。
+
+**布局方案选择**（T165 内部）：
+- 快照移 user message（SystemMessage 全静态 + HumanMessage 动态数据）✅
+  ——system 前缀逐字稳定可整段命中；system/user 角色区分反而强化注入防线
+  （system=指令区，user=数据区），<<<DATA>>> 定界随数据移位仍在
+- 调整 build_system_prompt 拼接顺序（skill 前置）❌——动态占位符在 base prompt
+  末尾，静态内容前置只能延长前缀，分叉点位置不变，收益有限
+- 缩短快照截断长度 ❌——丢案件信息，金额硬门大概率红
+
+**create_agent 子图观测方案**（T164 内部）：
+- 回调 handler（on_llm_end 提取 llm_output.token_usage）✅——T162 探针已验证
+  ainvoke+config.callbacks 路径下 llm_output 原样存活（含 DeepSeek 非标字段）；
+  langgraph CompiledStateGraph 的 config callbacks 会传播到节点内 chat model 调用
+- 包装 ObservableChatModel 代理（继承 BaseChatModel 委托 _agenerate）❌——
+  BaseChatModel 接口面大（bind_tools/stream/with_structured_output 均需透传），
+  代理遗漏即静默破坏，复杂度远超收益
