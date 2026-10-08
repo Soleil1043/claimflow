@@ -187,7 +187,12 @@ def make_material_ai_reviewer():
         )
         model = get_chat_model(temperature=0.0)
         structured = model.with_structured_output(MaterialAiReview, method="function_calling")
-        review = await structured.ainvoke([HumanMessage(content=system)])
+        from services.observability.token_tracker import phase_ainvoke
+
+        # T164：接入 observed_ainvoke（缓存/用量按 stage=material_review 分列）
+        review = await phase_ainvoke(
+            structured, [HumanMessage(content=system)], phase="material_review"
+        )
         return review.anomalies
 
     return ai_reviewer

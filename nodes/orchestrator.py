@@ -110,7 +110,15 @@ def make_llm_router():
         )
         model = get_chat_model(temperature=0.0)
         structured = model.with_structured_output(RoutingDecision, method="function_calling")
-        return await structured.ainvoke([HumanMessage(content=system)])
+        from services.observability.token_tracker import phase_ainvoke
+
+        # T164：接入 observed_ainvoke（缓存/用量按 stage=orchestrator 分列）；
+        # 模型名经 _model_name 从 RunnableSequence 内层自动探测
+        return await phase_ainvoke(
+            structured,
+            [HumanMessage(content=system)],
+            phase="orchestrator",
+        )
 
     return llm_router
 

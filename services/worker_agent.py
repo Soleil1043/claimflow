@@ -27,8 +27,10 @@ from langchain_core.tools import BaseTool
 from langgraph.errors import GraphRecursionError
 from pydantic import BaseModel
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from services.llm.client import get_chat_model
+from services.observability.llm_metrics import LlmUsageCallbackHandler
 from services.observability.token_tracker import track_phase
 from tools.factory import get_default_tool_map
 
@@ -163,10 +165,17 @@ async def invoke_worker(
     input_messages = [_build_task_message(instruction)]
 
     try:
+        # T164：create_agent 子图内部 LLM 调用不经 observed_ainvoke，经回调观测——
+        # langgraph 把 config.callbacks 传播到节点内 chat model，on_llm_end 的
+        # llm_output.token_usage 含 DeepSeek 非标缓存字段（T162 探针验证路径）
+        handler = LlmUsageCallbackHandler(
+            model_name=getattr(get_chat_model(), "model_name", None) or settings.llm_model,
+            stage=agent_def.name,
+        )
         with track_phase("executor"):
             result = await worker.ainvoke(
                 {"messages": input_messages},
-                config={"recursion_limit": _RECURSION_LIMIT},
+                config={"recursion_limit": _RECURSION_LIMIT, "callbacks": [handler]},
             )
     except GraphRecursionError:
         # 防御性兜底（正常由 ModelCallLimitMiddleware 硬截断收口）：

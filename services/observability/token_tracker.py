@@ -127,14 +127,19 @@ def track_case(case_id: str):
 
 
 async def phase_ainvoke(
-    model: BaseChatModel,
+    model: BaseChatModel | Any,
     messages: list[AnyMessage],
     *,
     phase: str,
     config: dict[str, Any] | None = None,
+    model_name: str | None = None,
 ) -> Any:
-    """带环节标注的 observed_ainvoke：指标埋点 + 案件维度归集一步完成。"""
+    """带环节标注的 observed_ainvoke：指标埋点 + 案件维度归集一步完成。
+
+    model_name（T164）：model 为 with_structured_output 包装 Runnable 且
+    自动探测失败时显式指定指标标签用模型名。
+    """
     from services.observability.llm_metrics import observed_ainvoke
 
     with track_phase(phase):
-        return await observed_ainvoke(model, messages, config=config)
+        return await observed_ainvoke(model, messages, config=config, model_name=model_name)

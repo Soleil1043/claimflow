@@ -72,22 +72,22 @@ def test_record_llm_call_with_cache_tokens() -> None:
         cache_miss_tokens=20,
     )
     assert _counter_value(
-        "claimflow_llm_cache_tokens_total", model="deepseek-flash", result="hit"
+        "claimflow_llm_cache_tokens_total", model="deepseek-flash", stage="other", result="hit"
     ) >= 80.0
     assert _counter_value(
-        "claimflow_llm_cache_tokens_total", model="deepseek-flash", result="miss"
+        "claimflow_llm_cache_tokens_total", model="deepseek-flash", stage="other", result="miss"
     ) >= 20.0
 
 
 def test_record_llm_call_cache_tokens_optional() -> None:
     """cache 参数缺省（None）时不记缓存维度，也不报错——不臆造 0。"""
     before_hit = _counter_value(
-        "claimflow_llm_cache_tokens_total", model="no-cache-model", result="hit"
+        "claimflow_llm_cache_tokens_total", model="no-cache-model", stage="other", result="hit"
     )
     metrics.record_llm_call("no-cache-model", "success", 0.1, prompt_tokens=10)
     assert (
         _counter_value(
-            "claimflow_llm_cache_tokens_total", model="no-cache-model", result="hit"
+            "claimflow_llm_cache_tokens_total", model="no-cache-model", stage="other", result="hit"
         )
         == before_hit
     )
@@ -257,11 +257,11 @@ async def test_observed_ainvoke_deepseek_cache_tokens() -> None:
     await observed_ainvoke(_DeepSeekCacheModel(), [])  # type: ignore[arg-type]
     assert _counter_value(
         "claimflow_llm_cache_tokens_total",
-        model="fake-deepseek-cache", result="hit",
+        model="fake-deepseek-cache", stage="other", result="hit",
     ) >= 80.0
     assert _counter_value(
         "claimflow_llm_cache_tokens_total",
-        model="fake-deepseek-cache", result="miss",
+        model="fake-deepseek-cache", stage="other", result="miss",
     ) >= 20.0
 
 
@@ -270,11 +270,11 @@ async def test_observed_ainvoke_openai_standard_cache_fallback() -> None:
     await observed_ainvoke(_OpenAIStandardCacheModel(), [])  # type: ignore[arg-type]
     assert _counter_value(
         "claimflow_llm_cache_tokens_total",
-        model="fake-openai-cache", result="hit",
+        model="fake-openai-cache", stage="other", result="hit",
     ) >= 64.0
     assert (
         _counter_value(
-            "claimflow_llm_cache_tokens_total", model="fake-openai-cache", result="miss"
+            "claimflow_llm_cache_tokens_total", model="fake-openai-cache", stage="other", result="miss"
         )
         == 0.0
     )
@@ -284,7 +284,10 @@ async def test_observed_ainvoke_no_cache_fields() -> None:
     """T162：两路字段都没有（普通 fake）时不记缓存维度、不报错。"""
     await observed_ainvoke(_FakeModel(), [])  # type: ignore[arg-type]
     assert (
-        _counter_value("claimflow_llm_cache_tokens_total", model="fake-llm", result="hit") == 0.0
+        _counter_value(
+            "claimflow_llm_cache_tokens_total", model="fake-llm", stage="other", result="hit"
+        )
+        == 0.0
     )
 
 
@@ -298,6 +301,108 @@ async def test_observed_ainvoke_error_reraised() -> None:
     assert raised
     assert _counter_value(
         "claimflow_llm_calls_total", model="fake-llm-error", status="error"
+    ) >= 1.0
+
+
+# ===== stage 维度与回调观测（T164）=====
+
+
+async def test_observed_ainvoke_cache_stage_dimension() -> None:
+    """T164：缓存指标按 stage 分列（current_phase 上下文携带，默认 other）。"""
+    from services.observability.token_tracker import track_phase
+
+    with track_phase("orchestrator"):
+        await observed_ainvoke(_DeepSeekCacheModel(), [])  # type: ignore[arg-type]
+    assert _counter_value(
+        "claimflow_llm_cache_tokens_total",
+        model="fake-deepseek-cache", stage="orchestrator", result="hit",
+    ) >= 80.0
+
+
+async def test_observed_ainvoke_accepts_structured_wrapper() -> None:
+    """T164：model 为 with_structured_output 包装产物时按内层取模型名 + stage 仍生效。"""
+
+    class _WrappedModel(_DeepSeekCacheModel):
+        """模拟 RunnableSequence：.first 指回内层真实模型。"""
+
+        @property
+        def first(self) -> Any:
+            return _DeepSeekCacheModel()
+
+    from services.observability.token_tracker import track_phase
+
+    with track_phase("material_review"):
+        await observed_ainvoke(_WrappedModel(), [])  # type: ignore[arg-type]
+    assert _counter_value(
+        "claimflow_llm_cache_tokens_total",
+        model="fake-deepseek-cache", stage="material_review", result="hit",
+    ) >= 80.0
+
+
+def test_model_name_recursive_probe() -> None:
+    """T164：_model_name 沿 .bound / .first 递归探测内层模型名（结构化包装产物）。"""
+
+    class _Inner:
+        model_name = "deepseek-flash"
+
+    class _Outer:
+        def __init__(self) -> None:
+            self.first = _Inner()
+
+    from services.observability.llm_metrics import _model_name
+
+    assert _model_name(_Inner()) == "deepseek-flash"
+    assert _model_name(_Outer()) == "deepseek-flash"
+    assert _model_name(object()) == "object"
+
+
+def test_llm_usage_callback_handler_records_from_llm_output() -> None:
+    """T164：回调 handler 从 on_llm_end 的 llm_output.token_usage 提取用量与缓存字段。
+
+    create_agent 子图（worker_agent）内部 LLM 调用不走 observed_ainvoke，
+    经 langchain 回调观测——该路径的存活字段是 llm_output（T162 探针实测口径）。
+    """
+    from langchain_core.outputs import LLMResult
+
+    from services.observability.llm_metrics import LlmUsageCallbackHandler
+
+    handler = LlmUsageCallbackHandler(model_name="deepseek-flash", stage="liability_judge")
+    handler.on_llm_start({}, [])
+    handler.on_llm_end(
+        LLMResult(
+            generations=[],
+            llm_output={
+                "token_usage": {
+                    "prompt_tokens": 120,
+                    "completion_tokens": 30,
+                    "prompt_cache_hit_tokens": 96,
+                    "prompt_cache_miss_tokens": 24,
+                }
+            },
+        )
+    )
+    assert _counter_value(
+        "claimflow_llm_cache_tokens_total",
+        model="deepseek-flash", stage="liability_judge", result="hit",
+    ) >= 96.0
+    assert _counter_value(
+        "claimflow_llm_cache_tokens_total",
+        model="deepseek-flash", stage="liability_judge", result="miss",
+    ) >= 24.0
+    assert _counter_value(
+        "claimflow_llm_tokens_total", model="deepseek-flash", kind="prompt"
+    ) >= 120.0
+
+
+def test_llm_usage_callback_handler_error_path() -> None:
+    """T164：on_llm_error 记 error 状态，不记 token（无 usage）。"""
+    from services.observability.llm_metrics import LlmUsageCallbackHandler
+
+    handler = LlmUsageCallbackHandler(model_name="deepseek-flash", stage="liability_judge")
+    handler.on_llm_start({}, [])
+    handler.on_llm_error(RuntimeError("boom"))
+    assert _counter_value(
+        "claimflow_llm_calls_total", model="deepseek-flash", status="error"
     ) >= 1.0
 
 

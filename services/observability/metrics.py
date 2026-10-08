@@ -79,11 +79,13 @@ LLM_TOKENS = Counter(
 
 # Prompt Caching 命中观测（T162）：DeepSeek 硬盘缓存默认生效（命中价 1/10，无需改代码），
 # 但 langchain usage_metadata 丢弃非标字段，原始值由 llm_metrics 从
-# response_metadata.token_usage 提取后传入；命中率 = hit / (hit + miss)（PromQL 派生）
+# response_metadata.token_usage 提取后传入；命中率 = hit / (hit + miss)（PromQL 派生）。
+# stage 维度（T164）：区分路由/审查/叙述/材料提取等调用点——材料提取 prompt 主体
+# 即唯一文档内容属天然 miss，布局改造的收益评估必须按 stage 分别看。
 LLM_CACHE_TOKENS = Counter(
     "claimflow_llm_cache_tokens_total",
-    "LLM 输入 Prompt Caching 命中/未命中 token 数（DeepSeek 硬盘缓存，T162）",
-    labelnames=["model", "result"],  # result: hit | miss
+    "LLM 输入 Prompt Caching 命中/未命中 token 数（DeepSeek 硬盘缓存，T162；stage 分调用点 T164）",
+    labelnames=["model", "stage", "result"],  # result: hit | miss
     registry=registry,
 )
 
@@ -217,12 +219,15 @@ def record_llm_call(
     completion_tokens: int | None = None,
     cache_hit_tokens: int | None = None,
     cache_miss_tokens: int | None = None,
+    stage: str = "other",
 ) -> None:
     """LLM 调用结果埋点：成功/失败 + 耗时 + Token 用量（usage 缺失时不记 token）。
 
     cache_hit_tokens / cache_miss_tokens（T162）：DeepSeek Prompt Caching 口径，
     调用方从 response_metadata.token_usage 提取非标字段传入；None（模型不返回
     或提取失败）时不记缓存维度——不臆造 0，宁缺勿假。
+    stage（T164）：调用点标注（orchestrator / material_review / decision_writer /
+    ocr / liability_judge …），缓存命中分析按调用点分列；默认 "other" 向后兼容。
     """
     _safe_inc(LLM_CALLS, model=model, status=status)
     _safe_observe(LLM_LATENCY, duration_s, model=model)
@@ -231,9 +236,13 @@ def record_llm_call(
     if completion_tokens is not None:
         _safe_inc(LLM_TOKENS, model=model, kind="completion", amount=float(completion_tokens))
     if cache_hit_tokens is not None:
-        _safe_inc(LLM_CACHE_TOKENS, model=model, result="hit", amount=float(cache_hit_tokens))
+        _safe_inc(
+            LLM_CACHE_TOKENS, model=model, stage=stage, result="hit", amount=float(cache_hit_tokens)
+        )
     if cache_miss_tokens is not None:
-        _safe_inc(LLM_CACHE_TOKENS, model=model, result="miss", amount=float(cache_miss_tokens))
+        _safe_inc(
+            LLM_CACHE_TOKENS, model=model, stage=stage, result="miss", amount=float(cache_miss_tokens)
+        )
 
 
 # ---------- 核赔埋点辅助（T090） ----------

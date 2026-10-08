@@ -61,7 +61,12 @@ def make_decision_writer():
             facts=_narrative_facts(state),
         )
         model = get_chat_model(temperature=0.0)
-        response = await model.ainvoke([HumanMessage(content=system)])
+        from services.observability.token_tracker import phase_ainvoke
+
+        # T164：接入 observed_ainvoke（缓存/用量按 stage=decision_writer 分列）
+        response = await phase_ainvoke(
+            model, [HumanMessage(content=system)], phase="decision_writer"
+        )
         text = str(response.content or "").strip()
         return text or None
 
