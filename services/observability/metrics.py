@@ -77,6 +77,16 @@ LLM_TOKENS = Counter(
     registry=registry,
 )
 
+# Prompt Caching 命中观测（T162）：DeepSeek 硬盘缓存默认生效（命中价 1/10，无需改代码），
+# 但 langchain usage_metadata 丢弃非标字段，原始值由 llm_metrics 从
+# response_metadata.token_usage 提取后传入；命中率 = hit / (hit + miss)（PromQL 派生）
+LLM_CACHE_TOKENS = Counter(
+    "claimflow_llm_cache_tokens_total",
+    "LLM 输入 Prompt Caching 命中/未命中 token 数（DeepSeek 硬盘缓存，T162）",
+    labelnames=["model", "result"],  # result: hit | miss
+    registry=registry,
+)
+
 # ===== 核赔业务指标（Phase 8 T090，D037/D039） =====
 
 CASES_TOTAL = Counter(
@@ -205,14 +215,25 @@ def record_llm_call(
     duration_s: float,
     prompt_tokens: int | None = None,
     completion_tokens: int | None = None,
+    cache_hit_tokens: int | None = None,
+    cache_miss_tokens: int | None = None,
 ) -> None:
-    """LLM 调用结果埋点：成功/失败 + 耗时 + Token 用量（usage 缺失时不记 token）。"""
+    """LLM 调用结果埋点：成功/失败 + 耗时 + Token 用量（usage 缺失时不记 token）。
+
+    cache_hit_tokens / cache_miss_tokens（T162）：DeepSeek Prompt Caching 口径，
+    调用方从 response_metadata.token_usage 提取非标字段传入；None（模型不返回
+    或提取失败）时不记缓存维度——不臆造 0，宁缺勿假。
+    """
     _safe_inc(LLM_CALLS, model=model, status=status)
     _safe_observe(LLM_LATENCY, duration_s, model=model)
     if prompt_tokens is not None:
         _safe_inc(LLM_TOKENS, model=model, kind="prompt", amount=float(prompt_tokens))
     if completion_tokens is not None:
         _safe_inc(LLM_TOKENS, model=model, kind="completion", amount=float(completion_tokens))
+    if cache_hit_tokens is not None:
+        _safe_inc(LLM_CACHE_TOKENS, model=model, result="hit", amount=float(cache_hit_tokens))
+    if cache_miss_tokens is not None:
+        _safe_inc(LLM_CACHE_TOKENS, model=model, result="miss", amount=float(cache_miss_tokens))
 
 
 # ---------- 核赔埋点辅助（T090） ----------
@@ -271,6 +292,7 @@ __all__ = [
     "DECISION_AMOUNT",
     "GUARD_CORRECTIONS",
     "LLM_CALLS",
+    "LLM_CACHE_TOKENS",
     "LLM_LATENCY",
     "LLM_TOKENS",
     "ORCH_FALLBACK",

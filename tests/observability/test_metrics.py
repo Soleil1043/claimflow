@@ -57,6 +57,42 @@ def test_record_llm_call_without_tokens() -> None:
     )
 
 
+# ===== Prompt Caching 命中指标（T162）=====
+
+
+def test_record_llm_call_with_cache_tokens() -> None:
+    """cache_hit/miss 非 None 时按 hit/miss 分维记数（DeepSeek 非标字段透传）。"""
+    metrics.record_llm_call(
+        "deepseek-flash",
+        "success",
+        0.5,
+        prompt_tokens=100,
+        completion_tokens=50,
+        cache_hit_tokens=80,
+        cache_miss_tokens=20,
+    )
+    assert _counter_value(
+        "claimflow_llm_cache_tokens_total", model="deepseek-flash", result="hit"
+    ) >= 80.0
+    assert _counter_value(
+        "claimflow_llm_cache_tokens_total", model="deepseek-flash", result="miss"
+    ) >= 20.0
+
+
+def test_record_llm_call_cache_tokens_optional() -> None:
+    """cache 参数缺省（None）时不记缓存维度，也不报错——不臆造 0。"""
+    before_hit = _counter_value(
+        "claimflow_llm_cache_tokens_total", model="no-cache-model", result="hit"
+    )
+    metrics.record_llm_call("no-cache-model", "success", 0.1, prompt_tokens=10)
+    assert (
+        _counter_value(
+            "claimflow_llm_cache_tokens_total", model="no-cache-model", result="hit"
+        )
+        == before_hit
+    )
+
+
 # ===== 守卫层集成（T044）：工具三态 + 熔断埋点（metrics 经 GuardedTool 打点） =====
 
 
@@ -162,12 +198,94 @@ class _ErrorModel:
         raise RuntimeError("llm down")
 
 
+class _DeepSeekCacheModel:
+    """模拟 DeepSeek 非标字段路径：usage_metadata 丢弃缓存字段，
+    原始值经 response_metadata.token_usage 存活（T162 探针实测口径）。"""
+
+    model_name = "fake-deepseek-cache"
+
+    async def ainvoke(self, messages: Any, config: Any = None) -> Any:
+        return type(
+            "Resp",
+            (),
+            {
+                "content": "ok",
+                "usage_metadata": {"input_tokens": 100, "output_tokens": 50},
+                "response_metadata": {
+                    "token_usage": {
+                        "prompt_tokens": 100,
+                        "completion_tokens": 50,
+                        "prompt_cache_hit_tokens": 80,
+                        "prompt_cache_miss_tokens": 20,
+                    }
+                },
+            },
+        )()
+
+
+class _OpenAIStandardCacheModel:
+    """模拟 langchain 标准字段回退路径：input_token_details.cache_read（换供应商通路）。"""
+
+    model_name = "fake-openai-cache"
+
+    async def ainvoke(self, messages: Any, config: Any = None) -> Any:
+        return type(
+            "Resp",
+            (),
+            {
+                "content": "ok",
+                "usage_metadata": {
+                    "input_tokens": 100,
+                    "output_tokens": 50,
+                    "input_token_details": {"cache_read": 64},
+                },
+                "response_metadata": {},
+            },
+        )()
+
+
 async def test_observed_ainvoke_success() -> None:
     resp = await observed_ainvoke(_FakeModel(), [])  # type: ignore[arg-type]
     assert resp.content == "ok"
     assert _counter_value("claimflow_llm_calls_total", model="fake-llm", status="success") >= 1.0
     assert _counter_value("claimflow_llm_tokens_total", model="fake-llm", kind="prompt") >= 7.0
     assert _counter_value("claimflow_llm_tokens_total", model="fake-llm", kind="completion") >= 3.0
+
+
+async def test_observed_ainvoke_deepseek_cache_tokens() -> None:
+    """T162：DeepSeek 非标缓存字段从 response_metadata.token_usage 提取并埋点。"""
+    await observed_ainvoke(_DeepSeekCacheModel(), [])  # type: ignore[arg-type]
+    assert _counter_value(
+        "claimflow_llm_cache_tokens_total",
+        model="fake-deepseek-cache", result="hit",
+    ) >= 80.0
+    assert _counter_value(
+        "claimflow_llm_cache_tokens_total",
+        model="fake-deepseek-cache", result="miss",
+    ) >= 20.0
+
+
+async def test_observed_ainvoke_openai_standard_cache_fallback() -> None:
+    """T162：无 DeepSeek 非标字段时回退 langchain 标准 cache_read（hit 有、miss 无）。"""
+    await observed_ainvoke(_OpenAIStandardCacheModel(), [])  # type: ignore[arg-type]
+    assert _counter_value(
+        "claimflow_llm_cache_tokens_total",
+        model="fake-openai-cache", result="hit",
+    ) >= 64.0
+    assert (
+        _counter_value(
+            "claimflow_llm_cache_tokens_total", model="fake-openai-cache", result="miss"
+        )
+        == 0.0
+    )
+
+
+async def test_observed_ainvoke_no_cache_fields() -> None:
+    """T162：两路字段都没有（普通 fake）时不记缓存维度、不报错。"""
+    await observed_ainvoke(_FakeModel(), [])  # type: ignore[arg-type]
+    assert (
+        _counter_value("claimflow_llm_cache_tokens_total", model="fake-llm", result="hit") == 0.0
+    )
 
 
 async def test_observed_ainvoke_error_reraised() -> None:
