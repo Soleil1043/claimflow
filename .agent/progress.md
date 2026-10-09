@@ -2676,3 +2676,35 @@ test_cases.py 内部且后续无时间线断言），新文件 test_case_access.
 旧库 NULL 行仅坐席可读）；536 passed（528+8）+ ruff 绿 + chatui lint/build 绿；
 本地 dev 库已 stamp f3a7c2d9e4b1 → upgrade head（存量 dev 库须同法或删库重建，
 新库 create_all 自带新列）。
+
+## T172 · 门户限流：自研令牌桶（2026-10-09）
+
+**背景**：完善性评估建议 1b——鉴权收口后，POST /cases（每案触发 ≤15 次 LLM 调用
+的核赔管线）与客服消息端点（每条一次 LLM 应答）仍可被单 IP 无成本打满 LLM 配额。
+
+**方案**（D078）：
+- 令牌桶而非固定窗口：容量=每分钟配额（突发平滑），等待时间可精确计算直接进
+  `Retry-After`；自研不引 slowapi/fastapi-limiter（D052 口径，功能面百行内）
+- 双后端对齐 services/cache.py：prod Redis（Lua 脚本 HMGET→回填→扣减→HSET+EXPIRE
+  原子执行，时间源 Redis TIME 免多实例时钟漂移）/ dev 进程内存桶（check 全程无
+  await，事件循环内原子免锁）
+- 键 = scope + 客户端 IP；`RATE_LIMIT_TRUST_FORWARDED` 默认 False（直连场景
+  X-Forwarded-For 可伪造轮转键绕过，仅可信反向代理部署开启）
+- 配额 0 = 域不限流：负载测试服务器侧 `RATE_LIMIT_CASES_PER_MIN=0`（load_test
+  文档注明）；CI 冒烟提交量在默认配额内零影响
+- 拒绝计数 `claimflow_rate_limit_rejected_total{scope}` 进 Prometheus（T162 教训：
+  行为先埋指标）
+- 实现面：`services/ratelimit.py`（新，协议+两后端+门面+惰性单例）；
+  `dependencies.rate_limit(scope, setting)` 依赖工厂（调用时读 settings 字段，
+  monkeypatch 友好）；两端点 router 级 dependencies 挂接——限流先于参数校验与
+  路由逻辑
+
+**测试隔离坑**：限流单例内存桶按 IP 跨测试累积——不复位的话全套 POST /cases
+用例（30+ 次提交）会撞满默认 30/分钟配额集体 429。conftest 加 autouse
+`_reset_rate_limiter`（前后各复位一次）。
+
+**验收**：11 新用例全绿（单元：容量内放行/耗尽返回等待/时间回填/容量上限不透支/
+键隔离/0 配额豁免/域独立；API：第 3 案 429+Retry-After、0 配额 5 案全过、客服
+第 2 条 429 且首条 404 证明限流先于路由不触 LLM、案件配额打满不影响客服域）；
+547 passed（536+11）+ ruff 绿。Redis Lua 路径不单测（需真实 Redis，prod 冒烟覆盖，
+脚本语义与内存桶对齐）。

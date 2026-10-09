@@ -166,6 +166,15 @@ class Settings(BaseSettings):
     # 请求头 X-Staff-Key 携带 Key，校验通过后坐席身份由 Key 派生（忽略请求体自报）
     staff_keys: str = ""
 
+    # ===== 门户限流（T172，D078：自研令牌桶） =====
+    # 每分钟配额（按客户端 IP，容量=配额、按配额/60 每秒回填）；0 = 该域不限流
+    # （负载测试在服务器侧置 0 后压测）。prod Redis 共享桶 / dev 进程内存
+    rate_limit_cases_per_min: int = 30
+    rate_limit_support_per_min: int = 60
+    # 是否信任 X-Forwarded-For 首跳为真实客户端 IP：默认 False（直连场景该头
+    # 可伪造轮转键绕过限流）；仅确认前方有可信反向代理时开启
+    rate_limit_trust_forwarded: bool = False
+
     # ===== OTel 追踪（T039，D015 后置项） =====
     # 开关（默认关：不起 tracing 栈时零开销）；OTLP gRPC 上报地址；采样率 0.0-1.0
     otel_enabled: bool = False

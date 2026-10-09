@@ -3,9 +3,13 @@
 用法（服务需已启动；零 LLM 口径需**双开关**，消除编排与材料 AI 审查的网络往返）：
 
     ORCHESTRATOR_LLM_ENABLED=false MATERIAL_REVIEW_LLM_ENABLED=false \
-        LLM_API_KEY=sk-x uv run uvicorn app.main:app --port 8000
+        RATE_LIMIT_CASES_PER_MIN=0 LLM_API_KEY=sk-x \
+        uv run uvicorn app.main:app --port 8000
     uv run python scripts/load_test.py                     # 50 案 × 并发 10
     uv run python scripts/load_test.py --cases 100 --concurrency 20
+
+注意（T172）：压测流量远超门户限流默认配额（30 案/分钟/IP）——服务器侧须
+`RATE_LIMIT_CASES_PER_MIN=0` 关闭该域限流，否则提交会被 429 拦截。
 
 口径：
 - 案件体：零材料 + 时间戳 user_id（幂等键唯一）→ 零材料必然挂起

@@ -2046,3 +2046,34 @@ prompt 形态为 [短稳定前缀][每案唯一数据][静态规程]，DeepSeek 
    next/headers 可取的最低成本通道，path 级隔离避免多案互串
 5. 客服会话不改——conversation_id 本就是客户端持有的 uuid4 高熵 capability，
    与本案令牌同构，无需二次封装
+
+## D078 · 门户限流：自研令牌桶（Redis Lua 原子 + dev 内存），0 配额即豁免（T172，2026-10-09）
+
+**背景**：T147/D077 收口鉴权后，门户两个"重"端点仍可被滥用——POST /cases 每案
+触发整条核赔管线（调度预算 ≤15 次 LLM 调用），客服消息端点每条触发一次 LLM 应答；
+无限流时单 IP 可低成本打满 LLM 配额（完善性评估建议 1b）。
+
+**选项**：
+- A. 引 slowapi / fastapi-limiter ❌——D052 口径：官方/标准库能覆盖的不引第三方；
+  两库分别绑定 Starlette/Redis 生态，功能面（按 IP 令牌桶）自研百行内可覆盖
+- B. 固定窗口计数（Redis INCR+EXPIRE）❌——窗口边界可双倍突发，且不产出
+  Retry-After 精确值（只能给"窗口剩余时间"）
+- C. 令牌桶：容量=每分钟配额、按配额/60 每秒连续回填 ✅——突发语义平滑
+  （瞬时可打到容量、持续超频被限）；等待时间可精确计算直接进 Retry-After
+
+→ 选 C。Redis 侧用 Lua 脚本原子完成「回填+扣减+回写+TTL」（HMGET→算→HSET），
+时间源取 Redis TIME——多实例共享桶且不受应用实例间时钟漂移影响；dev 侧进程内存
+桶（check 全程无 await，事件循环内原子，免锁），与 services/cache.py 双后端模式
+对齐。
+
+**边界与配套决断**：
+1. **键 = scope + 客户端 IP**：默认 socket 对端地址；`RATE_LIMIT_TRUST_FORWARDED`
+   默认 False——直连场景 X-Forwarded-For 可伪造轮转键绕过限流，仅确认前方有可信
+   反向代理时开启（chatui Next rewrites 代理场景需评估后开启）
+2. **配额 0 = 该域不限流**：负载测试（T150，3.2-3.5 案/s）远超默认配额，服务器侧
+   置 `RATE_LIMIT_CASES_PER_MIN=0` 后压测（load_test 文档已注明）；CI 冒烟提交量
+   （<10 案）在默认配额内不受影响
+3. **拒绝可观测**：`claimflow_rate_limit_rejected_total{scope}` 进 Prometheus
+   （T162 教训：行为先埋指标，不留黑盒）
+4. 测试隔离：conftest autouse 复位限流单例——内存桶按 IP 跨测试累积，不复位会让
+   全套 POST /cases 用例撞满默认配额

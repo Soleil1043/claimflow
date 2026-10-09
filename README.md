@@ -273,6 +273,11 @@ uv run python -m evals.support_suite                            # 客服问答�
 > 不再下发）**或**有效 `X-Staff-Key`（坐席双通道）；chatui 前端以 path 级 cookie
 > 自动携带。dev 未配置 STAFF_KEYS 时沿坐席开放态放行（T147 兼容口径）。客服会话
 > 以客户端持有的 uuid4 会话 id 为能力凭证，无需额外令牌。
+>
+> 🚦 **门户限流**（T172，D078）：`POST /cases` 与客服消息端点按客户端 IP 令牌桶
+> 限流（默认 30 / 60 每分钟，超限 429 + `Retry-After`）；prod Redis 共享桶、dev
+> 进程内存；配额 0 = 不限流（负载测试在服务器侧置 `RATE_LIMIT_CASES_PER_MIN=0`
+> 后压测），拒绝计数进 Prometheus（`claimflow_rate_limit_rejected_total`）。
 
 ### HITL 工单
 

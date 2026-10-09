@@ -35,6 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import (
     get_case_dispatcher,
     get_db_session,
+    rate_limit,
     verify_case_access,
 )
 from app.core.config import settings
@@ -118,7 +119,12 @@ async def get_material_catalog() -> MaterialCatalogResponse:
     )
 
 
-@router.post("", response_model=CaseSubmitResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=CaseSubmitResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit("cases", "rate_limit_cases_per_min"))],
+)
 async def submit_case(
     body: CaseCreateRequest,
     response: Response,

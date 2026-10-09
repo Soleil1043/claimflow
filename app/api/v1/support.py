@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.api.dependencies import require_staff
+from app.api.dependencies import rate_limit, require_staff
 from app.core.exceptions import SupportStateError
 from app.core.logging import get_logger
 from schemas.api import (
@@ -97,6 +97,9 @@ async def list_conversation_messages(conversation_id: str) -> SupportMessageList
 @router.post(
     "/conversations/{conversation_id}/messages",
     response_model=SupportSendMessageResponse,
+    dependencies=[
+        Depends(rate_limit("support_messages", "rate_limit_support_per_min"))
+    ],
 )
 async def send_conversation_message(
     conversation_id: str, body: SupportSendMessageRequest

@@ -53,6 +53,13 @@ TOOL_CACHE_HITS = Counter(
     registry=registry,
 )
 
+RATE_LIMIT_REJECTED = Counter(
+    "claimflow_rate_limit_rejected_total",
+    "门户限流拒绝次数（T172）",
+    labelnames=["scope"],  # scope: cases | support_messages
+    registry=registry,
+)
+
 # ===== LLM 指标 =====
 
 LLM_CALLS = Counter(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import secrets
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
@@ -89,3 +90,29 @@ def verify_case_access(
     raise HTTPException(
         status_code=401, detail="无权访问该案件（需 X-Case-Token 或 X-Staff-Key）"
     )
+
+
+def rate_limit(scope: str, per_minute_setting: str):
+    """门户限流依赖工厂（T172，D078）：按客户端 IP 的令牌桶，超限 429。
+
+    - per_minute_setting 是 Settings 字段名（调用时读取，测试可 monkeypatch）
+    - 配额 0 = 该域不限流（负载测试口径）
+    - 429 携带 Retry-After（下次可用令牌的秒数，向上取整）
+    """
+
+    async def _enforce(request: Request) -> None:
+        from services.ratelimit import client_ip, get_rate_limiter, note_rejection
+
+        per_minute: int = getattr(settings, per_minute_setting)
+        limiter = await get_rate_limiter()
+        wait = await limiter.acquire(scope, client_ip(request), per_minute)
+        if wait is not None:
+            note_rejection(scope)
+            retry_after = max(1, math.ceil(wait))
+            raise HTTPException(
+                status_code=429,
+                detail="请求过于频繁，请稍后再试",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+    return _enforce

@@ -28,6 +28,17 @@ def _reset_graph_caches():
 
 
 @pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """隔离门户限流单例（T172）：内存桶按客户端 IP 跨测试累积，不重置会让
+    全套 POST /cases 用例撞满默认 30/分钟配额 429。"""
+    from services.ratelimit import reset_rate_limiter
+
+    reset_rate_limiter()
+    yield
+    reset_rate_limiter()
+
+
+@pytest.fixture(autouse=True)
 def _memory_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     """默认关闭长期记忆写路径（T034）。
 
