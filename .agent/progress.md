@@ -2838,3 +2838,28 @@ Python 无块级作用域，可行但依赖函数级作用域，已用注释锚�
 解析容错 / record 发币值指标且未知模型不记）；572 passed（567+5）+ ruff 绿；
 主门 153 确定性六门全绿（--limit 5 冒烟覆盖主报告后已全量重跑恢复基准）；
 评测报告 cost_cny 字段实测落盘。
+
+## T178 · 叙述质量 LLM judge × 人工抽评对账（2026-10-10）
+
+**背景**：完善性评估建议 5。现行 evals 无 LLM judge（v1 随 T112 删除，T139
+"人工口径先于 judge"），清单 3.6 考题"如何避免 judge 偏差"需要有实体的答案。
+决策 D084：judge 定位**观测层不进门禁**——人工 verdict 是金标准，judge×人工
+一致率本身是指标；未评审样本出 judge-only 低于阈值清单（扩大抽评覆盖的用途）。
+
+**改动**：NARRATIVE_JUDGE_PROMPT（rubric 三维 0-2 沿用 v1 T068 口径，全静态 +
+双 DATA 区纪律）；evals/narrative_judge.py（collect_samples 与抽评端点同源取数 /
+parse fail-safe / reconcile 对账数学）；scripts/judge_narrative.py CLI（需真实
+Key，不进 CI）；judge 调用经 phase_ainvoke(stage=narrative_judge) 自动进 T164
+观测与 T177 币值口径。
+
+**踩坑（rubric 校准，真实 Key 冒烟暴露）**：judge 以"叙述未提及核定金额"扣
+事实一致性分——但叙述不含金额是 DECISION_NARRATIVE_PROMPT 规则 2 的**设计约定**
+（金额由系统模板注入，叙述段禁金额）。rubric 不告诉 judge 业务约定，judge 就按
+通用标准误伤合规输出。修正：prompt 事实一致性维补"缺金额不是缺陷"校准说明，
+重跑一致率 1/1。教训：judge rubric 必须内嵌被评对象的**设计约定**，否则系统性
+偏置——这本身就是"如何避免 LLM-as-judge 偏差"的实操案例（偏差不止来自模型，
+还来自 rubric 与业务口径的错位）。
+
+**验证**：9 新用例（prompt 纪律/解析三态/采集映射与过滤/对账数学全套）；
+581 passed（572+9）+ ruff 绿；真实 Key 全链路冒烟（合成采样案 → judge 判分 →
+对账报告 → 数据清理）；冒烟报告留档 t178_judge_reconciliation.json。

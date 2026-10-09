@@ -13,6 +13,7 @@
 | `adjudication_metrics.py` | 判分：路由一致 / 金额 Decimal / 责任 / 调度序列 |
 | `redteam.py` | 红队变异器：12 类变异（分类法对齐 Garak promptinject / PyRIT converters-attacks，**带 framework_ref 溯源**——自研不引框架本体，探测对象语义错位 + 依赖重，T159；T173 增 material_embedding 家族：载荷植入材料提取字段，攻击上传文档通道） |
 | `badcase_export.py` | Badcase 回流核心（T174，D080）：扫描决定书版本链「auto 草稿→agent 改判」差异案 → 候选（期望=坐席终局决议）→ 人工 triage → 独立回归集（REG-xxx，幂等并入；CLI 见 scripts/export_badcase_cases.py） |
+| `narrative_judge.py` | 叙述质量 judge × 人工抽评对账（T178，D084）：rubric 三维 0-2（事实一致/完整/合规，≥4 过），人工 verdict 为金标准算一致率，judge-only 出低于阈值清单——观测层不进门禁（CLI 见 scripts/judge_narrative.py） |
 | `single_agent_baseline.py` | 单 Agent 消融运行器（create_agent 单体 + 全工具集 + 结构化输出，与多 Agent 同口径判分，T160） |
 | `rag_metrics.py` | RAGAS 四指标自实现（context_precision/recall、faithfulness、answer_relevancy）+ Recall@K / MRR（T161） |
 | `schemas.py` | Adjudication* / SingleAgentOutput 数据模型 |
@@ -52,6 +53,7 @@ uv run python scripts/eval_rag.py                                  # RAG Recall@
 | 单 Agent 消融（T160） | 多 Agent 88.9% vs 单 Agent 60.8%；金额硬门失守 88.9%；token +70% |
 | RAG（T161） | Recall@1=54% / @2=79% / @4=96% / @8=100%；MRR 0.724；RAGAS CP 0.868 / CR 0.806 / FA 0.929 / AR 0.909 |
 | 调度成本 | 7,659 tokens/案，4.4 次 LLM 调用/案 |
+| 叙述 judge×人工对账（T178） | 观测层非门禁：一致率按案比较（人工=金标准）；冒烟 1/1（样本积累后重跑） |
 
 失败集 0。历史报告在 `reports/`（v1 时期已归档 `reports/archive/`），
 红队证据归档 `reports/t159_redteam_evidence.md`，消融报告 `reports/t160_ablation_report.md`。

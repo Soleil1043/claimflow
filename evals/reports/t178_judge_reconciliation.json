@@ -1,0 +1,29 @@
+{
+  "task": "T178 叙述质量 LLM judge × 人工抽评对账（D084：观测层，不进门禁）",
+  "generated_at": "2026-10-10T01:58:31",
+  "model": "deepseek-flash",
+  "rubric": {
+    "dimensions": [
+      "fact_consistency",
+      "completeness",
+      "compliance"
+    ],
+    "scale": "0-2",
+    "pass": "total>=4"
+  },
+  "variance_note": "温度 0 单次判分仍有方差（RAGAS 自实现同款口径）；一致率按案比较（pass/pass）不逐分比较，容忍 ±1 分抖动",
+  "judged": 1,
+  "errors": 0,
+  "reconciliation": {
+    "judged_with_human": 1,
+    "agreed": 1,
+    "agreement_rate": 1.0,
+    "disagreements": []
+  },
+  "judge_only": {
+    "count": 0,
+    "distribution": {},
+    "below_threshold": []
+  },
+  "error_details": []
+}
