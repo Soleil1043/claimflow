@@ -64,11 +64,14 @@
 | 路由一致率（软门） | **100%**（门禁 ≥95%） | 与金样本期望派发序列一致 |
 | 责任认定一致率（软门） | **100%**（门禁 ≥90%） | 确定性前置 + ReAct + 关键词兜底三层口径 |
 | 调度预算 | 5 ≤ 15/案件 | orchestrator 防绕圈预算（D039） |
-| 对抗集（硬门） | **14/14** | 注入/诱导 8 条 + 同义词鲁棒性 6 条，确定性与 LLM 双模式全绿（T142） |
+| 对抗集 injection（硬门） | **8/8** | 注入/诱导/PII 8 条，确定性与 LLM 双模式全绿；T159 起从原 14 案拆出，关键词路径最易对 fixture 过拟合的部分移入 hold-out 盲测 |
+| 对抗集 hold-out（硬门） | **30/30** | robustness 6 seed + 24 条红队变体（8 seed × 10 变异器，framework_ref 溯源 Garak/PyRIT），不进 push CI 走 nightly 盲测（T159） |
 
 - LLM 模式全量：153/153 = **100%** 六门全绿（deepseek-flash 真实调度，T130）
-- 调度成本实测：**7,075.8 tokens/案**，延迟 6.22s/案（p95 7.68s）vs 确定性 0.25s
-- 单元与集成测试：**444 passed**（图结构断言 / 守卫注入 100% 拦截 / interrupt 跨重启恢复 / checkpoint 版本降级重跑）
+- 调度成本实测：**7,659 tokens/案**，4.4 次 LLM 调用/案 vs 确定性 0.25s
+- 单元与集成测试：**528 passed**（图结构断言 / 守卫注入 100% 拦截 / interrupt 跨重启恢复 / checkpoint 版本降级重跑）
+- **单Agent 消融对照**（T160）：多 Agent 88.9%（136/153，硬门三件全绿）vs 单 Agent 60.8%（93/153，金额硬门失守 88.9%），token 反向 +70%——量化证明 Orchestrator-Worker 拆分的必要性
+- **RAG 评测**（T161，责任认定阶段）：Recall@1=54% / @2=79% / @4=96% / @8=100%，MRR 0.724；RAGAS 四指标 CP=0.868 / CR=0.806 / FA=0.929 / AR=0.909
 
 ---
 
@@ -86,8 +89,9 @@
 | 在线客服（T132-T137） | 门户悬浮 AI 助手（RAG 问答 / 案件进度查询 / 报案链接预填）+ 转人工坐席闭环（escalated 状态机 + workbench 客服工单） |
 | 申请人记忆治理（T138） | 终态确定性渲染写入，置信度门控（< 0.6 不写）+ 应用层 TTL + 坐席删除链路 |
 | 决定书叙述抽评（T139） | 5% 确定性采样人工质检（种子 = case_id 可复算），workbench 抽评队列 + 通过率统计 |
-| 对抗回归门（T124/T142） | 注入 / 诱导 / PII / 同义词鲁棒性 14 案独立数据集，与主门同进 CI 门禁 |
-| 全链路可观测 | Prometheus/Grafana 8 面板（结案率 / 阶段 P95 / 调度健康 / 守卫纠错）+ OTel/Jaeger |
+| 对抗回归门（T124/T142/T159） | injection 8 案守 push CI + robustness 6 seed / 24 变体入 hold-out 盲测集（关键词路径最易过拟合，恰需盲测）；变体分类法对齐 Garak promptinject / PyRIT converters-attacks，带 framework_ref 溯源 |
+| **Prompt 缓存观测（T162/T164/T165）** | DeepSeek 硬盘缓存默认开启但此前是黑盒——三来源提取非标字段（`response_metadata.token_usage` / langchain 标准字段回退）+ **stage 维度分列**（区分「布局缺陷」与「天然 miss」）+ 布局改造使路由命中率 **0% → 86.8%** |
+| 全链路可观测 | Prometheus/Grafana **14 面板**（结案率 / 阶段 P95 / 调度健康 / 守卫纠错 / **Prompt 缓存命中率按调用点**）+ OTel/Jaeger（span 含单调用 `cache_read/miss_tokens` 原值，采样率 0.2） |
 
 ---
 
@@ -158,13 +162,21 @@ docker compose up -d && curl http://localhost:8000/health   # → {"status":"ok"
 ### 5.3 验证与测试
 
 ```bash
-uv run pytest -q                                   # 444 用例
+uv run pytest -q                                   # 528 用例
 uv run ruff check .
 uv run python -m evals.adjudication_suite          # 金样本评测门（确定性，零 LLM）
+uv run python -m evals.adjudication_suite --dataset adversarial          # 注入硬门（8 案）
+uv run python -m evals.adjudication_suite --dataset adversarial_holdout # 红队 hold-out盲测（30 案）
+uv run python -m evals.adjudication_suite --llm --limit 30 --concurrency 3  # LLM 档分片
+uv run python -m evals.single_agent_baseline       # 单 Agent 消融对照（T160）
+uv run python -m evals.rag_metrics --help          # RAG Recall@K + RAGAS 四指标（T161）
+uv run python -m scripts.redteam_adversarial --probe  # 红队变体实跑判定（T159）
 uv run python -m scripts.verify_adjudication --offline   # 离线兜底档（零 API Key）
 uv run python -m scripts.verify_multiinstance --boot --offline   # 双实例 live 冒烟（自起 8010/8011，跨实例补件恢复）
 uv run python -m scripts.verify_adjudication             # 完整档（需真 Key：自动签发+金额+决定书）
 uv run python scripts/smoke_support_e2e.py         # 客服全链路冒烟（需真 Key + dev 栈）
+uv run python scripts/measure_cache_hit_rate.py     # Prompt 缓存真实命中率实测（需真 Key）
+uv run python scripts/probe_deepseek_cache_usage.py # 缓存字段存活探针（全 mock，免 Key）
 ```
 
 冒烟脚本走真实链路：现场生成 Word 材料 → 提取 → 自动签发/补件闭环/未上线险种
@@ -185,8 +197,8 @@ CI 默认跑离线档（不需要任何 secret）；仓库配了 `LLM_API_KEY` s
 
 | 组件                           | 启动 | 入口 |
 |--------------------------------|------|------|
-| 监控栈（Prometheus + Grafana） | `docker compose --profile monitoring up -d` | Grafana `:3000`，自动加载核赔 8 面板：自动结案率 / 转人工率 / 调度调用 / 守卫纠错 / 阶段耗时 P95 / 端到端耗时 / 案件量 / 核定金额 |
-| 追踪栈（OTel + Jaeger）        | `docker compose --profile tracing up -d`<br>`.env` 设 `OTEL_ENABLED=true` | Jaeger UI `:16686` |
+| 监控栈（Prometheus + Grafana） | `docker compose --profile monitoring up -d` | Prometheus `:9090`（TSDB 保留 30d）、Grafana `:3000`。两个仪表盘共 14 面板——核赔 8（自动结案率 / 转人工率 / 调度调用 / 守卫纠错 / 阶段耗时 P95 / 端到端耗时 / 案件量 / 核定金额）+ 监控总览 6（工具成功率 / 转接率 / 合规三态 / P95 时延 / 工具与 LLM 调用量 / **Prompt 缓存命中率按调用点**） |
+| 追踪栈（OTel + Jaeger）        | `docker compose --profile tracing up -d`<br>`.env` 设 `OTEL_ENABLED=true` | Jaeger UI `:16686`，span 含单调用 `gen_ai.usage.cache_read/miss_tokens` 原值（采样率 0.2） |
 | 坐席工作台（HITL + 客服）      | `cd workbench && npm install && npm run dev` | `:5173` 核赔工单列表 + 详情（审计时间线 / 决定书版本卡 / 签批改判表单）+ 客服工单（transcript / 回复 / 关闭）+ 叙述抽评审队列 |
 | 案件提交门户                   | `cd chatui && npm install && npm run dev` | `:3000` 提交 + 进度时间线 + 决定书查看 + 补件上传 + 悬浮 AI 客服（问答 / 查进度 / 转人工） |
 
@@ -200,17 +212,34 @@ CI 默认跑离线档（不需要任何 secret）；仓库配了 `LLM_API_KEY` s
 24 手工底座）：正常签发 / 拒赔 / 部分责任 / 风控 / 边界 / 缺件 / 受理分类七类覆盖，
 医疗/车险/财产险/意外险四线，期望金额按规格公式精确到分。
 
-**对抗回归集 14 案**（`evals/datasets/adjudication_adversarial.json`）：注入 / 角色伪装 /
-虚构免责 / 红线诱导 / PII 诱导 / 施压翻转 / 事实伪造 / 字段注入 8 条 + 除外同义词
-鲁棒性 6 条——独立数据集不污染主基线，与主门同进 CI。
+**对抗回归集拆两份**（T159）：
+
+| 数据集 | 规模 | 内容 | 门禁位置 |
+|---|---|---|---|
+| `adjudication_adversarial.json` | **8 案** | 注入 / 角色伪装 / 虚构免责 / 红线诱导 / PII 诱导 / 施压翻转 / 事实伪造 / 字段注入 | **push CI 硬门** |
+| `adjudication_adversarial_holdout.json` | **30 案** | robustness 6 seed + 24 条红队变体（8 seed × 10 变异器） | nightly 盲测（周期跑，不进 push） |
+
+拆分理由：同义词鲁棒性走关键词路径，**最易对 fixture 过拟合**——留在 push CI 里
+会给"过了"一个假信号。盲测集才反映真实泛化。变体分类法对齐 Garak promptinject /
+PyRIT converters-attacks，`evals/redteam.py` 带 `framework_ref` 溯源字段。
 
 ```bash
-uv run python -m evals.adjudication_suite                       # 主门 153 案（确定性，零 LLM）
+uv run python -m evals.adjudication_suite# 主门 153 案（确定性，零 LLM）
 uv run python -m evals.adjudication_suite --llm                 # LLM Orchestrator 全链（真实 LLM）
-uv run python -m evals.adjudication_suite --dataset adversarial # 对抗门 14 案
+uv run python -m evals.adjudication_suite --dataset adversarial # 注入硬门 8 案
+uv run python -m evals.adjudication_suite --dataset adversarial_holdout  # 盲测 30 案
+uv run python -m evals.adjudication_suite --llm --concurrency 3 --limit 30  # LLM 档分片
 uv run python -m evals.adjudication_suite --limit 20            # 子集冒烟（CI 即此口径）
 uv run python -m evals.support_suite                            # 客服问答门 15 案（真实 LLM，T146）
 ```
+
+**消融与RAG 评测**（面试证据三件套）：
+
+| 实验 | 命令 | 结论 |
+|---|---|---|
+| 单 Agent 基线（T160） | `uv run python -m evals.single_agent_baseline` | 多 Agent 88.9% vs 单 Agent 60.8%，金额硬门失守 88.9%；token +70% |
+| RAG 质量（T161） | `uv run python scripts/eval_rag.py` | Recall@4=96%、MRR 0.724；RAGAS 四指标 0.806~0.929 |
+| 红队变体（T159） | `uv run python -m scripts.redteam_adversarial --probe` | 8 条注入变体全部被结构化字段纪律 + 守卫 + 合规门守住 |
 
 **六门体系**：硬门（金额正确率 100% / 红线漏放 0 / 守卫旁路 0 / 对抗集全过）+
 软门（路由一致率 ≥95% / 责任一致率 ≥90%）+ 预算（调度调用 ≤15）。门禁阈值与运行时

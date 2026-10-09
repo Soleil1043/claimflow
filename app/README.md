@@ -18,7 +18,7 @@ app/
 │       └── health.py         # /health 依赖状态 + /metrics
 └── core/
     ├── config.py        # pydantic-settings，全部从 .env 读取（APP_PROFILE 切 dev/prod）
-    ├── logging.py       # structlog JSON 结构化日志
+    ├── logging.py       # structlog 结构化日志（prod 走 JSONRenderer→stdout）
     ├── eventloop.py     # 事件循环守卫（防同步阻塞）
     └── exceptions.py    # 异常层级与 HTTP 映射
 ```
@@ -28,4 +28,8 @@ app/
 - 案件提交为**受理即返回**：建档 + 入交付队列（`services/case_jobs.py`），
   前端轮询终态；小数据量 inline 直驱双档；
 - 材料上传：两段式提取（图片/PDF/Word），补件挂起时自动恢复流程；
+- `/metrics` 由 prometheus-fastapi-instrumentator + `make_asgi_app` 双路径暴露，
+  读全局 `REGISTRY`（`services/observability/metrics.py`）；
+- 日志走 `StreamHandler` → **stdout，不落文件**——容器重建即丢，需要事后回溯
+  须另配 logging driver（当前未配）；
 - 接口口径见根 README §8；API 模型在 `schemas/api.py`。

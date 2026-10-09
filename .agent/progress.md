@@ -2540,3 +2540,43 @@ scripts/eval_rag.py 运行器（并发 4，报告 json+md 双落盘）。
 - 采样率 0.2 实测合理：20 条 trace 里 LLM span 7 个，够定位异常路径又不淹没存储
 
 验收：528 passed + ruff 绿；verify_adjudication 端到端 23/0；retention.time=30d 生效
+
+---
+
+## T167/T168 · README 全量 + architecture.md 刷新（2026-10-09）
+
+**做了什么**：15 份README/设计文档全量同步到 T166 现状（+413 行 / -76 行）
+
+**修正的过期数字**（全部实测验算，非推断）：
+
+| 位置 | 旧 | 新 | 依据 |
+|---|---|---|---|
+| 主 README + architecture | 444 passed | **528 passed** | 实跑 |
+| 主 README + grafana README | Grafana 8 面板 | **14 面板**（核赔 8 + 总览 6） | Grafana API 确认 |
+| 主 README + evals + architecture | 对抗集 14/14 | **injection 8/8 + hold-out 30/30** | 数据集文件实数 |
+| 主 README + architecture | 7,075.8 tokens/案 | **7,659 tokens/案**，4.4 次 LLM 调用/案 | 评测报告落盘数据 |
+| architecture 头 | D001-D065 | **D001-D076** | decisions.md 实数 |
+
+**新增内容**（此前完全缺失）：
+
+- **Prompt 缓存观测链**（T162-T166）：三来源提取 + 结构化输出的回调分支 +
+  create_agent 子图观测 + **stage 维度的价值论证**（区分「布局缺陷」与「天然 miss」）；
+  布局改造前后实测对照表（orchestrator 0%→86.8%，ocr 0% 标注为非缺陷）
+- **Prompt 布局约定**（写入 services/nodes/skills 三处README + architecture §5）：
+  规程进 system（逐字稳定）、案件数据进 user message + `<<<DATA…>>>DATA` 定界——
+  这条约束不写下来，下一个人往 base prompt 插动态占位符就会把命中率打回零
+- **对抗集拆分理由**（evals + architecture + 主 README）：同义词路径最易对fixture
+  过拟合，留在 push CI 会给假信号
+- **消融与 RAG 实测数字**（T160/T161）：88.9% vs 60.8%、Recall@4=96%、RAGAS 四指标
+- **Prometheus v3 保留期坑**（prometheus/README）：配置文件三种写法全部失败、
+  只能走 command flag；`max-samples-per-query` v3.1 不存在
+- **OTel 采样率与 span 结构**（otelcol/README）：含 cache_read/miss 原值只在 Jaeger
+  可查（Counter 已聚合）
+- **T153 队列三分**（services/README）：case_jobs 生产半区 / case_job_worker 消费半区
+  / case_resume_guard
+- **测试重点面**（tests/README）：结构化输出分支判据为何用「是否自带模型身份属性」
+  而非 isinstance（测试替身同为非 BaseChatModel 但直返 AIMessage）
+- **日志不持久化的现状**（app/README + architecture §13.4）：stdout JSON，
+  容器重建即丢，需要回溯须另配 logging driver——把已知短板写进文档而非留白
+
+验收：528 passed + ruff 绿零退化

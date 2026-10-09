@@ -3,7 +3,7 @@
 > 本文是保险理赔智能核赔平台的架构总览，与工程版设计文档
 > [`claimflow-新架构设计.md`](claimflow-新架构设计.md) 互补：设计文档讲"为什么这样设计"，
 > 本文讲"现在系统长什么样"。统一语言见 [`../CONTEXT.md`](../CONTEXT.md)，
-> 全部技术决策链见 [`../.agent/decisions.md`](../.agent/decisions.md)（D001-D065）。
+> 全部技术决策链见 [`../.agent/decisions.md`](../.agent/decisions.md)（D001-D076）。
 
 ---
 
@@ -160,6 +160,18 @@ human_gate ── Command(resume)：补件/签批/改判/升级 ──→ END
 `skills/<stage>/_shared.md` → 代码内置 base prompt 三级回退。SOP 装配进 system
 prompt，是人工调优面——准确率迭代改文本不改代码。
 
+**Prompt 布局约束**（T165）：`build_system_prompt` 产出的 system 必须**全静态逐字
+稳定**——同一 stage×line 内任何动态数据（案件快照 / 材料提取结果 / 理算事实）都不
+进 system，一律走 user message + `<<<DATA…>>>DATA` 定界。原因见§13.3：DeepSeek
+前缀缓存的分叉点决定命中率，动态数据插在中间会把它之后全部推出缓存窗口。
+这条约束与 skill 文本的"可含任意大括号"约定不冲突（先 format 再拼 skill 的顺序
+保留，只是不再对 base prompt 填动态占位符）。
+
+**Worker 调用观测**（T164）：create_agent 子图内部 LLM 调用不经 `observed_ainvoke`，
+经 `config.callbacks` 传播的 `LlmUsageCallbackHandler` 观测——langgraph 会把
+callbacks 传播到节点内 chat model（真实模型实测，假模型探针因 tool_call 无限
+循环不可用）。
+
 ## 6. 险种 pack
 
 `schemas/lines.py`：一份 `InsuranceLinePack` = 一个险种的全部声明式知识——
@@ -267,15 +279,73 @@ dev 用 InMemorySaver/InMemoryStore。JSONB 在 SQLite dev 自动降级 JSON，
 
 ## 13. 可观测性
 
-- **Prometheus 指标**（`services/observability/metrics.py`）：核赔业务组——
-  CASES_TOTAL{case_type, final_status}（自动结案率/转人工率推导）、
-  CASE_STAGE_LATENCY{stage}、ROUTING_CALLS、GUARD_CORRECTIONS、ORCH_FALLBACK、
-  CASE_TOKENS（7,075.8/案实测）、DECISION_AMOUNT 等；
-- **Grafana**：`grafana/claimflow-adjudication.json` 8 面板（自动结案率 / 转人工率 /
-  调度调用 / 调度健康 / 阶段 P95 / 端到端 / 案件量 / 核定金额）；
-- **OTel/Jaeger**（T039 + T128）：trace_id 贯穿交付 → 阶段 → LLM 三层 span；
-  OTel 关闭时 noop tracer 零开销；
-- **结构化日志**：structlog JSON。
+### 13.1 三层埋点
+
+| 层 | 实现 | 落点 | 粒度 |
+|---|---|---|---|
+| 指标 | `services/observability/metrics.py`（全量自定义指标定义） | Prometheus TSDB（保留 30d） | 聚合 |
+| 追踪 | `services/observability/tracing.py`（OTel → Jaeger） | Jaeger（`:16686`） | 单次调用 |
+| 日志 | `app/core/logging.py`（structlog） | stdout（**不落文件**） | 每事件 |
+
+### 13.2 LLM 调用观测（T162-T165）
+
+`llm_metrics.observed_ainvoke` 是全部 LLM 调用的统一入口，产出一条 `llm.<model>` span
++ 一次埋点：
+
+- **Prompt 缓存指标** `LLM_CACHE_TOKENS{model, stage, result}`：DeepSeek 硬盘缓存
+  默认开启（命中价 1/10），但命中情况此前是黑盒。
+- **三来源提取**（`_extract_cache_usage`）——DeepSeek 用的是**非标字段**，
+  langchain 的 `usage_metadata` 只映射标准字段会丢弃它们：
+  1. `response_metadata["token_usage"]`——OpenAI SDK 原始 usage dict，
+     `prompt_cache_hit_tokens`/`prompt_cache_miss_tokens` 在此存活（探针实测）；
+  2. `usage_metadata["input_token_details"]["cache_read"]`——langchain 标准映射
+     （换供应商通路，DeepSeek 不返回该标准字段）；
+  3. 都没有 → 不记该维度（不臆造 0）。
+- **结构化输出的特殊情况**：`with_structured_output` 返回**纯 Pydantic 对象**，
+  不带 `usage_metadata`/`response_metadata`——usage 只能经
+  `LlmUsageCallbackHandler.on_llm_end` 的 `llm_output` 取。因此 `observed_ainvoke`
+  对「自身不带模型身份属性」的 Runnable 自动挂 handler，用量由 handler 记，
+  主函数只补 span 属性，避免重复计数。
+- **create_agent 子图**：worker_agent 装配的 CompiledStateGraph 内部 LLM 调用
+  不经 `observed_ainvoke`，经 `config.callbacks` 传播的 handler 观测
+  （实测 langgraph 会把 callbacks 传播到节点内 chat model）。
+- **stage 维度**：`stage` 由 `token_tracker.current_phase()` 上下文携带
+  （`phase_ainvoke` 标注）或 handler 显式传入。**这个维度是评估收益的前提**——
+  没有它就无法区分「布局缺陷」与「天然 miss」（见§13.3）。
+
+### 13.3 Prompt 布局与缓存命中率（T165）
+
+DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其后全部 miss。
+若动态数据（案件快照 / 材料提取结果 / 理算事实）写在 system 内，分叉点恰落在唯一
+数据开头，命中率归零。改法是 `SystemMessage`（全静态）+ `HumanMessage`（动态数据
++ `<<<DATA…>>>DATA` 定界）双消息——顺带强化了注入防线（system=指令区、user=数据区）。
+
+实测（真实 API，三轮不同快照）：
+
+| 调用点 | 改造前 | 改造后 | 说明 |
+|---|---|---|---|
+| orchestrator | 0% | **86.8%** | 布局缺陷，已修 |
+| liability_judge | — | 73~89% | system 本就纯静态 |
+| material_review | 0% | **75~82%** | 布局缺陷，已修 |
+| decision_writer | 0% | **59.5%** | 布局缺陷，已修 |
+| ocr 材料提取 | 0% | 0% | **prompt 主体即唯一文档，天然 miss，非缺陷** |
+
+整体（Grafana 实测）：**82.4%**。
+
+### 13.4 其他
+
+- 核赔业务指标：CASES_TOTAL{case_type, final_status}、CASE_STAGE_LATENCY{stage}、
+  ROUTING_CALLS、GUARD_CORRECTIONS、ORCH_FALLBACK、CASE_TOKENS、DECISION_AMOUNT、
+  CASE_JOBS_QUEUE_DEPTH（T154） 等；
+- **Grafana**（T163/T164）：两个仪表盘共 **14 面板**——核赔 8 + 服务总览 6
+  （含 4 个 Prompt 缓存面板）；
+- **OTel采样率 0.2**（T166，此前 1.0 全采样）：全采样下每请求数十 span，
+  磁盘与 CPU 均需付账；排障只需 trace_id 级定位单次调用；
+- **Prometheus 保留期 30d**（T166）：v3 已把 TSDB 保留期移出配置文件
+  （三种写法均报 `field not found in type config.plain`），
+  只能走 `command: --storage.tsdb.retention.time=30d`；
+- OTel 关闭时 noop tracer 零开销零侵入；
+- 日志为 stdout JSON，**容器重建即丢**——需要事后回溯须另配 logging driver。
 
 ## 14. 评测体系
 
@@ -284,9 +354,17 @@ dev 用 InMemorySaver/InMemoryStore。JSONB 在 SQLite dev 自动降级 JSON，
 
 - **主门 153 案**（`datasets/adjudication.json`）：七类覆盖 × 四险种，
   期望金额按规格公式精确到分；确定性模式零 LLM，`--llm` 走真实调度；
-- **对抗门 14 案**（`datasets/adjudication_adversarial.json`，`--dataset adversarial`）：
-  injection 8（注入/角色伪装/虚构免责/红线诱导/PII 诱导/施压翻转/事实伪造/字段注入）
-  + robustness 6（除外同义词），双 tier 均为硬门（T142 升级）；
+- **对抗集拆两份**（T159，`--dataset adversarial` / `adversarial_holdout`）：
+
+  | 数据集 | 规模 | 内容 | 门禁位置 |
+  |---|---|---|---|
+  | `adjudication_adversarial.json` | 8 | injection 8（注入/角色伪装/虚构免责/红线诱导/PII/施压/伪造/字段注入） | **push CI 硬门** |
+  | `adjudication_adversarial_holdout.json` | 30 | robustness 6 seed + 24 红队变体 | **nightly 盲测** |
+
+  拆分理由：同义词鲁棒性走关键词路径，**最易对fixture 过拟合**——留在 push CI 里
+  会给"过了"一个假信号。`evals/redteam.py` 变异器分类法对齐 Garak promptinject /
+  PyRIT converters-attacks，带 `framework_ref` 溯源（自研不引框架本体：探测对象
+  语义错位 + 依赖重）；
 - **六门**：金额 100% / 红线 0 / 守卫旁路 0 / 对抗全过（硬）+ 路由 ≥95% /
   责任 ≥90%（软）+ 调度 ≤15（预算）；阈值与运行时同源 `schemas/contract.py`；
 - **客服问答门**（T146/D066，`support_suite.py` + `datasets/support_qa.json`
@@ -294,10 +372,29 @@ dev 用 InMemorySaver/InMemoryStore。JSONB 在 SQLite dev 自动降级 JSON，
   终态三层确定性判分，硬门 100%；检索命中率为分层观测（Agent 会改写检索词，
   原问题直检口径仅观测）。客服无确定性路径 → 需真 Key，本地手动门；CI 进
   其 schema 校验与判分单测；
-- **当前基线**：确定性 153/153 全绿、LLM 模式 153/153 全绿、对抗门 14/14 双模式
-  全绿、客服门 15/15（连续两轮）、失败集 0；
+- **单 Agent 消融**（T160，`evals/single_agent_baseline.py`）：同 153 案对比
+  Orchestrator-Worker vs 单 Agent，量化证明拆分的必要性——
+
+  | 项 | 多 Agent | 单 Agent |
+  |---|---|---|
+  | 一致率 | **88.9%**（136/153） | 60.8%（93/153） |
+  | 金额硬门 | 失守 0 | **失守 88.9%** |
+  | tokens/案 | 13.7k | 23.3k（+70%） |
+
+  多 Agent 的 17 例失败全部为责任置信度 0.72< floor 0.8 按设计转人工（fail-safe）；
+  单 Agent 双向失守：partial 理算 17/17 全灭 + 27 例错误 auto（无前置守卫/置信度门）
+  + 12 例漏转补件；
+- **RAG 评测**（T161，`evals/rag_metrics.py` + `scripts/eval_rag.py`）：
+  责任认定阶段 QA 24 对（gold = source_file + 标记子串，单测逐字校验）：
+  Recall@1=54% / @2=79% / @4=96% / @8=100%，MRR 0.724；
+  RAGAS 四指标自实现（CP 0.868 / CR 0.806 / FA 0.929 / AR 0.909，deepseek 判分 +
+  BGE-M3 反向问题嵌入，算法口径对齐官方定义）——自研而非引 `ragas` 包：
+  dry-run 实测引入需 huggingface-hub 跨大版本漂移 + 20+ 新包，评估后维持自实现；
+- **当前基线**：确定性 153/153 全绿、LLM 模式 153/153 全绿、注入门 8/8双模式全绿、
+  hold-out 30/30 全绿、客服门 15/15、失败集 0；单测 **528 passed**；
 - **CI 门禁**：eval-gate 跑确定性全量（零 secret）；docker job compose 全栈 +
-  冒烟双档（无 secret → `--offline` 离线兜底档 22 项；有 secret → 完整档 23 项）。
+  冒烟双档（无 secret → `--offline` 离线兜底档 22 项；有 secret → 完整档 23 项）
+  + 多实例阶段（`--scale app=2`，T156）；nightly-llm 加 hold-out 盲测档。
 
 ## 15. 配置 / Profile / 部署
 
@@ -310,7 +407,7 @@ dev 用 InMemorySaver/InMemoryStore。JSONB 在 SQLite dev 自动降级 JSON，
   `--profile tracing`（OTel Collector + Jaeger）；
 - **LLM**：OpenAI 兼容接口配置切换，当前 deepseek-flash（T130/D056，
   原生多模态兼 vision）；
-- **CI**：ruff + pytest（444 用例）+ eval-gate + docker 冒烟（双档）。
+- **CI**：ruff + pytest（528 用例）+ eval-gate + docker 冒烟（双档）+ 多实例阶段。
 
 ## 16. 关键决策索引
 
@@ -332,3 +429,8 @@ dev 用 InMemorySaver/InMemoryStore。JSONB 在 SQLite dev 自动降级 JSON，
 | D064/D065 | 冒烟进 CI 双档（secret 可选，默认离线零依赖） |
 | D066-D070 | Grafana 告警 / 负载测试 / 夜间 LLM 门 / 覆盖率基线（D070 批次） |
 | D071 | 多实例横向扩展：租约队列 + dev 共享 SQLite checkpoint + 案件号计数行 |
+| D072 | 双实例 live 冒烟脚本化进 CI（`--scale app=2` 阶段） |
+| D073 | 红队变异器自研不引框架本体（Garak/PyRIT 探测对象语义错位 + 依赖重），分类法对齐 + `framework_ref` 溯源 |
+| D074 | 单 Agent 消融口径（`--llm` 仅 LLM 调度，须 `--llm-workers` 补齐与生产同构） |
+| D075 | RAGAS 四指标自实现（引包 dry-run 实锤 huggingface-hub 跨大版本漂移 + 20+ 新包） |
+| D076 | Prompt 缓存修复分层：先 T164 观测补全拿基线，再 T165 布局改造；create_agent 子图用回调 handler 而非 ObservableChatModel 代理 |
