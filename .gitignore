@@ -27,6 +27,10 @@ data/qdrant/
 
 # SQLite 开发库（dev profile 本地文件）
 data/*.db
+# LangGraph dev 共享 checkpoint（T155：CHECKPOINT_BACKEND=sqlite 时生成，
+# 多实例 dev 共享同一 data 目录——运行时代产物，不入库）
+data/*.sqlite
+data/*.sqlite-*
 
 # BGE-M3 模型缓存（如放本地）
 models/
@@ -48,3 +52,4 @@ tests/exercises/
 
 # 面试相关
 docs/resume/
+docs/interview/
