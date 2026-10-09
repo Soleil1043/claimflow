@@ -15,6 +15,15 @@ from typing import Any
 
 from pydantic import Field
 
+from app.core.pii import (
+    BANK_CARD_RE as _BANK_CARD_RE,
+)
+from app.core.pii import (
+    ID_CARD_RE as _ID_CARD_RE,
+)
+from app.core.pii import (
+    PHONE_RE as _PHONE_RE,
+)
 from schemas.tools import ToolInput
 from tools.base import ClaimflowTool
 
@@ -46,11 +55,8 @@ _TEXT_PATTERNS: list[tuple[str, str, str]] = [
     ),
 ]
 
-# PRIVACY：身份证（18 位）/ 手机号（11 位）/ 银行卡（16-19 位）
-_ID_CARD_RE = re.compile(r"(?<!\d)\d{17}[\dXx](?!\d)")
-_PHONE_RE = re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)")
-_BANK_CARD_RE = re.compile(r"(?<!\d)\d{16,19}(?!\d)")
-
+# PRIVACY：身份证（18 位）/ 手机号（11 位）/ 银行卡（16-19 位）——
+# 正则单一来源在 app.core.pii（T175：日志零 PII 处理器与合规链路共用，顶部 import）
 _PRIVACY_SUGGESTION = "敏感信息须脱敏后输出（身份证号保留前 4 后 4 位，如 3301**********1234）"
 
 

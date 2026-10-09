@@ -5,9 +5,9 @@
 - 银行卡号（16-19 位）：保留前 4 后 4 位 → 6222**********3445
 - 手机号（11 位）：保留前 3 后 4 位 → 138****5678
 
-正则模式与 rule_check 的 PRIVACY 检测共用（单一来源）；
-替换顺序：身份证 → 银行卡 → 手机号（先长的替换后，脱敏后的星号段
-不会再次命中后续正则，天然去重）。
+正则与脱敏函数单一来源在 app.core.pii（T175/D081：日志零 PII 处理器与
+合规链路共用同一套模式，避免两处正则漂移）；本模块 re-export 供既有调用方
+（decision_doc / human_gate 等）不变。
 
 纯函数 mask_sensitive / find_sensitive 供合规链路直接调用；
 工具经 tools/factory.py 装配后供 Compliance Agent（T015 定义）使用。
@@ -19,56 +19,11 @@ from typing import Any
 
 from pydantic import Field
 
+from app.core.pii import find_sensitive, mask_sensitive
 from schemas.tools import ToolInput
 from tools.base import ClaimflowTool
-from tools.compliance.rule_check import _BANK_CARD_RE, _ID_CARD_RE, _PHONE_RE
 
-
-def _mask_id_card(match: Any) -> str:
-    snippet = match.group(0)
-    return snippet[:4] + "*" * (len(snippet) - 8) + snippet[-4:]
-
-
-def _mask_bank_card(match: Any) -> str:
-    snippet = match.group(0)
-    return snippet[:4] + "*" * (len(snippet) - 8) + snippet[-4:]
-
-
-def _mask_phone(match: Any) -> str:
-    snippet = match.group(0)
-    return snippet[:3] + "*" * (len(snippet) - 7) + snippet[-4:]
-
-
-def find_sensitive(text: str) -> list[dict[str, str]]:
-    """检测文本中的敏感信息（不修改原文）。
-
-    返回 [{type, value, masked}]；身份证与银行卡片段去重
-    （银行卡正则不匹配已被身份证占位的片段）。
-    """
-    findings: list[dict[str, str]] = []
-    id_spans = [(m.start(), m.end()) for m in _ID_CARD_RE.finditer(text)]
-    for match in _ID_CARD_RE.finditer(text):
-        findings.append(
-            {"type": "id_card", "value": match.group(0), "masked": _mask_id_card(match)}
-        )
-    for match in _BANK_CARD_RE.finditer(text):
-        if not any(match.start() < e and match.end() > s for s, e in id_spans):
-            findings.append(
-                {"type": "bank_card", "value": match.group(0), "masked": _mask_bank_card(match)}
-            )
-    for match in _PHONE_RE.finditer(text):
-        findings.append(
-            {"type": "phone", "value": match.group(0), "masked": _mask_phone(match)}
-        )
-    return findings
-
-
-def mask_sensitive(text: str) -> str:
-    """脱敏文本中的全部敏感信息（身份证 → 银行卡 → 手机号，顺序替换）。"""
-    masked = _ID_CARD_RE.sub(_mask_id_card, text)
-    masked = _BANK_CARD_RE.sub(_mask_bank_card, masked)
-    masked = _PHONE_RE.sub(_mask_phone, masked)
-    return masked
+__all__ = ["find_sensitive", "mask_sensitive", "SensitiveFilterTool"]
 
 
 class SensitiveFilterInput(ToolInput):

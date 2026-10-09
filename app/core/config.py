@@ -203,6 +203,9 @@ class Settings(BaseSettings):
 
     # ===== 日志 =====
     log_level: str = "INFO"
+    # 日志零 PII（T175，D081）：structlog 事件字段递归脱敏（身份证/银行卡/手机号）。
+    # 默认开（secure by default）；排障需要原文时临时置 False，勿长期关闭
+    log_mask_pii: bool = True
 
     @property
     def is_prod(self) -> bool:

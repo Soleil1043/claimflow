@@ -2146,3 +2146,29 @@ policy_no/险种存在于评测种子库（setup_eval_db 固定 mock 数据）�
 
 **triage 状态在重扫后保留**：--scan 按 source_case_id 合并旧 status/triage_note
 ——扫描可重复跑不吞掉未消费的人工决策。
+
+## D081 · PII 分层治理：日志零 PII / 库内加密 / 出站脱敏三层，明确不做什么（T175，2026-10-10）
+
+**背景**：完善性评估建议 3。理赔是 PII 重灾区（身份证/银行卡/手机号贯穿保单、
+医疗记录、出险描述），而此前脱敏只挡在**出站渲染层**（决定书 mask_sensitive、
+坐席改写、合规检测）——`policies.holder_id_card` 与 `medical_records.patient_id_card`
+明文落库，structlog 无任何 PII 处理器（日志可能带出原文：错误消息常含原始入参，
+日志外发采集即泄露面）。
+
+**分层策略**（每层目标不同，不搞一刀切）：
+1. **日志层零 PII（T175，本次交付）**：structlog 处理器对事件字段递归脱敏
+   （str/dict/list/tuple + format_exc_info 后的异常渲染串），置于渲染器之前、
+   format_exc_info 之后。正则与脱敏函数收敛到 `app.core.pii` 单一来源（零项目内
+   依赖，日志配置期 import 无环；rule_check / sensitive_filter 改为引用，消除
+   两处正则漂移的可能）。`LOG_MASK_PII=false` 为排障逃生口，默认开
+2. **存储层加密（T176，后续）**：证件号/卡号字段确定性加密落库（TypeDecorator
+   透明加解密 + 等值可查），DB 泄漏不直接等于 PII 泄漏
+3. **出站渲染层脱敏（已有）**：决定书/坐席改写/合规检测
+
+**明确不做的（同样重要）**：不在 OCR/保单核验链路"送 LLM 前脱敏"——保单核验
+就是拿证件号做持有人匹配，材料提取要原文才提得出字段；一刀切脱敏会直接破坏
+功能。正确口径是：需要 PII 做校验的环节走"受控原文"（存储加密 + 日志零 PII +
+出站脱敏），而不是把 PII 从管道里抹掉。
+
+**验收口径**：prod JSON 日志输出的任何字段（含嵌套与异常串）不出现完整
+身份证/银行卡/手机号（tests/core/test_logging.py e2e 钉死）。

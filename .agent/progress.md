@@ -2763,3 +2763,26 @@ OCR 文本提取 prompt `{content}` 裸拼、责任认定 facts 裸送——上�
 映射表）；555 passed + ruff 绿；dev 库真实扫描 0 改判案（无坐席决议记录，符合
 预期）；**非空闭环实跑**——临时以金样本首案构造 REG-001 回归案跑 `--dataset
 regression` 六门全绿后删除（证明回归集→门禁整链可用）。
+
+## T175 · 日志零 PII（D081 第 1 层）（2026-10-10）
+
+**背景**：完善性评估建议 3。脱敏此前只挡在出站渲染层；structlog 无 PII 处理器
+——错误消息常含原始入参，日志外发（采集/排障）即泄露面；且身份证/银行卡明文
+落库（第 2 层 T176 另做）。
+
+**改动**：
+- `app/core/pii.py`（新叶子模块）：身份证/银行卡/手机号正则 + mask/find 函数
+  单一来源（从 rule_check/sensitive_filter 收敛，零项目内依赖——日志配置期
+  import 无环；两模块改引用，对外 API 不变，调用方零改动）
+- `app/core/logging.py`：`pii_mask_processor` 挂 shared_processors 尾部
+  （format_exc_info 之后——异常渲染串同样过一层），`LOG_MASK_PII` 默认开
+- 分层口径（D081）：日志零 PII / 库内加密（T176）/ 出站脱敏（已有）三层；
+  **明确不做"送 LLM 前脱敏"**——保单核验即证件号匹配，一刀切破坏功能
+
+**验收**：3 新用例（递归脱敏含嵌套 dict/list、非字符串透传不误伤、异常串脱敏）
++ e2e（prod JSON 输出任何字段无完整敏感号）；558 passed（555+3）+ ruff 绿；
+tests/tools 94 用例零退化（单一来源收敛无行为变化）。
+
+**踩坑（小）**：rule_check 的正则 import 首版放在 _TEXT_PATTERNS 之后被 ruff
+E402 拦下——挪到顶部 import 块后 I001 排序再拦一次，`--fix` 收敛。跨模块搬
+私有名（_XXX_RE）时 as-alias 保持原名引用是零 diff 的关键。
