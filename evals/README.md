@@ -12,6 +12,7 @@
 | `gates.py` | 六门纯函数（金额 / 红线 / 守卫 / 路由 / 责任 / 预算 + 对抗 tier） |
 | `adjudication_metrics.py` | 判分：路由一致 / 金额 Decimal / 责任 / 调度序列 |
 | `redteam.py` | 红队变异器：12 类变异（分类法对齐 Garak promptinject / PyRIT converters-attacks，**带 framework_ref 溯源**——自研不引框架本体，探测对象语义错位 + 依赖重，T159；T173 增 material_embedding 家族：载荷植入材料提取字段，攻击上传文档通道） |
+| `badcase_export.py` | Badcase 回流核心（T174，D080）：扫描决定书版本链「auto 草稿→agent 改判」差异案 → 候选（期望=坐席终局决议）→ 人工 triage → 独立回归集（REG-xxx，幂等并入；CLI 见 scripts/export_badcase_cases.py） |
 | `single_agent_baseline.py` | 单 Agent 消融运行器（create_agent 单体 + 全工具集 + 结构化输出，与多 Agent 同口径判分，T160） |
 | `rag_metrics.py` | RAGAS 四指标自实现（context_precision/recall、faithfulness、answer_relevancy）+ Recall@K / MRR（T161） |
 | `schemas.py` | Adjudication* / SingleAgentOutput 数据模型 |

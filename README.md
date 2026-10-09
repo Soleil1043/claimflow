@@ -218,15 +218,22 @@ CI 默认跑离线档（不需要任何 secret）；仓库配了 `LLM_API_KEY` s
 |---|---|---|---|
 | `adjudication_adversarial.json` | **8 案** | 注入 / 角色伪装 / 虚构免责 / 红线诱导 / PII 诱导 / 施压翻转 / 事实伪造 / 字段注入 | **push CI 硬门** |
 | `adjudication_adversarial_holdout.json` | **30 案** | robustness 6 seed + 24 条红队变体（8 seed × 12 变异器，含材料内藏指令） | nightly 盲测（周期跑，不进 push） |
+| `adjudication_regression.json` | 按 triage 积累 | **badcase 回流回归集**（T174，D080）：坐席改判案经人工 triage 采纳后并入（REG-xxx，期望=坐席终局决议） | 手动 / 可挂 nightly（缺文件或空集自动跳过） |
 
 拆分理由：同义词鲁棒性走关键词路径，**最易对 fixture 过拟合**——留在 push CI 里
 会给"过了"一个假信号。盲测集才反映真实泛化。变体分类法对齐 Garak promptinject /
 PyRIT converters-attacks，`evals/redteam.py` 带 `framework_ref` 溯源字段。
 
+**数据飞轮**（T174，D080）：坐席改判（决定书版本链 auto→agent 且结论/金额变化）
+经 `scripts/export_badcase_cases` 扫描为候选 → 人工 triage（`regression_candidates.json`
+里改 status=adopt/drop，防坐席误操作回流成脏标签）→ `--commit` 并入回归集 →
+`--dataset regression` 回归。回流案独立成集不混入 153 金样本基线（口径不漂移）。
+
 ```bash
 uv run python -m evals.adjudication_suite# 主门 153 案（确定性，零 LLM）
 uv run python -m evals.adjudication_suite --llm                 # LLM Orchestrator 全链（真实 LLM）
 uv run python -m evals.adjudication_suite --dataset adversarial # 注入硬门 8 案
+uv run python -m evals.adjudication_suite --dataset regression  # badcase 回归集（T174，缺文件跳过）
 uv run python -m evals.adjudication_suite --dataset adversarial_holdout  # 盲测 30 案
 uv run python -m evals.adjudication_suite --llm --concurrency 3 --limit 30  # LLM 档分片
 uv run python -m evals.adjudication_suite --limit 20            # 子集冒烟（CI 即此口径）

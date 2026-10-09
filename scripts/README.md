@@ -39,6 +39,7 @@
 |------|------|---------|
 | `probe_deepseek_cache_usage.py` | langchain 响应链路探针：全 mock 构造带DeepSeek 非标 usage 字段的 ChatCompletion，实测 `prompt_cache_hit/miss_tokens` 在 usage_metadata / response_metadata / llm_output 三处的存活情况——**决定 `_extract_cache_usage` 提取策略**，langchain-openai 升级后可回归验证 | 否 |
 | `measure_cache_hit_rate.py` | 真实命中率测量：1339 字符稳定前缀模拟 skill 规程规模，连打 N 轮打真实 API，输出稳态命中率与冷启动对比 | **是** |
+| `export_badcase_cases.py` | Badcase 回流 CLI（T174，D080）：`--scan` 扫描坐席改判案生成候选（重扫保留 triage 状态）/ `--commit` adopt 候选幂等并入 `adjudication_regression.json` / `--list` 概览。评测 `--dataset regression`（缺文件/空集跳过） | 否 |
 
 ## 约定
 

@@ -1,0 +1,8 @@
+{
+  "_meta": {
+    "task": "T174 badcase 回流候选（D080）",
+    "guide": "人工 triage：认可回流的条目把 status 改 adopt（triage_note 记理由），不认可改 drop。suggested_expected 默认 route=auto（修复后系统应得出坐席结论）；案件本就该人工裁量则改 route=human。replay 前核对 policy_no 是否在评测种子库。--commit 消费 adopt 条目",
+    "count": 0
+  },
+  "candidates": []
+}

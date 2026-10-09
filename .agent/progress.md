@@ -2738,3 +2738,28 @@ OCR 文本提取 prompt `{content}` 裸拼、责任认定 facts 裸送——上�
 （本地有 Key 时可 `--probe --llm` 先行验证）。上游 OCR 防线由单测钉死消息布局
 （system 全静态无占位符、载荷落定界内），下游消费面由 hold-out 实测——双层防线
 各测各的。
+
+## T174 · 数据飞轮最小闭环：坐席改判 → triage → 回归集（2026-10-10）
+
+**背景**：完善性评估建议 2——项目最弱一环。坐席改判全量落审计但无回流管道
+（narrative_review 统计完无下游，改判决议只进审计与申请人记忆）。决策 D080。
+
+**方案**：
+- 信号 = 决定书版本链 diff：`decision_generate` 草稿（issued_by=auto）与最新坐席
+  版（issued_by=agent:\<id\>）结论或金额变化。confirm 不算——系统结论被认可，
+  回流它只会教系统"该转人工的案子硬 auto"
+- 期望值 = 坐席终局决议（conclusion→liability 映射 + 人工金额），非 LLM 自评
+- triage 门 = 候选 status=pending，人工改 adopt/drop（"数据飞轮如何避免脏数据"
+  的机制答案：坐席改判 ≠ 系统错，可能是误操作/口径差异/本该人工裁量）；
+  `--scan` 按 source_case_id 合并旧 triage 状态（重扫不吞人工决策）
+- 防污染 = 独立 `adjudication_regression.json`（REG-xxx + _meta.provenance 幂等
+  去重），不混 153 金样本基线；套件 `--dataset regression`（缺文件/空集跳过，
+  t174_regression_gate 报告），暂不进 push CI
+- replay 保真：材料剥 storage_path 保内嵌 extraction（评测走 _extract_one 内嵌
+  路径复现当时材料事实）；保单依赖评测种子库——候选带 policy_no 供 triage 核对
+  （已知限制，D080 明示）
+
+**验证**：6 新用例（扫描只捕改判/候选字段/结论改判/triage 保留/commit 幂等续号/
+映射表）；555 passed + ruff 绿；dev 库真实扫描 0 改判案（无坐席决议记录，符合
+预期）；**非空闭环实跑**——临时以金样本首案构造 REG-001 回归案跑 `--dataset
+regression` 六门全绿后删除（证明回归集→门禁整链可用）。

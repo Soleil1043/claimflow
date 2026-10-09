@@ -64,13 +64,20 @@ async def _run_suite(
     llm_workers: bool = False,
     concurrency: int = 1,
 ) -> int:
-    # 数据集选择：adjudication 主基线 / adversarial 对抗集（T124，独立不污染主基线）
+    # 数据集选择：adjudication 主基线 / adversarial 对抗集（T124，独立不污染主基线）/
+    # regression 回归集（T174 badcase 回流，独立文件；缺文件=尚未积累，跳过）
     dataset_path = (
         ROOT / "evals" / "datasets" / f"adjudication_{dataset_name}.json"
         if dataset_name != "adjudication"
         else None
     )
+    if dataset_path is not None and not dataset_path.exists():
+        print(f"数据集文件不存在：{dataset_path.name}（尚未生成/未回流），跳过门禁")
+        return 0
     cases, meta, freq_signals = load_adjudication_dataset(dataset_path)
+    if not cases:
+        print(f"数据集 {dataset_name} 为空，跳过门禁")
+        return 0
     if offset:
         cases = cases[offset:]
     if limit:
@@ -248,6 +255,7 @@ async def _run_suite(
     default_report = {
         "adversarial": "t124_adversarial_gate.json",
         "adversarial_holdout": "t159_adversarial_holdout_gate.json",
+        "regression": "t174_regression_gate.json",
     }.get(dataset_name, "t089_adjudication_gate.json")
     report_path = Path(out_path) if out_path else REPORT_DIR / default_report
     emit_report(
@@ -295,8 +303,9 @@ def main() -> None:
     parser.add_argument(
         "--dataset",
         default="adjudication",
-        choices=["adjudication", "adversarial", "adversarial_holdout"],
-        help="数据集：主基线 / 对抗集（T124）/ 对抗 hold-out 盲测集（T159）",
+        choices=["adjudication", "adversarial", "adversarial_holdout", "regression"],
+        help="数据集：主基线 / 对抗集（T124）/ 对抗 hold-out 盲测集（T159）/"
+        " badcase 回归集（T174，缺文件或空集跳过）",
     )
     args = parser.parse_args()
 

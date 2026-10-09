@@ -2108,3 +2108,41 @@ prompt 形态为 [短稳定前缀][每案唯一数据][静态规程]，DeepSeek 
    变体回归"期望逐字段继承种子"的本义
 4. 变异器追加在列表尾（现有家族轮转位次不变语义），holdout 整体重生成
    （D073 设计流程：--generate 幂等清旧再生）
+
+## D080 · 数据飞轮最小闭环：坐席改判 → 人工 triage → 独立回归集（T174，2026-10-10）
+
+**背景**：完善性评估建议 2——项目最弱一环。坐席改判/叙述抽评全量落审计但无回流
+管道：narrative_review 统计完通过率无下游，改判决议只进审计事件与申请人记忆，
+没有任何机制把线上失败变成回归用例（红队 --generate 是对抗自增殖，非 badcase 回流）。
+
+**选项**：
+- A. 全自动回流（改判即入回归集，免人工）❌——坐席改判 ≠ 系统错：可能是坐席
+  误操作、口径差异、或案件本就该人工裁量；无 triage 的回流=脏标签污染回归门
+  （清单 3.12"数据飞轮如何避免脏数据"反面教材）
+- B. 回流进 153 金样本主基线 ❌——基线口径漂移：主门一致率历史数字失去可比性，
+  且金样本是规格公式生成的确定性集，回流案性质不同（D033 独立数据集口径延续）
+- C. 人工 triage 门 + 独立回归集 ✅——候选扫描产物 status=pending，人工认可改
+  adopt，--commit 并入 adjudication_regression.json（REG-xxx，category=regression，
+  _meta.provenance 记源案映射防重复并入）；套件 --dataset regression 可跑（空集/
+  缺文件跳过），暂不进 push CI
+
+→ 选 C。
+
+**信号与期望值口径**：
+1. **badcase 信号 = 决定书版本链 diff**：v_auto（decision_generate 草稿，
+   issued_by=auto）与最新 agent 版（issued_by=agent:&lt;id&gt;）结论或金额不同。
+   confirm（结论金额不变仅签发）不算——系统结论被认可，转人工是保守正确行为，
+   回流它只会教系统"该转人工的案子硬 auto"
+2. **期望值来自坐席终局决议**（conclusion→liability 映射 + 人工金额），非 LLM
+   自评——回流用例的 ground truth 必须有独立于被测系统的来源
+3. suggested route=auto 是默认假设（修复后应自动得出坐席结论）；triage 时可改
+   route=human（案件本就该人工裁量的情形）
+
+**replay 保真边界（已知限制，明示不过度承诺）**：回归案重放依赖引用的
+policy_no/险种存在于评测种子库（setup_eval_db 固定 mock 数据）——候选材料内嵌
+原始 extraction 结果（剥离 storage_path，评测走 _extract_one 内嵌路径确定性复现
+当时材料事实），但保单/频率信号不随案携带。候选报告中含 policy_no 供 triage
+时核对；不满足重放条件的案子应 drop。
+
+**triage 状态在重扫后保留**：--scan 按 source_case_id 合并旧 status/triage_note
+——扫描可重复跑不吞掉未消费的人工决策。
