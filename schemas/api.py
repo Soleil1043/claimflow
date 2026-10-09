@@ -115,6 +115,9 @@ class CaseSubmitResponse(BaseModel):
     job: CaseJobOut | None = None
     # 决定书是否已签发（D046：由案件状态推导；False 时 decision_document 为草稿）
     decision_issued: bool = False
+    # 门户访问令牌（T171，D077）：仅新建（201）一次性下发；幂等命中（200）恒为
+    # None——库内只存哈希不可逆。客户端须在首次创建时保存，后续读详情/上传携带
+    access_token: str | None = None
 
 
 class CaseTimelineEvent(BaseModel):

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any, Protocol, runtime_checkable
+from weakref import WeakKeyDictionary
 
 from app.core.logging import get_logger
 
@@ -63,10 +64,22 @@ class DbCaseRecorder:
     """DB 实现：写 case_events / cases / decision_documents 表（fail-open）。"""
 
     def __init__(self) -> None:
-        # 实例级写锁：并行 worker 共享同一 recorder 实例，写入串行化
-        self._lock = asyncio.Lock()
+        # 写锁按事件循环惰性创建（WeakKeyDictionary，与 cases.py 提交锁同款）：
+        # asyncio.Lock 绑定创建时的 loop——get_default_recorder 单例跨测试复用时，
+        # 后续测试新 loop 会撞 "bound to a different event loop"，审计写入静默
+        # 失败（T171 实锤：仅 stage_result 丢失、时间线断言红）。生产单进程单
+        # loop 下等价于实例级单锁
+        self._locks: WeakKeyDictionary = WeakKeyDictionary()
         # 案件内事件序号缓存（进程内同步递增；懒加载 DB 现值）
         self._seq_cache: dict[str, int] = {}
+
+    def _get_lock(self) -> asyncio.Lock:
+        loop = asyncio.get_running_loop()
+        lock = self._locks.get(loop)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._locks[loop] = lock
+        return lock
 
     async def event(
         self,
@@ -98,7 +111,7 @@ class DbCaseRecorder:
         payload: dict[str, Any] | None,
     ) -> None:
         try:
-            async with self._lock:
+            async with self._get_lock():
                 from sqlalchemy import select
 
                 from services.db.models import CaseEvent
@@ -138,7 +151,7 @@ class DbCaseRecorder:
         approved_amount: Any = None,
     ) -> None:
         try:
-            async with self._lock:
+            async with self._get_lock():
                 import datetime as dt
 
                 from sqlalchemy import update
@@ -175,7 +188,7 @@ class DbCaseRecorder:
         issued_by: str = "auto",
     ) -> None:
         try:
-            async with self._lock:
+            async with self._get_lock():
                 from sqlalchemy import func as sql_func
                 from sqlalchemy import select
 

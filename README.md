@@ -266,7 +266,13 @@ uv run python -m evals.support_suite                            # 客服问答�
 > 🔒 **坐席端点鉴权**（T147，D067 路径 A）：标注 🔒 的端点需请求头 `X-Staff-Key`。
 > 多 Key 配置（`STAFF_KEYS="alice:key1,bob:key2"`）+ **Key 即身份**——坐席名由 Key
 > 派生，审计 operator 不再依赖请求体自报；dev 未配置时放行（向后兼容），prod 启动
-> 强制非空。客户端点（案件 / 客服会话）无鉴权要求。
+> 强制非空。
+>
+> 🔑 **案件门户访问令牌**（T171，D077）：`GET /cases/{id}` 与材料上传需请求头
+> `X-Case-Token`（提交案件时创建回执一次性下发，库内只存 sha256 哈希；幂等重放
+> 不再下发）**或**有效 `X-Staff-Key`（坐席双通道）；chatui 前端以 path 级 cookie
+> 自动携带。dev 未配置 STAFF_KEYS 时沿坐席开放态放行（T147 兼容口径）。客服会话
+> 以客户端持有的 uuid4 会话 id 为能力凭证，无需额外令牌。
 
 ### HITL 工单
 

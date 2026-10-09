@@ -12,6 +12,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
+import secrets
 from decimal import Decimal
 from typing import Any
 
@@ -24,6 +26,16 @@ from services.db.session import get_session_factory
 
 # 自然键幂等（F01）：重复提交返回既有案件，不重复执行核赔
 NATURAL_KEY_FIELDS = ("user_id", "policy_no", "claimed_amount", "incident_date")
+
+
+def generate_access_token() -> tuple[str, str]:
+    """生成门户访问令牌（T171，D077）：返回 (明文, sha256 哈希)。
+
+    明文仅经 POST /cases 创建回执一次性下发；库内只存哈希——DB 泄漏不直接
+    等于访问权泄漏，幂等重放（200）也因此无法恢复明文（哈希不可逆，设计使然）。
+    """
+    token = secrets.token_urlsafe(32)
+    return token, hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 async def find_idempotent_case(
@@ -87,6 +99,7 @@ def new_case(
     incident_date: dt.date,
     incident_description: str,
     materials: list[dict[str, Any]],
+    access_token_hash: str | None = None,
 ) -> Case:
     """建档（受理态；险种由 intake 分类写入）。"""
     return Case(
@@ -99,6 +112,7 @@ def new_case(
         incident_date=incident_date,
         incident_description=incident_description,
         materials=materials,
+        access_token_hash=access_token_hash,
     )
 
 

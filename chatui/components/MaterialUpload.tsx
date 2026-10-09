@@ -4,7 +4,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { fetchMaterialCatalog, uploadCaseMaterial, type MaterialCatalogLine } from "@/lib/case-api";
 
-export default function MaterialUpload({ caseId, disabled }: { caseId: string; disabled?: boolean }) {
+export default function MaterialUpload({
+  caseId,
+  token,
+  disabled,
+}: {
+  caseId: string;
+  /** 门户访问令牌（T171）：由详情页（RSC）从 path 级 cookie 取得下传 */
+  token?: string | null;
+  disabled?: boolean;
+}) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [docType, setDocType] = useState("");
@@ -26,7 +35,7 @@ export default function MaterialUpload({ caseId, disabled }: { caseId: string; d
     if (!file || busy) return;
     setBusy(true); setError(""); setMsg("");
     try {
-      const resp = await uploadCaseMaterial(caseId, file, docType);
+      const resp = await uploadCaseMaterial(caseId, file, docType, token);
       setMsg(`已上传（共 ${resp.materials_count} 份），流程状态：${resp.case_status ?? "已更新"}`);
       if (fileRef.current) fileRef.current.value = "";
       router.refresh();

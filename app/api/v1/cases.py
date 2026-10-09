@@ -23,6 +23,7 @@ from fastapi import (
     Depends,
     File,
     Form,
+    Header,
     HTTPException,
     Response,
     UploadFile,
@@ -31,7 +32,11 @@ from fastapi import (
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_case_dispatcher, get_db_session
+from app.api.dependencies import (
+    get_case_dispatcher,
+    get_db_session,
+    verify_case_access,
+)
 from app.core.config import settings
 from app.core.logging import get_logger
 from schemas.api import (
@@ -57,6 +62,7 @@ from services.case_service import (
     decision_doc_payload,
     decision_doc_view,
     find_idempotent_case,
+    generate_access_token,
     generate_case_id,
     human_info_from_job,
     new_case,
@@ -165,6 +171,8 @@ async def submit_case(
             )
 
         # 交付收口（D049）：建档+任务行同事务（outbox）→ commit → 派发 → 回快照
+        # 门户访问令牌（T171，D077）：明文仅本次回执下发，建档只落哈希
+        access_token, token_hash = generate_access_token()
         case = new_case(
             case_id=await generate_case_id(session),
             user_id=body.user_id,
@@ -173,6 +181,7 @@ async def submit_case(
             incident_date=body.incident_date,
             incident_description=body.incident_description,
             materials=[m.model_dump() for m in body.materials],
+            access_token_hash=token_hash,
         )
         session.add(case)
         job = await deliver_case_job(
@@ -212,16 +221,23 @@ async def submit_case(
             else None
         ),
         job=job_envelope(job),
+        access_token=access_token,
     )
 
 
 @router.get("/{case_id}", response_model=CaseDetailResponse)
 async def get_case(
     case_id: str,
+    x_case_token: str | None = Header(default=None, alias="X-Case-Token"),  # noqa: B008
+    x_staff_key: str | None = Header(default=None, alias="X-Staff-Key"),  # noqa: B008
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
 ) -> CaseDetailResponse:
-    """B02 案件详情：进度（状态）/ 结论 / 决定书 / 审计时间线（seq 升序）。"""
+    """B02 案件详情：进度（状态）/ 结论 / 决定书 / 审计时间线（seq 升序）。
+
+    门户鉴权（T171，D077）：X-Case-Token（创建回执令牌）或 X-Staff-Key 双通道。
+    """
     case = await _get_case_or_404(case_id, session)
+    verify_case_access(case, x_case_token, x_staff_key)
 
     # 申请人历史核赔档案（T100）：终态记忆语义检索，排除本案件；fail-open 空列表兜底
     memories = await search_case_memories(str(case.user_id), exclude_case_id=case.id)
@@ -284,6 +300,8 @@ async def upload_case_material(
         default=None,
         description="材料类型（可空）：取值见险种 pack 白名单（invoice/diagnosis/police_report/repair_invoice 等）",
     ),
+    x_case_token: str | None = Header(default=None, alias="X-Case-Token"),  # noqa: B008
+    x_staff_key: str | None = Header(default=None, alias="X-Staff-Key"),  # noqa: B008
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
     dispatcher=Depends(get_case_dispatcher),  # noqa: B008
 ) -> CaseMaterialUploadResponse:
@@ -291,8 +309,11 @@ async def upload_case_material(
 
     补件闭环（T086）：案件处于补件挂起时，上传新材料后自动 Command(resume) 恢复
     核赔流程（材料审核重跑 → 回 orchestrator 重规划）。
+
+    门户鉴权（T171，D077）：X-Case-Token 或 X-Staff-Key 双通道（与详情同口径）。
     """
     case = await _get_case_or_404(case_id, session)
+    verify_case_access(case, x_case_token, x_staff_key)
 
     filename = file.filename or ""
     if filename.lower().endswith(".doc"):

@@ -2015,3 +2015,34 @@ prompt 形态为 [短稳定前缀][每案唯一数据][静态规程]，DeepSeek 
 - 包装 ObservableChatModel 代理（继承 BaseChatModel 委托 _agenerate）❌——
   BaseChatModel 接口面大（bind_tools/stream/with_structured_output 均需透传），
   代理遗漏即静默破坏，复杂度远超收益
+
+## D077 · 案件门户访问令牌：capability token 而非账号体系（T171，2026-10-09）
+
+**背景**：门户端点（案件/材料）此前完全无鉴权——案号 CASE-YYYY-NNNN 由年度计数器
+生成、可枚举，GET /cases/{id} 知道案号即可读全案（决定书/审计时间线/申请人档案），
+材料上传同理（IDOR）。完善性评估（2026-10-09）将其列为 P0 安全缺口。
+
+**选项**：
+- A. 申请人账号体系（注册/登录/JWT）❌——项目无账号域，为修越权引入整套身份
+  基建（口令存储/会话/找回）成本失衡；且演示门户的"用户标识"仅是自报字符串
+- B. URL 参数携带令牌（?t=...）❌——令牌进浏览器历史/分享链接/服务器访问日志，
+  capability 泄漏面大
+- C. 一次性下发的 opaque capability token：POST /cases 创建回执返回
+  `secrets.token_urlsafe(32)`，库内只存 sha256 哈希（compare_digest 常数时间比对），
+  后续读详情/上传带 X-Case-Token ✅
+- D. JWT 签发 ❌——无过期/撤销/多端需求，无状态签名反而放弃服务端撤销能力
+
+→ 选 C。理由：capability 模型与业务语义精确对齐——"凭创建回执访问自己的案件"，
+零新增基建；哈希落库使 DB 泄漏不直接等于访问权泄漏。
+
+**边界与配套决断**：
+1. **幂等重放（200）不下发令牌**——哈希不可逆，重放无法恢复明文；客户端在首次
+   201 时已持有。丢失回执 = 丢失访问能力，由坐席通道兜底（可接受，文档明示）
+2. **staff 双通道放行**——GET/上传同时接受有效 X-Staff-Key（T147 语义）；
+   staff_keys 未配置的 dev 沿 T147 开放态兼容放行，workbench 零改动
+3. **旧库 NULL 哈希行**（迁移前存量/测试直建案）仅坐席通道可读——不回填、不豁免
+4. **chatui 持有通道选 path 级 cookie**（SameSite=Lax，30d，path=/cases/{id}）——
+   详情页是 Next.js 服务端组件（RSC），localStorage 不可达；cookie 是 RSC 经
+   next/headers 可取的最低成本通道，path 级隔离避免多案互串
+5. 客服会话不改——conversation_id 本就是客户端持有的 uuid4 高熵 capability，
+   与本案令牌同构，无需二次封装

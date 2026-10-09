@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import AutoRefresh from "@/components/AutoRefresh";
 import MaterialUpload from "@/components/MaterialUpload";
 import { CONCLUSION_LABEL, formatTime, getCaseDetail, STATUS_LABEL } from "@/lib/case-api";
@@ -33,9 +34,11 @@ export default async function CaseDetailPage({
   params: Promise<{ caseId: string }>;
 }) {
   const { caseId } = await params;
+  // 门户访问令牌（T171）：path 级 cookie 由创建回执写入，浏览器按 path 携带
+  const token = (await cookies()).get("cf_case_token")?.value ?? null;
   let detail;
   try {
-    detail = await getCaseDetail(caseId);
+    detail = await getCaseDetail(caseId, token);
   } catch {
     notFound();
   }
@@ -99,7 +102,7 @@ export default async function CaseDetailPage({
           <p className="mt-1 text-[13px] text-cf-text-2">
             系统检测到您的申请材料不全，请上传缺失材料后系统将继续审核。
           </p>
-          <div className="mt-3"><MaterialUpload caseId={detail.case_id} /></div>
+          <div className="mt-3"><MaterialUpload caseId={detail.case_id} token={token} /></div>
         </div>
       )}
 
@@ -117,7 +120,7 @@ export default async function CaseDetailPage({
       {!pending && detail.status !== "referred" && detail.status !== "closed" && (
         <div className="cf-card px-5 py-4">
           <h2 className="cf-kicker mb-2">补充材料</h2>
-          <MaterialUpload caseId={detail.case_id} />
+          <MaterialUpload caseId={detail.case_id} token={token} />
         </div>
       )}
 

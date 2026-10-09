@@ -50,8 +50,8 @@ def _pct(values: list[float], pct: float) -> float:
 
 async def submit_one(
     client: httpx.AsyncClient, tag: str, idx: int
-) -> tuple[str, float]:
-    """提交单案（受理即返回路径），返回 (case_id, 提交耗时 s)。"""
+) -> tuple[str, str, float]:
+    """提交单案（受理即返回路径），返回 (case_id, 门户令牌, 提交耗时 s)。"""
     body = {
         "user_id": f"load-{tag}-{idx}",
         "policy_no": "POL-2025-0001",
@@ -66,17 +66,18 @@ async def submit_one(
     if resp.status_code != 201:
         msg = f"提交失败 {resp.status_code}: {resp.text[:200]}"
         raise RuntimeError(msg)
-    return resp.json()["case_id"], elapsed
+    return resp.json()["case_id"], resp.json().get("access_token") or "", elapsed
 
 
 async def poll_until_stable(
-    client: httpx.AsyncClient, case_id: str
+    client: httpx.AsyncClient, case_id: str, token: str = ""
 ) -> tuple[str, int]:
-    """轮询至稳定态，返回 (status, 轮询次数)。"""
+    """轮询至稳定态，返回 (status, 轮询次数)。携带门户令牌（T171）。"""
     polls = 0
     deadline = time.perf_counter() + POLL_TIMEOUT_S
+    headers = {"X-Case-Token": token} if token else None
     while time.perf_counter() < deadline:
-        resp = await client.get(f"/api/v1/cases/{case_id}")
+        resp = await client.get(f"/api/v1/cases/{case_id}", headers=headers)
         polls += 1
         status = resp.json().get("status", "")
         if status in STABLE_STATUSES:
@@ -90,6 +91,7 @@ async def run(base_url: str, cases: int, concurrency: int, out: str | None) -> i
     tag = str(int(time.time()))
     sem = asyncio.Semaphore(concurrency)
     submit_times: dict[str, float] = {}
+    tokens: dict[str, str] = {}  # 门户访问令牌（T171）：轮询详情时携带
     settle_times: dict[str, float] = {}
     statuses: dict[str, str] = {}
     poll_counts: dict[str, int] = {}
@@ -106,8 +108,9 @@ async def run(base_url: str, cases: int, concurrency: int, out: str | None) -> i
         async def _submit(idx: int) -> None:
             async with sem:
                 try:
-                    case_id, elapsed = await submit_one(client, tag, idx)
+                    case_id, token, elapsed = await submit_one(client, tag, idx)
                     submit_times[case_id] = elapsed
+                    tokens[case_id] = token
                     settle_times[case_id] = time.perf_counter() - t0  # 先记提交完成时刻
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"submit-{idx}: {exc}")
@@ -124,7 +127,7 @@ async def run(base_url: str, cases: int, concurrency: int, out: str | None) -> i
         async def _poll(case_id: str) -> None:
             async with poll_sem:
                 try:
-                    status, polls = await poll_until_stable(client, case_id)
+                    status, polls = await poll_until_stable(client, case_id, tokens.get(case_id, ""))
                     statuses[case_id] = status
                     poll_counts[case_id] = polls
                     settle_times[case_id] = time.perf_counter() - t0

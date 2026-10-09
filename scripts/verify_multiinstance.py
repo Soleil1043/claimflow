@@ -104,6 +104,9 @@ async def _cross_instance_flow(
     resp = await ac_a.post("/api/v1/cases", json=body)
     check(f"[{submit_label}] 提交返回 201", resp.status_code == 201, f"got {resp.status_code}")
     case_id = resp.json().get("case_id", "")
+    # 门户访问令牌（T171）：哈希在共享业务库——对端实例持同一令牌可访问（跨实例能力验证）
+    ac_a.headers["X-Case-Token"] = resp.json().get("access_token") or ""
+    ac_b.headers["X-Case-Token"] = resp.json().get("access_token") or ""
 
     # 提交端的任务由任一实例认领（租约互斥，无归属假设）——等待停稳只看案件状态
     detail = await wait_settled(ac_a, case_id)

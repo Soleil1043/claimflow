@@ -177,6 +177,10 @@ async def verify(base_url: str, offline: bool = False) -> None:
         data = resp.json()
         case_id = data.get("case_id", "")
         check("交付凭证存在", data.get("job") is not None)
+        # 门户访问令牌（T171，D077）：创建回执一次性下发，后续详情/上传携带
+        token = data.get("access_token") or ""
+        check("门户访问令牌下发", bool(token))
+        ac.headers["X-Case-Token"] = token
 
         detail = await wait_settled(ac, case_id)
         check("零材料提交挂起补件", detail.get("status") == "supplement_pending",
@@ -248,6 +252,7 @@ async def verify(base_url: str, offline: bool = False) -> None:
         }
         resp = await ac.post("/api/v1/cases", json=supp)
         supp_id = resp.json().get("case_id", "")
+        ac.headers["X-Case-Token"] = resp.json().get("access_token") or ""
         supp_detail = await wait_settled(ac, supp_id)
         check("缺件案补件挂起", supp_detail.get("status") == "supplement_pending",
               f"got {supp_detail.get('status')}")
@@ -274,6 +279,7 @@ async def verify(base_url: str, offline: bool = False) -> None:
             "materials": [],
         }
         resp = await ac.post("/api/v1/cases", json=offline_case)
+        ac.headers["X-Case-Token"] = resp.json().get("access_token") or ""
         offline_detail = await wait_settled(ac, resp.json().get("case_id", ""))
         check("受理转人工（escape）",
               offline_detail.get("human", {}).get("kind") == "escape",

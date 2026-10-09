@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   fetchMaterialCatalog,
+  saveCaseAccessToken,
   submitCase,
   type CaseSubmitResponse,
   type MaterialCatalogLine,
@@ -75,6 +76,8 @@ export default function CaseForm({
       });
       setResult(resp);
       if (resp.case_id) {
+        // 门户访问令牌（T171）：path 级 cookie 持有，详情页（RSC）与上传组件取用
+        if (resp.access_token) saveCaseAccessToken(resp.case_id, resp.access_token);
         setTimeout(() => router.push(`/cases/${resp.case_id}`), 1500);
       }
     } catch (e) {

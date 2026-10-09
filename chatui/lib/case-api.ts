@@ -64,6 +64,32 @@ export interface CaseSubmitResponse {
   decision_document: CaseDecisionDocument | null;
   human: CaseHumanInfo | null;
   idempotent: boolean;
+  /** 门户访问令牌（T171）：仅创建（201）一次性下发；幂等命中（200）为 null */
+  access_token?: string | null;
+}
+
+/** 案件访问令牌 cookie 名（T171）：path 级隔离——每案一枚，仅在自身详情路径可见 */
+const CASE_TOKEN_COOKIE = "cf_case_token";
+
+/** 创建成功后保存令牌（path=/cases/{id}，SameSite=Lax，30 天）——详情页是服务端组件，localStorage 不可达，cookie 是 RSC 可取的通道 */
+export function saveCaseAccessToken(caseId: string, token: string): void {
+  if (typeof document === "undefined") return;
+  document.cookie =
+    `${CASE_TOKEN_COOKIE}=${encodeURIComponent(token)}; ` +
+    `path=/cases/${encodeURIComponent(caseId)}; max-age=2592000; SameSite=Lax`;
+}
+
+/** 客户端读当前案件令牌（仅在 /cases/{id} 路径下可见对应 cookie） */
+export function getCaseAccessToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const hit = document.cookie
+    .split("; ")
+    .find((c) => c.startsWith(`${CASE_TOKEN_COOKIE}=`));
+  return hit ? decodeURIComponent(hit.slice(CASE_TOKEN_COOKIE.length + 1)) : null;
+}
+
+function caseTokenHeaders(token?: string | null): Record<string, string> {
+  return token ? { "X-Case-Token": token } : {};
 }
 
 export function submitCase(body: CaseCreateRequest): Promise<CaseSubmitResponse> {
@@ -112,8 +138,13 @@ export interface CaseDetail {
   updated_at: string | null;
 }
 
-export function getCaseDetail(caseId: string): Promise<CaseDetail> {
-  return request<CaseDetail>(`/api/v1/cases/${caseId}`);
+export function getCaseDetail(
+  caseId: string,
+  token?: string | null,
+): Promise<CaseDetail> {
+  return request<CaseDetail>(`/api/v1/cases/${caseId}`, {
+    headers: caseTokenHeaders(token),
+  });
 }
 
 // ---------- 材料上传 ----------
@@ -140,6 +171,7 @@ export async function uploadCaseMaterial(
   caseId: string,
   file: File,
   docType?: string,
+  token?: string | null,
 ): Promise<{ case_status: string | null; materials_count: number }> {
   const form = new FormData();
   form.append("file", file);
@@ -148,6 +180,7 @@ export async function uploadCaseMaterial(
     method: "POST",
     body: form,
     cache: "no-store",
+    headers: caseTokenHeaders(token),
   });
   if (!resp.ok) {
     const detail = await resp.text().catch(() => "");

@@ -191,6 +191,9 @@ class Case(Base):
     materials: Mapped[list[dict[str, Any]] | None] = mapped_column(
         _jsonb_or_json(), nullable=True
     )
+    # 门户访问令牌哈希（T171，D077）：创建回执一次性下发明文，库内只存 sha256；
+    # NULL = 迁移前存量/非门户建档案，仅坐席通道（X-Staff-Key）可读
+    access_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
 

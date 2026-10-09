@@ -2638,3 +2638,41 @@ E18 CAS 租约认领、E19 dev 多实例未共享 checkpoint 会触发全新重�
 **P019 是这批记录里最值钱的一条**：T163 把材料提取的 1845 miss 归给路由 prompt 布局，
 是**观测缺口伪造了因果**——补齐 stage 维度后确诊四调用点从未被观测。
 教训值得单列成表：指标覆盖不全时，"某处指标异常"推不出因果。
+
+## T171 · 案件门户访问令牌，修复 IDOR（2026-10-09）
+
+**背景**：完善性评估（对照《Agent 项目写法》清单）发现 P0 安全缺口——案号
+CASE-YYYY-NNNN 年度计数器生成可枚举，GET /cases/{id} 与材料上传无鉴权，
+知道案号即可读全案（决定书/审计时间线/申请人档案）。用户确认实施评估建议 1
+（安全纵深补全），本任务为第一子项，决策 D077。
+
+**方案**（capability token，非账号体系）：
+- POST /cases 创建回执一次性下发 `access_token`（token_urlsafe(32)），库内只存
+  sha256 哈希（`cases.access_token_hash`，alembic a2c8e4f1b6d3）
+- GET /{id} 与 POST /{id}/materials 校验 `X-Case-Token`（哈希常数时间比对）
+  **或**有效 `X-Staff-Key`；staff_keys 未配置的 dev 沿 T147 开放态兼容
+  （workbench 零改动），prod 因 keys 强制非空而天然全量生效
+- 幂等命中 200 不重复下发（哈希不可逆，设计使然；客户端首次 201 时已持有）
+- 旧库 NULL 哈希行（迁移前存量）无令牌可对，仅坐席通道可读
+- chatui：CaseForm 提交成功写 path 级 cookie（`cf_case_token`，path=/cases/{id}，
+  SameSite=Lax，30d）——详情页是 Next.js 服务端组件（RSC），localStorage 不可达，
+  cookie 是 RSC 经 next/headers 可取的最低成本通道；MaterialUpload 由详情页
+  下传 token
+- 脚本：verify_adjudication / verify_multiinstance / load_test 捕获回执令牌随
+  请求携带；multiinstance 双实例持同一令牌访问共享库 = 跨实例能力验证
+
+**踩坑（顺带修的真 bug）**：新增测试跑全量时 `test_submit_auto_issued_and_detail`
+失败，时间线丢 `fraud_check` 的 stage_result——日志见
+`case_event_write_failed: Lock is bound to a different event loop`。根因：
+`get_default_recorder()` 单例的 `DbCaseRecorder` 在 `__init__` 创建
+`asyncio.Lock`（绑定首个事件循环），pytest 每测试新 loop，单例跨测试复用后审计
+写入静默失败（fail-open 掩盖）。此前被测试顺序掩盖（首个触碰单例的测试在
+test_cases.py 内部且后续无时间线断言），新文件 test_case_access.py 字母序在前
+率先创建单例使其显形。修复：按 cases.py 提交锁同款改 per-loop 惰性锁
+（WeakKeyDictionary），生产单进程单 loop 语义不变。
+
+**验收**：新增 `tests/api/test_case_access.py` 8 用例（201 下发 / 幂等 200 不下发 /
+无令牌 401 / 错令牌 401 / 对令牌 200（详情+上传）/ staff Key 放行 / dev 开放放行 /
+旧库 NULL 行仅坐席可读）；536 passed（528+8）+ ruff 绿 + chatui lint/build 绿；
+本地 dev 库已 stamp f3a7c2d9e4b1 → upgrade head（存量 dev 库须同法或删库重建，
+新库 create_all 自带新列）。
