@@ -1,11 +1,11 @@
 # grafana/ —— 核赔监控仪表盘
 
-两个仪表盘共**14 面板**，数据源均指向 Prometheus（datasource 随 compose 注入）。
+两个仪表盘共**22 面板**，数据源均指向 Prometheus（datasource 随 compose 注入）。
 
 | 仪表盘 | uid | 面板数 | 内容 |
 |---|---|---|---|
-| `claimflow-adjudication.json` | `claimflow-adjudication` | 8 | 核赔业务：自动结案率 / 转人工率 / 调度调用·案件 / 调度健康（守卫纠错+兜底）/ 阶段耗时 P95 / 案件端到端耗时 / 案件量趋势（按终态）/ 核定金额分布 |
-| `claimflow-overview.json` | `claimflow-overview` | 6 | 服务总览 + **Prompt 缓存观测**（下表） |
+| `claimflow-adjudication.json` | `claimflow-adjudication` | 10 | 核赔业务：自动结案率 / 转人工率 / 调度调用·案件 / 调度健康（守卫纠错+兜底）/ 阶段耗时 P95 / 案件端到端耗时 / 案件量趋势（按终态）/ 核定金额分布 / 单案 Token 均值 / 单案 LLM 成本估算 ¥（T177） |
+| `claimflow-overview.json` | `claimflow-overview` | 12 | 服务总览（工具成功率 / 案件转人工率 / P95 时延 / 工具与 LLM 调用量 / 熔断拒绝 / 工具缓存命中率 T177）+ **Prompt 缓存观测**（下表）。v1 陈旧面板（人工转接率 / 合规三态 / 单轮 P95 / 对话轮次——引用已删指标）已于 T179 清理，转人工率改由 CASES_TOTAL 终态推导替换 |
 
 ## Prompt 缓存面板（T162-T166）
 

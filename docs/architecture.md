@@ -25,6 +25,7 @@
 14. [评测体系](#14-评测体系)
 15. [配置 / Profile / 部署](#15-配置--profile--部署)
 16. [关键决策索引](#16-关键决策索引)
+17. [已知限制与未来工作](#17-已知限制与未来工作)
 
 ---
 
@@ -349,8 +350,11 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
 - 核赔业务指标：CASES_TOTAL{case_type, final_status}、CASE_STAGE_LATENCY{stage}、
   ROUTING_CALLS、GUARD_CORRECTIONS、ORCH_FALLBACK、CASE_TOKENS、DECISION_AMOUNT、
   CASE_JOBS_QUEUE_DEPTH（T154） 等；
-- **Grafana**（T163/T164）：两个仪表盘共 **14 面板**——核赔 8 + 服务总览 6
-  （含 4 个 Prompt 缓存面板）；
+- **Grafana**（T163/T164/T177/T179）：两个仪表盘共 **22 面板**——核赔 10
+  （含单案 Token/¥ 成本两面板）+ 服务总览 12（含 4 个 Prompt 缓存面板与工具
+  缓存命中率）；v1 时期引用已删指标的 4 个陈旧面板（人工转接率/合规三态/
+  单轮 P95/对话轮次）已于 T179 清理——其中转人工率改由 CASES_TOTAL 终态
+  推导的真面板替换；
 - **OTel采样率 0.2**（T166，此前 1.0 全采样）：全采样下每请求数十 span，
   磁盘与 CPU 均需付账；排障只需 trace_id 级定位单次调用；
 - **Prometheus 保留期 30d**（T166）：v3 已把 TSDB 保留期移出配置文件
@@ -446,3 +450,51 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
 | D074 | 单 Agent 消融口径（`--llm` 仅 LLM 调度，须 `--llm-workers` 补齐与生产同构） |
 | D075 | RAGAS 四指标自实现（引包 dry-run 实锤 huggingface-hub 跨大版本漂移 + 20+ 新包） |
 | D076 | Prompt 缓存修复分层：先 T164 观测补全拿基线，再 T165 布局改造；create_agent 子图用回调 handler 而非 ObservableChatModel 代理 |
+
+---
+
+## 17. 已知限制与未来工作
+
+> T179 集中收录（此前散落各节）；本节是"反思 / 重做会怎么改"素材的单点入口，
+新限制先落这里再考虑是否单开任务。
+
+### 已知限制
+
+**运行与运维**：
+- 日志 stdout JSON **不落盘**，容器重建即丢——事后回溯须另配 logging driver
+  （loki/fluentd 卷挂载），当前口径是"实时排障够用、事后审计不足"
+- dev 多实例下**记忆 store 与工具缓存仍进程内**（T155 已知边界，prod 共享
+  无此问题）；dev 多实例另须显式 `CHECKPOINT_BACKEND=sqlite`（T145 实锤）
+- 交付队列单消费者（D044 混合方案）：SKIP LOCKED 升级判据已落档未实施
+  （日案件量 >1 万或积压排空 >10 分钟才升级，当前量级远未触发）
+
+**LLM 与缓存**：
+- ocr 材料提取缓存 0% 命中是**天然 miss**（prompt 主体即唯一文档内容），
+  T165 布局改造只对"静态规程+动态数据"形态的调用点有效
+- 客服域无确定性路径 → 客服门需真 Key 本地手动跑，CI 只进 schema 校验与
+  判分单测；客服检索命中率为分层观测口径（Agent 会改写检索词）
+- PII 库内加密（D082）**密钥轮换需 v2 双写迁移**——确定性加密不隐藏"同值
+  等值"这一事实本身（证件号匹配本就是业务功能，明示接受）
+
+**评测与质量**：
+- RAG Recall@1=54% 偏低：唯一 top-4 miss 归因为"严格 gold 钉单文档判定
+  偏严"（潜水免责在两文档同答案），非检索能力缺陷
+- badcase 回归集（T174/D080）与 judge 对账（T178/D084）依赖真实坐席操作
+  积累样本，当前量级尚小；回归集未挂 nightly（可挂）
+- 叙述 judge 温度 0 单次判分仍有方差（RAGAS 同款口径），一致率按案比较容忍
+
+**交互**：
+- 客服 escalated 态 3s 轮询、无 SSE（D057-3 挂起项）；案件进度经 GET 轮询
+- 用户只说"9月20日"时模型自行补年份（T137 观察项，prompt 已补推断规则）
+
+### 未来工作候选（按价值密度排序）
+
+1. **客服 SSE 流式**（D057-3 兑现）：请求-响应 → StreamingResponse + astream，
+   案件长任务保留轮询（取舍本身是答案）
+2. **轨迹回放断言工具**：审计事件流（case_events，seq 单调）批跑不变量
+   （auto 必过合规门 / RESUME 前必有交付回执 / 调度预算不超限）
+3. **死信重驱 + 告警**：Grafana 加 dead>0 告警规则 + 管理端点重置 queued
+4. **模型路由实验**（证据驱动）：客服域或叙述生成换小模型 A/B，六门+成本
+   双口径对比，结论无论正负落 decisions.md
+5. **回归集挂 nightly**：`--dataset regression` 进 nightly-llm job（样本
+   积累后）

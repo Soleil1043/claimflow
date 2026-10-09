@@ -44,7 +44,7 @@
 | 包管理 | uv | `pyproject.toml` + `uv.lock` |
 | 测试 | pytest + pytest-asyncio | 核心逻辑必须有测试 |
 | 部署 | Docker + Docker Compose | 本地一键启动 |
-| 监控 | Prometheus + Grafana + OTel/Jaeger | 14 面板 + trace_id 全链路 |
+| 监控 | Prometheus + Grafana + OTel/Jaeger | 22 面板 + trace_id 全链路 |
 
 ---
 
@@ -195,7 +195,7 @@ claimflow/
 ├── scripts/                   # 种子 / 生成 / 冒烟双档 / 红队 / 缓存诊断
 ├── data/                      # 运行数据：mock 种子 / kb_docs 知识库 / graph / qdrant / uploads
 │
-├── grafana/                   # Grafana dashboard JSON（双仪表盘 14 面板）
+├── grafana/                   # Grafana dashboard JSON（双仪表盘 22 面板）
 ├── prometheus/                # Prometheus 抓取配置（retention 30d）
 ├── otelcol/                   # OTel Collector 配置（采样率 0.2）
 │

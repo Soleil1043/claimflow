@@ -2863,3 +2863,30 @@ Key，不进 CI）；judge 调用经 phase_ainvoke(stage=narrative_judge) 自动
 **验证**：9 新用例（prompt 纪律/解析三态/采集映射与过滤/对账数学全套）；
 581 passed（572+9）+ ruff 绿；真实 Key 全链路冒烟（合成采样案 → judge 判分 →
 对账报告 → 数据清理）；冒烟报告留档 t178_judge_reconciliation.json。
+
+## T179 · 顺手修缮清单：文档可信度四件套（2026-10-10）
+
+**背景**：完善性评估「三、顺手修缮清单」——近零成本但直接影响演示可信度。
+
+**四件**：
+1. **Grafana 坏面板**：overview 4 面板查询 T094 已删的 v1 指标。处置分化——
+   "人工转接率"面板概念有效且有现存指标，改 `CASES_TOTAL{final_status=
+   "referred"}/CASES_TOTAL` 终态推导替换；"合规三态/单轮 P95/对话轮次"无现存
+   等价指标（补埋点属新任务非修缮），删除。overview 15→12，双仪表盘
+   10+12=**22**；promql 指标引用经脚本与 metrics.py 定义全量比对（Histogram
+   的 _bucket/_sum/_count 后缀归一化后零坏引用）；README×2/AGENTS×2/
+   architecture 四处"14 面板"口径同步
+2. **D059 补录**：编号断链（architecture §8 与 tasks T139 引用 T139/D059 但
+   decisions.md 无此条）——按 T139 交付记录回溯补记三决断（人工口径先于
+   judge / 确定性采样种子=case_id / 采样不动状态机）+ T178/D084 延伸注，
+   明确标注"补录（T179 编号断链修复）"，不伪装成当日原文
+3. **architecture.md §17「已知限制与未来工作」**：散落限制集中成节（运行运维/
+   LLM 与缓存/评测质量/交互四组）+ 未来候选五项按价值密度排序——清单要的
+   "反思 / 重做会怎么改"素材有了单点入口，新限制先落这里
+4. **死配置清理**：GLM 残留（config 两字段 + .env.example 段，消费方
+   evals/variants.py 早已删除）、TURN_TOKEN_BUDGET 残行（字段本体 T117 已删，
+   .env.example 忘清——"删消费方忘删配置"的补账）、prompts.py 文档串陈旧
+   提及（MEMORY_SUMMARY 已不存在 → 改为现行 prompt 清单）
+
+**验证**：581 passed + ruff 零退化；死配置全仓 grep 零残留（.agent 历史档案
+除外——只追加不改历史）；D001-D084 编号连续。

@@ -1482,6 +1482,33 @@ react-markdown 均可纯复用；转人工需新会话域（interventions 工单
 TTL 关闭/删除链路）+ tests/api/test_memory.py +2（删除端点 200+审计事件、
 404）；425 passed + ruff 绿 + workbench build 绿。
 
+## D059（2026-09-22，T139）：决定书叙述抽评——人工口径先于 judge + 确定性采样
+
+> 补录（2026-10-10，T179 编号断链修复）：architecture.md §8 与 tasks.md T139
+> 均引用"T139/D059"，但本条目当时遗漏未写——决策内容按 T139 交付记录与
+> architecture.md §8 现状回溯补记，编号顺序恢复连续。
+
+**背景**：缺口#4——自动签发案件的决定书叙述由 LLM 撰写（骨架+金额由代码
+注入，叙述段是唯一生成物），全量人工复核不可行，零质控不可接受。
+
+**决断**：
+
+1. **人工口径先于 judge**：试点期质控用坐席抽评（pass/revise+评语），不引入
+   LLM-as-judge 进门禁——v1 咨询期 judge 与门禁耦合的教训（T068 rubric judge
+   已随 T112 删除）：judge 偏差会直接变成漏放/误杀。抽评通过率对齐设计文档
+   ≥97% 口径。
+2. **确定性采样**：`manual_review_sample_rate`（默认 0.05），`random.Random(
+   f"narrative-sample:{case_id}")` 种子=case_id——同案恒同结果，可复算、可审计，
+   不引入随机漂移；rate=0/1 边界即全关/全开。
+3. **采样不动状态机**：抽中落 `CaseEvent kind=narrative_sample`（探索实证
+   auto_issued 案件进不了挂起列表且 resolve 409）——不挂起、不阻塞签发，
+   队列消费走独立端点（GET /interventions/narrative-samples +
+   POST /cases/{id}/narrative-review，verdict 落审计事件）。
+
+**延伸（T178/D084）**：judge 后来以"观测层"形态回归——人工 verdict 成为
+judge 的金标准（一致率本身是指标），本决断"人工口径先于 judge"不被推翻
+而是被延伸。
+
 ## D060（2026-09-22，T140）：提取置信度校准——来源常数 → 齐全度函数
 
 **背景**：缺口#9（面试链 3）。旧口径 `_SOURCE_CONFIDENCE` 纯来源查表

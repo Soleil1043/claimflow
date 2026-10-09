@@ -4,8 +4,9 @@
 用字符串常量，需要变量时用 {variable} 占位、调用时 format。
 现行 prompt：核赔路由（CASE_ORCHESTRATOR_ROUTING）、责任认定（CASE_LIABILITY_AGENT）、
 决定书叙述（DECISION_NARRATIVE）、材料 AI 审查（MATERIAL_REVIEW_AI）、
-OCR 双版（OCR_EXTRACT / OCR_EXTRACT_TEXT）、记忆摘要（MEMORY_SUMMARY）、
-图谱抽取（KG_EXTRACTION，scripts/build_kg 消费）。
+OCR 双版（OCR_EXTRACT / OCR_EXTRACT_TEXT）、门户客服（SUPPORT_AGENT）、
+单 Agent 基线（SINGLE_AGENT）、图谱抽取（KG_EXTRACTION，scripts/build_kg 消费）、
+RAG 评测四件与叙述 judge（evals 消费）。
 """
 
 from schemas.stages import render_dispatch_catalog

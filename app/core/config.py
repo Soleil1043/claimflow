@@ -189,12 +189,6 @@ class Settings(BaseSettings):
     # 不需要全量——0.2 已在本地开发流量下足够覆盖异常路径又不淹没存储
     otel_sampling_ratio: float = 0.2
 
-    # ===== 跨供应商 A/B 变体（T041） =====
-    # GLM（智谱）OpenAI 兼容接口；供 evals/variants.py 的 glm-5.3-flash 变体经
-    # $ 字段间接引用（$glm_api_key / $glm_api_base_url）切换供应商
-    glm_api_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
-    glm_api_key: str = ""
-
     # ===== Embedding（BGE-M3，本地 sentence-transformers） =====
     embedding_model: str = "BAAI/bge-m3"
     # 本地模型目录（优先于 embedding_model 的 repo id）：容器/离线场景直载快照目录，

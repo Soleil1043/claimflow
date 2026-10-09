@@ -96,7 +96,8 @@
             ]
           },
           "unit": "percentunit",
-          "mappings": []
+          "mappings": [],
+          "max": 1
         },
         "overrides": []
       },
@@ -120,131 +121,12 @@
         },
         "textMode": "auto"
       },
-      "title": "人工转接率",
+      "title": "案件转人工率（终态推导）",
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(rate(claimflow_human_interventions_total[5m])) / sum(rate(claimflow_conversation_turns_total[5m]))",
+          "expr": "sum(claimflow_cases_total{final_status=\"referred\"}) / sum(claimflow_cases_total)",
           "legendFormat": "转人工率"
-        }
-      ]
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            }
-          },
-          "mappings": [],
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 12,
-        "y": 0
-      },
-      "id": 3,
-      "options": {
-        "displayLabels": [],
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "pieType": "donut",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "title": "合规审查三态分布",
-      "type": "piechart",
-      "targets": [
-        {
-          "expr": "sum by (verdict) (rate(claimflow_compliance_verdicts_total[5m]))",
-          "legendFormat": "{{verdict}}"
-        }
-      ]
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 30
-              },
-              {
-                "color": "red",
-                "value": 60
-              }
-            ]
-          },
-          "unit": "s",
-          "mappings": []
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 18,
-        "y": 0
-      },
-      "id": 4,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      },
-      "title": "单轮对话 P95 处理时长",
-      "type": "stat",
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(claimflow_turn_latency_seconds_bucket[5m])) by (le))",
-          "legendFormat": "P95"
         }
       ]
     },
@@ -504,66 +386,6 @@
         {
           "expr": "sum by (model, kind) (rate(claimflow_llm_tokens_total[5m]))",
           "legendFormat": "{{model}} · {{kind}}"
-        }
-      ]
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "lineWidth": 2,
-            "showPoints": "never"
-          },
-          "mappings": [],
-          "unit": "ops",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 12,
-        "x": 0,
-        "y": 22
-      },
-      "id": 9,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "title": "对话轮次速率（按意图）",
-      "type": "timeseries",
-      "targets": [
-        {
-          "expr": "sum by (intent) (rate(claimflow_conversation_turns_total[5m]))",
-          "legendFormat": "{{intent}}"
         }
       ]
     },

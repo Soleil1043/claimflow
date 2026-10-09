@@ -100,7 +100,7 @@
 | 决定书叙述抽评（T139） | 5% 确定性采样人工质检（种子 = case_id 可复算），workbench 抽评队列 + 通过率统计 |
 | 对抗回归门（T124/T142/T159） | injection 8 案守 push CI + robustness 6 seed / 24 变体入 hold-out 盲测集（关键词路径最易过拟合，恰需盲测）；变体分类法对齐 Garak promptinject / PyRIT converters-attacks，带 framework_ref 溯源 |
 | **Prompt 缓存观测（T162/T164/T165）** | DeepSeek 硬盘缓存默认开启但此前是黑盒——三来源提取非标字段（`response_metadata.token_usage` / langchain 标准字段回退）+ **stage 维度分列**（区分「布局缺陷」与「天然 miss」）+ 布局改造使路由命中率 **0% → 86.8%** |
-| 全链路可观测 | Prometheus/Grafana **14 面板**（结案率 / 阶段 P95 / 调度健康 / 守卫纠错 / **Prompt 缓存命中率按调用点**）+ OTel/Jaeger（span 含单调用 `cache_read/miss_tokens` 原值，采样率 0.2） |
+| 全链路可观测 | Prometheus/Grafana **22 面板**（结案率 / 阶段 P95 / 调度健康 / 守卫纠错 / **Prompt 缓存命中率按调用点** / **单案 token 与 ¥ 成本**）+ OTel/Jaeger（span 含单调用 `cache_read/miss_tokens` 原值，采样率 0.2） |
 
 ---
 
@@ -206,7 +206,7 @@ CI 默认跑离线档（不需要任何 secret）；仓库配了 `LLM_API_KEY` s
 
 | 组件                           | 启动 | 入口 |
 |--------------------------------|------|------|
-| 监控栈（Prometheus + Grafana） | `docker compose --profile monitoring up -d` | Prometheus `:9090`（TSDB 保留 30d）、Grafana `:3000`。两个仪表盘共 14 面板——核赔 8（自动结案率 / 转人工率 / 调度调用 / 守卫纠错 / 阶段耗时 P95 / 端到端耗时 / 案件量 / 核定金额）+ 监控总览 6（工具成功率 / 转接率 / 合规三态 / P95 时延 / 工具与 LLM 调用量 / **Prompt 缓存命中率按调用点**） |
+| 监控栈（Prometheus + Grafana） | `docker compose --profile monitoring up -d` | Prometheus `:9090`（TSDB 保留 30d）、Grafana `:3000`。两个仪表盘共 22 面板——核赔 10（自动结案率 / 转人工率 / 调度调用 / 守卫纠错 / 阶段耗时 P95 / 端到端耗时 / 案件量 / 核定金额 / **单案 Token 均值 / 单案成本 ¥**）+ 监控总览 12（工具成功率 / 案件转人工率 / P95 时延 / 工具与 LLM 调用量 / 熔断 / **Prompt 缓存四面板 / 工具缓存命中率**；v1 陈旧面板已于 T179 清理） |
 | 追踪栈（OTel + Jaeger）        | `docker compose --profile tracing up -d`<br>`.env` 设 `OTEL_ENABLED=true` | Jaeger UI `:16686`，span 含单调用 `gen_ai.usage.cache_read/miss_tokens` 原值（采样率 0.2） |
 | 坐席工作台（HITL + 客服）      | `cd workbench && npm install && npm run dev` | `:5173` 核赔工单列表 + 详情（审计时间线 / 决定书版本卡 / 签批改判表单）+ 客服工单（transcript / 回复 / 关闭）+ 叙述抽评审队列 |
 | 案件提交门户                   | `cd chatui && npm install && npm run dev` | `:3000` 提交 + 进度时间线 + 决定书查看 + 补件上传 + 悬浮 AI 客服（问答 / 查进度 / 转人工） |
