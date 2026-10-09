@@ -1,8 +1,8 @@
 # 任务清单 (Tasks)
 
-> Phase 3 产出，Phase 4 规划于 2026-08-25 更新（D017/D018）；Phase 5 规划于 2026-09-01 更新（D021/ADR-007）。基于 plan.md 与架构文档拆解。
+> Phase 3 产出。Phase 4 规划于 2026-08-25 更新（D017/D018）；Phase 5 规划于 2026-09-01 更新（D021/ADR-007）。基于 plan.md 与架构文档拆解。
 > 规则：1 个任务 = 1 个可独立验证的功能点 | 严格按顺序执行 | 不跳依赖
-> 覆盖范围：MVP（F01-F14）+ Phase 3（工程化）+ Phase 4（深度亮点）+ Phase 5（LangGraph 标准构件对齐）
+> 覆盖范围：MVP（F01-F20）+ Phase 3-8（工程化 / 深度亮点 / 官方构件对齐 / 三界面设计系统 / 评测强化 / 核赔重写）+ 增量批次（T094-T168）
 
 ---
 
@@ -11,6 +11,8 @@
 ```
 - [ ] T0XX: [任务名] | 依赖: [T0XX或无] | 涉及文件: [路径] | 验收: [标准]
 ```
+
+> 后期任务补`覆盖: Fxx/Exx 或 无（基础设施）` 字段，见各增量节内任务条目。
 
 ## 任务列表
 
@@ -145,12 +147,26 @@ T001 → T002 → T003 → T004 → T005
         Phase 6:  T054（设计令牌/主题）→ T055（聊天 UI）→ T056（评测台 UI）→ T057（坐席工作台）→ T058（收尾）
 ```
 
+## 覆盖检查（Phase 3 门禁，用户确认前逐项自查）
+
+- [x] 每条 Fxx 至少被一个任务覆盖（F01-F20，见 spec.md §4；F18-F20 为后期追加，对应 T132-T137/T150-T156/T138）
+- [x] 每条 Exx 有对应的校验或测试任务（E01-E22，见 spec.md §6；核心异常路径均有单测或门禁覆盖——E01/E18 幂等与租约有专测，E07/E08 守卫注入用例，E14/E15 合规门断言，E19 双实例冒烟脚本）
+- [x] 不存在既不覆盖需求、也不属于基础设施的任务（T153 队列三分、T167/T168 文档同步属工程治理，已在 §3.1/§3.6 记豁免口径）
+
+---
+
 ## 进度统计
 
-- 总任务数：93（v1 咨询版 76 项 T001-T076 全部完成；Phase 8 核赔重写 17 项 T077-T093）
-- 已完成：76 + T077（2026-09-04 立项）
+- 总任务数：169（T001-T168，含T158-2）
+- 已完成：**169（100%）**
 - 进行中：0
-- 待开始：16（T078-T093）
+- 待开始：0
+
+> T001-T076 咨询版（76 项）→ T077-T093 核赔重写（17 项）→ T094-T112 架构评审四轮收口
+> → T113-T145 工程化/ 险种四线 / 评测与安全 / 客服域 / 治理 / CI
+> → T146-T156 客服金样本门 + P0/P1 完善度 + 多实例横向扩展
+> → T157-T158 依赖漏洞与npm 审计门红修复→ T159-T161 面试证据三件套
+> → T162-T166 Prompt 缓存观测与修复 → T167-T168 文档全量刷新。**全部交付，无挂起项。**
 
 > Phase 5 回归实测（T048，deepseek-v4-flash 全量 200 条，evals/reports/t048_phase5_regression.json）：
 > 完成率 87.0%（基线 88%，回退 1pp 达标线压线）｜工具准确率 94.7%（基线 95.26%，差 0.3pp 未达
@@ -387,3 +403,7 @@ T001 → T002 → T003 → T004 → T005
 
 - [x] T167: README 全量刷新（**主 README.md** 停在 2026-09-26 / T161，缺 T162-T166 六项：①成果指标"444 passed"→528、"Grafana 8 面板"→14 面板（含 4 个Prompt 缓存面板）、"对抗集 14/14"→T159 拆分后 injection 8 + holdout 30；②新增 T162-T166 能力行：Prompt Caching 命中指标 + stage 维度 + 布局改造 0%→86.8% + Prometheus retention 30d + OTel 采样 0.2；③验证与测试节命令注释同步；④启动栈表补tracing profile 与 Jaeger :16686；**模块 README**：services/README 缺 LlmUsageCallbackHandler/结构化输出分支与 case_job_worker 拆分（T153）、evals/README 缺 redteam.py + 单Agent 消融 + RAG 评测 + holdout 数据集（T159-T161）+ 对抗集口径改为 injection 8、scripts/README 缺 measure_cache_hit_rate.py / probe_deepseek_cache_usage.py / verify_multiinstance.py / redteam_adversarial.py / eval_rag.py（T154/T156/T162/T163/T159/T161）、grafana/README 仍写"核赔业务 8 面板"→14 面板双仪表盘、prometheus/README 补 retention 30d（T166）、otelcol/README 补采样率 0.2 与 span 属性、tests/README 补 528 用例、skills/tools/schemas/app/nodes/docs 八处同步）
 - [x] T168: architecture.md 刷新（T145 后未更新，现已 T166：①§13 可观测性补Prompt 缓存指标三来源提取 + stage 维度 + retention + 采样率；②§14 评测体系补 T159 对抗集拆分（injection 8 留守 push CI / robustness 6 移入 hold-out 盲测集）、T160 单Agent 消融实验（多Agent 88.9% vs 单 Agent 60.8%）、T161 RAG 评测（Recall@1=54%/@4=96%、RAGAS四指标）；③§5 补 worker_agent 回调观测；④§16 决策索引补 D071-D076；⑤同步 AGENTS.md 结构树的 case_jobs 三分与 observability 新文件）
+
+### 增量：sdd-scaffold 模板对齐（2026-10-09 追加，用户要求"用这个 skill 改写项目的 AGENT.md 和 .agent 文件夹，使得项目的和 skill 里面的例子一致"）
+
+- [x] T169: AGENTS.md 与 .agent/ 六文件对齐 sdd-scaffold 模板（**AGENTS.md** 8 节 → 模板 5 节结构（工作流约束 / 技术栈 / 代码约定 / Git 规范 / 文件结构约定）+ 注意事项节；原§1「项目是什么」压缩为头部摘要（原内容信息量大，保留项目定位/文档指针/维护期声明），原 §6 实现约定的工具层/工作流/Prompt/配置四条并入 §3 代码约定（§3.4 工具层 / §3.5 工作流 / **§3.6 Prompt T165 硬约束** / §3.7 配置），原 §7 Phase 推进方式与 §8 注意事项合并为 §6；**工作流约束补模板两条**：第7 条「需求变更走修订（prompts.md 的需求变更 Prompt）」+ 第 8 条「设计变动先算账（优势/代价/影响范围/迁移成本，经用户确认后执行）」；**spec.md** 6 节 → 模板 9 节：补 §2 竞品参考（LangGraph 官方范式 / 传统保险核心 / GraphRAG / LLM Observability 工具，附对本项目的借鉴与差异化）、**§6 边界与异常 E01-E22**（从代码实际 fail-open 点反推：E04 解析失败引用型兜底 / E05 提取超时重试后 fail-open / E06 路由失败回退 default_route / E10 责任认定三层兜底 / E17 checkpoint 版本门卫 / E18 CAS 租约 / E19 dev 多实例未共享 checkpoint 等）、§7 技术约束、§8 假设与依赖（DeepSeek/BGE-M3/postgres-qdrant-redis）、§9 变更记录 v0.1→v1.4 五行；F01-F17 补齐 F18 在线客服/F19 多实例/F20 记忆治理（对齐后期交付）；**tasks.md** 补模板「覆盖检查」三项（逐项打勾并给依据）+ 修正进度统计（此前严重过时写「已完成 76 / 待开始 16」，实为169 全部交付）；**progress.md** 补模板「问题追踪」表 P001-P023（从历史踩坑记录提炼，含P019「归因错误：观测缺口伪造因果」这条方法论教训）；**plan.md** 补 §0 分工说明（模板六节内容外置到 docs/ 与 AGENTS.md，避免同信息两处维护漂移）+ 状态 🔄→✅；**prompts.md** 补模板的「需求变更 Prompt」与「设计变更 Prompt（架构/设计变动）」两条） | 依赖: T168 | 涉及文件: AGENTS.md、.agent/{spec,plan,tasks,progress,prompts}.md | 验收: AGENTS.md 节结构与模板一致（5 节 + 注意事项）；spec.md 9 节齐全含Fxx/Exx；tasks.md 含覆盖检查三项打勾 + 进度统计修正；progress.md 含问题追踪表；prompts.md 含两条变更 Prompt；528 tests collected + ruff 绿零退化

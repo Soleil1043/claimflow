@@ -2580,3 +2580,61 @@ scripts/eval_rag.py 运行器（并发 4，报告 json+md 双落盘）。
   容器重建即丢，需要回溯须另配 logging driver——把已知短板写进文档而非留白
 
 验收：528 passed + ruff 绿零退化
+
+---
+
+## 问题追踪
+
+> 遇到的问题记录在此，方便回溯。踩坑详情见各条目的「关键结论」段。
+
+| 编号 | 任务 | 问题 | 解决方案 | 状态 |
+|---|---|---|---|---|
+| P001 | T014/T017 | DeepSeek 拒 `json_schema` response_format | judge 改用 `method="function_calling"` | ✅ |
+| P002 | T014 | 常驻 API 进程持 Qdrant local 文件锁致评测向量检索静默 0 命中 | `build_eval_graph` 增加 Qdrant 进程级副本隔离 | ✅ |
+| P003 | T013 | StaticPool 内存 SQLite 被双会话事务污染 | 改用 `tmp_path` 文件库（T080 实锤） | ✅ |
+| P004 | T077-T093 | 未上传真实材料时提取置信度低→ 案件全部转人工，自动签发永不发生 | 这是设计行为（D140 置信度校准），冒烟改上传现场生成的 Word | ✅ |
+| P005 | T147 | `test_staff_auth` 首版 `_mk_client`裸赋值 settings 后 monkeypatch 恢复到脏值，泄漏后续测试 | 统一 monkeypatch 单点设置 | ✅ |
+| P006 | T148 | ci.yml 的 ruff 命令仍含 T094 已删的 `ui`/`agents` 目录，本地复现 2 errors，T146 后任一 push 必红 | 改为现存全集并首次纳入 `evals` | ✅ |
+| P007 | T150 | 压测实测并发提交撞号（`generate_case_id` 读-判-写无锁），50×10 出 25 案成对 409 落"理论不可达"分支 | 提交端点全临界区按事件循环惰性锁（WeakKeyDictionary，避开 asyncio.Lock 绑 loop 与 pytest 新 loop 冲突） | ✅ |
+| P008 | T150 | 默认连接池 15 上限被 50 路全量轮询+队列消费打爆（36 案 500 等池 30s 超时） | 池扩 20+30 + 脚本轮询限流 10 | ✅ |
+| P009 | T152 | 本地 pip-audit 须绕代理（`env -u HTTP_PROXY...`，隧道 502），CI 无此问题 | 本地绕代理验证，CI 直接跑 | ✅ |
+| P010 | T154 | compose `init` 服务漏配 `STAFF_KEYS`——prod 启动强制校验（D067）把初始化容器挡死 exit 1 | compose init 环境补齐对齐 app | ✅ |
+| P011 | T158 | CI 前端审计步骤的 `npm audit --ignore` 无效（npm 展开成 ignore-scripts 静默失效），本地实测假绿 | 改 `npm audit --json` + node 过滤器按 GHSA id 比对豁免清单，JSON 为空拒放行（fail-closed） | ✅ |
+| P012 | T158 | Windows 本地 `npm audit` 必须走代理（`env -u` 后端点静默失败返回 exit 0 假绿，与 P009 相反） | 本地保留代理，curl 带/不带对照实锤 | ✅ |
+| P013 | T158-2 | CI 前端 job 死在**审计步骤之前的 npm ci**（7s 红，EUSAGE "package.json and package-lock.json in sync"）——根因 npm 11.6 删了 @emnapi 系列条目但树内留悬空引用，npm 11 自身校验放行（本地三连绿假象）而 CI npm 10 拒绝 | 双目录 `npx npm@10 install --package-lock-only` 按 CI 同款大版本重生成 | ✅ |
+| P014 | T162 | LangChain 的 `usage_metadata` 丢弃 DeepSeek 非标缓存字段（`_create_usage_metadata` 只映射标准字段） | 改从 `response_metadata["token_usage"]` 提取（探针实测唯一存活路径） | ✅ |
+| P015 | T163 | 容器跑旧镜像，`/metrics` 查不到新指标（`up -d`/`restart` 不重建） | `docker compose build app`；确诊手法 `exec app grep -c 指标名 /app/路径` 返回 0 | ✅ |
+| P016 | T163 | Grafana 面板引用不存在的直方图指标 → **静默 No data** 不报错 | 改 Counter 速率比值；写面板前核对 `metrics.py` 指标名/类型/labelnames | ✅ |
+| P017 | T164 | `with_structured_output` 返回**纯 Pydantic 对象**，无 `usage_metadata`/`response_metadata` | usage 只能经 `on_llm_end` 的 `llm_output` 取；判据用「是否自带模型身份属性」而非 `isinstance(BaseChatModel)` | ✅ |
+| P018 | T164 | 验证 langgraph回调传播时，假模型探针因恒返回 tool_call 陷入无限循环 | 改真实模型 `invoke_worker` 验证，确认 `config.callbacks` 传播到节点内 chat model | ✅ |
+| P019 | T163→T164 | **归因错误**：把材料提取的 1845 miss 归给路由 prompt 布局——观测缺口伪造了因果 | 补齐 stage 维度后确诊：四调用点从未被观测。教训：指标覆盖不全时"某处指标异常"推不出因果 | ✅ |
+| P020 | T166 | Prometheus v3 **已把 TSDB 保留期移出配置文件**，三种写法 promtool 全部报 `field not found in type config.plain` | 改走 `command: --storage.tsdb.retention.time=30d`；`max-samples-per-query` v3.1 不存在 | ✅ |
+| P021 | T166 | Git Bash `printf` 不转换 `\n`，写多行测试 YAML 全落成一行→ 误判"storage 段不被识别" | 验证配置文件一律用 Write 工具 | ✅ |
+| P022 | T166 | `docker exec/run -v` 挂载容器内绝对路径（`/data`、`/c.yml`）被 Git Bash 路径转换吃掉 | `MSYS_NO_PATHCONV=1` 或 Windows 风格路径 | ✅ |
+| P023 | T166 | 改 `.env` 后 `docker compose restart app` 不生效（环境变量未变） | `--force-recreate app` | ✅ |
+
+---
+
+## T169 · AGENTS.md 与 .agent/ 对齐 sdd-scaffold 模板（2026-10-09）
+
+**做了什么**：6 份文件按 `D:/Code/vibecoding/skills/sdd-scaffold` 模板重排（+372/-275 行）
+
+**对齐口径**（用户选择「完全对齐模板结构 + 按项目实况回填」）：
+
+| 文件 | 变化 |
+|---|---|
+| AGENTS.md | 8 节 → 模板 5 节 + 注意事项；项目背景压缩为头部摘要；原 §6 实现约定四条并入 §3 代码约定；工作流约束补模板第 7/8 条（需求变更走修订、设计变动先算账） |
+| spec.md | 6 节 → 9 节：补竞品参考、**边界与异常 E01-E22**、技术约束、假设与依赖、变更记录 |
+| plan.md | 补 §0「本文件与架构文档的分工」——模板六节内容外置到 docs/ 与 AGENTS.md，避免同信息两处维护漂移；状态 🔄→✅ |
+| tasks.md | 补「覆盖检查」三项（打勾 + 依据）；**进度统计修正**（此前写「已完成 76 / 待开始 16」，实为 169 全部交付） |
+| progress.md | 补「问题追踪」表 P001-P023 |
+| prompts.md | 补「需求变更 Prompt」「设计变更 Prompt」两条 |
+
+**E01-E22 从代码实际 fail-open 点反推**，不凭空编：grep 节点层的 `except/fail-open/兜底`
+后逐条核对——E04 材料解析失败引用型兜底、E05 提取超时重试后 fail-open、
+E06 路由失败回退 default_route、E10 责任认定三层兜底、E17 checkpoint 版本门卫、
+E18 CAS 租约认领、E19 dev 多实例未共享 checkpoint 会触发全新重跑（T145 实锤）。
+
+**P019 是这批记录里最值钱的一条**：T163 把材料提取的 1845 miss 归给路由 prompt 布局，
+是**观测缺口伪造了因果**——补齐 stage 维度后确诊四调用点从未被观测。
+教训值得单列成表：指标覆盖不全时，"某处指标异常"推不出因果。
