@@ -2708,3 +2708,33 @@ test_cases.py 内部且后续无时间线断言），新文件 test_case_access.
 第 2 条 429 且首条 404 证明限流先于路由不触 LLM、案件配额打满不影响客服域）；
 547 passed（536+11）+ ruff 绿。Redis Lua 路径不单测（需真实 Redis，prod 冒烟覆盖，
 脚本语义与内存桶对齐）。
+
+## T173 · 注入防线补全：材料提取与责任认定定界 + 材料内藏指令红队家族（2026-10-10）
+
+**背景**：完善性评估建议 1c（安全纵深补全最后一子项）。T131/T165 建立的
+"<<<DATA>>> 定界 + 数据非指令铁律"防线只盖住 orchestrator 快照与材料 AI 审查；
+OCR 文本提取 prompt `{content}` 裸拼、责任认定 facts 裸送——上传文档是申请人
+完全可控字节（白字隐写/扫描件/Word 备注），恰是间接注入最自然的入口；且红队
+10 变异器载荷全打申请文本，无一走材料通道。决策 D079。
+
+**改动**：
+- prompts：OCR_EXTRACT_TEXT_PROMPT 全静态化（铁律覆盖 base64/全角混淆）+
+  OCR_EXTRACT_PROMPT（vision）加图片内文字铁律 + CASE_LIABILITY_AGENT_PROMPT
+  加数据边界铁律（静态文字，liability 缓存命中 73% 口径不受影响）
+- 装配：materials._extract_via_text_model 改 SystemMessage(静态)+HumanMessage
+  （定界）双消息；liability_judge facts 任务消息定界包裹
+- 红队：material_embedding 家族（DOC-SYSOVERRIDE/DOC-B64）——载荷植入追加材料
+  的提取结果字段，描述保持干净核；变异器 10→12；holdout --generate 重生成
+  （30 案 = robustness 6 + RTV 24，其中材料变体 4 条）
+
+**踩坑（T140 校准与攻击载荷的交互）**：材料变体首版提取字段缺 amount → 校准
+置信度 0.9−0.25=0.65 < 自动签发门槛 0.8 → 确定性门把 4 条变体按设计转人工
+（route=human，"失败"dims=['route','sequence']）。这不是注入得手而是字段缺失
+扰动——攻击变体必须保持"干净核语义完全等价"才可判。修正：_material_entry 四
+字段齐备（置信 0.9），门全绿。这条写进了 D079 与变异器单测注释（防回归）。
+
+**验收**：确定性三门全绿——holdout 30/30（六门全绿，一致率 100%）、adversarial
+8/8、主门 153/153；549 passed（547+2）+ ruff 绿。LLM 档材料变体走 nightly 盲测
+（本地有 Key 时可 `--probe --llm` 先行验证）。上游 OCR 防线由单测钉死消息布局
+（system 全静态无占位符、载荷落定界内），下游消费面由 hold-out 实测——双层防线
+各测各的。

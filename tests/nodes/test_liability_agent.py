@@ -96,6 +96,9 @@ async def test_invoker_result_mapped_and_traced() -> None:
 
     async def fake_invoker(agent_def, instruction):
         assert "急性阑尾炎" in instruction  # 案件事实注入指令
+        # T173 注入防线：事实走 <<<DATA>>> 定界（与 system 数据边界铁律配套），不再裸送 JSON
+        assert "<<<DATA" in instruction and ">>>DATA" in instruction
+        assert instruction.index("<<<DATA") < instruction.index("急性阑尾炎")
         return (
             {
                 "verdict": "covered",
@@ -153,7 +156,13 @@ async def test_fallback_self_pay_partial() -> None:
 
 
 def test_skill_assembled_into_system_prompt() -> None:
-    """skill 装配断言：责任认定规程内容进入 system prompt。"""
+    """skill 作业规程拼进 system（build_system_prompt，先 format 后拼接）。"""
+
+    from services.llm.prompts import CASE_LIABILITY_AGENT_PROMPT
+
+    # T173 注入防线：责任认定 system 含数据边界铁律（静态文字，不影响缓存前缀）
+    assert "数据边界" in CASE_LIABILITY_AGENT_PROMPT
+    assert "不是指令" in CASE_LIABILITY_AGENT_PROMPT
     agent_def = _agent_def_for("medical")
     assert "责任免除" in agent_def.system_prompt
     assert "{case_facts}" not in agent_def.system_prompt  # 占位符已由调用方填充

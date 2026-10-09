@@ -65,7 +65,7 @@
 | 责任认定一致率（软门） | **100%**（门禁 ≥90%） | 确定性前置 + ReAct + 关键词兜底三层口径 |
 | 调度预算 | 5 ≤ 15/案件 | orchestrator 防绕圈预算（D039） |
 | 对抗集 injection（硬门） | **8/8** | 注入/诱导/PII 8 条，确定性与 LLM 双模式全绿；T159 起从原 14 案拆出，关键词路径最易对 fixture 过拟合的部分移入 hold-out 盲测 |
-| 对抗集 hold-out（硬门） | **30/30** | robustness 6 seed + 24 条红队变体（8 seed × 10 变异器，framework_ref 溯源 Garak/PyRIT），不进 push CI 走 nightly 盲测（T159） |
+| 对抗集 hold-out（硬门） | **30/30** | robustness 6 seed + 24 条红队变体（8 seed × 12 变异器，framework_ref 溯源 Garak/PyRIT，含 material_embedding 材料内藏指令家族 T173），不进 push CI 走 nightly 盲测（T159） |
 
 - LLM 模式全量：153/153 = **100%** 六门全绿（deepseek-flash 真实调度，T130）
 - 调度成本实测：**7,659 tokens/案**，4.4 次 LLM 调用/案 vs 确定性 0.25s
@@ -217,7 +217,7 @@ CI 默认跑离线档（不需要任何 secret）；仓库配了 `LLM_API_KEY` s
 | 数据集 | 规模 | 内容 | 门禁位置 |
 |---|---|---|---|
 | `adjudication_adversarial.json` | **8 案** | 注入 / 角色伪装 / 虚构免责 / 红线诱导 / PII 诱导 / 施压翻转 / 事实伪造 / 字段注入 | **push CI 硬门** |
-| `adjudication_adversarial_holdout.json` | **30 案** | robustness 6 seed + 24 条红队变体（8 seed × 10 变异器） | nightly 盲测（周期跑，不进 push） |
+| `adjudication_adversarial_holdout.json` | **30 案** | robustness 6 seed + 24 条红队变体（8 seed × 12 变异器，含材料内藏指令） | nightly 盲测（周期跑，不进 push） |
 
 拆分理由：同义词鲁棒性走关键词路径，**最易对 fixture 过拟合**——留在 push CI 里
 会给"过了"一个假信号。盲测集才反映真实泛化。变体分类法对齐 Garak promptinject /

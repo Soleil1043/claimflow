@@ -11,7 +11,7 @@
 | `adjudication_harness.py` | 临时库装配 / 种子 / 观测提取 / 报告装配（T153 从suite 拆出） |
 | `gates.py` | 六门纯函数（金额 / 红线 / 守卫 / 路由 / 责任 / 预算 + 对抗 tier） |
 | `adjudication_metrics.py` | 判分：路由一致 / 金额 Decimal / 责任 / 调度序列 |
-| `redteam.py` | 红队变异器：10 类变异（分类法对齐 Garak promptinject / PyRIT converters-attacks，**带 framework_ref 溯源**——自研不引框架本体，探测对象语义错位 + 依赖重，T159） |
+| `redteam.py` | 红队变异器：12 类变异（分类法对齐 Garak promptinject / PyRIT converters-attacks，**带 framework_ref 溯源**——自研不引框架本体，探测对象语义错位 + 依赖重，T159；T173 增 material_embedding 家族：载荷植入材料提取字段，攻击上传文档通道） |
 | `single_agent_baseline.py` | 单 Agent 消融运行器（create_agent 单体 + 全工具集 + 结构化输出，与多 Agent 同口径判分，T160） |
 | `rag_metrics.py` | RAGAS 四指标自实现（context_precision/recall、faithfulness、answer_relevancy）+ Recall@K / MRR（T161） |
 | `schemas.py` | Adjudication* / SingleAgentOutput 数据模型 |
@@ -47,7 +47,7 @@ uv run python scripts/eval_rag.py                                  # RAG Recall@
 |---|---|
 | 主门（确定性与LLM 双模式） | 153/153 = 100%，六门全绿 |
 | 注入硬门（确定性 + LLM） | 8/8 双模式全绿 |
-| 红队 hold-out 盲测 | 30/30 全绿（8 seed × 10 变异器 + 6 原始 robustness） |
+| 红队 hold-out 盲测 | 30/30 全绿（8 seed × 12 变异器 + 6 原始 robustness） |
 | 单 Agent 消融（T160） | 多 Agent 88.9% vs 单 Agent 60.8%；金额硬门失守 88.9%；token +70% |
 | RAG（T161） | Recall@1=54% / @2=79% / @4=96% / @8=100%；MRR 0.724；RAGAS CP 0.868 / CR 0.806 / FA 0.929 / AR 0.909 |
 | 调度成本 | 7,659 tokens/案，4.4 次 LLM 调用/案 |

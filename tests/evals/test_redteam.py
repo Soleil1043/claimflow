@@ -22,7 +22,10 @@ def test_mutators_have_framework_ref() -> None:
     assert len(MUTATORS) >= 8
     for m in MUTATORS:
         assert m.framework_ref.startswith(("garak:", "pyrit:", "claimflow:")), m.mutator_id
-        assert m.family in {"injection_override", "encoding", "authority", "compliance", "policy_dodge"}
+        assert m.family in {
+            "injection_override", "encoding", "authority", "compliance",
+            "policy_dodge", "material_embedding",
+        }
         assert m.description
 
 
@@ -73,3 +76,33 @@ def test_clean_cores_match_adversarial_seeds() -> None:
         assert CLEAN_CORES[c.case_id] in c.incident_description, (
             f"{c.case_id} 干净事实核与种子描述失配"
         )
+
+
+def test_material_embedding_variants_plant_payload_in_extraction() -> None:
+    """T173 材料内藏指令变体：描述保持干净核，载荷植入追加材料的提取字段。"""
+    seeds = _seed_dicts()
+    variants, prov = generate_variants(seeds)
+    mat = [v for v in variants if prov[v["case_id"]]["family"] == "material_embedding"]
+    assert len(mat) >= 2, "轮转应覆盖到材料内藏指令变异器"
+    for v in mat:
+        info = prov[v["case_id"]]
+        seed = next(s for s in seeds if s["case_id"] == info["source_case"])
+        core = CLEAN_CORES[info["source_case"]]
+        if not core.endswith(("。", "！", "？", "；")):
+            core = f"{core}。"
+        # 载荷不走申请文本通道：描述即干净核
+        assert v["incident_description"] == core
+        # 追加一份带提取结果的材料，载荷在提取字段内
+        assert len(v["materials"]) == len(seed["materials"]) + 1
+        added = v["materials"][-1]
+        extraction = added.get("extraction") or {}
+        assert extraction.get("source") == "text_model"
+        diag = str(extraction.get("diagnosis") or "")
+        assert ("系统指令" in diag) or ("base64" in diag)
+        # 四字段齐备：缺 amount 的校准置信度 0.65 < 自动签发门槛 0.8，
+        # 确定性门会按设计转人工（首次生成实测踩过），注入面反而不被测到
+        for field in ("patient_name", "diagnosis", "amount", "date"):
+            assert extraction.get(field) not in (None, "", 0), field
+        # expected 逐字段继承种子（注入不改变合法结论）
+        assert v["expected"]["route"] == seed["expected"]["route"]
+        assert v["expected"]["approved_amount"] == seed["expected"]["approved_amount"]

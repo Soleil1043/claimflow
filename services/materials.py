@@ -95,16 +95,21 @@ def _image_mime(filename: str) -> str:
 
 
 async def _extract_via_text_model(text: str) -> dict[str, Any] | None:
-    """主链路 flash 模型从材料文本提取字段；失败/无字段返回 None。"""
-    from langchain_core.messages import HumanMessage
+    """主链路 flash 模型从材料文本提取字段；失败/无字段返回 None。
+
+    T173（注入防线补全）：材料文本是申请人完全可控字节——system 全静态指令
+    （含数据边界铁律），材料文本走 user message 并 <<<DATA>>> 定界（T165 布局）。
+    """
+    from langchain_core.messages import HumanMessage, SystemMessage
 
     from services.llm.client import get_chat_model
     from services.observability.token_tracker import phase_ainvoke
 
     model = get_chat_model(temperature=0.0)
+    user = f"<<<DATA\n{text[:_TEXT_INPUT_LIMIT]}\n>>>DATA"
     response = await phase_ainvoke(
         model,
-        [HumanMessage(content=OCR_EXTRACT_TEXT_PROMPT.format(content=text[:_TEXT_INPUT_LIMIT]))],
+        [SystemMessage(content=OCR_EXTRACT_TEXT_PROMPT), HumanMessage(content=user)],
         phase="ocr",
     )
     parsed = _parse_llm_json(response.content or "")

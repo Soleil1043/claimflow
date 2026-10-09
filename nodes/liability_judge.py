@@ -177,9 +177,15 @@ def make_liability_judge_node(recorder: CaseRecorder, llm=None, agent_def=None):
             output = _keyword_fallback(state)
         else:
             # 2) LLM 裁定（ReAct：条款检索 + 诊断匹配）
+            # T173（注入防线补全）：案件事实走 <<<DATA>>> 定界——出险描述与材料提取
+            # 字段是申请人/材料原文，与 CASE_LIABILITY_AGENT_PROMPT 数据边界铁律配套
             agent = agent_def or _agent_def_for(str(state.get("case_type") or "unknown"))
+            facts_task = (
+                "案件数据如下（定界内为 JSON），完成责任认定：\n"
+                f"<<<DATA\n{_case_facts(state)}\n>>>DATA"
+            )
             try:
-                result, new_messages = await llm(agent, _case_facts(state))
+                result, new_messages = await llm(agent, facts_task)
                 output = LiabilityOutput.model_validate(
                     {k: v for k, v in result.items()
                      if k in LiabilityOutput.model_fields}
