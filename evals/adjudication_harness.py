@@ -47,6 +47,24 @@ def case_tokens_total() -> int:
     return total
 
 
+def llm_cost_cny_total() -> float:
+    """LLM_COST_CNY 计数器当前累计值（¥；运行前后差分得本次运行成本，T177）。
+
+    与 case_tokens_total 同款读取口径（自定义 registry，排除 _created 样本）。
+    """
+    from services.observability.metrics import registry
+
+    total = 0.0
+    for metric in registry.collect():
+        if metric.name == "claimflow_llm_cost_cny":
+            total += sum(
+                sample.value
+                for sample in metric.samples
+                if sample.name.endswith("_total")
+            )
+    return total
+
+
 def p95(values: list[float]) -> float:
     """最近秩法 P95（v1 指标口径延续）。"""
     if not values:
@@ -232,6 +250,7 @@ def emit_report(
     model: str | None,
     report_path: Path,
     llm_workers: bool = False,
+    run_cost_cny: float | None = None,
 ) -> None:
     """报告 dict 装配 + 落盘 + 摘要打印（T089/T124 口径不变）。"""
     total = agg["total"]
@@ -258,12 +277,18 @@ def emit_report(
         "by_category": agg["by_category"],
         "failures": agg["failures"],
         # 成本量化（T123，证据缺口#1；T160 加 llm_calls 并发精确口径）：tokens/延迟按案分布
+        # cost_cny（T177，D083）：单价表折算（LLM_PRICING 驱动，registry 差分）；
+        # None = 调用方未取差分（旧口径兼容），确定性档恒 0（零 LLM）
         "cost": {
             "tokens_total": sum(r.get("tokens") or 0 for r in results),
             "tokens_per_case_avg": round(sum(r.get("tokens") or 0 for r in results) / total, 1),
             "llm_calls_avg": round(sum(r.get("llm_calls") or 0 for r in results) / total, 1),
             "duration_s_avg": round(sum(r.get("duration_s") or 0.0 for r in results) / total, 2),
             "duration_s_p95": p95([r.get("duration_s") or 0.0 for r in results]),
+            "cost_cny_total": round(run_cost_cny, 4) if run_cost_cny is not None else None,
+            "cost_cny_per_case_avg": (
+                round(run_cost_cny / total, 4) if run_cost_cny is not None else None
+            ),
         },
     }
 

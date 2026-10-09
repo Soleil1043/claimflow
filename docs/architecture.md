@@ -299,6 +299,13 @@ dev 用 InMemorySaver/InMemoryStore。JSONB 在 SQLite dev 自动降级 JSON，
 
 - **Prompt 缓存指标** `LLM_CACHE_TOKENS{model, stage, result}`：DeepSeek 硬盘缓存
   默认开启（命中价 1/10），但命中情况此前是黑盒。
+- **币值指标**（T177，D083）`LLM_COST_CNY{model, stage}`：`record_llm_call` 内按
+  单价表（`LLM_PRICING="model:miss,hit,completion;..."` ¥/M，配置驱动）折算——
+  `(prompt−hit)×miss价 + hit×hit价 + completion×completion价`；hit 未知全按 miss
+  （上界口径），单价表缺模型不记（不臆造）。"单案成本"经 PromQL 派生
+  `increase(cost)/increase(cases)`（分母随时间窗变化，不在应用内算）；
+  Grafana 核赔板"单案 Token 均值 / 单案 LLM 成本估算（¥）"两面板，评测报告
+  cost 块含 `cost_cny_total/per_case`（registry 差分）。
 - **三来源提取**（`_extract_cache_usage`）——DeepSeek 用的是**非标字段**，
   langchain 的 `usage_metadata` 只映射标准字段会丢弃它们：
   1. `response_metadata["token_usage"]`——OpenAI SDK 原始 usage dict，

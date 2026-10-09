@@ -504,3 +504,83 @@ def test_set_queue_depth_swallows_errors(monkeypatch) -> None:
 
     monkeypatch.setattr(m.QUEUE_DEPTH, "labels", boom)
     m.set_queue_depth(queued=1, running=0)  # 不抛错即过
+
+
+# ===== 成本单位经济（T177，D083）：单价表 + 币值指标 =====
+
+
+class TestCostEstimation:
+    def test_estimate_with_cache_split(self, monkeypatch):
+        """hit/miss 分计：(prompt−hit)×miss价 + hit×hit价 + completion×completion价。"""
+        import app.core.config as config_module
+
+        monkeypatch.setattr(
+            config_module.settings, "llm_pricing", "test-model:2.0,0.2,3.0"
+        )
+        cost = metrics.estimate_cost_cny("test-model", 1000, 200, 800)
+        # (200×2.0 + 800×0.2 + 200×3.0) / 1e6 = 1160/1e6
+        assert abs(cost - 0.00116) < 1e-12
+
+    def test_estimate_hit_unknown_charges_all_miss(self, monkeypatch):
+        """hit 未知（None）→ 全 prompt 按 miss 计（上界口径）。"""
+        import app.core.config as config_module
+
+        monkeypatch.setattr(
+            config_module.settings, "llm_pricing", "test-model:2.0,0.2,3.0"
+        )
+        cost = metrics.estimate_cost_cny("test-model", 1000, 200, None)
+        assert abs(cost - 0.0026) < 1e-12
+
+    def test_estimate_unknown_model_zero(self):
+        """单价表缺该模型 → 0.0（不臆造，调用方跳过记录）。"""
+        assert metrics.estimate_cost_cny("not-in-table", 1000, 200, 800) == 0.0
+
+    def test_pricing_map_parses_and_tolerates_garbage(self, monkeypatch):
+        """多模型分号分隔；坏段（缺冒号/价格数不足/非数字）跳过不抛错。"""
+        import app.core.config as config_module
+
+        monkeypatch.setattr(
+            config_module.settings,
+            "llm_pricing",
+            "m1:2.0,0.2,3.0; m2:1.0,0.1,2.0 ; ; bad-no-colon; m3:1.0; m4:a,b,c",
+        )
+        assert config_module.settings.llm_pricing_map == {
+            "m1": (2.0, 0.2, 3.0),
+            "m2": (1.0, 0.1, 2.0),
+        }
+
+    def test_record_llm_call_emits_cost_counter(self, monkeypatch):
+        """record_llm_call 按单价表发币值指标；未知模型零成本不记。"""
+        import app.core.config as config_module
+
+        monkeypatch.setattr(
+            config_module.settings, "llm_pricing", "cost-model:2.0,0.2,3.0"
+        )
+        metrics.record_llm_call(
+            "cost-model",
+            "success",
+            0.5,
+            prompt_tokens=1000,
+            completion_tokens=200,
+            cache_hit_tokens=800,
+            cache_miss_tokens=200,
+            stage="other",
+        )
+        assert (
+            _counter_value(
+                "claimflow_llm_cost_cny_total", model="cost-model", stage="other"
+            )
+            >= 0.00116
+        )
+        before = _counter_value(
+            "claimflow_llm_cost_cny_total", model="unknown-cost-model", stage="other"
+        )
+        metrics.record_llm_call(
+            "unknown-cost-model", "success", 0.1, prompt_tokens=100, completion_tokens=10
+        )
+        assert (
+            _counter_value(
+                "claimflow_llm_cost_cny_total", model="unknown-cost-model", stage="other"
+            )
+            == before
+        )

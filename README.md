@@ -69,6 +69,12 @@
 
 - LLM 模式全量：153/153 = **100%** 六门全绿（deepseek-flash 真实调度，T130）
 - 调度成本实测：**7,659 tokens/案**，4.4 次 LLM 调用/案 vs 确定性 0.25s
+- **成本单位经济**（T177，D083）：`LLM_PRICING` 单价表（¥/百万 token，配置驱动）→
+  `claimflow_llm_cost_cny_total{model,stage}` 币值指标 + Grafana"单案 Token 均值/
+  单案 LLM 成本估算（¥）"面板 + 评测报告 `cost_cny_per_case_avg` 字段。按默认
+  单价（miss ¥2 / hit ¥0.2 / completion ¥3）与 82.4% 缓存命中率折算基线约
+  **¥0.006/案**（无缓存约 ¥0.016/案，缓存省 ~64%）——万元预算支撑百万级案件
+  量级；单价表是文档口径估算非发票口径，看趋势与量级不用于结算
 - 单元与集成测试：**528 passed**（图结构断言 / 守卫注入 100% 拦截 / interrupt 跨重启恢复 / checkpoint 版本降级重跑）
 - **单Agent 消融对照**（T160）：多 Agent 88.9%（136/153，硬门三件全绿）vs 单 Agent 60.8%（93/153，金额硬门失守 88.9%），token 反向 +70%——量化证明 Orchestrator-Worker 拆分的必要性
 - **RAG 评测**（T161，责任认定阶段）：Recall@1=54% / @2=79% / @4=96% / @8=100%，MRR 0.724；RAGAS 四指标 CP=0.868 / CR=0.806 / FA=0.929 / AR=0.909

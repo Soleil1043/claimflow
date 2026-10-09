@@ -2808,3 +2808,33 @@ medical_records 同口径）；4 个既有 prod profile 测试补密钥环境变
 拦截是语义生效的直接证据）；567 passed（558+9）+ ruff 绿；主门 153 确定性
 六门全绿（policy/fraud 链路零回归）；本地 dev 库迁移实跑（10+5 行回填密文，
 ORM 读取回明文"张伟 330106199203154817"实测，同人跨表密文一致性即确定性证据）。
+
+## T177 · 成本单位经济第一步：¥/案口径 + 单案面板（2026-10-10）
+
+**背景**：完善性评估建议 4 第一步。token 指标齐全但无货币口径；CASE_TOKENS 与
+tool_cache_hits 两个已埋点指标从未上 Grafana（T162 教训镜像：指标存在但不可见）。
+决策 D083。
+
+**改动**：
+- 单价表进配置（`LLM_PRICING`，"model:miss,hit,completion;..." ¥/M，解析容错）：
+  供应商调价只改 .env；默认对齐"命中价 1/10"叙事口径
+- `LLM_COST_CNY{model,stage}` Counter：record_llm_call 内按
+  `(prompt−hit)×miss + hit×hit + completion×comp` 折算；hit 未知全按 miss
+  （上界）；缺模型不记。"单案成本"不在应用内算（分母随时间窗变化），PromQL
+  派生 `increase(cost)/increase(cases)`——与自动结案率同款派生模式
+- 评测报告 cost 块 +`cost_cny_total/per_case_avg`（registry 运行前后差分；
+  确定性档 0，LLM 档出真实数字）
+- Grafana：核赔板 +2 面板（单案 Token 均值 / 单案 LLM 成本估算 ¥，
+  currencyCNY 单位）；overview +1 工具缓存命中率面板（tool_cache_hits 上板）
+- compose 透传 LLM_PRICING；README/architecture 单位经济段：基线折算约
+  ¥0.006/案（82.4% 命中率；无缓存 ¥0.016/案，缓存省 ~64%）——万元预算支撑
+  百万级案件量级；注明文档口径估算非发票口径
+
+**踩坑**：harness 的 `llm_cost_cny_total()` 首版编辑被工具拦截后未重试，
+suite 冒烟当场 ImportError 暴露——补上即绿（差分快照在 with 块内取、块外差，
+Python 无块级作用域，可行但依赖函数级作用域，已用注释锚定口径）。
+
+**验证**：5 新用例（hit/miss 分计数学 / hit 未知上界 / 未知模型 0 / 单价表
+解析容错 / record 发币值指标且未知模型不记）；572 passed（567+5）+ ruff 绿；
+主门 153 确定性六门全绿（--limit 5 冒烟覆盖主报告后已全量重跑恢复基准）；
+评测报告 cost_cny 字段实测落盘。

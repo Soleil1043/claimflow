@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-flash"
     # 图片 OCR 专职模型，失败降级 Mock（D008）
     llm_vision_model: str = "deepseek-flash"
+    # 单价表（T177，D083 成本单位经济）：格式 "model:miss¥/M,hit¥/M,completion¥/M;..."
+    # （分号分隔多模型）。默认对齐项目叙事口径（DeepSeek 命中价为 miss 的 1/10）；
+    # 供应商调价只改此配置，代码零变动
+    llm_pricing: str = "deepseek-flash:2.0,0.2,3.0"
 
     # ===== 材料上传（T049，D024：PDF/Word 支持） =====
     material_max_size_mb: int = 10
@@ -229,6 +233,28 @@ class Settings(BaseSettings):
             name, _, key = pair.partition(":")
             if name.strip() and key.strip():
                 mapping[key.strip()] = name.strip()
+        return mapping
+
+    @property
+    def llm_pricing_map(self) -> dict[str, tuple[float, float, float]]:
+        """模型 → (miss, hit, completion) 单价（¥/百万 token）。
+
+        解析容错：空段 / 缺冒号 / 价格数不足 3 的段跳过，不抛错
+        （与 staff_key_map 同款口径）。
+        """
+        mapping: dict[str, tuple[float, float, float]] = {}
+        for entry in self.llm_pricing.split(";"):
+            entry = entry.strip()
+            if not entry or ":" not in entry:
+                continue
+            model, _, prices = entry.partition(":")
+            parts = [p.strip() for p in prices.split(",")]
+            try:
+                miss, hit, completion = (float(p) for p in parts[:3])
+            except ValueError:
+                continue
+            if model.strip():
+                mapping[model.strip()] = (miss, hit, completion)
         return mapping
 
     @model_validator(mode="after")

@@ -117,6 +117,8 @@ services:
       HF_ENDPOINT: ${HF_ENDPOINT:-}
       # PII 库内加密密钥（T176，D082）：init 与 app 必须同密钥（迁移写、应用读）
       PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-demo-pii-key-2026-change-me}
+      # LLM 单价表（T177，D083）：容器内成本估算与 .env 同源（T166 教训：不透传落默认值）
+      LLM_PRICING: ${LLM_PRICING:-}
     ports:
       - "8000:8000"
     volumes:

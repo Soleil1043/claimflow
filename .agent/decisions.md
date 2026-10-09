@@ -2207,3 +2207,25 @@ policy_no/险种存在于评测种子库（setup_eval_db 固定 mock 数据）�
 **验收**：加密单测 8 用例（roundtrip/确定性/前缀/容错/fail-loud/ORM 透明/
 等值命中与不误命中/裸 SQL 密文）；本地 dev 库迁移实跑（10+5 行回填，ORM 读取
 回明文实测）；主门 153 确定性六门全绿（policy/fraud 链路零回归）；567 passed。
+
+## D083 · 成本单位经济：单价表配置驱动 + 币值指标，而非硬编码换算（T177，2026-10-10）
+
+**背景**：完善性评估建议 4 第一步。token 维度指标齐全（CASE_TOKENS / 缓存命中 /
+tokens 案 7,659）但无货币口径——"降本"叙事缺最后一环；且 CASE_TOKENS 与
+tool_cache_hits 两个已埋点指标从未上 Grafana 面板（T162 教训的镜像：指标存在
+但不可见）。
+
+**口径决断**：
+1. **单价表进配置不进代码**（`LLM_PRICING="model:miss,hit,completion;..."`，
+   ¥/百万 token）：供应商调价只改 .env——成本工程的第一原则是单价可变而
+   管线不变；默认值对齐项目既有叙事口径（DeepSeek 命中价为 miss 的 1/10）
+2. **估算公式**：`(prompt−hit)×miss价 + hit×hit价 + completion×completion价`；
+   hit 未知（供应商不返回缓存字段）时全按 miss 计（上界口径，报告注明）；
+   单价表缺该模型则不记币值指标——与"不臆造 0"的 T162 口径一致
+3. **指标形态**：Counter `claimflow_llm_cost_cny_total{model,stage}`（累计）；
+   "单案成本"不在应用内算（分母案件数随时间窗变化）——PromQL 派生
+   `increase(cost)/increase(cases)`，与自动结案率的派生模式同款
+4. **评测报告**：cost 块加 `cost_cny_total/per_case`（registry 运行前后差分）；
+   确定性档恒 0（零 LLM），LLM 档出真实数字
+5. 已知边界：单价表默认值是文档口径估算非发票口径（发票受阶梯/活动/币种影响）；
+   单位经济看趋势与量级，不用于结算

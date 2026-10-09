@@ -127,6 +127,10 @@ async def _run_suite(
         results: list[dict[str, Any]] = []
         red_line_leaks = 0
         guard_bypasses = 0
+        # 成本差分快照（T177）：运行前后 LLM_COST_CNY 差值 = 本次运行 ¥（registry 全局累计）
+        from evals.adjudication_harness import llm_cost_cny_total as _cost_snapshot
+
+        cost_cny_start = _cost_snapshot()
 
         async def _run_one(case: Any) -> tuple[dict[str, Any], bool, bool]:
             """单案执行+观测（顺序/并发共路径；返回判分行与红线/守卫旁路命中）。"""
@@ -207,6 +211,9 @@ async def _run_suite(
     if engine:
         await engine.dispose()
 
+    # 本次运行成本（T177）：registry 差分；确定性档恒 0（零 LLM）
+    run_cost_cny = max(_cost_snapshot() - cost_cny_start, 0.0)
+
     # 聚合
     agg = aggregate(results)
     total = agg["total"]
@@ -266,6 +273,7 @@ async def _run_suite(
         robustness_block=robustness_block,
         dataset_name=dataset_name,
         use_llm=use_llm,
+        run_cost_cny=run_cost_cny,
         model=settings.llm_model if use_llm else None,
         report_path=report_path,
         llm_workers=llm_workers,

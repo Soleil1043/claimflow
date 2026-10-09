@@ -60,6 +60,13 @@ RATE_LIMIT_REJECTED = Counter(
     registry=registry,
 )
 
+LLM_COST_CNY = Counter(
+    "claimflow_llm_cost_cny_total",
+    "LLM 成本估算（¥，单价表 LLM_PRICING 配置驱动；T177）",
+    labelnames=["model", "stage"],
+    registry=registry,
+)
+
 # ===== LLM 指标 =====
 
 LLM_CALLS = Counter(
@@ -218,6 +225,32 @@ def record_tool_cache(tool: str, result: str) -> None:
     _safe_inc(TOOL_CACHE_HITS, tool=tool, result=result)
 
 
+def estimate_cost_cny(
+    model: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    cache_hit_tokens: int | None,
+) -> float:
+    """按单价表估算单次调用成本（¥，D083）：(prompt−hit)×miss价 + hit×hit价 + completion×completion价。
+
+    - hit 未知（None，供应商不返回缓存字段）→ 全 prompt 按 miss 计（上界口径）
+    - 单价表缺该模型 → 返回 0.0（调用方跳过记录——不臆造，与 T162"宁缺勿假"一致）
+    """
+    from app.core.config import settings
+
+    pricing = settings.llm_pricing_map.get(model)
+    if pricing is None:
+        return 0.0
+    miss_price, hit_price, completion_price = pricing
+    hit = min(cache_hit_tokens, prompt_tokens) if cache_hit_tokens else 0
+    miss_part = max(prompt_tokens - hit, 0)
+    return (
+        miss_part * miss_price / 1_000_000
+        + hit * hit_price / 1_000_000
+        + completion_tokens * completion_price / 1_000_000
+    )
+
+
 def record_llm_call(
     model: str,
     status: str,
@@ -250,6 +283,13 @@ def record_llm_call(
         _safe_inc(
             LLM_CACHE_TOKENS, model=model, stage=stage, result="miss", amount=float(cache_miss_tokens)
         )
+    # 币值估算（T177，D083）：有 token 用量即按单价表折算 ¥；未知模型 0 值不记
+    if prompt_tokens is not None:
+        cost = estimate_cost_cny(
+            model, prompt_tokens, completion_tokens or 0, cache_hit_tokens
+        )
+        if cost > 0:
+            _safe_inc(LLM_COST_CNY, model=model, stage=stage, amount=cost)
 
 
 # ---------- 核赔埋点辅助（T090） ----------
