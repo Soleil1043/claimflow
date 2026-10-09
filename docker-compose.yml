@@ -108,6 +108,9 @@ services:
       # localhost:4317 是宿主机直跑进程用的，透传进容器会指向容器自身）
       OTEL_ENABLED: ${OTEL_ENABLED:-false}
       OTEL_ENDPOINT: http://otel-collector:4317
+      # T166：采样率从 .env 透传（此前未透传，容器内落config.py 默认值）；
+      # 1.0 全采样下每请求数十 span，0.2 足够 trace_id 级排障
+      OTEL_SAMPLING_RATIO: ${OTEL_SAMPLING_RATIO:-0.2}
       # 同 init：HF 镜像透传（仅在卷内无快照需要在线补拉时生效）
       HF_ENDPOINT: ${HF_ENDPOINT:-}
     ports:
@@ -128,6 +131,14 @@ services:
   prometheus:
     image: prom/prometheus:v3.1.0
     profiles: ["monitoring"]
+    # T166：TSDB 保留期 30d。v3 已把该项移出配置文件（配置文件里写
+    # storage.tsdb.retention.time / global.retention_time 均报 "field not found in
+    # type config.plain"，promtool check config 实锤），只保留命令行 flag。
+    # 注：--storage.tsdb.max-samples-per-query 在 v3.1 不存在（unknown long flag），
+    # 查询侧上限改由 Grafana 面板自身控制，不在服务端加。
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
     ports:
       - "9090:9090"
     volumes:

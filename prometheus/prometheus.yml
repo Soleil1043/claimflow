@@ -5,6 +5,15 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# T166 保留期说明：retention 在配置文件里改过两轮都不被v3 接受
+#（global.retention_time → "field not found in type config.plain"；
+#   storage.tsdb.retention.time / retention_time → 同样 "field not found"）——
+# v3 已把 TSDB 保留期移出配置文件，只保留命令行 flag。
+# 因此改由 docker-compose.yml 的 command 传 --storage.tsdb.retention.time=30d，
+# 实测 /api/v1/status/flags 返回 30d 生效。
+# 30d 覆盖一个完整迭代周期：核赔评测/调试期的命中率曲线
+# （claimflow_llm_cache_tokens_total 按 stage 分列）只在保留期内可回溯。
+
 scrape_configs:
   - job_name: claimflow-app
     metrics_path: /metrics

@@ -170,7 +170,11 @@ class Settings(BaseSettings):
     # 开关（默认关：不起 tracing 栈时零开销）；OTLP gRPC 上报地址；采样率 0.0-1.0
     otel_enabled: bool = False
     otel_endpoint: str = "http://localhost:4317"
-    otel_sampling_ratio: float = 1.0
+    # T166：1.0 → 0.2。全采样下每请求数十 span（一请求 = FastAPI server span +
+    # 六阶段节点 span + 每次 LLM/工具调用 span），磁盘与 CPU 均需付账；
+    # 排障只需 trace_id 级定位单次调用（含 gen_ai.usage.cache_read/miss_tokens），
+    # 不需要全量——0.2 已在本地开发流量下足够覆盖异常路径又不淹没存储
+    otel_sampling_ratio: float = 0.2
 
     # ===== 跨供应商 A/B 变体（T041） =====
     # GLM（智谱）OpenAI 兼容接口；供 evals/variants.py 的 glm-5.3-flash 变体经

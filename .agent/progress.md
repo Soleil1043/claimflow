@@ -2508,3 +2508,35 @@ scripts/eval_rag.py 运行器（并发 4，报告 json+md 双落盘）。
 - 30 案 LLM 评测六门全绿一致率 100%；tokens/案 7802 → 7659（prompt 变短），真实收益在命中部分计费折扣 1/10
 
 **关键认识**：材料提取（ocr）0% 命中不是缺陷——prompt 主体即唯一文档内容，前缀天然短。布局改造只对"静态规程 + 动态数据"形态的调用点有效（路由/审查/叙述），这四类才是优化对象。
+
+---
+
+## T166 · Prometheus 保留期 + OTel 启用（2026-10-09）
+
+**做了什么**：Prometheus TSDB 保留期设 30d；OTel 打开（.env OTEL_ENABLED=true），采样率 1.0 → 0.2
+
+**Why**：三个数据落点的短板——①Prometheus 未配 retention 走默认 15d，实测 TSDB 仅 1.2MB，
+核赔评测/调试期的命中率曲线只在保留期内可回溯；②OTel 默认关，T164/T165 实测出的缓存
+命中率只有聚合值，**单次调用的 hit/miss 原值已被 Counter 聚合掉**，无法回答"这案子哪次
+调用没命中"；③容器日志无持久化（另议，本次未做）。
+
+**关键结论（踩坑实锤）**：
+- **Prometheus v3 已把 TSDB 保留期移出配置文件**。三种写法全部报
+  `field not found in type config.plain`（promtool check config 实测）：
+  `global.retention_time` / `storage.tsdb.retention.time` / `storage.tsdb.retention_time`。
+  最终改由 compose `command` 传 `--storage.tsdb.retention.time=30d`——
+  该flag 确实存在（`prometheus --help` 有），配置文件里没有对应项
+- `--storage.tsdb.max-samples-per-query` 在 v3.1 **不存在**（unknown long flag）
+- Git Bash 环境两个坑：`printf` 不转换 `\n`（写多行 YAML 全落成一行，导致误判
+  "storage 段不被识别"，验证配置须用 Write 工具）；`docker exec/run` 挂载容器内绝对路径
+  （/data、/c.yml）会被路径转换吃掉，需 `MSYS_NO_PATHCONV=1` 或 Windows 风格路径
+
+**OTel 全栈实测（Jaeger UI :16686）**：
+- 7 类span 落地：llm.deepseek-flash / case.orchestrator_route / case.material_review /
+  case.deliver + FastAPI server span
+- **缓存属性确认**：`gen_ai.usage.cache_read_tokens` = 896 / 1024 / 1280，
+  `gen_ai.usage.cache_miss_tokens` = 166~245——单调用级原值可按 trace_id 查，
+  这是 Prometheus 做不到的（Counter 只留聚合）
+- 采样率 0.2 实测合理：20 条 trace 里 LLM span 7 个，够定位异常路径又不淹没存储
+
+验收：528 passed + ruff 绿；verify_adjudication 端到端 23/0；retention.time=30d 生效
