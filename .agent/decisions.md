@@ -2172,3 +2172,38 @@ policy_no/险种存在于评测种子库（setup_eval_db 固定 mock 数据）�
 
 **验收口径**：prod JSON 日志输出的任何字段（含嵌套与异常串）不出现完整
 身份证/银行卡/手机号（tests/core/test_logging.py e2e 钉死）。
+
+## D082 · PII 库内加密：确定性 AES + TypeDecorator 透明加解密（T176，2026-10-10）
+
+**背景**：D081 第 2 层。`policies.holder_id_card` / `medical_records.patient_id_card`
+明文落库，且 **policy_query / fraud history / record_query 三处按证件号等值过滤**
+——加密必须保等值可查。
+
+**方案选型**：
+- A. stdlib keyed-hash 伪匿化（blake2b keyed）❌——零新依赖且确定性，但**不可逆**：
+  迁移后原始证件号永久丢失，保单核验/客服等受控读取场景拿不回明文
+- B. 随机 IV AES ❌——同明文不同密文，三处等值查询全断
+- C. 确定性 AES-256-CBC：IV = HMAC-SHA256(mac_key, 明文)[:16] ✅——同明文恒同
+  密文（等值可查），不同明文 IV 不同；密文 `v1:<base64(iv+ct)>`，前缀既是
+  迁移两态判别位也是算法版本位（未来升级发 v2 双写）
+- 依赖：引入 `cryptography`（本项目第一个纯加密第三方依赖）——stdlib 无 AES，
+  B 方案语义不可接受的场景下这是最小必要依赖
+
+→ 选 C。
+
+**工程口径**：
+1. **TypeDecorator 全链路透明**（`EncryptedString`）：process_bind_param 加密 /
+   process_result_value 解密——种子、工具、评测、前端的读写代码**零改动**
+   （raw SQL 读到的是 v1: 密文，即"拖库视角"）
+2. **decrypt 容错**：非 `v1:` 前缀原样返回——滚动迁移期明文行共存、测试直插
+   值可读；密钥不符则 fail loud（ValueError：静默错读比读不到更糟）
+3. **密钥管理**：`PII_ENCRYPTION_KEY` 环境变量；prod 强制非空（model_validator，
+   与 STAFF_KEYS 同款 secure-by-default）；dev 空则固定开发密钥 + 警告一次
+   （本地零配置可跑，密文不具保密性）；compose init/app 双服务同密钥透传
+   （迁移写、应用读必须同源）；列 String(18)→String(128)（18 位身份证密文 68 字符）
+4. **已知边界（明示）**：密钥轮换需 v2 双写迁移（本迁移不做）；确定性加密
+   不隐藏"同值等值"这一事实本身（可接受：证件号匹配本就是业务功能）
+
+**验收**：加密单测 8 用例（roundtrip/确定性/前缀/容错/fail-loud/ORM 透明/
+等值命中与不误命中/裸 SQL 密文）；本地 dev 库迁移实跑（10+5 行回填，ORM 读取
+回明文实测）；主门 153 确定性六门全绿（policy/fraud 链路零回归）；567 passed。

@@ -286,10 +286,11 @@ uv run python -m evals.support_suite                            # 客服问答�
 > 进程内存；配额 0 = 不限流（负载测试在服务器侧置 `RATE_LIMIT_CASES_PER_MIN=0`
 > 后压测），拒绝计数进 Prometheus（`claimflow_rate_limit_rejected_total`）。
 >
-> 🔒 **PII 分层治理**（T175/T176，D081）：日志层零 PII（structlog 事件字段递归
-> 脱敏，`LOG_MASK_PII` 默认开）+ 出站渲染层脱敏（决定书/坐席改写，既有）+
-> 存储层加密（T176）；明确**不做**"送 LLM 前脱敏"——保单核验即证件号匹配，
-> 一刀切会破坏功能。
+> 🔒 **PII 分层治理**（T175/T176，D081/D082）：日志层零 PII（structlog 事件字段递归
+> 脱敏，`LOG_MASK_PII` 默认开）+ 存储层加密（证件号列确定性 AES 落库，等值查询
+> 可用，ORM 全链路透明，`PII_ENCRYPTION_KEY` prod 强制）+ 出站渲染层脱敏
+> （决定书/坐席改写，既有）；明确**不做**"送 LLM 前脱敏"——保单核验即证件号
+> 匹配，一刀切会破坏功能。
 
 ### HITL 工单
 

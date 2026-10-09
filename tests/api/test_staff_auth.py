@@ -137,12 +137,24 @@ class TestIdentityDerivation:
 class TestProdValidation:
     def test_prod_without_staff_keys_rejected(self):
         with pytest.raises(ValidationError, match="STAFF_KEYS"):
-            Settings(_env_file=None, app_profile="prod", staff_keys="")
+            Settings(
+                _env_file=None, app_profile="prod", staff_keys="",
+                pii_encryption_key="k",
+            )
 
-    def test_prod_with_staff_keys_ok(self):
-        s = Settings(_env_file=None, app_profile="prod", staff_keys="alice:k1")
+    def test_prod_without_pii_key_rejected(self):
+        """T176：prod 缺 PII 加密密钥拒绝启动（secure by default）。"""
+        with pytest.raises(ValidationError, match="PII_ENCRYPTION_KEY"):
+            Settings(_env_file=None, app_profile="prod", staff_keys="alice:k1")
+
+    def test_prod_with_keys_ok(self):
+        s = Settings(
+            _env_file=None, app_profile="prod", staff_keys="alice:k1",
+            pii_encryption_key="secret-pii-key",
+        )
         assert s.staff_key_map == {"k1": "alice"}
 
-    def test_dev_without_staff_keys_ok(self):
+    def test_dev_without_keys_ok(self):
         s = Settings(_env_file=None, app_profile="dev", staff_keys="")
         assert s.staff_key_map == {}
+        assert s.pii_encryption_key == ""  # dev 允许空（固定开发密钥兜底）

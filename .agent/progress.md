@@ -2786,3 +2786,25 @@ tests/tools 94 用例零退化（单一来源收敛无行为变化）。
 **踩坑（小）**：rule_check 的正则 import 首版放在 _TEXT_PATTERNS 之后被 ruff
 E402 拦下——挪到顶部 import 块后 I001 排序再拦一次，`--fix` 收敛。跨模块搬
 私有名（_XXX_RE）时 as-alias 保持原名引用是零 diff 的关键。
+
+## T176 · PII 库内加密：确定性 AES + TypeDecorator 透明加解密（2026-10-10）
+
+**背景**：D081 第 2 层。证件号明文落库，且 policy_query / fraud history /
+record_query 三处按证件号等值过滤——加密必须保等值。决策 D082（含选型：
+keyed-hash 不可逆 ✗ / 随机 IV 断等值 ✗ / 确定性 AES ✓；cryptography 依赖
+引入理由）。
+
+**改动**：
+- `app/core/crypto.py`（新）：encrypt_pii/decrypt_pii（`v1:` 前缀 + base64(iv+ct)，
+  IV=HMAC 派生）+ EncryptedString TypeDecorator（bind 加密 / result 解密，
+  非 v1 值原样返回兼容滚动迁移，错 key fail loud）
+- models：两列 String(18)→EncryptedString(128)；config：PII_ENCRYPTION_KEY
+  prod 强制非空（model_validator），dev 空则固定开发密钥 + 警告
+- alembic b4d6f8a2c7e9：列扩容 + 存量明文回填（幂等，downgrade 可逆）
+- compose init/app 双服务同密钥透传（迁移写、应用读同源）
+
+**验证**：8 新用例（加密语义全套 + ORM 透明/等值命中与不误命中/裸 SQL 密文/
+medical_records 同口径）；4 个既有 prod profile 测试补密钥环境变量（新校验
+拦截是语义生效的直接证据）；567 passed（558+9）+ ruff 绿；主门 153 确定性
+六门全绿（policy/fraud 链路零回归）；本地 dev 库迁移实跑（10+5 行回填密文，
+ORM 读取回明文"张伟 330106199203154817"实测，同人跨表密文一致性即确定性证据）。

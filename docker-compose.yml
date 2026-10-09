@@ -77,6 +77,8 @@ services:
       # HF 下载镜像（可选，T156）：冷自举匿名下载 BGE 2.3G 会被官方限速
       # （实测 ~1MB/s，30 分钟+）；CI 设 HF_ENDPOINT=https://hf-mirror.com 提速
       HF_ENDPOINT: ${HF_ENDPOINT:-}
+      # PII 库内加密密钥（T176，D082）：prod 强制非空；demo 默认值仅供本机演示
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-demo-pii-key-2026-change-me}
     volumes:
       - hf_cache:/root/.cache/huggingface
     depends_on:
@@ -113,6 +115,8 @@ services:
       OTEL_SAMPLING_RATIO: ${OTEL_SAMPLING_RATIO:-0.2}
       # 同 init：HF 镜像透传（仅在卷内无快照需要在线补拉时生效）
       HF_ENDPOINT: ${HF_ENDPOINT:-}
+      # PII 库内加密密钥（T176，D082）：init 与 app 必须同密钥（迁移写、应用读）
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-demo-pii-key-2026-change-me}
     ports:
       - "8000:8000"
     volumes:

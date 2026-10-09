@@ -33,6 +33,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import JSON
 
+from app.core.crypto import EncryptedString
+
 
 def _jsonb_or_json() -> Any:
     """PostgreSQL 用 JSONB，其他后端（SQLite dev）用 JSON。"""
@@ -60,7 +62,7 @@ class Policy(Base):
     id: Mapped[int] = mapped_column(_autoincrement_id(), primary_key=True, autoincrement=True)
     policy_no: Mapped[str] = mapped_column(String(32), unique=True)
     holder_name: Mapped[str] = mapped_column(String(64))
-    holder_id_card: Mapped[str] = mapped_column(String(18), index=True)
+    holder_id_card: Mapped[str] = mapped_column(EncryptedString(128), index=True)
     product_name: Mapped[str] = mapped_column(String(128))
     # 医疗险 / 重疾险 / 意外险
     product_type: Mapped[str] = mapped_column(String(32))
@@ -79,7 +81,7 @@ class MedicalRecord(Base):
     __tablename__ = "medical_records"
 
     id: Mapped[int] = mapped_column(_autoincrement_id(), primary_key=True, autoincrement=True)
-    patient_id_card: Mapped[str] = mapped_column(String(18), index=True)
+    patient_id_card: Mapped[str] = mapped_column(EncryptedString(128), index=True)
     hospital: Mapped[str] = mapped_column(String(64))
     department: Mapped[str] = mapped_column(String(64))
     diagnosis_desc: Mapped[str] = mapped_column(String(256))

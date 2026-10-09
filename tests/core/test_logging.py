@@ -17,8 +17,9 @@ def test_configure_logging_sets_root_level() -> None:
 def test_get_logger_emits_structured_json_in_prod(monkeypatch, capsys) -> None:
     """prod profile 下日志输出为 JSON 单行，且结构化字段保留。"""
     monkeypatch.setenv("APP_PROFILE", "prod")
-    # prod 校验要求坐席鉴权非空（T147）
+    # prod 校验要求坐席鉴权非空（T147）与 PII 加密密钥非空（T176）
     monkeypatch.setenv("STAFF_KEYS", "smoke:k1")
+    monkeypatch.setenv("PII_ENCRYPTION_KEY", "test-pii-key")
     # 重新初始化使新 profile 生效
     import importlib
 
@@ -88,6 +89,7 @@ def test_json_log_masks_pii_end_to_end(monkeypatch, capsys) -> None:
     """e2e：prod JSON 日志输出的任何字段不出现完整敏感号（T175 验收口径）。"""
     monkeypatch.setenv("APP_PROFILE", "prod")
     monkeypatch.setenv("STAFF_KEYS", "smoke:k1")
+    monkeypatch.setenv("PII_ENCRYPTION_KEY", "test-pii-key")
     import importlib
 
     import app.core.config as config_module

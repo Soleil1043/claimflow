@@ -206,6 +206,9 @@ class Settings(BaseSettings):
     # 日志零 PII（T175，D081）：structlog 事件字段递归脱敏（身份证/银行卡/手机号）。
     # 默认开（secure by default）；排障需要原文时临时置 False，勿长期关闭
     log_mask_pii: bool = True
+    # ===== PII 库内加密（T176，D082）：证件号列确定性 AES 密钥 =====
+    # 空 = dev 固定开发密钥（警告，密文不具保密性）；prod 强制非空（model_validator）
+    pii_encryption_key: str = ""
 
     @property
     def is_prod(self) -> bool:
@@ -234,6 +237,15 @@ class Settings(BaseSettings):
         if self.is_prod and not self.staff_key_map:
             raise ValueError(
                 "prod profile 必须配置 STAFF_KEYS（坐席端点鉴权，格式 'alice:xxx,bob:yyy'）"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _pii_key_required_in_prod(self) -> "Settings":
+        """prod 必须配置 PII 加密密钥（T176，D082：空 key = dev 弱默认，prod 不接受）。"""
+        if self.is_prod and not self.pii_encryption_key:
+            raise ValueError(
+                "prod profile 必须配置 PII_ENCRYPTION_KEY（证件号库内加密密钥）"
             )
         return self
 

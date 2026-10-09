@@ -25,6 +25,7 @@ def test_database_url_switches_by_profile() -> None:
     prod = Settings(
         _env_file=None, app_profile="prod",
         postgres_password="secret", staff_keys="smoke:k1",
+        pii_encryption_key="test-pii-key",
     )
     assert prod.is_prod is True
     assert prod.database_url.startswith("postgresql+asyncpg://")
@@ -40,6 +41,7 @@ def test_settings_read_from_env_vars(monkeypatch) -> None:
     monkeypatch.setenv("APP_PROFILE", "prod")
     monkeypatch.setenv("APP_PORT", "9000")
     monkeypatch.setenv("STAFF_KEYS", "smoke:k1")
+    monkeypatch.setenv("PII_ENCRYPTION_KEY", "test-pii-key")
 
     s = Settings(_env_file=None)
     assert s.llm_api_key == "sk-test-123"
