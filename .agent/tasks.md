@@ -157,8 +157,8 @@ T001 → T002 → T003 → T004 → T005
 
 ## 进度统计
 
-- 总任务数：169（T001-T168，含T158-2）
-- 已完成：**169（100%）**
+- 总任务数：179（T001-T180；编号跳空 T111/T170 未立任务项，含 T158-2）
+- 已完成：**179（100%）**
 - 进行中：0
 - 待开始：0
 
@@ -166,7 +166,9 @@ T001 → T002 → T003 → T004 → T005
 > → T113-T145 工程化/ 险种四线 / 评测与安全 / 客服域 / 治理 / CI
 > → T146-T156 客服金样本门 + P0/P1 完善度 + 多实例横向扩展
 > → T157-T158 依赖漏洞与npm 审计门红修复→ T159-T161 面试证据三件套
-> → T162-T166 Prompt 缓存观测与修复 → T167-T168 文档全量刷新。**全部交付，无挂起项。**
+> → T162-T166 Prompt 缓存观测与修复 → T167-T169 文档全量刷新与模板对齐
+> → T171-T180 完善性缺口封堵（安全纵深/数据飞轮/PII 治理/成本单位经济/
+>   judge 对账/文档修缮/客服 SSE 流式）。**全部交付，无挂起项。**
 
 > Phase 5 回归实测（T048，deepseek-v4-flash 全量 200 条，evals/reports/t048_phase5_regression.json）：
 > 完成率 87.0%（基线 88%，回退 1pp 达标线压线）｜工具准确率 94.7%（基线 95.26%，差 0.3pp 未达
@@ -434,3 +436,7 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：顺手修缮清单（2026-10-10 追加，完善性评估「三、顺手修缮清单」用户确认实施）
 
 - [x] T179: 文档可信度四件套 ✅ 2026-10-10（①Grafana 坏面板清理：overview 4 个面板查询 T094 已删除的 v1 指标（human_interventions/compliance_verdicts/turn_latency/conversation_turns）——"人工转接率"改由现存 CASES_TOTAL 终态推导替换（指标真实、面板概念有效），"合规三态/单轮 P95/对话轮次"无现存等价（补指标属新任务）删除；15→12 面板，双仪表盘 10+12=22；promql 指标引用经脚本比对 metrics.py 定义全量校验（_bucket/_sum/_count Histogram 标准后缀归一化）；README×2/AGENTS×2/architecture 四处面板数口径同步（14→22）；②D059 补录：architecture.md §8 与 tasks.md T139 引用"T139/D059"但 decisions.md 历史遗漏——按 T139 交付记录回溯补记（人工口径先于 judge/确定性采样种子=case_id/采样不动状态机三决断 + T178 延伸注），编号断链修复；③architecture.md 补 §17「已知限制与未来工作」：散落限制（日志不落盘/dev 多实例边界/单消费者判据/ocr 天然 miss/客服门需 Key/RAG Recall@1 归因/密钥轮换 v2/轮询无 SSE 等）集中 + 未来候选按价值密度排序（SSE/回放工具/死信重驱/模型路由/回归集 nightly）——"反思/重做会怎么改"素材单点入口；④死配置清理：GLM 残留（config 两字段+注释、.env.example 段——消费方 evals/variants.py 早已删除）、TURN_TOKEN_BUDGET 残行（字段本体 T117 已删，.env.example 忘清）、prompts.py 文档串陈旧提及（MEMORY_SUMMARY 已不存在→改为现行 prompt 清单）） | 依赖: T178 | 涉及文件: grafana/dashboards/claimflow-overview.json、README.md、AGENTS.md、grafana/README.md、docs/architecture.md、.agent/decisions.md、app/core/config.py、.env.example、services/llm/prompts.py、.agent/{tasks,progress}.md | 验收: 面板 promql 全量校验零坏引用；D001-D084 编号连续；§17 入目录；死配置全仓 grep 零残留（.agent 历史档案除外——只追加不改历史）；581 passed + ruff 零退化
+
+### 增量：客服 SSE 流式（2026-10-10 追加，完善性评估建议 7 = D057-3 挂起项兑现）
+
+- [x] T180: 客服 AI 回复 SSE 流式（D085） ✅ 2026-10-10（①agent.py：reply() 拆 `_begin_turn`（校验+落用户消息+replay）/`_finish_turn`（落 AI 终局+转人工流转+回终态）共享前后置；`reply_stream` 经 `astream_events(v2)` 取 on_chat_model_stream token 逐段 yield（含 ReAct 中间轮叙述，done 后前端整体刷新校准），on_chat_model_end 累积本轮 AIMessage 全集作终局文本与转人工判定源（比非流式扫全 replay 更收敛，行为等价）；GraphRecursionError 同款兜底文案、LLM 故障 yield error 事件（用户消息已落库不回滚）；②新端点 POST /conversations/{id}/messages/stream：仅 ai 态（404/409 前置）+ 限流同款 + `_sse` 帧（data: 单行 JSON + 空行分隔），事件三态 token/done/error；③前端 `streamSupportMessage`：POST + fetch ReadableStream reader 解析 SSE 帧，SupportBubble ai 态乐观气泡 token 累积渲染、done 后 refresh 校准、error 后 refresh 恢复时间线，escalated 态保留旧端点+3s 轮询；④文档四处同步：support.py 头注释与端点清单、README API 表+已知限制表、architecture §9 门户侧/§16 决策表（+D085 行、D057 行去"无 SSE"旧口径）/§17 交互限制改写+未来候选摘除已兑现项；⑤chatui build 抓出并修一处 TS 类型收窄缺陷——`type==="token" && evt.content` 组合条件使 else 分支无法排除空 content 的 token 变体（evt.detail 不存在），改嵌套 if 收窄；⑥真实 Key 冒烟：206 chunk 增量到达（首 token 2.16s、流完 5.4s）+ done status=ai + 时间线落 user(26)/assistant(329) 与流内容校准一致，冒烟会话已清理；环境备注：本机 httpx 冒烟须 `trust_env=False`（Windows 注册表系统代理劫持 127.0.0.1 回 502 空响应，curl 不受影响））——①"哪流哪不流"：AI 应答走流式（create_agent `astream_events(v2)` 取 on_chat_model_stream token 逐段下发），escalated 态坐席回复保留 3s 轮询（有意取舍：坐席响应时序不定，SSE 长连接管理成本高于收益）、案件进度保留 GET 轮询（分钟级长任务同理）；②传输选型 POST + fetch ReadableStream 解析 SSE 帧（非 EventSource-GET：复用 POST 语义、内容不进 URL/访问日志）；③新端点 POST /conversations/{id}/messages/stream（仅 ai 态，409/404 前置；限流同款），事件三态 token/done/error——LLM 故障经 error 事件传达（HTTP 已 200 开流），"用户消息已落库下一条重试"语义与非流式 503 一致；④reply() 拆共享轮次前置/后置（_begin_turn/_finish_turn），流式与非流式同语义（落库/转人工流转一致）；⑤前端 SupportBubble：ai 态流式渲染（done 后整体刷新校准，时间线单源），escalated 态走旧端点 | 依赖: T179 | 涉及文件: services/support/agent.py、app/api/v1/support.py、chatui/lib/support-api.ts、chatui/components/SupportBubble.tsx、tests/api/test_support.py、README.md、docs/architecture.md、.agent/{tasks,decisions,progress}.md | 验收: SSE 端点单测（token+done/转人工 done.status/错误事件+用户消息已落库/404/409）；既有 reply() 用例零退化；chatui lint/build 绿；真实 Key 冒烟见流式 chunk

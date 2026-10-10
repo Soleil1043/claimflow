@@ -69,3 +69,61 @@ export function sendSupportMessage(
     body: JSON.stringify({ content }),
   });
 }
+
+/** SSE 流事件（T180）：token 流式片段 / done 终局 / error LLM 故障。 */
+export type SupportStreamEvent =
+  | { type: "token"; content: string }
+  | { type: "done"; status: SupportStatus }
+  | { type: "error"; detail: string };
+
+/**
+ * 流式发消息（T180，D085）：POST + fetch ReadableStream 解析 SSE 帧
+ * （非 EventSource-GET：复用 POST 语义、内容不进 URL/访问日志）。
+ * onToken 逐段回调；resolve 值为 done 事件的终局 status；error 事件抛错
+ * （此时用户消息已在服务端落库，调用方刷新时间线即可恢复）。
+ */
+export async function streamSupportMessage(
+  id: string,
+  content: string,
+  onToken: (chunk: string) => void
+): Promise<SupportStatus> {
+  const resp = await fetch(
+    apiUrl(`/api/v1/support/conversations/${id}/messages/stream`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+      cache: "no-store",
+    }
+  );
+  if (!resp.ok || !resp.body) {
+    const detail = await resp.text().catch(() => "");
+    throw new Error(`${resp.status} ${resp.statusText} ${detail}`.slice(0, 300));
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalStatus: SupportStatus = "ai";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let sep: number;
+    while ((sep = buffer.indexOf("\n\n")) >= 0) {
+      const frame = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      const line = frame.split("\n").find((l) => l.startsWith("data: "));
+      if (!line) continue;
+      const evt = JSON.parse(line.slice(6)) as SupportStreamEvent;
+      if (evt.type === "token") {
+        if (evt.content) onToken(evt.content);
+      } else if (evt.type === "done") {
+        finalStatus = evt.status;
+      } else {
+        throw new Error(evt.detail || "在线客服暂时不可用，请稍后重试");
+      }
+    }
+  }
+  return finalStatus;
+}

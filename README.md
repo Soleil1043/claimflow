@@ -318,6 +318,7 @@ uv run python -m evals.support_suite                            # 客服问答�
 | `/api/v1/support/conversations/{id}` | GET | 会话状态（ai / escalated / closed，门户轮询入口） |
 | `/api/v1/support/conversations/{id}/messages` | GET | 三方消息时间线（user / assistant / agent） |
 | `/api/v1/support/conversations/{id}/messages` | POST | 发消息：ai 态 AI 应答；escalated 态坐席接管停答 |
+| `/api/v1/support/conversations/{id}/messages/stream` | POST | 发消息（SSE 流式 AI 应答，T180）：token / done / error 三态事件 |
 | `/api/v1/support/tickets` | GET | 坐席客服工单队列（escalated 会话倒序 + 最新消息预览）🔒 |
 | `/api/v1/support/tickets/{id}` | GET | transcript 三方消息全文（closed 会话可查作审计）🔒 |
 | `/api/v1/support/tickets/{id}/reply` | POST | 坐席回复（role=agent 入时间线）🔒 |
@@ -376,7 +377,7 @@ uv run python -m evals.support_suite                            # 客服问答�
 | 限制 | 现状 | 下一步 |
 |------|------|--------|
 | dev 记忆/缓存仍进程内 | 交付队列与 checkpoint 已多实例安全（T155 租约 + sqlite 共享后端）；dev 的长期记忆 InMemoryStore 与工具内存缓存不跨实例共享 | 多实例 dev 对记忆为旁路降级；prod 用 PostgresStore/Redis 共享 |
-| 客服无流式输出 | 门户轮询 3s 获取回复（无 SSE/WebSocket） | 需要 MVP 后迭代 |
+| 客服 escalated 交互为轮询 | AI 应答已 SSE 流式（T180：token 逐段下发，done 后整体刷新校准）；坐席回复与案件进度保留轮询 | D085 有意取舍（不定时/分钟级事件维持长连接成本高于收益），实时性有诉求再评估 |
 | 小语料 RAG 天花板 | 12 篇条款文档，检索增益有天花板 | 语料扩充后重开精排对比 |
 | 客服日期推断 | 用户只说"9月20日"时模型自行补年份（应为当前年） | prompt 补"日期以当前年份推算" |
 

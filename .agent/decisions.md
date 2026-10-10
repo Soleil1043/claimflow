@@ -2280,3 +2280,35 @@ LLM-as-judge 偏差"需要一个有实体的答案。
    天然容忍 ±1 分抖动
 4. judge 调用经 phase_ainvoke(stage=narrative_judge)：延迟/缓存/成本（T177 币值）
    自动进观测——judge 自身的开销也被度量
+
+## D085 · 客服 SSE 流式：哪流哪不流 + POST-ReadableStream 选型（T180，2026-10-10）
+
+**背景**：D057-3 挂起项（完善性评估建议 7）。全链路无流式——客服 AI 回复整段
+随 POST 响应返回，escalated 态 3s 轮询。
+
+**哪流哪不流（核心取舍）**：
+- **流**：客服 AI 应答（秒级生成 + 面向用户逐字渲染，流式体感收益最大）——
+  create_agent `astream_events(version="v2")` 的 `on_chat_model_stream` token
+  逐段下发
+- **不流**：escalated 态坐席回复（保留 3s 轮询——坐席响应时序不定，为不定时
+  事件维持 SSE 长连接的管理成本高于收益）；案件进度（保留 GET 轮询——核赔
+  分钟级长任务，轮询开销可忽略而 SSE 收益趋零）。两处"不流"都是有意的
+  trade-off 而非欠账
+
+**传输选型**：POST + fetch ReadableStream 解析 SSE 帧，而非 EventSource-GET——
+EventSource 只支持 GET（消息内容得进 URL/query，落访问日志且长度受限）；
+POST 流保留既有消息端点语义与限流挂接，前端用 ReadableStream reader 解析
+`data: {...}\n\n` 帧（现代浏览器全支持，OpenAI playground 同款路径）。
+
+**错误语义（开流后 HTTP 已 200）**：错误经事件传达——
+`{"type":"token"}` 流式片段（含 ReAct 中间轮叙述——done 后前端整体刷新校准，
+服务端时间线单源，中间轮文本只作瞬态展示）；`{"type":"done","status":"ai"|
+"escalated"}` 终局（AI 话术已落库；escalated 即转人工已流转，前端切轮询）；
+`{"type":"error"}` LLM 故障（用户消息已落库、assistant 不落——下一条消息重试
+不丢时间线，与非流式 503 路径语义一致）。
+
+**实现口径**：reply() 拆 `_begin_turn`（校验+落用户消息+replay）与
+`_finish_turn`（落 AI 终局+转人工流转+回终态）共享件——流式与非流式同语义，
+转人工判定（工具标记式）不因流式分叉；流式侧 escalation 扫描只看本轮
+AIMessage（比非流式扫全 replay 消息更收敛，行为等价——历史轮的 escalate
+必然已流转状态）。

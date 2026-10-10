@@ -7,6 +7,7 @@ import {
   getSupportConversation,
   listSupportMessages,
   sendSupportMessage,
+  streamSupportMessage,
   type SupportMessage,
   type SupportStatus,
 } from "@/lib/support-api";
@@ -22,8 +23,10 @@ const ROLE_LABEL: Record<string, string> = {
 /**
  * 门户悬浮在线客服（T136，D057）：右下角气泡 + 对话窗。
  *
- * - ai 态：发消息 → 请求-响应式 AI 回复（v1 无流式，"正在输入"态过渡，D057-3）
- * - escalated 态：AI 停答；打开期间 3s 轮询坐席回复 / 关闭事件
+ * - ai 态：发消息 → SSE 流式 AI 回复（T180 兑现 D057-3：token 逐段渲染，
+ *   done 后整体刷新校准——服务端时间线单源）
+ * - escalated 态：AI 停答；走非流式端点留言 + 打开期间 3s 轮询坐席回复 /
+ *   关闭事件（有意取舍：坐席响应时序不定，SSE 长连接管理成本高于收益）
  * - closed 态：终态只读，可一键开新会话
  * - AI 消息以 Markdown 渲染（claim_draft_link 预填链接可直接点击跳转表单）
  */
@@ -127,6 +130,38 @@ export default function SupportBubble() {
     ]);
     setSending(true);
     setError("");
+
+    if (status === "ai") {
+      // ai 态：SSE 流式回复（T180）——token 逐段渲染，done 后整体刷新校准
+      const bubbleId = -Date.now() - 1;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: bubbleId,
+          role: "assistant",
+          content: "",
+          created_at: new Date().toISOString(),
+        },
+      ]);
+      try {
+        const finalStatus = await streamSupportMessage(id, content, (chunk) => {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === bubbleId ? { ...m, content: m.content + chunk } : m))
+          );
+        });
+        await refresh(id);
+        if (finalStatus === "escalated") setStatus("escalated");
+      } catch (e) {
+        setError(String(e instanceof Error ? e.message : e));
+        // 错误语义：用户消息已在服务端落库——刷新时间线恢复（assistant 未落）
+        await refresh(id).catch(() => {});
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    // escalated 态：非流式留言（AI 停答，无可流；坐席回复经轮询获取）
     try {
       await sendSupportMessage(id, content);
       await refresh(id);
@@ -196,7 +231,14 @@ export default function SupportBubble() {
                 )}
               </div>
             ))}
-            {sending && (
+            {sending && status !== "ai" && (
+              <div className="cf-bubble bot text-[12px] text-cf-text-2">
+                对方正在输入…
+              </div>
+            )}
+            {sending && status === "ai" && !messages.some(
+              (m) => m.role === "assistant" && m.content === ""
+            ) && (
               <div className="cf-bubble bot text-[12px] text-cf-text-2">
                 对方正在输入…
               </div>

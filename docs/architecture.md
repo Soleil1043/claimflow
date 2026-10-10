@@ -232,8 +232,10 @@ T132-T137（D057）新增，与核赔主图**完全正交**的独立 ReAct Agent
   （store.recent_messages）；四工具——case_status_query（案件进度快照）、
   claim_draft_link（险种校验 + 报案链接四参数预填）、claim_rule_rag（条款问答）、
   escalate_to_human（转人工标记式：不改状态，AI 终局后确定性流转）；
-- **门户侧**：chatui 全站悬浮客服气泡（SupportBubble），escalated 态 3s 轮询坐席
-  回复，closed 终态只读 + 一键新会话；AI 回复中的报案链接可点；
+- **门户侧**：chatui 全站悬浮客服气泡（SupportBubble），ai 态 SSE 流式渲染
+  （T180/D085：token 逐段下发，done 后整体刷新校准——服务端时间线单源），
+  escalated 态 3s 轮询坐席回复（有意取舍，D085），closed 终态只读 + 一键新会话；
+  AI 回复中的报案链接可点；
 - **坐席侧**：workbench /support 客服工单（transcript 三方气泡 / 回复 / 关闭备注）；
 - **日期边界**：prompt 明确"不承诺赔付、不引内部阈值、禁止编造"。
 
@@ -440,7 +442,7 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
 | D052 | 死代码清除 + Worker 官方容错中间件对齐 |
 | D053/D062 | 四险种一次上线；对抗集同义词清账 + 门禁升级 |
 | D056/D063 | 模型切换 deepseek-flash；冒烟口径与两个真实缺陷修复 |
-| D057 | 在线客服四决断（独立 Agent / 标记式转人工 / 轮询无 SSE） |
+| D057 | 在线客服四决断（独立 Agent / 标记式转人工 / v1 轮询交互，AI 态流式后由 D085 兑现） |
 | D060/D061 | 置信度校准函数；checkpoint schema 版本门卫 |
 | D064/D065 | 冒烟进 CI 双档（secret 可选，默认离线零依赖） |
 | D066-D070 | Grafana 告警 / 负载测试 / 夜间 LLM 门 / 覆盖率基线（D070 批次） |
@@ -450,6 +452,7 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
 | D074 | 单 Agent 消融口径（`--llm` 仅 LLM 调度，须 `--llm-workers` 补齐与生产同构） |
 | D075 | RAGAS 四指标自实现（引包 dry-run 实锤 huggingface-hub 跨大版本漂移 + 20+ 新包） |
 | D076 | Prompt 缓存修复分层：先 T164 观测补全拿基线，再 T165 布局改造；create_agent 子图用回调 handler 而非 ObservableChatModel 代理 |
+| D085 | 客服 SSE 流式：AI 应答流式，escalated 坐席回复与案件进度保留轮询（有意取舍）；POST + ReadableStream 而非 EventSource-GET |
 
 ---
 
@@ -484,17 +487,16 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
 - 叙述 judge 温度 0 单次判分仍有方差（RAGAS 同款口径），一致率按案比较容忍
 
 **交互**：
-- 客服 escalated 态 3s 轮询、无 SSE（D057-3 挂起项）；案件进度经 GET 轮询
+- 客服 AI 应答已 SSE 流式（T180/D085）；escalated 坐席回复 3s 轮询与案件进度
+  GET 轮询为**有意取舍**（不定时/分钟级事件，维持长连接成本高于收益，D085）
 - 用户只说"9月20日"时模型自行补年份（T137 观察项，prompt 已补推断规则）
 
 ### 未来工作候选（按价值密度排序）
 
-1. **客服 SSE 流式**（D057-3 兑现）：请求-响应 → StreamingResponse + astream，
-   案件长任务保留轮询（取舍本身是答案）
-2. **轨迹回放断言工具**：审计事件流（case_events，seq 单调）批跑不变量
+1. **轨迹回放断言工具**：审计事件流（case_events，seq 单调）批跑不变量
    （auto 必过合规门 / RESUME 前必有交付回执 / 调度预算不超限）
-3. **死信重驱 + 告警**：Grafana 加 dead>0 告警规则 + 管理端点重置 queued
-4. **模型路由实验**（证据驱动）：客服域或叙述生成换小模型 A/B，六门+成本
+2. **死信重驱 + 告警**：Grafana 加 dead>0 告警规则 + 管理端点重置 queued
+3. **模型路由实验**（证据驱动）：客服域或叙述生成换小模型 A/B，六门+成本
    双口径对比，结论无论正负落 decisions.md
-5. **回归集挂 nightly**：`--dataset regression` 进 nightly-llm job（样本
+4. **回归集挂 nightly**：`--dataset regression` 进 nightly-llm job（样本
    积累后）

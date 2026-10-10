@@ -114,16 +114,12 @@ _EMPTY_FALLBACK = "抱歉，我暂时无法回答这个问题。您可以换个�
 _RECURSION_FALLBACK = "抱歉，处理您的请求时遇到困难，请稍后重试，或选择转人工客服。"
 
 
-async def reply(conversation_id: str, user_message: str) -> str:
-    """执行一个对话轮：落用户消息 → replay 历史 → Agent → 落 AI 终局消息。
-
-    转人工：终局轨迹含 escalate_to_human 调用时，在 AI 话术落库后执行
-    ai → escalated 流转（reason 取工具入参）。
+async def _begin_turn(conversation_id: str, user_message: str) -> list[BaseMessage]:
+    """轮次前置（reply / reply_stream 共享）：会话校验 → 落用户消息 → replay 历史。
 
     Raises:
         LookupError: 会话不存在。
-        SupportStateError: 会话非 ai 态（escalated 由坐席接管 / closed 终态），
-            调用方（API 层）应拒答而非调用本函数。
+        SupportStateError: 会话非 ai 态（escalated 由坐席接管 / closed 终态）。
     """
     conv = await store.get_conversation(conversation_id)
     if conv is None:
@@ -132,31 +128,22 @@ async def reply(conversation_id: str, user_message: str) -> str:
         raise SupportStateError(
             f"conversation {conversation_id} is {conv.status}, AI reply disabled"
         )
-
     await store.append_message(
         conversation_id, role=store.ROLE_USER, content=user_message
     )
     history = await store.recent_messages(
         conversation_id, limit=settings.support_history_window
     )
-    agent = get_support_agent()
-    new_messages: list[BaseMessage] = []
-    try:
-        result = await agent.ainvoke(
-            {"messages": _replay_messages(history)},
-            config={"recursion_limit": _RECURSION_LIMIT},
-        )
-        new_messages = list(result["messages"])
-    except GraphRecursionError:
-        log.warning("support_agent_recursion_limit_hit", conversation_id=conversation_id)
-        final_text = _RECURSION_FALLBACK
-    else:
-        final_text = _final_ai_text(new_messages) or _EMPTY_FALLBACK
+    return _replay_messages(history)
 
+
+async def _finish_turn(
+    conversation_id: str, new_messages: list[BaseMessage], final_text: str
+) -> str:
+    """轮次后置（共享）：落 AI 终局 → 转人工流转 → 回会话终态（ai | escalated）。"""
     await store.append_message(
         conversation_id, role=store.ROLE_ASSISTANT, content=final_text
     )
-
     reason = _escalation_reason(new_messages)
     if reason is not None:
         try:
@@ -166,4 +153,84 @@ async def reply(conversation_id: str, user_message: str) -> str:
             log.warning(
                 "support_escalate_conflict", conversation_id=conversation_id, error=str(exc)
             )
+    conv = await store.get_conversation(conversation_id)
+    return conv.status if conv else store.CONV_AI
+
+
+async def reply(conversation_id: str, user_message: str) -> str:
+    """执行一个对话轮（非流式）：落用户消息 → replay 历史 → Agent → 落 AI 终局消息。
+
+    转人工：终局轨迹含 escalate_to_human 调用时，在 AI 话术落库后执行
+    ai → escalated 流转（reason 取工具入参）。
+
+    Raises:
+        LookupError: 会话不存在。
+        SupportStateError: 会话非 ai 态（escalated 由坐席接管 / closed 终态），
+            调用方（API 层）应拒答而非调用本函数。
+    """
+    replay = await _begin_turn(conversation_id, user_message)
+    agent = get_support_agent()
+    new_messages: list[BaseMessage] = []
+    try:
+        result = await agent.ainvoke(
+            {"messages": replay},
+            config={"recursion_limit": _RECURSION_LIMIT},
+        )
+        new_messages = list(result["messages"])
+    except GraphRecursionError:
+        log.warning("support_agent_recursion_limit_hit", conversation_id=conversation_id)
+        final_text = _RECURSION_FALLBACK
+    else:
+        final_text = _final_ai_text(new_messages) or _EMPTY_FALLBACK
+
+    await _finish_turn(conversation_id, new_messages, final_text)
     return final_text
+
+
+async def reply_stream(conversation_id: str, user_message: str):
+    """流式对话轮（T180，D085）：与 reply() 同语义，AI 文本 token 逐段产出。
+
+    异步生成器，产出 (kind, payload)：
+    - ("token", str)：流式文本片段（含 ReAct 中间轮叙述——调用方 done 后整体
+      刷新校准，服务端时间线单源，中间轮文本只作瞬态展示）
+    - ("done", "ai"|"escalated")：终局（AI 话术已落库；escalated 即转人工已流转）
+    - ("error", str)：LLM 故障——用户消息已落库、assistant 不落，下一条消息
+      重试不丢时间线（与非流式 503 路径语义一致）
+
+    Raises（首次迭代时）: LookupError / SupportStateError——API 层开流前已校验，
+    此处兜底（经调用方转 error 事件）。
+    """
+    replay = await _begin_turn(conversation_id, user_message)
+    # 本轮 AIMessage 全集（on_chat_model_end 逐次累积）：终局文本与转人工判定源
+    ai_messages: list[BaseMessage] = []
+    try:
+        agent = get_support_agent()
+        async for ev in agent.astream_events(
+            {"messages": replay},
+            version="v2",
+            config={"recursion_limit": _RECURSION_LIMIT},
+        ):
+            if ev["event"] == "on_chat_model_stream":
+                chunk = (ev.get("data") or {}).get("chunk")
+                text = getattr(chunk, "content", "")
+                if isinstance(text, str) and text:
+                    yield ("token", text)
+            elif ev["event"] == "on_chat_model_end":
+                output = (ev.get("data") or {}).get("output")
+                if isinstance(output, AIMessage):
+                    ai_messages.append(output)
+    except GraphRecursionError:
+        log.warning("support_agent_recursion_limit_hit", conversation_id=conversation_id)
+        yield ("token", _RECURSION_FALLBACK)
+        final_text = _RECURSION_FALLBACK
+    except Exception as exc:  # noqa: BLE001 LLM 故障：用户消息已落库，经事件传达
+        log.warning(
+            "support_stream_failed", conversation_id=conversation_id, error=str(exc)[:200]
+        )
+        yield ("error", "在线客服暂时不可用，请稍后重试")
+        return
+    else:
+        final_text = _final_ai_text(ai_messages) or _EMPTY_FALLBACK
+
+    status = await _finish_turn(conversation_id, ai_messages, final_text)
+    yield ("done", status)

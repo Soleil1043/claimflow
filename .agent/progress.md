@@ -2890,3 +2890,44 @@ Key，不进 CI）；judge 调用经 phase_ainvoke(stage=narrative_judge) 自动
 
 **验证**：581 passed + ruff 零退化；死配置全仓 grep 零残留（.agent 历史档案
 除外——只追加不改历史）；D001-D084 编号连续。
+
+## T180 · 客服 AI 回复 SSE 流式（2026-10-10）
+
+**背景**：完善性评估建议 7 = D057-3 挂起项兑现（决策 D085：哪流哪不流 +
+POST-ReadableStream 选型）。
+
+**交付**：
+1. **服务层**（`services/support/agent.py`）：reply() 拆 `_begin_turn`（会话
+   校验+落用户消息+replay 历史）/`_finish_turn`（落 AI 终局+转人工确定性
+   流转+回终态）共享前后置——流式与非流式同语义，转人工判定（工具标记式）
+   不因流式分叉；`reply_stream` 经 `astream_events(v2)` 取
+   on_chat_model_stream token 逐段 yield（含 ReAct 中间轮叙述，done 后前端
+   整体刷新校准，服务端时间线单源），on_chat_model_end 累积本轮 AIMessage
+   全集作终局与转人工判定源（比非流式扫全 replay 更收敛，行为等价）；
+   GraphRecursionError 兜底文案同款，LLM 故障 yield error 事件（用户消息
+   已落库不回滚，下一条重试不丢时间线）
+2. **API 层**（`app/api/v1/support.py`）：新端点 POST
+   /conversations/{id}/messages/stream——仅 ai 态（404/409 前置校验），
+   限流同款挂接，`_sse` 帧（data: 单行 JSON + 空行分隔），事件三态
+   token/done/error；开流后 HTTP 已 200，错误经事件传达（与非流式 503
+   路径语义一致）；StreamingResponse + no-cache + X-Accel-Buffering 头
+3. **前端**（chatui）：`streamSupportMessage` POST + fetch ReadableStream
+   reader 解析 SSE 帧（非 EventSource-GET：复用 POST 语义、内容不进 URL/
+   访问日志）；SupportBubble ai 态乐观气泡 + token 累积渲染 + done 后
+   refresh 整体校准 + error 后 refresh 恢复时间线；escalated 态保留旧
+   端点 + 3s 轮询（有意取舍，D085）
+4. **文档**：support.py 头注释与端点清单、README API 表（+stream 行）与
+   已知限制表（"客服无流式输出"→"escalated 交互为轮询"+取舍说明）、
+   architecture §9 门户侧 / §16 决策表（+D085 行，D057 行去"轮询无 SSE"
+   旧口径）/ §17 交互限制改写 + 未来候选摘除已兑现项
+
+**验证**：5 新 SSE 用例（token+done / 转人工 done.status+后续 409 / LLM
+故障 error 事件且用户消息已落库 / 未知会话 404 / closed 409）；586 passed
+（581+5）+ ruff 绿；chatui lint+build 绿——**build 抓出并修一处 TS 类型
+收窄缺陷**：`type==="token" && evt.content` 组合条件使 else 分支无法排除
+空 content 的 token 变体（evt.detail 属性不存在），改嵌套 if 正确收窄；
+真实 Key 冒烟：206 chunk 增量到达（首 token 2.16s、流完 5.4s、done
+status=ai），时间线落 user(26)/assistant(329) 与流内容校准一致，冒烟
+会话已清理。环境备注：本机 httpx 直连 127.0.0.1 被 Windows 注册表系统
+代理劫持回 502 空响应（curl 不读注册表不受影响）——本地冒烟脚本须
+`httpx.AsyncClient(trust_env=False)`。

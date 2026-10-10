@@ -5,13 +5,18 @@
 - GET  /api/v1/support/conversations/{id}/messages         消息历史
 - POST /api/v1/support/conversations/{id}/messages         客户发消息（ai 态 AI 应答；
                                                             escalated 态只落消息，坐席应答）
+- POST /api/v1/support/conversations/{id}/messages/stream  客户发消息（SSE 流式 AI
+                                                            应答，T180/D085）
 
-v1 请求-响应式（SSE 挂 D057-3 后续）；坐席侧工单端点见 T135。
+ai 态走流式或请求-响应任选（escalated 留言仅后者——无可流）；坐席侧工单端点见 T135。
 """
 
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 
 from app.api.dependencies import rate_limit, require_staff
 from app.core.exceptions import SupportStateError
@@ -33,6 +38,7 @@ from schemas.api import (
 )
 from services.support import store
 from services.support.agent import reply as agent_reply
+from services.support.agent import reply_stream as agent_reply_stream
 
 log = get_logger(__name__)
 
@@ -141,6 +147,55 @@ async def send_conversation_message(
         )
         return SupportSendMessageResponse(status=store.CONV_ESCALATED, reply=None)
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="会话已结束，不可继续发送")
+
+
+def _sse(payload: dict) -> str:
+    """SSE 帧序列化（data: 单行 JSON + 空行分隔，T180）。"""
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+@router.post(
+    "/conversations/{conversation_id}/messages/stream",
+    dependencies=[
+        Depends(rate_limit("support_messages", "rate_limit_support_per_min"))
+    ],
+)
+async def stream_conversation_message(
+    conversation_id: str, body: SupportSendMessageRequest
+) -> StreamingResponse:
+    """客户发消息（SSE 流式，T180/D085）：AI 应答 token 逐段下发。
+
+    - 仅 ai 态（escalated 无 AI 应答无可流、closed 409——非 ai 前置 409）
+    - 事件三态：{"type":"token","content":…} 流式片段（含中间轮叙述，done 后
+      前端整体刷新校准）；{"type":"done","status":"ai"|"escalated"} 终局（AI
+      话术已落库，escalated 即转人工已流转）；{"type":"error","detail":…} LLM
+      故障（用户消息已落库——与非流式 503 同语义；开流后 HTTP 已 200，错误经
+      事件传达）
+    """
+    conv = await _get_conversation_or_404(conversation_id)
+    if conv.status != store.CONV_AI:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="会话状态已变更，请刷新后重试"
+        )
+
+    async def gen():
+        try:
+            async for kind, payload in agent_reply_stream(conversation_id, body.content):
+                if kind == "token":
+                    yield _sse({"type": "token", "content": payload})
+                elif kind == "done":
+                    yield _sse({"type": "done", "status": payload})
+                else:
+                    yield _sse({"type": "error", "detail": payload})
+        except (LookupError, SupportStateError):
+            # 开流前已前置校验，此处为竞态兜底（如坐席同时转人工）
+            yield _sse({"type": "error", "detail": "会话状态已变更，请刷新后重试"})
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # ---------- 坐席侧客服工单（T135，D057-3：三件套后端） ----------
