@@ -309,6 +309,8 @@ uv run python -m evals.support_suite                            # 客服问答�
 | `/api/v1/interventions/cases/{id}/resolve` | POST | 工单处理：签批 / 改判 / 补传 / 升级（坐席文本必过红线复审）🔒 |
 | `/api/v1/interventions/narrative-samples` | GET | 叙述抽评审队列（pending 样本 + 决定书全文 + 通过率统计）🔒 |
 | `/api/v1/interventions/cases/{id}/narrative-review` | POST | 叙述抽评：pass / revise + 评语（落审计事件）🔒 |
+| `/api/v1/interventions/jobs/dead` | GET | 死信队列清单（重试耗尽任务 + 死因，T182）🔒 |
+| `/api/v1/interventions/jobs/{id}/redrive` | POST | 死信重驱：dead → queued（attempt 清零满额度，落 job_redrive 审计）🔒 |
 
 ### 在线客服（门户 ↔ 坐席）
 

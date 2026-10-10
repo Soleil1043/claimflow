@@ -25,10 +25,12 @@ material_review / decision_writer）与「天然 miss」（ocr 材料提取—�
 
 ## 告警规则
 
-`provisioning/alerting/rules.yml` 三条（T154）：
+`provisioning/alerting/rules.yml` 四条（T154 三条 + T182/D087 第四条）：
 ① 自动结案率骤降（1h 有量 >5 且 auto_issued 占比 <30% 持续 10m）
 ② 交付队列积压（queued >20 持续 5m）
 ③ LLM 失败率（15m 有量 >10 且错误占比 >50% 持续 5m）
+④ 交付死信未处置（dead >0 持续 5m——处置入口
+  POST /api/v1/interventions/jobs/{id}/redrive，重驱落 job_redrive 审计）
 
 演示栈无通知接收端，规则在 UI 呈现，部署方自行接通道；无独立 Alertmanager。
 

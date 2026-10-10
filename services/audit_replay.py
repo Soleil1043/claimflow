@@ -16,7 +16,8 @@ decision_documents 版本的联合视图重放断言五不变量：
    时序不可比：event.created_at 为 server_default UTC 而 job.finished_at 为
    Python 本地时区，历史库两种约定并存，dev 库 316 案实测时序比较全量误报）；
    存在坐席签发版决定书 ⇒ 必有 interrupted 回执（挂起才可恢复）
-5. 死信一致——job_failed 事件 ⇒ 该案最新 job status=dead
+5. 死信一致——job_failed 事件 ⇒ 该案最新 job status=dead；最后一个
+   job_failed 之后存在 job_redrive 事件（T182/D087 人工重驱处置）则放行
 
 切面（同 T174 badcase_export 测试缝）：check_invariants 纯函数零 IO 可全矩阵
 单测；audit_case / audit_all 异步取数薄层（session 注入）。全程只读。
@@ -223,13 +224,21 @@ def check_invariants(
             )
 
     # ---- INV5 死信一致 ----
-    if any(e["kind"] == "job_failed" for e in events):
-        latest = jobs[-1] if jobs else None
-        if latest is None or latest.get("status") != "dead":
-            got = "无 job" if latest is None else f"status={latest.get('status')!r}"
-            out.append(
-                v(INV_DEAD, "latest_job", f"job_failed 事件后最新 job {got}（应 dead）")
-            )
+    # job_failed ⇒ 最新 job dead；例外：最后一个 job_failed 之后存在 job_redrive
+    # 事件（T182/D087 人工重驱处置）则放行——重驱后状态合法离开 dead。
+    # 重驱后再死会落新 job_failed，口径自洽。
+    job_failed_indexes = [i for i, e in enumerate(events) if e["kind"] == "job_failed"]
+    if job_failed_indexes:
+        redriven_after_last_failure = any(
+            e["kind"] == "job_redrive" for e in events[job_failed_indexes[-1] + 1:]
+        )
+        if not redriven_after_last_failure:
+            latest = jobs[-1] if jobs else None
+            if latest is None or latest.get("status") != "dead":
+                got = "无 job" if latest is None else f"status={latest.get('status')!r}"
+                out.append(
+                    v(INV_DEAD, "latest_job", f"job_failed 事件后最新 job {got}（应 dead）")
+                )
 
     return out
 

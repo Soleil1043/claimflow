@@ -1,4 +1,4 @@
-# Grafana 告警规则自动配置（T154，D070）：/metrics 有数据没人看 → 三条业务关键告警。
+# Grafana 告警规则自动配置（T154，D070）：/metrics 有数据没人看 → 业务关键告警。
 #
 # - 加载即生效（compose monitoring profile 挂载 grafana/provisioning → alerting/）
 # - 不加独立 Alertmanager 容器：演示场景无真实通知接收端，规则命中在 Grafana
@@ -10,6 +10,8 @@
 # 2. 交付队列积压：queued 深度 >20 持续 5m（单消费者确定性排空 ~140 案/min，
 #    20 案 ≈ 10s 排空量；持续 5m 说明消费停滞而非瞬时尖峰——D069 口径）
 # 3. LLM 调用失败率：近 15m 有调用（>10 次）且错误占比 >50% 持续 5m
+# 4. 交付死信：dead 深度 >0 持续 5m（T182，D087）——死信存在且未被人工重驱
+#    处置（处置入口 POST /api/v1/interventions/jobs/{id}/redrive）
 apiVersion: 1
 
 groups:
@@ -197,6 +199,70 @@ groups:
                 - evaluator:
                     params:
                       - "0.5"
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+
+      - uid: claimflow-dead-jobs
+        title: 交付死信未处置（dead >0 持续 5m，需人工重驱）
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: claimflow-prometheus
+            model:
+              editorMode: code
+              expr: claimflow_case_jobs_queue_depth{status="dead"}
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: []
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - B
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - "0"
                     type: gt
                   operator:
                     type: and

@@ -380,3 +380,30 @@ class NarrativeReviewResponse(BaseModel):
     case_id: str
     verdict: Literal["pass", "revise"]
     reviewed: bool = True
+
+
+# ===== 死信队列（T182，D087：发现=告警第 4 条，处置=重驱端点） =====
+
+
+class DeadJobItem(BaseModel):
+    """死信任务行（重试耗尽；last_error 供坐席核对死因）。"""
+
+    job_id: int
+    case_id: str
+    action: str
+    attempts: int
+    max_attempts: int
+    last_error: str | None = None
+    finished_at: dt.datetime | None = None
+
+
+class DeadJobListResponse(BaseModel):
+    total: int
+    items: list[DeadJobItem]
+
+
+class JobRedriveResponse(BaseModel):
+    job_id: int
+    case_id: str
+    status: str = "queued"
+    operator: str

@@ -473,14 +473,14 @@ async def test_metrics_endpoint() -> None:
 
 
 def test_set_queue_depth_updates_gauge() -> None:
-    """队列深度 Gauge（T154）：set_queue_depth 更新 queued/running 两列。"""
+    """队列深度 Gauge（T154 + T182）：set_queue_depth 更新 queued/running/dead 三列。"""
     from services.observability.metrics import (
         QUEUE_DEPTH,
         registry,
         set_queue_depth,
     )
 
-    set_queue_depth(queued=3, running=1)
+    set_queue_depth(queued=3, running=1, dead=2)
 
     def _value(status: str) -> float:
         for metric in registry.collect():
@@ -492,6 +492,7 @@ def test_set_queue_depth_updates_gauge() -> None:
 
     assert _value("queued") == 3
     assert _value("running") == 1
+    assert _value("dead") == 2, "T182：dead 列是第 4 条告警的信号源"
     assert QUEUE_DEPTH is not None
 
 

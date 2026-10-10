@@ -684,3 +684,97 @@ async def test_deliver_dispatch_kick_failure_still_returns_job(jobs_db, monkeypa
         )
         assert job is not None
         assert job.status == "queued", "background 档语义：kick 失败不撤销受理"
+
+
+# ===== 死信重驱（T182，D087） =====
+
+
+async def _mk_dead_job(factory, case_id: str, *, status: str = "dead") -> CaseJob:
+    job = CaseJob(
+        case_id=case_id,
+        action="run",
+        payload={"case_id": case_id},
+        status=status,
+        attempt=3,
+        max_attempts=3,
+        run_after=dt.datetime.now() - dt.timedelta(hours=1),
+        last_error="图执行三次耗尽",
+        started_at=dt.datetime.now() - dt.timedelta(hours=1),
+        finished_at=dt.datetime.now() - dt.timedelta(minutes=30),
+        locked_by="host:1:abc",
+        lease_expires_at=dt.datetime.now() - dt.timedelta(minutes=29),
+    )
+    async with factory() as s:
+        s.add(job)
+        await s.commit()
+        await s.refresh(job)
+    return job
+
+
+async def test_redrive_resets_execution_state(jobs_db) -> None:
+    """dead → queued：attempt 清零满额度、退避立即可认领、租约/执行态复位、
+    last_error 保留供坐席核对死因。"""
+    from services.case_jobs import redrive_dead_job
+
+    case = await _make_case(jobs_db)
+    dead = await _mk_dead_job(jobs_db, case.id)
+
+    redriven = await redrive_dead_job(dead.id)
+
+    assert redriven.status == "queued"
+    assert redriven.attempt == 0
+    assert redriven.run_after <= dt.datetime.now()
+    assert redriven.started_at is None
+    assert redriven.finished_at is None
+    assert redriven.locked_by is None
+    assert redriven.lease_expires_at is None
+    assert redriven.last_error == "图执行三次耗尽", "死因保留，成功交付才清除"
+
+
+async def test_redrive_non_dead_conflicts(jobs_db) -> None:
+    """状态门：仅 dead 可重驱（queued/running/succeeded 一律冲突）。"""
+    from sqlalchemy import select as _select
+
+    from services.case_jobs import CaseJobConflictError, redrive_dead_job
+
+    # queued/running 同为活跃态（uq_case_jobs_active），每状态独立案件避免撞唯一索引
+    for idx, status_ in enumerate(("queued", "running", "succeeded")):
+        case = await _make_case(jobs_db, f"CASE-J-D{idx}")
+        await _mk_dead_job(jobs_db, case.id, status=status_)
+
+    async with jobs_db() as s:
+        rows = (await s.execute(_select(CaseJob).order_by(CaseJob.id))).scalars().all()
+    assert len(rows) == 3
+    for row in rows:
+        with pytest.raises(CaseJobConflictError):
+            await redrive_dead_job(row.id)
+
+
+async def test_redrive_missing_raises_lookup(jobs_db) -> None:
+    from services.case_jobs import redrive_dead_job
+
+    with pytest.raises(LookupError):
+        await redrive_dead_job(999999)
+
+
+async def test_list_dead_jobs_only_dead_desc(jobs_db) -> None:
+    from services.case_jobs import list_dead_jobs
+
+    case = await _make_case(jobs_db)
+    await _mk_dead_job(jobs_db, case.id)  # dead
+    live = CaseJob(
+        case_id=case.id, action="run", payload={}, status="queued",
+        attempt=0, max_attempts=3, run_after=dt.datetime.now(),
+    )
+    async with jobs_db() as s:
+        s.add(live)
+        await s.commit()
+
+    dead_list = await list_dead_jobs()
+
+    assert [j.id for j in dead_list] == [
+        j.id for j in dead_list if j.status == "dead"
+    ]
+    assert all(j.status == "dead" for j in dead_list)
+    assert len(dead_list) == 1
+    assert dead_list[0].last_error == "图执行三次耗尽"

@@ -2971,3 +2971,35 @@ CASE-2026-0095 丢首路由事件；CASE-2026-0027 review 态违规补件），�
 **验证**：31 新用例全绿；617 passed（586+31）+ ruff 绿；文档同步
 （scripts/README 新条目、architecture §12 注记 + §16 D086 行 + §17 限制
 与未来候选、README 对冲四件套注记）。
+
+## T182 · 死信重驱 + 告警三件套（2026-10-11）
+
+**背景**：完善性评估建议 6（§17 未来候选 1 兑现）——重试耗尽后
+`status=dead` + `job_failed` 审计已有，但缺"发现"（告警）与"处置"（重驱）
+两半（决策 D087）。
+
+**交付**：
+1. **发现**：`QUEUE_DEPTH` Gauge 扩 `dead` 列（`refresh_queue_depth` 每
+   tick 刷新三态）；Grafana 第 4 条告警规则 `claimflow-dead-jobs`
+   （dead>0 持续 5m——for: 5m 区分"死信存在"与"死信未处置"）
+2. **处置**：`services/case_jobs.redrive_dead_job`（条件 UPDATE 自带
+   CAS 状态门，仅 dead→queued；attempt=0 退避清零满额度、run_after=now
+   立即可认领、清租约/started_at/finished_at，**保留 last_error** 供坐席
+   核对死因——成功交付时 `_finish` 置 None 自然清除）+ `list_dead_jobs`；
+   API `GET /api/v1/interventions/jobs/dead` + `POST .../jobs/{id}/redrive`
+   （staff 路由组内；`job_redrive` 审计事件带 operator + 死因快照）
+3. **INV5 联动（T181 回放断言）**：口径修正为"最后一个 job_failed 之后
+   存在 job_redrive 事件 ⇒ 死信已经人工确认处置，放行"——防重驱成功后
+   replay_audit 误报；重驱后再死会落新 job_failed，口径自洽
+
+**验证**：11 新用例（服务层 4：字段全断言/queued-running-succeeded 三态
+冲突/404/清单过滤；API 5：清单含死因/重驱落审计事件/409/二次重驱 409
+幂等边界/404；INV5 两向；Gauge dead 列）；**628 passed（617+11）+ ruff 绿**；
+rules.yml YAML 解析 + 四规则 expr 指标名与 metrics.py 全量比对零缺失
+（沿用 T179 promql 校验口径）；dev 库 replay_audit --all 回归零影响
+（无 job_redrive 事件，仍 306 过/10 案）。API 层一处字段笔误
+（model.attempt 误写 attempts）被 API 测试首跑抓出即修——测试矩阵先行的
+直接收益。
+
+**文档**：grafana/README（三条→四条）、architecture §11 死信闭环 bullet +
+§16 D087 行 + §17 候选摘除重编号、README API 表两行。

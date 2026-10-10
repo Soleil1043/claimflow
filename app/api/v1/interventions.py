@@ -25,6 +25,9 @@ from schemas.api import (
     CaseInterventionListResponse,
     CaseResolveRequest,
     CaseResolveResponse,
+    DeadJobItem,
+    DeadJobListResponse,
+    JobRedriveResponse,
     NarrativeReviewRequest,
     NarrativeReviewResponse,
     NarrativeSampleItem,
@@ -32,7 +35,15 @@ from schemas.api import (
     NarrativeSampleStats,
 )
 from schemas.case import PENDING_CASE_STATUSES
-from services.case_jobs import JobAction, deliver_case_job, job_envelope, latest_job
+from services.case_jobs import (
+    CaseJobConflictError,
+    JobAction,
+    deliver_case_job,
+    job_envelope,
+    latest_job,
+    list_dead_jobs,
+    redrive_dead_job,
+)
 from services.case_service import (
     build_agent_resolution,
     build_supplement_resolution,
@@ -306,3 +317,60 @@ async def review_narrative(
         },
     )
     return NarrativeReviewResponse(case_id=case_id, verdict=body.verdict)
+
+
+# ---------- 死信队列（T182，D087：告警第 4 条的处置入口） ----------
+
+
+@router.get("/jobs/dead", response_model=DeadJobListResponse)
+async def list_dead_delivery_jobs(
+    limit: int = Query(default=50, ge=1, le=200),
+) -> DeadJobListResponse:
+    """死信队列清单：重试耗尽的任务（dead 终态倒序，last_error 供核对死因）。"""
+    jobs = await list_dead_jobs(limit=limit)
+    return DeadJobListResponse(
+        total=len(jobs),
+        items=[
+            DeadJobItem(
+                job_id=j.id,
+                case_id=j.case_id,
+                action=j.action,
+                attempts=j.attempt,
+                max_attempts=j.max_attempts,
+                last_error=j.last_error,
+                finished_at=j.finished_at,
+            )
+            for j in jobs
+        ],
+    )
+
+
+@router.post("/jobs/{job_id}/redrive", response_model=JobRedriveResponse)
+async def redrive_dead_delivery_job(
+    job_id: int,
+    staff: str | None = Depends(require_staff),
+) -> JobRedriveResponse:
+    """死信重驱：dead → queued（attempt 清零满额度，退避立即可认领）。
+
+    operator（T147 口径）：staff_keys 已配置时由 Key 派生；job_redrive 审计
+    事件带 operator 与上次死因快照（replay_audit INV5 据此放行，D087）。
+    """
+    try:
+        job = await redrive_dead_job(job_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="任务不存在") from exc
+    except CaseJobConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    operator = staff or "unknown"
+    await get_default_recorder().event(
+        job.case_id,
+        "job_redrive",
+        payload={
+            "job_id": job.id,
+            "operator": operator,
+            "last_error": (job.last_error or "")[:200],
+        },
+    )
+    return JobRedriveResponse(
+        job_id=job.id, case_id=job.case_id, status=job.status, operator=operator
+    )

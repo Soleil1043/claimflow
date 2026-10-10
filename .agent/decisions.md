@@ -2368,3 +2368,28 @@ nightly 夜检零改动）。
 真异常定性：9 案 seq 重号/丢失（跨实例 seq 缓存撞号 + 旧 dev 库物理上无
 唯一约束兜底；现行代码两道防线已补齐）、1 案丢首路由事件、1 案 review 态
 违规补件。历史行不追溯修复（append-only 原则），工具持续可见。
+
+## D087 · 死信重驱 + 告警：三件套收尾与 INV5 联动（T182，2026-10-11）
+
+**背景**：完善性评估建议 6（§17 未来候选 1）——重试耗尽后 `status=dead` +
+`job_failed` 审计事件已有，但缺"发现"（告警）与"处置"（重驱）两半，死信
+只是表里一行终态。
+
+**三件套**：
+1. **发现（指标+告警）**：QUEUE_DEPTH Gauge 扩 `dead` 列（refresh_queue_depth
+   每 tick 刷新）；Grafana 第 4 条规则 `dead>0 持续 5m`——for: 5m 区分"死信
+   存在"与"死信未处置"，瞬时中间态不触发
+2. **处置（重驱端点）**：`redrive_dead_job` 状态门仅 `dead→queued`（条件
+   UPDATE 天然 CAS，非 dead 竞态时 rowcount=0 报冲突）；attempt=0 退避清零
+   给满 3 次新额度；清租约/started_at/finished_at 复位执行态；**保留
+   last_error**——重驱时能看见上次死因，成功交付时由 `_finish` 置 None
+   自然清除；挂 staff 鉴权路由组，落 `job_redrive` 审计事件带 operator
+3. **联动（INV5）**：T181 回放断言"job_failed ⇒ 最新 job=dead"在重驱成功
+   后会误报——口径修正为"最后一个 job_failed 之后存在 job_redrive 事件 ⇒
+   死信已经人工确认处置，放行"；redrive 后再死会落新 job_failed，口径
+   自洽
+
+**明确不做**：不做 Alertmanager 容器（T154 口径延续——演示场景无真实通知
+接收端，规则命中在 Grafana UI 呈现）；不做批量一键重驱（逐单人工确认，防
+"重驱风暴"把系统性故障刷成队列洪峰）；不做自动重驱（死信=3 次指数退避
+已耗尽，自动再驱只是掩盖根因）。

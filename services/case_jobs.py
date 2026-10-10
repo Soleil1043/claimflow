@@ -26,7 +26,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
@@ -133,6 +133,69 @@ async def latest_job(case_id: str) -> CaseJob | None:
                 .limit(1)
             )
         ).scalar_one_or_none()
+
+
+# ===== 死信处置（T182，D087：发现=告警第 4 条，处置=重驱端点） =====
+
+
+async def list_dead_jobs(limit: int = 50) -> list[CaseJob]:
+    """死信队列清单（dead 终态倒序）：坐席重驱入口的数据面。"""
+    factory = get_session_factory()
+    async with factory() as session:
+        return list(
+            (
+                await session.execute(
+                    select(CaseJob)
+                    .where(CaseJob.status == "dead")
+                    .order_by(CaseJob.id.desc())
+                    .limit(limit)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+
+async def redrive_dead_job(job_id: int) -> CaseJob:
+    """死信重驱：dead → queued（attempt 清零，重获满额重试次数）。
+
+    - 条件 UPDATE 自带状态门（CAS）：并发重驱/状态已变时 rowcount=0 → 冲突
+    - run_after=now 立即可认领；清租约/started_at/finished_at 复位执行态
+    - **保留 last_error**：重驱时坐席能看见上次死因；成功交付由消费侧
+      `_finish` 置 None 自然清除
+
+    Raises:
+        LookupError: 任务不存在。
+        CaseJobConflictError: 任务非 dead 态（仅死信可重驱）。
+    """
+    factory = get_session_factory()
+    async with factory() as session:
+        result = await session.execute(
+            update(CaseJob)
+            .where(CaseJob.id == job_id, CaseJob.status == "dead")
+            .values(
+                status="queued",
+                attempt=0,
+                run_after=dt.datetime.now(),
+                started_at=None,
+                finished_at=None,
+                locked_by=None,
+                lease_expires_at=None,
+            )
+        )
+        if result.rowcount == 0:
+            existing = (
+                await session.execute(select(CaseJob).where(CaseJob.id == job_id))
+            ).scalar_one_or_none()
+            if existing is None:
+                raise LookupError(f"case job not found: {job_id}")
+            raise CaseJobConflictError(
+                f"任务 {job_id} 状态为 {existing.status}，仅 dead 任务可重驱"
+            )
+        await session.commit()
+        return (
+            await session.execute(select(CaseJob).where(CaseJob.id == job_id))
+        ).scalar_one()
 
 
 # ===== 交付入口：三个调用点（submit/upload/resolve）共用的一步式收口 =====

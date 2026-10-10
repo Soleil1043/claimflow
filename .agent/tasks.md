@@ -157,8 +157,8 @@ T001 → T002 → T003 → T004 → T005
 
 ## 进度统计
 
-- 总任务数：180（T001-T181；编号跳空 T111/T170 未立任务项，含 T158-2）
-- 已完成：**180（100%）**
+- 总任务数：181（T001-T182；编号跳空 T111/T170 未立任务项，含 T158-2）
+- 已完成：**181（100%）**
 - 进行中：0
 - 待开始：0
 
@@ -167,8 +167,9 @@ T001 → T002 → T003 → T004 → T005
 > → T146-T156 客服金样本门 + P0/P1 完善度 + 多实例横向扩展
 > → T157-T158 依赖漏洞与npm 审计门红修复→ T159-T161 面试证据三件套
 > → T162-T166 Prompt 缓存观测与修复 → T167-T169 文档全量刷新与模板对齐
-> → T171-T181 完善性缺口封堵（安全纵深/数据飞轮/PII 治理/成本单位经济/
->   judge 对账/文档修缮/客服 SSE 流式/审计回放断言）。**全部交付，无挂起项。**
+> → T171-T182 完善性缺口封堵（安全纵深/数据飞轮/PII 治理/成本单位经济/
+>   judge 对账/文档修缮/客服 SSE 流式/审计回放断言/死信重驱告警）。
+>   **全部交付，无挂起项。**
 
 > Phase 5 回归实测（T048，deepseek-v4-flash 全量 200 条，evals/reports/t048_phase5_regression.json）：
 > 完成率 87.0%（基线 88%，回退 1pp 达标线压线）｜工具准确率 94.7%（基线 95.26%，差 0.3pp 未达
@@ -444,3 +445,7 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：轨迹回放断言工具（2026-10-10 追加，完善性评估建议 8 = §17 未来候选 1 兑现）
 
 - [x] T181: 审计事件流回放断言工具（D086） ✅ 2026-10-10（`services/audit_replay.py` 纯函数不变量 + 取数薄层，`scripts/replay_audit.py` CLI——沿 case_events × case_jobs 交付回执 × decision_documents 版本联合断言五不变量：①seq 完整性（1..n 连续无空洞无重号；重号案跳过顺序类断言防噪声）；②合规前置（auto_issued 前最后一次 compliance_gate 必 PASS 且金额一致，schema_reset 重跑段内重新证明）；③路由预算（段内 calls 严格 +1 起于 1——schema_reset 版本门卫重跑合法归零；mode=llm ⇒ calls ≤ ROUTING_CALL_BUDGET 与评测门同源；over_budget 后段内永不再 llm）；④回执单源（补件上传**轮次** ≤ 补件回执数——连续 material_upload 事件为同轮多文件批量；**轮次配对而非时序比较**：实测 event.created_at 为 server_default UTC 而 job.finished_at 为 Python 本地时区，历史库两种约定并存全量误报；坐席签发版 ⇒ 必有 interrupted 回执）；⑤死信一致（job_failed ⇒ 最新 job status=dead）。CLI `--case`/`--all --limit`/`--format table|json`，违规退出码 1，只读。**冒烟即抓真异常**：dev 库 316 案批跑 306 过 / 10 案 11 条违规全部分诊为历史真实异常——9 案 seq 重号/丢失（跨实例 seq 缓存撞号 + 旧 dev 库无物理唯一约束）、CASE-2026-0095 丢首路由事件（calls 起于 2）、CASE-2026-0027 review 态违规补件（第二轮上传无补件回执）；三轮口径修正均有实测证据（时区误报 57→0、批量补件误报 2→0、schema_reset 重启误报 3→0）） | 依赖: T180 | 涉及文件: services/audit_replay.py（新）、scripts/replay_audit.py（新）、tests/services/test_audit_replay.py（新）、scripts/README.md、docs/architecture.md、README.md、.agent/{tasks,decisions,progress}.md | 验收: 单测 31 用例（绿案 + 五类红案 + 段边界/批量补件/重号跳过边界）全绿；全量 617 passed（586+31）+ ruff 绿；dev 库 `--all` 批跑冒烟（316 案 306 过，10 案异常全部分诊定性，退出码 1 正确）；文档同步（scripts/README 条目 / architecture §12 注记 + §16 D086 行 + §17 已知限制与未来候选 / README 对冲四件套注记）
+
+### 增量：死信重驱 + 告警（2026-10-11 追加，完善性评估建议 6 = §17 未来候选 1 兑现）
+
+- [x] T182: 死信重驱 + 告警三件套收尾（D087） ✅ 2026-10-11（交付即验收：`set_queue_depth` 扩 dead 列（默认 0 兼容旧调用点）；`redrive_dead_job` 条件 UPDATE 自带 CAS 状态门（并发重驱 rowcount=0 → CaseJobConflictError → API 409），attempt 清零/租约与执行态复位/last_error 保留；端点挂在 interventions staff 路由组，`job_redrive` 审计事件带 operator + 死因快照；INV5 以"最后一个 job_failed 之后的 job_redrive"放行——重驱后再死落新 job_failed 口径自洽；API 层一处字段笔误（attempt→attempts）被 API 测试首跑抓出即修；11 新用例：服务层 4（字段全断言/三态冲突/404/清单过滤）+ API 5（清单含死因/重驱落审计/409/二次重驱 409/404）+ INV5 两向 + Gauge dead 列）——①指标：`QUEUE_DEPTH` Gauge 扩 `dead` 列（`refresh_queue_depth` 查询加 dead 计数，T154 信号面补全）；②告警：rules.yml 第 4 条 `claimflow-dead-jobs`（dead>0 持续 5m——瞬时重试中间态不触发，持续非零=死信未人工处置）；③重驱：`services/case_jobs.redrive_dead_job`（状态门仅 dead→queued，attempt=0 退避清零、run_after=now、清租约/started_at/finished_at，保留 last_error 供核对；非 dead 抛 ValueError / 不存在抛 LookupError）+ `list_dead_jobs`；API `GET /api/v1/interventions/jobs/dead`（死信队列清单）+ `POST /api/v1/interventions/jobs/{job_id}/redrive`（staff 鉴权路由组内；落 `job_redrive` 审计事件带 operator）；④INV5 联动（T181 回放断言）：`job_redrive` 事件出现在最后一个 `job_failed` 之后 ⇒ 死信已经人工确认处置，INV5 放行——防重驱成功后 replay_audit 误报 | 依赖: T181 | 涉及文件: services/observability/metrics.py、services/case_job_worker.py、services/case_jobs.py、schemas/api.py、app/api/v1/interventions.py、services/audit_replay.py、grafana/provisioning/alerting/rules.yml、tests/{services/test_case_jobs,services/test_audit_replay,api/test_job_admin,observability/test_metrics}.py、grafana/README.md、README.md、docs/architecture.md、.agent/{tasks,decisions,progress}.md | 验收: 单测（重驱字段全断言 / 非 dead 409 / 404 / job_redrive 审计事件 / INV5 重驱放行与前置不放行 / Gauge dead 列）；全量 pytest 零退化 + ruff 绿；rules.yml YAML 可解析且指标名存在于 metrics.py；文档同步（§16 D087 行 + §11 死信闭环 + §17 候选摘除 + README API 表）

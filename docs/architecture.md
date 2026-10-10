@@ -266,7 +266,12 @@ T132-T137（D057）新增，与核赔主图**完全正交**的独立 ReAct Agent
   重复提交返回既有结论；
 - **多实例（T155，D071）**：认领带租约（locked_by/lease_expires_at + 心跳续租），崩溃实例任务由租约到期接管；dev 多实例须 `CHECKPOINT_BACKEND=sqlite` 共享 checkpoint；
 - **状态机**：received → 补件挂起 / 转人工挂起 / auto_issued / referred / closed…
-  （`schemas/case.py` CaseStatus；终态集合单源）。
+  （`schemas/case.py` CaseStatus；终态集合单源）；
+- **死信闭环（T182，D087）**：重试耗尽 status=dead + job_failed 审计 → 发现
+  （Gauge dead 列 + Grafana 第 4 条告警，dead>0 持续 5m）→ 处置
+  （GET /interventions/jobs/dead 清单 + POST /interventions/jobs/{id}/redrive
+  重驱：attempt 清零满额度、落 job_redrive 审计；replay_audit INV5 以
+  job_redrive 事件放行重驱后的死信一致性）。
 
 ## 12. 数据模型
 
@@ -454,6 +459,7 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
 | D076 | Prompt 缓存修复分层：先 T164 观测补全拿基线，再 T165 布局改造；create_agent 子图用回调 handler 而非 ObservableChatModel 代理 |
 | D085 | 客服 SSE 流式：AI 应答流式，escalated 坐席回复与案件进度保留轮询（有意取舍）；POST + ReadableStream 而非 EventSource-GET |
 | D086 | 轨迹回放断言：事件流 × 回执表 × 决定书版本联合断言五不变量（非金轨迹比对），schema_reset 段边界与补件轮次配对 |
+| D087 | 死信重驱三件套：dead 列告警 + staff 重驱端点（attempt 清零/last_error 保留）+ INV5 以 job_redrive 放行；不做批量/自动重驱 |
 
 ---
 
@@ -498,10 +504,9 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
 
 ### 未来工作候选（按价值密度排序）
 
-1. **死信重驱 + 告警**：Grafana 加 dead>0 告警规则 + 管理端点重置 queued
-2. **模型路由实验**（证据驱动）：客服域或叙述生成换小模型 A/B，六门+成本
+1. **模型路由实验**（证据驱动）：客服域或叙述生成换小模型 A/B，六门+成本
    双口径对比，结论无论正负落 decisions.md
-3. **回归集挂 nightly**：`--dataset regression` 进 nightly-llm job（样本
+2. **回归集挂 nightly**：`--dataset regression` 进 nightly-llm job（样本
    积累后）
-4. **replay_audit 挂 nightly**：退出码已备好，样本积累后与回归集同挂（当前
+3. **replay_audit 挂 nightly**：退出码已备好，样本积累后与回归集同挂（当前
    手动跑，T181 已在 dev 库 316 案实测 306 过 / 10 案历史异常）

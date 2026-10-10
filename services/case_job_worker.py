@@ -68,14 +68,14 @@ def _claimable(now: dt.datetime) -> Any:
 
 
 async def refresh_queue_depth() -> None:
-    """查询并刷新队列深度 Gauge（T154 告警信号；查询失败静默保持旧值）。"""
+    """查询并刷新队列深度 Gauge（T154 积压信号 + T182 死信信号；查询失败静默保持旧值）。"""
     factory = get_session_factory()
     try:
         async with factory() as session:
             rows = (
                 await session.execute(
                     select(CaseJob.status, func.count(CaseJob.id))
-                    .where(CaseJob.status.in_(("queued", "running")))
+                    .where(CaseJob.status.in_(("queued", "running", "dead")))
                     .group_by(CaseJob.status)
                 )
             ).all()
@@ -83,6 +83,7 @@ async def refresh_queue_depth() -> None:
         set_queue_depth(
             queued=by_status.get("queued", 0),
             running=by_status.get("running", 0),
+            dead=by_status.get("dead", 0),
         )
     except Exception:  # noqa: BLE001 埋点容错：观测查询失败不影响消费循环
         pass

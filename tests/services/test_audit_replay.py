@@ -298,6 +298,31 @@ def test_job_failed_with_dead_latest_job_is_green() -> None:
     assert check_invariants(CID, events, [dead], []) == []
 
 
+def test_job_failed_redriven_is_green() -> None:
+    """T182/D087：最后一个 job_failed 之后存在 job_redrive（人工处置）→ INV5 放行，
+    重驱后任务合法离开 dead 态。"""
+    events = [
+        _routing(1, 1),
+        _ev(2, "job_failed"),
+        _ev(3, "job_redrive", payload={"job_id": 1, "operator": "alice"}),
+    ]
+    succeeded = _job(status="succeeded")
+    assert check_invariants(CID, events, [succeeded], []) == []
+
+
+def test_redrive_before_job_failed_still_flags() -> None:
+    """重驱在 job_failed 之前（重驱后又死）不作数——以最后一个 job_failed 为准。"""
+    events = [
+        _routing(1, 1),
+        _ev(2, "job_redrive"),
+        _ev(3, "job_failed"),
+    ]
+    succeeded = _job(status="succeeded")
+    assert any(
+        v.inv == INV_DEAD for v in check_invariants(CID, events, [succeeded], [])
+    )
+
+
 # ===== 取数薄层（临时 SQLite 集成） =====
 
 

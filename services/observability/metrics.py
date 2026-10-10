@@ -167,20 +167,23 @@ CASE_TOKENS = Counter(
     registry=registry,
 )
 
-# 交付队列深度（T154 告警信号）：JobLoop 每 tick 刷新（queued/running 分列）
+# 交付队列深度（T154 告警信号）：JobLoop 每 tick 刷新（queued/running/dead 分列；
+# dead 持续非零 = 死信未人工处置，T182 第 4 条告警信号）
 QUEUE_DEPTH = Gauge(
     "claimflow_case_jobs_queue_depth",
-    "交付队列深度（按任务状态分列；queued 持续高位 = 积压告警信号，T154）",
+    "交付队列深度（按任务状态分列；queued 持续高位 = 积压告警信号（T154）；"
+    "dead 持续 >0 = 死信告警信号（T182））",
     labelnames=["status"],
     registry=registry,
 )
 
 
-def set_queue_depth(queued: int, running: int) -> None:
+def set_queue_depth(queued: int, running: int, dead: int = 0) -> None:
     """刷新队列深度 Gauge（JobLoop 每 tick 调用；打点失败不影响消费循环）。"""
     try:
         QUEUE_DEPTH.labels(status="queued").set(queued)
         QUEUE_DEPTH.labels(status="running").set(running)
+        QUEUE_DEPTH.labels(status="dead").set(dead)
     except Exception:  # noqa: BLE001 埋点容错
         pass
 
