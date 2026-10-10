@@ -157,8 +157,8 @@ T001 → T002 → T003 → T004 → T005
 
 ## 进度统计
 
-- 总任务数：179（T001-T180；编号跳空 T111/T170 未立任务项，含 T158-2）
-- 已完成：**179（100%）**
+- 总任务数：180（T001-T181；编号跳空 T111/T170 未立任务项，含 T158-2）
+- 已完成：**180（100%）**
 - 进行中：0
 - 待开始：0
 
@@ -167,8 +167,8 @@ T001 → T002 → T003 → T004 → T005
 > → T146-T156 客服金样本门 + P0/P1 完善度 + 多实例横向扩展
 > → T157-T158 依赖漏洞与npm 审计门红修复→ T159-T161 面试证据三件套
 > → T162-T166 Prompt 缓存观测与修复 → T167-T169 文档全量刷新与模板对齐
-> → T171-T180 完善性缺口封堵（安全纵深/数据飞轮/PII 治理/成本单位经济/
->   judge 对账/文档修缮/客服 SSE 流式）。**全部交付，无挂起项。**
+> → T171-T181 完善性缺口封堵（安全纵深/数据飞轮/PII 治理/成本单位经济/
+>   judge 对账/文档修缮/客服 SSE 流式/审计回放断言）。**全部交付，无挂起项。**
 
 > Phase 5 回归实测（T048，deepseek-v4-flash 全量 200 条，evals/reports/t048_phase5_regression.json）：
 > 完成率 87.0%（基线 88%，回退 1pp 达标线压线）｜工具准确率 94.7%（基线 95.26%，差 0.3pp 未达
@@ -440,3 +440,7 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：客服 SSE 流式（2026-10-10 追加，完善性评估建议 7 = D057-3 挂起项兑现）
 
 - [x] T180: 客服 AI 回复 SSE 流式（D085） ✅ 2026-10-10（①agent.py：reply() 拆 `_begin_turn`（校验+落用户消息+replay）/`_finish_turn`（落 AI 终局+转人工流转+回终态）共享前后置；`reply_stream` 经 `astream_events(v2)` 取 on_chat_model_stream token 逐段 yield（含 ReAct 中间轮叙述，done 后前端整体刷新校准），on_chat_model_end 累积本轮 AIMessage 全集作终局文本与转人工判定源（比非流式扫全 replay 更收敛，行为等价）；GraphRecursionError 同款兜底文案、LLM 故障 yield error 事件（用户消息已落库不回滚）；②新端点 POST /conversations/{id}/messages/stream：仅 ai 态（404/409 前置）+ 限流同款 + `_sse` 帧（data: 单行 JSON + 空行分隔），事件三态 token/done/error；③前端 `streamSupportMessage`：POST + fetch ReadableStream reader 解析 SSE 帧，SupportBubble ai 态乐观气泡 token 累积渲染、done 后 refresh 校准、error 后 refresh 恢复时间线，escalated 态保留旧端点+3s 轮询；④文档四处同步：support.py 头注释与端点清单、README API 表+已知限制表、architecture §9 门户侧/§16 决策表（+D085 行、D057 行去"无 SSE"旧口径）/§17 交互限制改写+未来候选摘除已兑现项；⑤chatui build 抓出并修一处 TS 类型收窄缺陷——`type==="token" && evt.content` 组合条件使 else 分支无法排除空 content 的 token 变体（evt.detail 不存在），改嵌套 if 收窄；⑥真实 Key 冒烟：206 chunk 增量到达（首 token 2.16s、流完 5.4s）+ done status=ai + 时间线落 user(26)/assistant(329) 与流内容校准一致，冒烟会话已清理；环境备注：本机 httpx 冒烟须 `trust_env=False`（Windows 注册表系统代理劫持 127.0.0.1 回 502 空响应，curl 不受影响））——①"哪流哪不流"：AI 应答走流式（create_agent `astream_events(v2)` 取 on_chat_model_stream token 逐段下发），escalated 态坐席回复保留 3s 轮询（有意取舍：坐席响应时序不定，SSE 长连接管理成本高于收益）、案件进度保留 GET 轮询（分钟级长任务同理）；②传输选型 POST + fetch ReadableStream 解析 SSE 帧（非 EventSource-GET：复用 POST 语义、内容不进 URL/访问日志）；③新端点 POST /conversations/{id}/messages/stream（仅 ai 态，409/404 前置；限流同款），事件三态 token/done/error——LLM 故障经 error 事件传达（HTTP 已 200 开流），"用户消息已落库下一条重试"语义与非流式 503 一致；④reply() 拆共享轮次前置/后置（_begin_turn/_finish_turn），流式与非流式同语义（落库/转人工流转一致）；⑤前端 SupportBubble：ai 态流式渲染（done 后整体刷新校准，时间线单源），escalated 态走旧端点 | 依赖: T179 | 涉及文件: services/support/agent.py、app/api/v1/support.py、chatui/lib/support-api.ts、chatui/components/SupportBubble.tsx、tests/api/test_support.py、README.md、docs/architecture.md、.agent/{tasks,decisions,progress}.md | 验收: SSE 端点单测（token+done/转人工 done.status/错误事件+用户消息已落库/404/409）；既有 reply() 用例零退化；chatui lint/build 绿；真实 Key 冒烟见流式 chunk
+
+### 增量：轨迹回放断言工具（2026-10-10 追加，完善性评估建议 8 = §17 未来候选 1 兑现）
+
+- [x] T181: 审计事件流回放断言工具（D086） ✅ 2026-10-10（`services/audit_replay.py` 纯函数不变量 + 取数薄层，`scripts/replay_audit.py` CLI——沿 case_events × case_jobs 交付回执 × decision_documents 版本联合断言五不变量：①seq 完整性（1..n 连续无空洞无重号；重号案跳过顺序类断言防噪声）；②合规前置（auto_issued 前最后一次 compliance_gate 必 PASS 且金额一致，schema_reset 重跑段内重新证明）；③路由预算（段内 calls 严格 +1 起于 1——schema_reset 版本门卫重跑合法归零；mode=llm ⇒ calls ≤ ROUTING_CALL_BUDGET 与评测门同源；over_budget 后段内永不再 llm）；④回执单源（补件上传**轮次** ≤ 补件回执数——连续 material_upload 事件为同轮多文件批量；**轮次配对而非时序比较**：实测 event.created_at 为 server_default UTC 而 job.finished_at 为 Python 本地时区，历史库两种约定并存全量误报；坐席签发版 ⇒ 必有 interrupted 回执）；⑤死信一致（job_failed ⇒ 最新 job status=dead）。CLI `--case`/`--all --limit`/`--format table|json`，违规退出码 1，只读。**冒烟即抓真异常**：dev 库 316 案批跑 306 过 / 10 案 11 条违规全部分诊为历史真实异常——9 案 seq 重号/丢失（跨实例 seq 缓存撞号 + 旧 dev 库无物理唯一约束）、CASE-2026-0095 丢首路由事件（calls 起于 2）、CASE-2026-0027 review 态违规补件（第二轮上传无补件回执）；三轮口径修正均有实测证据（时区误报 57→0、批量补件误报 2→0、schema_reset 重启误报 3→0）） | 依赖: T180 | 涉及文件: services/audit_replay.py（新）、scripts/replay_audit.py（新）、tests/services/test_audit_replay.py（新）、scripts/README.md、docs/architecture.md、README.md、.agent/{tasks,decisions,progress}.md | 验收: 单测 31 用例（绿案 + 五类红案 + 段边界/批量补件/重号跳过边界）全绿；全量 617 passed（586+31）+ ruff 绿；dev 库 `--all` 批跑冒烟（316 案 306 过，10 案异常全部分诊定性，退出码 1 正确）；文档同步（scripts/README 条目 / architecture §12 注记 + §16 D086 行 + §17 已知限制与未来候选 / README 对冲四件套注记）

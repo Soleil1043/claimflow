@@ -41,6 +41,7 @@
 | `measure_cache_hit_rate.py` | 真实命中率测量：1339 字符稳定前缀模拟 skill 规程规模，连打 N 轮打真实 API，输出稳态命中率与冷启动对比 | **是** |
 | `export_badcase_cases.py` | Badcase 回流 CLI（T174，D080）：`--scan` 扫描坐席改判案生成候选（重扫保留 triage 状态）/ `--commit` adopt 候选幂等并入 `adjudication_regression.json` / `--list` 概览。评测 `--dataset regression`（缺文件/空集跳过） | 否 |
 | `judge_narrative.py` | 叙述质量 judge×人工对账 CLI（T178，D084）：`--limit N` / `--out`。对账报告（一致率/分歧清单/judge-only 低于阈值清单），观测层不进门禁 | **是** |
+| `replay_audit.py` | 审计回放断言 CLI（T181，D086）：`--case` 单案 / `--all` 批跑（`--limit`），table/json 双格式，违规退出码 1。五不变量：seq 完整性 / 合规前置 / 路由预算（schema_reset 段边界）/ 回执单源（轮次配对）/ 死信一致——事件流 × job 回执 × 决定书版本联合断言，只读 | 否 |
 
 ## 约定
 

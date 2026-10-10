@@ -2931,3 +2931,43 @@ status=ai），时间线落 user(26)/assistant(329) 与流内容校准一致，�
 会话已清理。环境备注：本机 httpx 直连 127.0.0.1 被 Windows 注册表系统
 代理劫持回 502 空响应（curl 不读注册表不受影响）——本地冒烟脚本须
 `httpx.AsyncClient(trust_env=False)`。
+
+## T181 · 审计事件流回放断言工具（2026-10-10）
+
+**背景**：完善性评估建议 8（§17 未来候选 1）——README 宣称"审计可回放
+（seq）"但全库无回放工具；v1 轨迹评测随 T112 删除（决策 D086）。
+
+**交付**：
+1. **`services/audit_replay.py`**：check_invariants 纯函数（events/jobs/
+   decisions 平铺数据进、Violation 列表出，零 IO）+ audit_case /
+   audit_all 取数薄层（session 注入，同 T174 测试缝）。五不变量：
+   seq 完整性（重号案跳过顺序类断言防噪声）/ 合规前置（auto_issued 前
+   最后一次合规裁决必 PASS 且金额一致，schema_reset 重跑段内重新证明）/
+   路由预算（段内严格 +1；llm 不超 ROUTING_CALL_BUDGET；超预算后段内
+   永久降级）/ 回执单源（补件轮次 ≤ 补件回执数；坐席签发版必有
+   interrupted 回执）/ 死信一致（job_failed ⇒ 最新 job dead）
+2. **`scripts/replay_audit.py`** CLI：`--case` 单案 / `--all` 批跑
+   （`--limit`），table/json 双格式，违规退出码 1，全程只读
+3. **`tests/services/test_audit_replay.py`** 31 用例：绿案 + 五类红案 +
+   边界（空事件 / 缺 verdict / 段边界重启合法 / 段内未重新证明合规 /
+   同轮批量补件 / 两轮一回执 / 重号跳过顺序断言）+ 临时 SQLite 集成
+   （行映射与批量分组）
+
+**冒烟即分诊出三轮口径修正**（每轮都有 dev 库实测证据）：
+- 时序比较不可用：event.created_at=UTC（server_default）而
+  job.finished_at=本地时区（Python 写入），历史库两种时钟约定并存——
+  回执断言初版时序配对 57 案全量误报，改轮次配对 57→0
+- schema_reset 合法归零：3 案路由计数重启为版本门卫全新重跑的正常形态，
+  改按段断言 3→0
+- 同轮多文件批量补件：material_upload 按文件计而回执按轮计，连续上传
+  归并一轮 2→0
+
+**最终冒烟**：dev 库 `--all` 批跑 316 案 → **306 过 / 10 案 11 条真异常**
+（9 案 seq 重号/丢失——跨实例 seq 缓存撞号 + 旧 dev 库物理无唯一约束；
+CASE-2026-0095 丢首路由事件；CASE-2026-0027 review 态违规补件），退出码
+1 正确。历史行不追溯修复（append-only 原则），写入 architecture §17
+已知限制。
+
+**验证**：31 新用例全绿；617 passed（586+31）+ ruff 绿；文档同步
+（scripts/README 新条目、architecture §12 注记 + §16 D086 行 + §17 限制
+与未来候选、README 对冲四件套注记）。

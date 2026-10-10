@@ -361,7 +361,8 @@ uv run python -m evals.support_suite                            # 客服问答�
 1. **静态合规门是图结构保证而非约定**——decision_generate → compliance_gate 为静态边
    （有图结构测试断言），LLM 路由决策永远无法绕过
 2. **LLM 调度的对冲四件套**——前置守卫违规改投 / 必做集强制收敛 / 失败走确定性默认
-   计划 / 决策审计可回放，orchestrator 失控不等于核赔失控
+   计划 / 决策审计可回放（`scripts/replay_audit.py` 五不变量断言：seq 完整性 / 合规
+   前置 / 路由预算 / 回执单源 / 死信一致），orchestrator 失控不等于核赔失控
 3. **金额不依赖 LLM**——理算纯确定性工具 + 决定书正文三方金额断言 + 叙述段零金额注入
    （骨架代码渲染），LLM 幻觉进不了金额字段
 4. **skill 是调优面**——各阶段 SOP 装载进 system prompt，准确率迭代改 `skills/` 文本

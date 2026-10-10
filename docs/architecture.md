@@ -275,7 +275,7 @@ T132-T137（D057）新增，与核赔主图**完全正交**的独立 ReAct Agent
 | 域 | 表 | 说明 |
 |----|----|------|
 | 核赔 | cases | 案件主表（事实态权威；自然键唯一） |
-| 核赔 | case_events | 审计事件 append-only，（case_id, seq）唯一约束 |
+| 核赔 | case_events | 审计事件 append-only，（case_id, seq）唯一约束；五不变量回放断言工具 `scripts/replay_audit.py`（T181/D086） |
 | 核赔 | decision_documents | 决定书版本化 |
 | 核赔 | case_jobs | 交付队列任务表 |
 | 客服 | support_conversations / support_messages | 客服会话与三方时间线 |
@@ -453,6 +453,7 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
 | D075 | RAGAS 四指标自实现（引包 dry-run 实锤 huggingface-hub 跨大版本漂移 + 20+ 新包） |
 | D076 | Prompt 缓存修复分层：先 T164 观测补全拿基线，再 T165 布局改造；create_agent 子图用回调 handler 而非 ObservableChatModel 代理 |
 | D085 | 客服 SSE 流式：AI 应答流式，escalated 坐席回复与案件进度保留轮询（有意取舍）；POST + ReadableStream 而非 EventSource-GET |
+| D086 | 轨迹回放断言：事件流 × 回执表 × 决定书版本联合断言五不变量（非金轨迹比对），schema_reset 段边界与补件轮次配对 |
 
 ---
 
@@ -464,6 +465,10 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
 ### 已知限制
 
 **运行与运维**：
+- dev 历史库存在 10 案审计事件异常（T181 replay_audit 实测：9 案 seq 重号/
+  丢失——跨实例 seq 缓存撞号且旧库缺物理唯一约束；1 案丢首路由事件；1 案
+  review 态违规补件）——现行代码有 (case_id,seq) 唯一约束 + T095 单分配器，
+  新库不再产生；历史行不追溯修复（append-only 原则），工具持续可见
 - 日志 stdout JSON **不落盘**，容器重建即丢——事后回溯须另配 logging driver
   （loki/fluentd 卷挂载），当前口径是"实时排障够用、事后审计不足"
 - dev 多实例下**记忆 store 与工具缓存仍进程内**（T155 已知边界，prod 共享
@@ -493,10 +498,10 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
 
 ### 未来工作候选（按价值密度排序）
 
-1. **轨迹回放断言工具**：审计事件流（case_events，seq 单调）批跑不变量
-   （auto 必过合规门 / RESUME 前必有交付回执 / 调度预算不超限）
-2. **死信重驱 + 告警**：Grafana 加 dead>0 告警规则 + 管理端点重置 queued
-3. **模型路由实验**（证据驱动）：客服域或叙述生成换小模型 A/B，六门+成本
+1. **死信重驱 + 告警**：Grafana 加 dead>0 告警规则 + 管理端点重置 queued
+2. **模型路由实验**（证据驱动）：客服域或叙述生成换小模型 A/B，六门+成本
    双口径对比，结论无论正负落 decisions.md
-4. **回归集挂 nightly**：`--dataset regression` 进 nightly-llm job（样本
+3. **回归集挂 nightly**：`--dataset regression` 进 nightly-llm job（样本
    积累后）
+4. **replay_audit 挂 nightly**：退出码已备好，样本积累后与回归集同挂（当前
+   手动跑，T181 已在 dev 库 316 案实测 306 过 / 10 案历史异常）

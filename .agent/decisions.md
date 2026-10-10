@@ -2312,3 +2312,59 @@ POST 流保留既有消息端点语义与限流挂接，前端用 ReadableStream
 转人工判定（工具标记式）不因流式分叉；流式侧 escalation 扫描只看本轮
 AIMessage（比非流式扫全 replay 消息更收敛，行为等价——历史轮的 escalate
 必然已流转状态）。
+
+## D086 · 轨迹回放断言：事件流 × 回执表联合不变量，纯函数切面（T181，2026-10-10）
+
+**背景**：完善性评估建议 8（§17 未来候选 1）——README 宣称"审计可回放
+（seq 单调）"但全库无回放工具；v1 轨迹评测（LCS 顺序/禁调/入参断言）随
+T112 删除。
+
+**形态决策：断言不变量，不比对金轨迹**——v1 轨迹评测比"期望工具序列"，
+调度演进每次都要改金样本，维护成本高于价值；本工具断言"无论怎么调度，
+这些不变量必须成立"，与调度演进解耦，是 v1 的廉价替身。断言对象是
+case_events（append-only，(case_id,seq) 唯一）× case_jobs 交付回执（D047）
+× decision_documents 版本三者的**联合视图**——纯事件流看不到挂起/恢复
+（human_gate 决议走 update_case + save_decision 不落事件），纯表又看不到
+过程，联合才能断言因果。
+
+**不变量集合（5 条，钉在真实事件词表上）**：
+1. **seq 完整性**——1..n 连续无空洞无重号：唯一约束 + 单分配器是"写时保证"，
+   重放是"读时证明"，任何事后删改立刻露馅；重号使事件顺序不可信，
+   该案跳过顺序类断言（INV2/INV3）防噪声
+2. **合规前置**——status=auto_issued 的 status_change 前，最后一次
+   stage=compliance_gate 的裁决必为 PASS 且 amount_consistent≠False
+   （"决定书生成 → 合规门是图结构静态边"的回放侧验证）；schema_reset
+   全新重跑后须在重跑段内重新证明
+3. **路由预算**——段内 calls 严格 +1 起于 1（段 = schema_reset 切分的重跑
+   边界，版本门卫全新重跑合法归零计数器）；mode=llm ⇒ calls ≤
+   ROUTING_CALL_BUDGET（15，与评测门同源 schemas.contract）；
+   over_budget=True 之后段内不得再出现 mode=llm（超预算永久降级）
+4. **回执单源（D047 回放侧）**——补件上传**轮次** ≤ 补件回执数（轮 =
+   连续 material_upload 事件——同轮多文件批量补一笔回执）；存在
+   issued_by=agent:\* 决定书版本 ⇒ 必有 interrupted 回执——"挂起才可
+   恢复"的机械表述
+5. **死信一致**——job_failed 事件 ⇒ 该案最新 job status=dead（事件与
+   表互证，防"事件说死了表还活着"的分裂）
+
+**切面**：check_invariants 纯函数（events/jobs/decisions 平铺数据进，
+Violation 列表出）+ audit_case/audit_all 异步取数薄层（session 注入，
+同 T174 badcase_export 测试缝）——不变量逻辑零 IO，可全矩阵单测。
+
+**明确不做**：不重放 LLM 决策内容（prompt/响应比对属评测域非审计域）；
+不做时间旅行 debug（单次调用细节已由 Jaeger trace 覆盖）；不进 push CI
+（工具属性是"可信度检查"——违规即暴露而非阻断；退出码已备好，未来想挂
+nightly 夜检零改动）。
+
+**dev 库实测（316 案批跑：306 过 / 10 案 11 条真异常）与三轮口径修正**：
+1. **时序比较不可用**（回执断言初版按 finished_at ≤ created_at 配对，57 案
+   全量误报）——event.created_at 是 server_default（SQLite CURRENT_TIMESTAMP
+   = UTC）而 job.finished_at 由 Python 本地时区写入，历史库两种时钟约定并存；
+   改轮次配对（补件仅在 supplement_pending 态被接受、该态仅由回执产生，
+   轮次即因果），57→0
+2. **schema_reset 是合法段边界**（3 案路由计数重启误报）——版本门卫全新重跑
+   本就归零 routing_calls；不变量改按段断言，3→0
+3. **同轮多文件批量补件**（2 案上传文件数 > 回执数误报）——material_upload
+   按文件计、回执按轮计；连续上传事件归并为一轮，2→0
+真异常定性：9 案 seq 重号/丢失（跨实例 seq 缓存撞号 + 旧 dev 库物理上无
+唯一约束兜底；现行代码两道防线已补齐）、1 案丢首路由事件、1 案 review 态
+违规补件。历史行不追溯修复（append-only 原则），工具持续可见。
