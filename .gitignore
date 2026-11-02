@@ -53,3 +53,24 @@ tests/exercises/
 # 面试相关
 docs/resume/
 docs/interview/
+# AI 工具本地状态（harness 私有，不入库）
+.mimosa/
+.trae-html-share-packages/
+.workbuddy/
+.zcodeignore
+
+# 本地生成产物与临时脚本
+artifacts/
+scripts/_tmp_*
+data/support_qa_check.txt
+
+# 案件工作流图（本地生成未采纳入库；已入库的主工作流图不受影响）
+docs/diagrams/claimflow-case-workflow.*
+
+# 根目录个人文档（简历导出等）
+/*.docx
+
+# 未入库评测报告（T162/T165/T174；其余报告按惯例已入库）
+evals/reports/t162_cache_llm30.json
+evals/reports/t165_cache_llm30.json
+evals/reports/t174_regression_gate.json
