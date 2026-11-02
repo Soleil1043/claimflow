@@ -10,9 +10,8 @@
 《理赔决定书》，其余转人工复核。领域知识以 skill 作业规程包（`skills/<stage>/<line>.md`）
 承载——准确率迭代改文本不改代码。
 
-> **项目状态（2026-11-02）**：维护期；任务清单已交付至 T182，最近提交为
-> 最近功能提交为 `92eb4f8`（死信告警与重驱）。本次复测 **628 passed**
->（2026-11-02）；本地工作区另有尚未提交的个人文件。
+> **项目状态（2026-11-02）**：维护期；任务清单已交付至 T182，最近功能提交为
+> `92eb4f8`（死信告警与重驱）。本次复测 **628 passed**（2026-11-02）。
 
 > **TL;DR** — A multi-line insurance auto-adjudication platform: an LLM Orchestrator
 > dispatches six specialized workers over a case pipeline, with precondition guards in code,
@@ -59,6 +58,7 @@
 
 > 金样本评测门（`evals/adjudication_suite.py` 六门体系）+ 独立对抗回归门。
 > 负向指标同样前置——它们证明评测门真的在工作。
+> 下表为 CI 确定性档（零 LLM）的门禁结果；LLM 两档（调度档 / 全程调用模型档）见下方分项。
 
 | 门 | 数值 | 说明 |
 |------|------|------|
@@ -68,20 +68,21 @@
 | 路由一致率（软门） | **100%**（门禁 ≥95%） | 与金样本期望派发序列一致 |
 | 责任认定一致率（软门） | **100%**（门禁 ≥90%） | 确定性前置 + ReAct + 关键词兜底三层口径 |
 | 调度预算 | 5 ≤ 15/案件 | orchestrator 防绕圈预算（D039） |
-| 对抗集 injection（硬门） | **8/8** | 注入/诱导/PII 8 条，确定性与 LLM 双模式全绿；T159 起从原 14 案拆出，关键词路径最易对 fixture 过拟合的部分移入 hold-out 盲测 |
+| 对抗集 injection（硬门） | **8/8** | 注入/诱导/PII 8 条，确定性与 LLM 双模式全绿；LLM 档曾被诱导 3/8（T130 实测），T131 路由 prompt 数据定界改造（`<<<DATA…>>>DATA` + 铁律）后 **0 被诱导**（[T130→T131 报告](evals/reports/t131_adversarial_llm.json)）；T159 起从原 14 案拆出，关键词路径最易对 fixture 过拟合的部分移入 hold-out 盲测 |
 | 对抗集 hold-out（硬门） | **30/30** | robustness 6 seed + 24 条红队变体（8 seed × 12 变异器，framework_ref 溯源 Garak/PyRIT，含 material_embedding 材料内藏指令家族 T173），不进 push CI 走 nightly 盲测（T159） |
 
-- LLM 模式全量：153/153 = **100%** 六门全绿（deepseek-flash 真实调度，T130）
+- LLM 调度档全量：153/153 = **100%** 六门全绿（deepseek-flash 真实调度、worker 确定性执行，2026-09-21，[报告](evals/reports/t130_llm_full_v41_fixed.json)，T130）
+- 全程调用模型档（`--llm --llm-workers`，调度 + 材料 AI 审查 / 责任 ReAct / 决定书叙述全 LLM，与生产同构）：一致率 **88.9%**（136/153），金额 / 红线 / 守卫三硬门全绿，路由软门 88.9% 未达 95%（2026-10-07 快照，[T160 报告](evals/reports/t160_ablation_report.md)）——17 例失配方向全部为低置信度转人工（fail-safe，非放水）
 - 调度成本实测：**7,659 tokens/案**，4.4 次 LLM 调用/案 vs 确定性 0.25s
 - **成本单位经济**（T177，D083）：`LLM_PRICING` 单价表（¥/百万 token，配置驱动）→
   `claimflow_llm_cost_cny_total{model,stage}` 币值指标 + Grafana"单案 Token 均值/
-  单案 LLM 成本估算（¥）"面板 + 评测报告 `cost_cny_per_case_avg` 字段。按默认
-  单价（miss ¥2 / hit ¥0.2 / completion ¥3）与 82.4% 缓存命中率折算基线约
-  **¥0.006/案**（无缓存约 ¥0.016/案，缓存省 ~64%）——万元预算支撑百万级案件
-  量级；单价表是文档口径估算非发票口径，看趋势与量级不用于结算
-- 单元与集成测试：**628 passed**（2026-11-02 复测；图结构断言 / 守卫注入 / interrupt 跨重启恢复 / 死信重驱与审计回放）
-- **单Agent 消融对照**（T160）：多 Agent 88.9%（136/153，硬门三件全绿）vs 单 Agent 60.8%（93/153，金额硬门失守 88.9%），token 反向 +70%——量化证明 Orchestrator-Worker 拆分的必要性
-- **RAG 评测**（T161，责任认定阶段）：Recall@1=54% / @2=79% / @4=96% / @8=100%，MRR 0.724；RAGAS 四指标 CP=0.868 / CR=0.806 / FA=0.929 / AR=0.909
+  单案 LLM 成本估算（¥）"面板 + 评测报告 `cost_cny_per_case_avg` 字段。
+  **30 案 LLM 评测按单价表估算约 ¥0.006/案**（7,659 tokens/案；整体缓存命中率
+  82.4%、路由调用 86.8%，无缓存约 ¥0.016/案）——万元预算支撑百万级案件量级；
+  单价表是文档口径估算非发票口径，看趋势与量级不用于结算
+- 单元与集成测试：**628 passed**（2026-11-02 复测；图结构断言 / 守卫注入 / interrupt 跨重启恢复 / 死信重驱与审计回放）+ CI **覆盖率门 ≥85%**（T149：基线 88% 实测留 3pp 缓冲）
+- **单Agent 消融对照**（T160，同 153 案双侧全 LLM 真跑，[报告](evals/reports/t160_ablation_report.md)）：多 Agent 88.9%（136/153，硬门三件全绿）vs 单 Agent 60.8%（93/153，金额硬门失守 88.9%）；**错误自动签发 0 vs 27 案**（单 Agent 无前置守卫 / 材料置信度门 / 自动签发置信度门三道确定性防线）、token 反向 +70%、单案时长 11.87s vs 7.57s（单 Agent 调用次数少故略快，多 Agent worker 可并行）——量化证明 Orchestrator-Worker 拆分的必要性
+- **RAG 评测**（T161，责任认定阶段，24 题评测集，[报告](evals/reports/t161_rag_eval.md)）：基础向量检索路径 Recall@1=54% / @2=79% / @4=96% / @8=100%，MRR 0.724；RAGAS 四指标 CP=0.868 / CR=0.806 / FA=0.929 / AR=0.909（重排与图谱检索不在此口径内）
 - **叙述 judge×人工对账**（T178，D084）：5% 叙述抽评加观测性 LLM judge（rubric 三维
   0-2，≥4 过），人工 verdict 为金标准算一致率、judge-only 出低于阈值清单——观测层
   不进门禁，"如何避免 judge 偏差"的答案 = judge 的质量本身被人工度量
@@ -97,13 +98,14 @@
 | 分级自动签发 | 低风险 + 责任明确 + 金额阈值内自动出《理赔决定书》；否则转人工（阈值全配置化） |
 | HITL 三类工单 | 补件 / 核赔复核 / 升级——interrupt 挂起，客户补传自动恢复，坐席结论必过合规复审 |
 | 险种 pack | `schemas/lines.py` 一份 pack = 一个险种的全部知识；医疗/车险/财产险/意外险四线已上线（T120），产品类型不在任何 pack（unknown）受理转人工 |
+| 知识图谱混合召回（T031/T032） | 12 篇条款文档抽取实体关系三元组（险种/疾病 ICD-10/规则条款），内存邻接表多跳遍历补充结构化事实（`services/rag/knowledge_graph.py`，图谱落盘 `data/graph/` 幂等重建） |
 | StageSpec 单源 | 六阶段的名字 / 前置 / 快照 / 回边 / prompt 清单由一份注册表派生（加阶段只改一处） |
 | 金额安全设计 | 全链路 Decimal，正文金额三方断言不依赖 LLM，叙述段零金额注入 |
 | 在线客服（T132-T137） | 门户悬浮 AI 助手（RAG 问答 / 案件进度查询 / 报案链接预填）+ 转人工坐席闭环（escalated 状态机 + workbench 客服工单） |
 | 申请人记忆治理（T138） | 终态确定性渲染写入，置信度门控（< 0.6 不写）+ 应用层 TTL + 坐席删除链路 |
 | 决定书叙述抽评（T139） | 5% 确定性采样人工质检（种子 = case_id 可复算），workbench 抽评队列 + 通过率统计 |
 | 对抗回归门（T124/T142/T159） | injection 8 案守 push CI + robustness 6 seed / 24 变体入 hold-out 盲测集（关键词路径最易过拟合，恰需盲测）；变体分类法对齐 Garak promptinject / PyRIT converters-attacks，带 framework_ref 溯源 |
-| **Prompt 缓存观测（T162/T164/T165）** | DeepSeek 硬盘缓存默认开启但此前是黑盒——三来源提取非标字段（`response_metadata.token_usage` / langchain 标准字段回退）+ **stage 维度分列**（区分「布局缺陷」与「天然 miss」）+ 布局改造使路由命中率 **0% → 86.8%** |
+| **Prompt 缓存观测（T162/T164/T165）** | DeepSeek 硬盘缓存默认开启但此前是黑盒——三来源提取非标字段（`response_metadata.token_usage` / langchain 标准字段回退）+ **stage 维度分列**（区分「布局缺陷」与「天然 miss」）+ 布局改造后路由调用命中率三轮实测 **86.7%–86.8%**（整体 82.4%，详见[缓存事件报告](evals/reports/prompt_cache_miss_incident_report.md)） |
 | 全链路可观测 | Prometheus/Grafana **22 面板**（结案率 / 阶段 P95 / 调度健康 / 守卫纠错 / **Prompt 缓存命中率按调用点** / **单案 token 与 ¥ 成本**）+ OTel/Jaeger（span 含单调用 `cache_read/miss_tokens` 原值，采样率 0.2） |
 | 审计回放与死信处置（T181/T182） | 只读 CLI 联合事件、交付回执与决定书版本断言五项不变量；死信 Gauge + Grafana 告警 + 坐席鉴权重驱端点形成发现与处置闭环 |
 
@@ -260,7 +262,7 @@ uv run python -m evals.support_suite                            # 客服问答�
 
 | 实验 | 命令 | 结论 |
 |---|---|---|
-| 单 Agent 基线（T160） | `uv run python -m evals.single_agent_baseline` | 多 Agent 88.9% vs 单 Agent 60.8%，金额硬门失守 88.9%；token +70% |
+| 单 Agent 基线（T160） | `uv run python -m evals.single_agent_baseline` | 多 Agent 88.9% vs 单 Agent 60.8%，金额硬门失守 88.9%；错误自动签发 0 vs 27 案、token +70%（[消融报告](evals/reports/t160_ablation_report.md)） |
 | RAG 质量（T161） | `uv run python scripts/eval_rag.py` | Recall@4=96%、MRR 0.724；RAGAS 四指标 0.806~0.929 |
 | 红队变体（T159） | `uv run python -m scripts.redteam_adversarial --probe` | 8 条注入变体全部被结构化字段纪律 + 守卫 + 合规门守住 |
 
