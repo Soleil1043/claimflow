@@ -469,3 +469,7 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：架构现状文档同步（2026-11-03）
 
 - [x] T187: 对照当前代码、决策链和评测报告更新 `docs/architecture.md`；修正表数、skill 数、测试基线与评测档位，补齐近期安全、成本和运维能力。✅ 2026-11-03 | 依赖: T186 | 涉及文件: docs/architecture.md、.agent/{tasks,progress}.md | 验收: 12 表、20 份险种专属规程 + 2 份共享规程与源码一致；628 passed 引自 2026-11-02 复测；LLM 两档与报告一致；相对链接、表格和 `git diff --check` 通过
+
+### 增量：架构文档文风修订（2026-11-03）
+
+- [x] T188: 参考 README 的平实写法修订 `docs/architecture.md` 文风，减少句中加粗、解释性破折号和口号式用语，保留技术事实与数字。✅ 2026-11-03 | 依赖: T187 | 涉及文件: docs/architecture.md、.agent/{tasks,progress}.md | 验收: 17 节结构、T/D 编号和链接保留；关键数字未丢；Markdown 表格、相对链接与 `git diff --check` 通过
