@@ -501,3 +501,7 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：简历目录归档（2026-11-03）
 
 - [x] T195: 在 `docs/resume` 下建 `trashbin`，将 v30 以外的旧版本及相关内容移入，只保留 v30 在目录顶层。✅ 2026-11-03 | 依赖: T194 | 涉及文件: docs/resume/（个人目录被 git 忽略）、.agent/{tasks,progress}.md | 验收: 移动前验证绝对源/目标均位于预期目录；61 个顶层项目移入 trashbin；顶层仅有 v30 和 trashbin，v30 大小 108264 字节；`git diff --check` 通过
+
+### 增量：Kami 简历 v30 版式（2026-11-03）
+
+- [x] T196: 基于 v30 DOCX 制作纯白背景的 Kami 中文简历，只调整视觉排版，交付两页 PDF 与 HTML 源文件。✅ 2026-11-03 | 依赖: T195 | 涉及文件: docs/resume/（个人目录被 git 忽略）、.agent/{tasks,progress}.md | 验收: v30 的 36 段正文逐字一致，照片字节一致；Kami 交付 READY（0 errors、3 warnings），两页 A4 逐页目视检查无裁切或跨节拆分，纯白背景像素验证通过；PDF/HTML 保留顶层，构建中间件归档 trashbin

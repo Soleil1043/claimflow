@@ -3111,3 +3111,9 @@ rules.yml YAML 解析 + 四规则 expr 指标名与 metrics.py 全量比对零�
 **范围**：在 `docs/resume/trashbin` 下归档 v30 以外全部 61 个顶层项目，包括旧版中英文简历、模板、Claimflow 草稿、报告、打招呼语、构建脚本及 v30 渲染检查目录。移动前逐项核对源路径位于 `docs/resume`，目标路径位于 `docs/resume/trashbin`，并确认无目标冲突；使用 PowerShell `Move-Item -LiteralPath` 完成可逆移动。v30 保留在原顶层位置。
 
 **验证**：移动后 `docs/resume` 顶层仅有 `trashbin` 和 v30 DOCX，归档目录有 61 个顶层项目，v30 大小 108264 字节；`git ls-files docs/resume` 为空；`git diff --check` 通过。未改业务代码，未重跑 pytest。
+
+## T196 · Kami 简历 v30 版式（2026-11-03）
+
+**范围**：按用户纠正，以 v30 DOCX 为唯一正文来源，只调整视觉样式。复制 Kami 中文简历模板的字体、颜色和基础版式，改为纯白背景；保留原稿 36 段文字的原字词、标点与顺序，并嵌入原照片。生成 `docs/resume/游献龙_AI Agent应用开发工程师_简历_v30_kami.html` 和同名 PDF。首次改写内容的 Kami 草稿已废弃，未作为交付文件。
+
+**验证**：对 HTML 的 36 个源段落逐段逐字比对 DOCX 全部一致；内嵌照片与 DOCX 图片字节一致；PDF 为两页 A4，逐页目视检查中文、照片、分页无裁切或重叠；两页图片角点均为纯白。Kami `--deliver` 返回 READY（0 errors；白色超默认色板、第二页留白、孤行检测共 3 warnings，其中白色是用户要求，留白来自原稿第二页内容量）。个人简历目录被 git 忽略，未改业务代码，未重跑 pytest。
