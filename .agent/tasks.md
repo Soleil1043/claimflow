@@ -497,3 +497,7 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：简历 Word v30（2026-11-03）
 
 - [x] T194: 以 v29 DOCX 为底稿，用已核对的 Claimflow 投递版内容替换旧项目段，统一全文排版并生成 v30。✅ 2026-11-03 | 依赖: T193 | 涉及文件: docs/resume/*v29_Claimflow补全.docx（只读）、docs/resume/*v30*.docx（个人目录被 git 忽略）、.agent/{tasks,progress}.md | 验收: 旧 528/96%/0%→86.8%/六门全绿已清除；教育、实习、技能、自评文字保留；最终 DOCX 两页逐页渲染检查无溢出与跨节拆分；`git diff --check` 通过
+
+### 增量：简历目录归档（2026-11-03）
+
+- [x] T195: 在 `docs/resume` 下建 `trashbin`，将 v30 以外的旧版本及相关内容移入，只保留 v30 在目录顶层。✅ 2026-11-03 | 依赖: T194 | 涉及文件: docs/resume/（个人目录被 git 忽略）、.agent/{tasks,progress}.md | 验收: 移动前验证绝对源/目标均位于预期目录；61 个顶层项目移入 trashbin；顶层仅有 v30 和 trashbin，v30 大小 108264 字节；`git diff --check` 通过

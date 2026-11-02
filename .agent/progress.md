@@ -3105,3 +3105,9 @@ rules.yml YAML 解析 + 四规则 expr 指标名与 metrics.py 全量比对零�
 **范围**：以 v29 Word 文件为只读底稿，保留照片、联系方式、教育、实习、技能、自评；将旧 Claimflow 项目简介、工作和成果段替换为已核对的投递版 8 条内容。统一项目标题、元信息、正文项目符号、字号与段落间距；实习经历整节从第二页开始。生成 `docs/resume/游献龙_AI Agent应用开发工程师_简历_v30.docx`，个人简历目录仍被 git 忽略。
 
 **验证**：用 documents 渲染脚本和用户提供的 LibreOffice 路径生成两页 PNG，逐页目视检查无裁切、重叠、跨页拆条目；结构检查确认非 Claimflow 段文字全部保留、旧 528/96%/0%→86.8%/六门全绿口径均不在正文、新 628/95.8%/并发 8/86.7%–86.8%/¥0.006 均在正文；`git diff --check` 通过。最初打包运行环境缺 LibreOffice，用户给出本机路径后完成渲染。文档修改未运行 pytest。
+
+## T195 · 简历目录归档（2026-11-03）
+
+**范围**：在 `docs/resume/trashbin` 下归档 v30 以外全部 61 个顶层项目，包括旧版中英文简历、模板、Claimflow 草稿、报告、打招呼语、构建脚本及 v30 渲染检查目录。移动前逐项核对源路径位于 `docs/resume`，目标路径位于 `docs/resume/trashbin`，并确认无目标冲突；使用 PowerShell `Move-Item -LiteralPath` 完成可逆移动。v30 保留在原顶层位置。
+
+**验证**：移动后 `docs/resume` 顶层仅有 `trashbin` 和 v30 DOCX，归档目录有 61 个顶层项目，v30 大小 108264 字节；`git ls-files docs/resume` 为空；`git diff --check` 通过。未改业务代码，未重跑 pytest。
