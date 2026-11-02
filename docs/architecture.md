@@ -3,7 +3,7 @@
 > 本文是保险理赔智能核赔平台的架构总览，与工程版设计文档
 > [`claimflow-新架构设计.md`](claimflow-新架构设计.md) 互补：设计文档讲"为什么这样设计"，
 > 本文讲"现在系统长什么样"。统一语言见 [`../CONTEXT.md`](../CONTEXT.md)，
-> 全部技术决策链见 [`../.agent/decisions.md`](../.agent/decisions.md)（D001-D076）。
+> 全部技术决策链见 [`../.agent/decisions.md`](../.agent/decisions.md)（D001-D087）。
 
 ---
 
@@ -184,7 +184,7 @@ callbacks 传播到节点内 chat model（真实模型实测，假模型探针�
 受理分类关键词、必需材料单、条款要素（等待期/除外/限额）、责任认定兜底规则、
 合法材料类型、除外同义词。
 
-- 四线已上线：medical / auto / property / accident（T120，15 份险种 skill 规程）；
+- 四线已上线：medical / auto / property / accident（T120，20 份险种专属 skill 规程，另有 2 份共享规程）；
 - 产品类型不在任何 pack（unknown）→ 受理期转人工（escape），不过管线；
 - 上线新险种 = 新增 pack + skill 文本，节点零改动；
 - `material_catalog()` 单源派生前端材料下拉（GET /api/v1/cases/material-catalog），
@@ -209,6 +209,9 @@ callbacks 传播到节点内 chat model（真实模型实测，假模型探针�
 - **修订闭环**：MODIFY → 规则叙述重渲染（version+1）→ 再过合规门，轮数上限
   （compliance_max_rounds）防死循环；
 - **脱敏**：身份证 / 银行卡 / 手机号渲染层正则脱敏；坐席改判文本同样过 check_text。
+- **PII 分层治理**（T175-T176，D081-D082）：日志不记录原始 PII，身份证号在库内经
+  确定性 AES 加密并由 ORM 透明解密，出站决定书继续脱敏。密钥从环境变量读取；
+  旧明文行可读，错误密钥显式报错。
 
 ## 8. HITL 人工介入
 
@@ -221,6 +224,8 @@ callbacks 传播到节点内 chat model（真实模型实测，假模型探针�
   重渲染更高版本；坐席文本必过 check_text 红线复审，违规不签发；
 - **叙述抽评**（T139/D059）：自动签发案件 5% 确定性采样（种子 = case_id 可复算）
   进抽评审队列，workbench 行内评审（pass / revise + 评语），通过率统计。
+- **门户与坐席访问**（T171-T172，D077-D078）：客户案件接口使用案件访问令牌，
+  坐席操作走 staff 鉴权；门户提交及查询有按配置启用的限流。
 
 ## 9. 在线客服域
 
@@ -272,10 +277,12 @@ T132-T137（D057）新增，与核赔主图**完全正交**的独立 ReAct Agent
   （GET /interventions/jobs/dead 清单 + POST /interventions/jobs/{id}/redrive
   重驱：attempt 清零满额度、落 job_redrive 审计；replay_audit INV5 以
   job_redrive 事件放行重驱后的死信一致性）。
+- **案号分配**（T155，D071）：`case_id_counters` 按年计数，数据库原子自增；
+  多实例并发提交共享同一流水号来源。
 
 ## 12. 数据模型
 
-`services/db/models.py`，11 张表：
+`services/db/models.py`，12 张表：
 
 | 域 | 表 | 说明 |
 |----|----|------|
@@ -283,10 +290,11 @@ T132-T137（D057）新增，与核赔主图**完全正交**的独立 ReAct Agent
 | 核赔 | case_events | 审计事件 append-only，（case_id, seq）唯一约束；五不变量回放断言工具 `scripts/replay_audit.py`（T181/D086） |
 | 核赔 | decision_documents | 决定书版本化 |
 | 核赔 | case_jobs | 交付队列任务表 |
+| 核赔 | case_id_counters | 按年原子分配案件号 |
 | 客服 | support_conversations / support_messages | 客服会话与三方时间线 |
 | Mock | policies / medical_records / claim_records / kb_documents / eval_runs | 仿真种子数据与评测运行记录 |
 
-LangGraph checkpoint / Store 表由 PostgreSQLSaver/Store 自管（D006，prod），
+LangGraph checkpoint / Store 表由 AsyncPostgresSaver/Store 自管（D006，prod），
 dev 用 InMemorySaver/InMemoryStore。JSONB 在 SQLite dev 自动降级 JSON，
 同一套模型跑双后端。
 
@@ -302,8 +310,8 @@ dev 用 InMemorySaver/InMemoryStore。JSONB 在 SQLite dev 自动降级 JSON，
 
 ### 13.2 LLM 调用观测（T162-T165）
 
-`llm_metrics.observed_ainvoke` 是全部 LLM 调用的统一入口，产出一条 `llm.<model>` span
-+ 一次埋点：
+`llm_metrics.observed_ainvoke` 覆盖直接 LLM 调用；create_agent 子图通过 callback
+观测内部调用。每次调用产出一条 `llm.<model>` span 和一次埋点：
 
 - **Prompt 缓存指标** `LLM_CACHE_TOKENS{model, stage, result}`：DeepSeek 硬盘缓存
   默认开启（命中价 1/10），但命中情况此前是黑盒。
@@ -342,15 +350,16 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
 
 实测（真实 API，三轮不同快照）：
 
-| 调用点 | 改造前 | 改造后 | 说明 |
-|---|---|---|---|
-| orchestrator | 0% | **86.8%** | 布局缺陷，已修 |
-| liability_judge | — | 73~89% | system 本就纯静态 |
-| material_review | 0% | **75~82%** | 布局缺陷，已修 |
-| decision_writer | 0% | **59.5%** | 布局缺陷，已修 |
-| ocr 材料提取 | 0% | 0% | **prompt 主体即唯一文档，天然 miss，非缺陷** |
+| 调用点 | 改造后 | 说明 |
+|---|---|---|
+| orchestrator | 86.7%–86.8% | 三轮不同快照实测；改造前缺同口径观测，不以 0% 作基线 |
+| liability_judge | 73%–89% | system 本就纯静态 |
+| material_review | 75%–82% | 静态规程与动态数据分离 |
+| decision_writer | 59.5% | 静态规程与动态数据分离 |
+| ocr 材料提取 | 0% | prompt 主体是每案唯一文档，天然 miss |
 
-整体（Grafana 实测）：**82.4%**。
+整体（Grafana 实测）：**82.4%**。30 案 LLM 评测按配置单价表估算约
+**¥0.006/案**（无缓存约 ¥0.016/案）；这是估算口径，不是账单金额。
 
 ### 13.4 其他
 
@@ -413,8 +422,11 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
   RAGAS 四指标自实现（CP 0.868 / CR 0.806 / FA 0.929 / AR 0.909，deepseek 判分 +
   BGE-M3 反向问题嵌入，算法口径对齐官方定义）——自研而非引 `ragas` 包：
   dry-run 实测引入需 huggingface-hub 跨大版本漂移 + 20+ 新包，评估后维持自实现；
-- **当前基线**：确定性 153/153 全绿、LLM 模式 153/153 全绿、注入门 8/8双模式全绿、
-  hold-out 30/30 全绿、客服门 15/15、失败集 0；单测 **528 passed**；
+- **当前基线**：CI 确定性档 153/153 全绿；T130 的 LLM 调度档
+  （真实调度、worker 确定性）153/153、六门全绿。T160 全程调用模型档
+  （`--llm --llm-workers`）一致率 88.9%（136/153），硬门全绿，路由软门未到
+  95%；注入门 8/8 双模式全绿，hold-out 30/30，客服门 15/15；
+  `uv run pytest -q` **628 passed**（2026-11-02 复测）；
 - **CI 门禁**：eval-gate 跑确定性全量（零 secret）；docker job compose 全栈 +
   冒烟双档（无 secret → `--offline` 离线兜底档 22 项；有 secret → 完整档 23 项）
   + 多实例阶段（`--scale app=2`，T156）；nightly-llm 加 hold-out 盲测档。
@@ -430,7 +442,8 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
   `--profile tracing`（OTel Collector + Jaeger）；
 - **LLM**：OpenAI 兼容接口配置切换，当前 deepseek-flash（T130/D056，
   原生多模态兼 vision）；
-- **CI**：ruff + pytest（528 用例）+ eval-gate + docker 冒烟（双档）+ 多实例阶段。
+- **CI**：lint-test、frontend、docker、eval-gate、nightly-llm 五个 job；
+  pytest 基线 628 passed，覆盖率门 ≥85%；docker job 含双档冒烟和双副本阶段。
 
 ## 16. 关键决策索引
 
@@ -442,7 +455,7 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
 | D038 | chatui 改造为案件提交门户 |
 | D040/D041 | StageSpec registry 单源；架构评审候选落地（pack/契约/领域服务） |
 | D042/D043/D055/D058 | 申请人记忆：写读治理三阶段，路由注入默认关（证据 T102） |
-| D044 | 交付队列混合方案（单消费者 + SKIP LOCKED 升级位） |
+| D044/D071 | 交付队列混合方案；T155 起每实例一消费者，租约认领互斥，SKIP LOCKED 保留升级位 |
 | D046/D047/D049 | 决定书读模型 / 挂起信息 / 交付生命周期三次单源收口 |
 | D052 | 死代码清除 + Worker 官方容错中间件对齐 |
 | D053/D062 | 四险种一次上线；对抗集同义词清账 + 门禁升级 |
@@ -457,6 +470,10 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
 | D074 | 单 Agent 消融口径（`--llm` 仅 LLM 调度，须 `--llm-workers` 补齐与生产同构） |
 | D075 | RAGAS 四指标自实现（引包 dry-run 实锤 huggingface-hub 跨大版本漂移 + 20+ 新包） |
 | D076 | Prompt 缓存修复分层：先 T164 观测补全拿基线，再 T165 布局改造；create_agent 子图用回调 handler 而非 ObservableChatModel 代理 |
+| D077-D078 | 案件门户访问令牌与限流：客户访问按案件授权，限流在 prod 用 Redis Lua 原子实现 |
+| D079-D080 | 材料提取与责任认定补齐注入数据定界；坐席改判经人工 triage 回流独立回归集 |
+| D081-D082 | PII 分层治理与身份证号库内确定性加密 |
+| D083-D084 | LLM 单价表驱动的单案成本估算；叙述 judge 与人工抽评对账，仅作观测 |
 | D085 | 客服 SSE 流式：AI 应答流式，escalated 坐席回复与案件进度保留轮询（有意取舍）；POST + ReadableStream 而非 EventSource-GET |
 | D086 | 轨迹回放断言：事件流 × 回执表 × 决定书版本联合断言五不变量（非金轨迹比对），schema_reset 段边界与补件轮次配对 |
 | D087 | 死信重驱三件套：dead 列告警 + staff 重驱端点（attempt 清零/last_error 保留）+ INV5 以 job_redrive 放行；不做批量/自动重驱 |
@@ -479,7 +496,7 @@ DeepSeek 缓存按**前缀**命中：遇到第一个不同 token 即停止，其
   （loki/fluentd 卷挂载），当前口径是"实时排障够用、事后审计不足"
 - dev 多实例下**记忆 store 与工具缓存仍进程内**（T155 已知边界，prod 共享
   无此问题）；dev 多实例另须显式 `CHECKPOINT_BACKEND=sqlite`（T145 实锤）
-- 交付队列单消费者（D044 混合方案）：SKIP LOCKED 升级判据已落档未实施
+- 交付队列每实例一消费者、租约互斥（T155/D071）：SKIP LOCKED 升级判据已落档未实施
   （日案件量 >1 万或积压排空 >10 分钟才升级，当前量级远未触发）
 
 **LLM 与缓存**：
