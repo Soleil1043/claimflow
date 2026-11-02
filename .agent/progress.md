@@ -3021,3 +3021,21 @@ rules.yml YAML 解析 + 四规则 expr 指标名与 metrics.py 全量比对零�
 5. **项目状态段**：修复「最近提交为/最近功能提交为」文字重复；删除「本地工作区另有尚未提交的个人文件」（对外无意义）
 
 **验证**：5 个新链报告文件存在性逐一核对 OK；`grep` 确认无「0% → 86.8%」残留、无重复句；未改业务代码。
+
+## T185 · README 全项目核对与写法优化（2026-11-02）
+
+**范围**：维护期文档任务，未改业务代码。全项目核对（scripts / evals / docs / API 路由 / CI / compose / Grafana / 前端端口 / 评测集计数 / 环境变量 / 报告链接）后修 README 三处错误、补六项遗漏，并依据用户 Obsidian vault 文档的写法（MOC 索引 / 分层总览句 / 结论先行 / 交叉链接网络）优化 README 结构。
+
+**错误修复（3 处，均实证）**：
+
+1. 状态行「任务清单已交付至 T182」过时——tasks.md 实况 T183/T184 已交付，改「T001-T184 全部交付」
+2. §5.3 `python -m evals.rag_metrics --help` 无效命令——该模块无 argparse 无 __main__，实跑静默无输出退出 0；CLI 在 scripts/eval_rag.py（实跑 --help 正常），改 `python -m scripts.eval_rag --help`
+3. §7 `--limit 20 # 子集冒烟（CI 即此口径）` 注释过时——ci.yml eval-gate 实跑确定性全量（153 主门 + 8 对抗，无 limit）；20 案抽样是 nightly-llm 主门 LLM 档口径，注释改标 nightly 并注明 push CI 跑全量
+
+**遗漏补全（6 项）**：docs/ 全目录零链接 → 新增 §12「深入阅读（文档地图）」（architecture.md 17 节 / 新架构设计工程版 + 人话版 / diagrams 可交互工作流 / exercises 8 练习 / 面试题库 / evals reports 报告族 / .agent 五件）；负载测试 T150 整体缺失 → §2 补成果行（两真实并发缺陷修复 + 3.2-3.5 案/s、~140 案/min、P95 35-70s）+ §5.3 补命令；judge_narrative CLI（T178）补入命令清单；§6 监控行补 4 条告警规则（T154+T182）；§5.2 补 docker-compose.replicas.yml 多副本用法（CI 双副本口径）；§6 补 Grafana(3000) 与 chatui dev(3000) 端口冲突提示。
+
+**Obsidian 写法移植（vault 为 MOC + 单篇单主题 + 交叉 wikilink 网络）**：新增「深入阅读（文档地图）」节（MOC 索引模式的 GitHub 翻译，License 顺延 §13，目录同步）；§4 架构开头补分层一句话总览（对齐 architecture.md §2 六层口径，仿 vault 系统设计笔记「系统分四层」句式）；命令统一 `python -m`（scripts/README.md 约定；smoke_support_e2e / measure_cache_hit_rate / probe_deepseek_cache_usage 三个直呼路径实测 -m 均可执行）；§7「对抗回归集拆两份」标题按三行表格实况改为「拆分 + badcase 回流（T159/T174）」。
+
+**核对通过项（未改动）**：628 tests collected；五评测集 153/8/30/15/24；Grafana 22 面板（10+12）；CI 5 job 与覆盖率门 ≥85%；workbench :5173 / chatui :3000 / Jaeger :16686；skills 21 份 / kb_docs 12 篇；§8 API 表与 app/api/v1 路由逐一对齐；README 所引报告文件全部存在。
+
+**验证**：修正后命令实跑——`python -m scripts.eval_rag --help` / `load_test --help` / `judge_narrative --help` / `measure_cache_hit_rate --help` 均正常输出用法；`probe_deepseek_cache_usage`（直跑型探针）-m 执行并输出结论；`smoke_support_e2e` -m 可执行（无 dev 栈时报连接错误，符合 README「需 dev 栈」标注）；`git diff --check` 通过。

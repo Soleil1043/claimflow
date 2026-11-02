@@ -10,8 +10,8 @@
 《理赔决定书》，其余转人工复核。领域知识以 skill 作业规程包（`skills/<stage>/<line>.md`）
 承载——准确率迭代改文本不改代码。
 
-> **项目状态（2026-11-02）**：维护期；任务清单已交付至 T182，最近功能提交为
-> `92eb4f8`（死信告警与重驱）。本次复测 **628 passed**（2026-11-02）。
+> **项目状态（2026-11-02）**：维护期；任务清单 T001-T185 全部交付，最近功能提交为
+> `92eb4f8`（死信告警与重驱）。全量 **628 passed**（2026-11-02 复测）。
 
 > **TL;DR** — A multi-line insurance auto-adjudication platform: an LLM Orchestrator
 > dispatches six specialized workers over a case pipeline, with precondition guards in code,
@@ -33,7 +33,8 @@
 9. [设计决策](#9-设计决策)
 10. [已知限制与路线图](#10-已知限制与路线图)
 11. [安全与数据声明](#11-安全与数据声明)
-12. [License 与作者](#12-license-与作者)
+12. [深入阅读（文档地图）](#12-深入阅读文档地图)
+13. [License 与作者](#13-license-与作者)
 
 ---
 
@@ -81,6 +82,10 @@
   82.4%、路由调用 86.8%，无缓存约 ¥0.016/案）——万元预算支撑百万级案件量级；
   单价表是文档口径估算非发票口径，看趋势与量级不用于结算
 - 单元与集成测试：**628 passed**（2026-11-02 复测；图结构断言 / 守卫注入 / interrupt 跨重启恢复 / 死信重驱与审计回放）+ CI **覆盖率门 ≥85%**（T149：基线 88% 实测留 3pp 缓冲）
+- **负载测试**（T150，D069）：50 / 100 并发提交全稳定——提交 3.2-3.5 案/s、确定性交付
+  排空 ~140 案/min、E2E P95 35-70s；压测连爆两个真实缺陷并修复（案号生成读-判-写
+  竞态致并发撞号、连接池耗尽），并沉淀单实例 → SKIP LOCKED 升级判据（日案件量 >1 万
+  或排空 >10 分钟）
 - **单Agent 消融对照**（T160，同 153 案双侧全 LLM 真跑，[报告](evals/reports/t160_ablation_report.md)）：多 Agent 88.9%（136/153，硬门三件全绿）vs 单 Agent 60.8%（93/153，金额硬门失守 88.9%）；**错误自动签发 0 vs 27 案**（单 Agent 无前置守卫 / 材料置信度门 / 自动签发置信度门三道确定性防线）、token 反向 +70%、单案时长 11.87s vs 7.57s（单 Agent 调用次数少故略快，多 Agent worker 可并行）——量化证明 Orchestrator-Worker 拆分的必要性
 - **RAG 评测**（T161，责任认定阶段，24 题评测集，[报告](evals/reports/t161_rag_eval.md)）：基础向量检索路径 Recall@1=54% / @2=79% / @4=96% / @8=100%，MRR 0.724；RAGAS 四指标 CP=0.868 / CR=0.806 / FA=0.929 / AR=0.909（重排与图谱检索不在此口径内）
 - **叙述 judge×人工对账**（T178，D084）：5% 叙述抽评加观测性 LLM judge（rubric 三维
@@ -112,6 +117,12 @@
 ---
 
 ## 4. 架构
+
+分层自上而下单向依赖，节点只做编排与状态流转，业务规则下沉服务层与工具层（分层全图见
+[docs/architecture.md](docs/architecture.md) §2）：前端（chatui 门户 / workbench 工作台）→
+API 层（`app/`，只做 HTTP 边界与鉴权/限流）→ 图编排层（`nodes/` + LangGraph 状态机）→
+服务层（`services/` 领域服务 / RAG / 记忆 / 可观测）→ 工具层（`tools/` ClaimflowTool）→
+数据层（PostgreSQL / Qdrant / Redis / Checkpoint）。案件沿下图流转：
 
 ```mermaid
 graph TD
@@ -176,6 +187,10 @@ docker compose up -d --build
 curl http://localhost:8000/health   # → {"status":"ok"}
 ```
 
+多副本横向扩展（T155，D071）：`docker compose -f docker-compose.yml -f docker-compose.replicas.yml
+up -d --scale app=2`——宿主端口区间映射自动分配 8000/8001，uploads 共享卷 + 交付队列租约
+互斥 + 共享 checkpoint，CI 双副本冒烟即此口径。
+
 ### 5.3 验证与测试
 
 ```bash
@@ -183,17 +198,19 @@ uv run pytest -q                                   # 628 passed（2026-11-02 复
 uv run ruff check .
 uv run python -m evals.adjudication_suite          # 金样本评测门（确定性，零 LLM）
 uv run python -m evals.adjudication_suite --dataset adversarial          # 注入硬门（8 案）
-uv run python -m evals.adjudication_suite --dataset adversarial_holdout # 红队 hold-out盲测（30 案）
+uv run python -m evals.adjudication_suite --dataset adversarial_holdout # 红队 hold-out 盲测（30 案）
 uv run python -m evals.adjudication_suite --llm --limit 30 --concurrency 3  # LLM 档分片
 uv run python -m evals.single_agent_baseline       # 单 Agent 消融对照（T160）
-uv run python -m evals.rag_metrics --help          # RAG Recall@K + RAGAS 四指标（T161）
+uv run python -m scripts.eval_rag --help          # RAG Recall@K + RAGAS 四指标（T161）
 uv run python -m scripts.redteam_adversarial --probe  # 红队变体实跑判定（T159）
 uv run python -m scripts.verify_adjudication --offline   # 离线兜底档（零 API Key）
 uv run python -m scripts.verify_multiinstance --boot --offline   # 双实例 live 冒烟（自起 8010/8011，跨实例补件恢复）
 uv run python -m scripts.verify_adjudication             # 完整档（需真 Key：自动签发+金额+决定书）
-uv run python scripts/smoke_support_e2e.py         # 客服全链路冒烟（需真 Key + dev 栈）
-uv run python scripts/measure_cache_hit_rate.py     # Prompt 缓存真实命中率实测（需真 Key）
-uv run python scripts/probe_deepseek_cache_usage.py # 缓存字段存活探针（全 mock，免 Key）
+uv run python -m scripts.smoke_support_e2e         # 客服全链路冒烟（需真 Key + dev 栈）
+uv run python -m scripts.measure_cache_hit_rate     # Prompt 缓存真实命中率实测（需真 Key）
+uv run python -m scripts.probe_deepseek_cache_usage # 缓存字段存活探针（全 mock，免 Key）
+uv run python -m scripts.load_test --help          # 负载压测：吞吐 / P95 / 错误率（T150）
+uv run python -m scripts.judge_narrative --limit 20 # 叙述 judge×人工对账（T178，需真 Key）
 uv run python -m scripts.replay_audit --all --format table # 审计回放；历史 dev 库可能报真实异常
 ```
 
@@ -215,12 +232,14 @@ CI 默认跑离线档（不需要任何 secret）；仓库配了 `LLM_API_KEY` s
 
 | 组件                           | 启动 | 入口 |
 |--------------------------------|------|------|
-| 监控栈（Prometheus + Grafana） | `docker compose --profile monitoring up -d` | Prometheus `:9090`（TSDB 保留 30d）、Grafana `:3000`。两个仪表盘共 22 面板——核赔 10（自动结案率 / 转人工率 / 调度调用 / 守卫纠错 / 阶段耗时 P95 / 端到端耗时 / 案件量 / 核定金额 / **单案 Token 均值 / 单案成本 ¥**）+ 监控总览 12（工具成功率 / 案件转人工率 / P95 时延 / 工具与 LLM 调用量 / 熔断 / **Prompt 缓存四面板 / 工具缓存命中率**；v1 陈旧面板已于 T179 清理） |
+| 监控栈（Prometheus + Grafana） | `docker compose --profile monitoring up -d` | Prometheus `:9090`（TSDB 保留 30d）、Grafana `:3000`。两个仪表盘共 22 面板——核赔 10（自动结案率 / 转人工率 / 调度调用 / 守卫纠错 / 阶段耗时 P95 / 端到端耗时 / 案件量 / 核定金额 / **单案 Token 均值 / 单案成本 ¥**）+ 监控总览 12（工具成功率 / 案件转人工率 / P95 时延 / 工具与 LLM 调用量 / 熔断 / **Prompt 缓存四面板 / 工具缓存命中率**；v1 陈旧面板已于 T179 清理）；**4 条告警规则** provisioning 自动加载（自动结案率骤降 / 队列积压 / LLM 失败率过高 / 死信未处置，T154+T182） |
 | 追踪栈（OTel + Jaeger）        | `docker compose --profile tracing up -d`<br>`.env` 设 `OTEL_ENABLED=true` | Jaeger UI `:16686`，span 含单调用 `gen_ai.usage.cache_read/miss_tokens` 原值（采样率 0.2） |
 | 坐席工作台（HITL + 客服）      | `cd workbench && npm install && npm run dev` | `:5173` 核赔工单列表 + 详情（审计时间线 / 决定书版本卡 / 签批改判表单）+ 客服工单（transcript / 回复 / 关闭）+ 叙述抽评审队列 |
 | 案件提交门户                   | `cd chatui && npm install && npm run dev` | `:3000` 提交 + 进度时间线 + 决定书查看 + 补件上传 + 悬浮 AI 客服（问答 / 查进度 / 转人工） |
 
 - 后端裸指标：`http://localhost:8000/metrics` (无需监控栈)
+- 端口提示：Grafana（monitoring 栈）与 chatui dev 端口同为 3000，需要同时使用时改其一
+  （如把 compose 里 Grafana 映射改为 `3001:3000`）
 
 ---
 
@@ -230,7 +249,7 @@ CI 默认跑离线档（不需要任何 secret）；仓库配了 `LLM_API_KEY` s
 24 手工底座）：正常签发 / 拒赔 / 部分责任 / 风控 / 边界 / 缺件 / 受理分类七类覆盖，
 医疗/车险/财产险/意外险四线，期望金额按规格公式精确到分。
 
-**对抗回归集拆两份**（T159）：
+**对抗回归集拆分 + badcase 回流**（T159/T174）：
 
 | 数据集 | 规模 | 内容 | 门禁位置 |
 |---|---|---|---|
@@ -254,16 +273,16 @@ uv run python -m evals.adjudication_suite --dataset adversarial # 注入硬门 8
 uv run python -m evals.adjudication_suite --dataset regression  # badcase 回归集（T174，缺文件跳过）
 uv run python -m evals.adjudication_suite --dataset adversarial_holdout  # 盲测 30 案
 uv run python -m evals.adjudication_suite --llm --concurrency 3 --limit 30  # LLM 档分片
-uv run python -m evals.adjudication_suite --limit 20            # 子集冒烟（CI 即此口径）
+uv run python -m evals.adjudication_suite --limit 20            # 子集冒烟（nightly-llm 主门 LLM 档即 20 案抽样口径；push CI 跑确定性全量）
 uv run python -m evals.support_suite                            # 客服问答门 15 案（真实 LLM，T146）
 ```
 
-**消融与RAG 评测**（面试证据三件套）：
+**消融与 RAG 评测**（面试证据三件套）：
 
 | 实验 | 命令 | 结论 |
 |---|---|---|
 | 单 Agent 基线（T160） | `uv run python -m evals.single_agent_baseline` | 多 Agent 88.9% vs 单 Agent 60.8%，金额硬门失守 88.9%；错误自动签发 0 vs 27 案、token +70%（[消融报告](evals/reports/t160_ablation_report.md)） |
-| RAG 质量（T161） | `uv run python scripts/eval_rag.py` | Recall@4=96%、MRR 0.724；RAGAS 四指标 0.806~0.929 |
+| RAG 质量（T161） | `uv run python -m scripts.eval_rag` | Recall@4=96%、MRR 0.724；RAGAS 四指标 0.806~0.929 |
 | 红队变体（T159） | `uv run python -m scripts.redteam_adversarial --probe` | 8 条注入变体全部被结构化字段纪律 + 守卫 + 合规门守住 |
 
 **六门体系**：硬门（金额正确率 100% / 红线漏放 0 / 守卫旁路 0 / 对抗集全过）+
@@ -416,7 +435,23 @@ uv run python -m evals.support_suite                            # 客服问答�
 
 ---
 
-## 12. License 与作者
+## 12. 深入阅读（文档地图）
+
+> README 只保留结论与入口；每一层的完整论证在下列文档中，按主题索引。
+
+| 文档 | 内容 |
+|------|------|
+| [docs/architecture.md](docs/architecture.md) | **现状总览 17 节**：分层架构 / 核赔主图 / Orchestrator / Worker 与 skill / 险种 pack / 合规与金额安全 / HITL / 客服域 / 记忆 / 交付队列 / 数据模型 / 可观测性 / 评测体系 / 部署 / 决策索引 / 已知限制 |
+| [docs/claimflow-新架构设计.md](docs/claimflow-新架构设计.md)（[人话版导读](docs/claimflow-新架构设计-人话版.md)） | 核赔重写（T077-T093）的工程版设计依据与通俗导读 |
+| [docs/diagrams/](docs/diagrams/) | 可交互工作流图（主图 / 案件流转，HTML + 明暗主题导出） |
+| [docs/exercises/](docs/exercises/) | 8 份动手练习（图编排 / 调度 / worker / 安全合规 / HITL / 评测门 / 工程化 / 新险种上线），可作教学与自学材料 |
+| [docs/interview/面试问答题库.md](docs/interview/面试问答题库.md) | 项目面试问答题库（按模块拆问） |
+| [evals/reports/](evals/reports/) | 评测报告族：消融（T160）/ RAG（T161）/ 红队证据（T159）/ 缓存事件报告 / 对抗门 / judge 对账（T178）——正文引用的报告均在此 |
+| [.agent/](.agent/) | 全程构建档案：[progress.md](.agent/progress.md) 构建日志、[decisions.md](.agent/decisions.md) 决策链 D001-D087、[tasks.md](.agent/tasks.md) 任务清单 T001-T185、[spec.md](.agent/spec.md) 需求规格、[plan.md](.agent/plan.md) 设计说明书 |
+
+---
+
+## 13. License 与作者
 
 [MIT](LICENSE) © 2026 Soleil1043（[GitHub](https://github.com/Soleil1043)）
 
