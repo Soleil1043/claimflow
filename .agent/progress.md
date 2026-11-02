@@ -3085,3 +3085,11 @@ rules.yml YAML 解析 + 四规则 expr 指标名与 metrics.py 全量比对零�
 **核对**：`services/rag/ingest.py` 按 Markdown 二级标题切块，并将文档一级标题附到每块；超长章节按空行分隔的段落继续切分。`app/core/config.py` 的 `graph_rag_enabled` 默认值为 True。`evals/reports/t161_rag_eval.md` 的 Recall@4 原值 95.83%（23/24）；README 与架构文档原写 96% 是整数四舍五入，现统一展示为 95.8%（23/24）。简历保留切块和图谱说法，改“被拐数”为“被诱导次数”、“定点十进制规则”为“Decimal 精确到分”，标明 2026.10 评测快照并写清多/单智能体耗时对应关系。`docs/resume/` 被 git 忽略，简历修改只保存在本地。
 
 **验证**：原始报告数值、切块函数和配置默认值逐项核实；README 与架构文档本地链接无缺失；`git diff --check` 通过。未改业务代码，未重跑 pytest。
+
+## T192 · 简历投递前措辞核对（2026-11-03）
+
+**核对**：T160 消融报告明确同 153 案、同 `deepseek-flash` 模型、同 `score_case` 判分；两侧提示词因架构不同（单 Agent 整体 prompt，多 Agent 分角色 prompt + skill），不能声称“同一提示词”。报告记录并发 8 下 11.87s / 7.57s 单案时长；T165 布局改造晚于 T160，不属于该评测快照。
+
+**本地简历**：将“前四条召回率”改为“Top-4 召回率”；路由注入 3→0 明示 LLM 档；恢复机制改用 checkpoint、interrupt / resume 原词；缓存改造明示静态 system 与动态 user 分离。面试备注补同模型/不同 prompt 与耗时适用范围；另生成不含“写作口径”备注的 `docs/resume/Claimflow_项目经历_投递版.md`。个人简历目录被 git 忽略，两份本地文件均未纳入提交。
+
+**验证**：README 与 docs（不含历史报告）扫描“被拐”“六门全绿”“0% → 86.8%”：前者和错误缓存提升说法无残留；“六门全绿”只出现在明确标注的 T130 LLM 调度档。投递版不含面试备注；`git diff --check` 通过。未改业务代码，未重跑 pytest。

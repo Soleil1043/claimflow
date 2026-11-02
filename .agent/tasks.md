@@ -485,3 +485,7 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：简历指标与文档口径对齐（2026-11-03）
 
 - [x] T191: 核对 RAG 切块与图谱默认开关，将 Recall@4 精度及简历措辞与原始报告、代码统一。✅ 2026-11-03 | 依赖: T190 | 涉及文件: README.md、docs/architecture.md、docs/resume/Claimflow_项目经历_3.0.md（个人目录被 git 忽略）、.agent/{tasks,progress}.md | 验收: `ingest.py` 二级标题/超长段落切块与 `graph_rag_enabled=True` 核实；原始报告 Recall@4=95.83%（23/24）统一展示 95.8%；简历措辞与耗时顺序修正；链接与 `git diff --check` 通过
+
+### 增量：简历投递前措辞核对（2026-11-03）
+
+- [x] T192: 核对 T160 同模型对照的提示词边界与时间口径，修订本地简历措辞并扫描对外文档残留。✅ 2026-11-03 | 依赖: T191 | 涉及文件: docs/resume/Claimflow_项目经历_3.0.md、docs/resume/Claimflow_项目经历_投递版.md（个人目录被 git 忽略）、.agent/{tasks,progress}.md | 验收: T160 报告支持同模型/同 153 案/同判分、提示词按架构不同；四处措辞修正，投递版无面试备注；README/docs 关键词扫描完成；`git diff --check` 通过
