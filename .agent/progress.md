@@ -3079,3 +3079,9 @@ rules.yml YAML 解析 + 四规则 expr 指标名与 metrics.py 全量比对零�
 **核对与修改**：DeepSeek 官方 Vision 文档确认 `deepseek-flash` 支持图像输入；代码中 `LLM_MODEL` 与 `LLM_VISION_MODEL` 默认均为该模型，架构文档改为写明两项配置及视觉消息路径。§1 将阈值配置移出“代码保证”列表；§13.4 保留 Prometheus 启动参数结论，删除排障过程；§17 只读回放确认 `CASE-2026-0095` 同时有 seq 与路由事件异常。`skills/` 实数为 19 份险种专属 + 2 份共享，风控缺 medical 专属规程，修正前次误计的 20+2。源码确认路由、材料文本提取、材料一致性审核、责任认定有显式 DATA 定界；决定书叙述只有 system/user 消息分离，没有 DATA 标记，扫描件视觉路径也没有文本定界标记。架构文档修正两种机制的区别；本地个人简历将“四处模型调用”改为明确四处文本调用，并限定 3→0 是路由对抗集。
 
 **验证**：`scripts.replay_audit --all --format json` 输出 316 案、306 过、10 案 11 条违规，`CASE-2026-0095` 含 seq_integrity 与 routing_budget 两项；技能目录逐项计数；文档相对链接与表格检查、`git diff --check` 通过。`docs/resume/` 被 git 忽略，简历只在本地修改，未纳入提交。本次未改业务代码，未重跑 pytest。
+
+## T191 · 简历指标与文档口径对齐（2026-11-03）
+
+**核对**：`services/rag/ingest.py` 按 Markdown 二级标题切块，并将文档一级标题附到每块；超长章节按空行分隔的段落继续切分。`app/core/config.py` 的 `graph_rag_enabled` 默认值为 True。`evals/reports/t161_rag_eval.md` 的 Recall@4 原值 95.83%（23/24）；README 与架构文档原写 96% 是整数四舍五入，现统一展示为 95.8%（23/24）。简历保留切块和图谱说法，改“被拐数”为“被诱导次数”、“定点十进制规则”为“Decimal 精确到分”，标明 2026.10 评测快照并写清多/单智能体耗时对应关系。`docs/resume/` 被 git 忽略，简历修改只保存在本地。
+
+**验证**：原始报告数值、切块函数和配置默认值逐项核实；README 与架构文档本地链接无缺失；`git diff --check` 通过。未改业务代码，未重跑 pytest。

@@ -96,7 +96,7 @@
   置信度门这三道确定性防线。token 反而多 70%；单案时长 11.87s 对 7.57s（单 Agent
   调用次数少所以略快，多 Agent 的 worker 能并行）
 - RAG 评测（T161，责任认定阶段，24 题评测集，[报告](evals/reports/t161_rag_eval.md)）：
-  向量检索路径 Recall@1=54% / @2=79% / @4=96% / @8=100%，MRR 0.724；RAGAS 四指标
+  向量检索路径 Recall@1=54% / @2=79% / @4=95.8%（23/24）/ @8=100%，MRR 0.724；RAGAS 四指标
   CP=0.868 / CR=0.806 / FA=0.929 / AR=0.909。重排与图谱检索不在此口径内
 - 叙述 judge×人工对账（T178）：在 5% 叙述抽评之上加观测性 LLM judge（rubric 三维
   0-2 分，≥4 过），人工 verdict 作金标准算一致率，judge-only 输出低于阈值清单。
@@ -297,7 +297,7 @@ uv run python -m evals.support_suite                            # 客服问答�
 | 实验 | 命令 | 结论 |
 |---|---|---|
 | 单 Agent 基线（T160） | `uv run python -m evals.single_agent_baseline` | 多 Agent 88.9% vs 单 Agent 60.8%，金额硬门失守 88.9%；错误自动签发 0 vs 27 案、token +70%（[消融报告](evals/reports/t160_ablation_report.md)） |
-| RAG 质量（T161） | `uv run python -m scripts.eval_rag` | Recall@4=96%、MRR 0.724；RAGAS 四指标 0.806~0.929 |
+| RAG 质量（T161） | `uv run python -m scripts.eval_rag` | Recall@4=95.8%（23/24）、MRR 0.724；RAGAS 四指标 0.806~0.929 |
 | 红队变体（T159） | `uv run python -m scripts.redteam_adversarial --probe` | 8 条注入变体全部被结构化字段纪律 + 守卫 + 合规门守住 |
 
 六门体系：硬门（金额正确率 100% / 红线漏放 0 / 守卫旁路 0 / 对抗集全过）+ 软门

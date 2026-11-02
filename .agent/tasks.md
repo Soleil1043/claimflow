@@ -481,3 +481,7 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：架构文档二次审阅修正（2026-11-03）
 
 - [x] T190: 逐项核对模型视觉能力、定界调用点、skill 数和审计异常重叠，修正架构文档及简历中不准确的表述。✅ 2026-11-03 | 依赖: T189 | 涉及文件: docs/architecture.md、docs/resume/Claimflow_项目经历_3.0.md（个人目录被 git 忽略，仅本地修改）、.agent/{tasks,progress}.md | 验收: DeepSeek 官方视觉文档与源码确认模型能力；审计回放确认 CASE-2026-0095 双重违规；19+2 skill 文件实数核对；文档链接、表格与 `git diff --check` 通过
+
+### 增量：简历指标与文档口径对齐（2026-11-03）
+
+- [x] T191: 核对 RAG 切块与图谱默认开关，将 Recall@4 精度及简历措辞与原始报告、代码统一。✅ 2026-11-03 | 依赖: T190 | 涉及文件: README.md、docs/architecture.md、docs/resume/Claimflow_项目经历_3.0.md（个人目录被 git 忽略）、.agent/{tasks,progress}.md | 验收: `ingest.py` 二级标题/超长段落切块与 `graph_rag_enabled=True` 核实；原始报告 Recall@4=95.83%（23/24）统一展示 95.8%；简历措辞与耗时顺序修正；链接与 `git diff --check` 通过

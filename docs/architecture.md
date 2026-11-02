@@ -430,7 +430,7 @@ DeepSeek 缓存按前缀命中：遇到第一个不同 token 即停止，其后�
 - RAG 评测（T161，`evals/rag_metrics.py` + `scripts/eval_rag.py`）：
   责任认定阶段 QA 24 对（gold = source_file + 标记子串，单测逐字校验）。
   以下召回指标只测基础向量检索，不含重排和图谱事实：
-  Recall@1=54% / @2=79% / @4=96% / @8=100%，MRR 0.724；
+  Recall@1=54% / @2=79% / @4=95.8%（23/24）/ @8=100%，MRR 0.724；
   RAGAS 四指标自实现（CP 0.868 / CR 0.806 / FA 0.929 / AR 0.909，deepseek 判分 +
   BGE-M3 反向问题嵌入，算法口径对齐官方定义）。没有引入 `ragas` 包：
   dry-run 实测引入需 huggingface-hub 跨大版本漂移 + 20+ 新包，评估后维持自实现；
