@@ -37,12 +37,14 @@
 - 其余转人工复核（补件 / 复核 / 升级三类工单，interrupt 挂起、补传自动恢复）；
 - 各险种的知识放在 `skills/<stage>/<line>.md`。调整规程文本即可更新这部分知识。
 
-有四条规则由代码保证：
+核赔主链路有三条由代码保证的约束：
 
 1. 决定书生成后必须经过合规门。这条边写在图里，路由决策无法跳过。
 2. 金额由 Decimal 和规格公式计算，决定书正文还要通过金额三方断言。
 3. 守卫会修正违规路由；LLM 失败时走险种默认计划，并记录路由决策。
-4. 自动签发的风险和金额阈值由 pydantic-settings 配置。
+
+自动签发的风险和金额阈值通过 pydantic-settings 配置；规格常量集中在
+`schemas/contract.py`，运行时默认值与评测门引用同一来源。
 
 ---
 
@@ -129,8 +131,10 @@ human_gate ── Command(resume)：补件/签批/改判/升级 ──→ END
 
 注入防御（T131、T173）：路由 prompt 用 `<<<DATA … >>>DATA` 包住用户数据，
 并在数据区之前说明数据不能作为指令。8 条注入用例中没有一次成功诱导路由。
-后来又把同样的边界加到材料提取和责任认定：OCR 文本放在 user 消息中，
-图片中的文字也按材料内容处理，责任认定的 facts 单独定界。红队测试新增
+文本输入采用显式定界的调用点包括路由、材料文本提取、材料一致性审核和责任认定。
+图片/扫描件走视觉消息，提示词要求把图片中的文字当作材料内容；这条路径没有
+`<<<DATA…>>>DATA` 文本标记。决定书叙述把事实放在 user 消息，但目前也没有该标记。
+红队测试新增
 `material_embedding` 变异器，把指令放进材料提取字段，并纳入 nightly hold-out。
 
 ## 5. Worker 与 skill 作业规程
@@ -176,8 +180,9 @@ skill 装载（`services/skills.py`）：`skills/<stage>/<line>.md` →
 prompt。规程内容可以直接改文本。
 
 Prompt 布局约束（T165）：`build_system_prompt` 产出的 system 必须全静态逐字
-稳定。同一 stage×line 内的案件快照、材料提取结果和理算事实都不
-进 system，一律走 user message + `<<<DATA…>>>DATA` 定界。原因见§13.3：DeepSeek
+稳定。同一 stage×line 内的案件快照、材料提取结果和理算事实都放在 user message。
+路由、材料文本提取、材料一致性审核和责任认定的文本输入另加
+`<<<DATA…>>>DATA` 标记；决定书叙述目前没有该标记。原因见§13.3：DeepSeek
 前缀缓存的分叉点决定命中率，动态数据插在中间会把它之后全部推出缓存窗口。
 这条约束与 skill 文本的"可含任意大括号"约定不冲突（先 format 再拼 skill 的顺序
 保留，只是不再对 base prompt 填动态占位符）。
@@ -193,7 +198,8 @@ callbacks 传播到节点内 chat model（真实模型实测，假模型探针�
 受理分类关键词、必需材料单、条款要素（等待期/除外/限额）、责任认定兜底规则、
 合法材料类型、除外同义词。
 
-- 四线已上线：medical / auto / property / accident（T120，20 份险种专属 skill 规程，另有 2 份共享规程）；
+- 四线已上线：medical / auto / property / accident。`skills/` 有 19 份险种专属
+  规程和 2 份共享规程；风控阶段没有 medical 专属文件；
 - 产品类型不在任何 pack（unknown）→ 受理期转人工（escape），不过管线；
 - 上线新险种 = 新增 pack + skill 文本，节点零改动；
 - `material_catalog()` 单源派生前端材料下拉（GET /api/v1/cases/material-catalog），
@@ -351,8 +357,10 @@ dev 用 InMemorySaver/InMemoryStore。JSONB 在 SQLite dev 自动降级 JSON，
 
 DeepSeek 缓存按前缀命中：遇到第一个不同 token 即停止，其后全部 miss。
 若动态数据（案件快照 / 材料提取结果 / 理算事实）写在 system 内，分叉点恰落在唯一
-数据开头，命中率归零。改法是 `SystemMessage`（全静态）+ `HumanMessage`（动态数据
-+ `<<<DATA…>>>DATA` 定界）双消息。system 放指令，user 放案件数据。
+数据开头，后续静态内容也无法复用。做法是将稳定规程放在 `SystemMessage`，
+每案数据放在 `HumanMessage`。需要处理不可信文本时，再用
+`<<<DATA…>>>DATA` 标出数据范围。消息分离用于保住静态前缀；显式定界用于告诉
+模型哪些内容是数据。决定书叙述目前只做了消息分离。
 
 实测（真实 API，三轮不同快照）：
 
@@ -377,9 +385,8 @@ DeepSeek 缓存按前缀命中：遇到第一个不同 token 即停止，其后�
   T179 清理了四个引用旧指标的面板，转人工率改用 CASES_TOTAL 的终态计算；
 - OTel 采样率 0.2（T166，此前为 1.0）：全采样时，每个请求会产生数十个 span，
   增加磁盘和 CPU 开销；
-- Prometheus 保留期 30d（T166）：v3 已把 TSDB 保留期移出配置文件
-  （三种写法均报 `field not found in type config.plain`），
-  只能走 `command: --storage.tsdb.retention.time=30d`；
+- Prometheus 保留期 30d（T166）：通过容器的
+  `--storage.tsdb.retention.time=30d` 启动参数设置；
 - OTel 关闭时 noop tracer 零开销零侵入；
 - 日志写到 stdout，格式为 JSON。需要跨容器重建保留日志时，须另配 logging driver。
 
@@ -445,8 +452,9 @@ DeepSeek 缓存按前缀命中：遇到第一个不同 token 即停止，其后�
   `docker compose up -d` 一键；
 - 可选栈：`--profile monitoring`（Prometheus + Grafana）、
   `--profile tracing`（OTel Collector + Jaeger）；
-- LLM：OpenAI 兼容接口配置切换，当前 deepseek-flash（T130/D056，
-  原生多模态兼 vision）；
+- LLM：主链路默认 `LLM_MODEL=deepseek-flash`；图片和扫描件提取走独立配置的
+  `LLM_VISION_MODEL`，默认也是 `deepseek-flash`（T130/D056）。DeepSeek 的
+  [视觉接口文档](https://api-docs.deepseek.com/guides/vision/)确认该模型接收图像输入；
 - CI：lint-test、frontend、docker、eval-gate、nightly-llm 五个 job；
   pytest 基线 628 passed，覆盖率门 ≥85%；docker job 含双档冒烟和双副本阶段。
 
@@ -495,7 +503,8 @@ DeepSeek 缓存按前缀命中：遇到第一个不同 token 即停止，其后�
 运行与运维：
 
 - T181 在 dev 历史库查出 10 案、11 条审计异常：9 案有 seq 重号或缺失，
-  1 案缺首条路由事件，1 案在 review 状态违规补件。其中一案有两类异常。
+  `CASE-2026-0095` 同时缺首条路由事件，另有 `CASE-2026-0027` 在 review 状态
+  违规补件。
   旧库缺少 `(case_id, seq)` 物理唯一约束；现行代码已加约束并使用 T095 的单分配器。
   历史事件保留原样，回放工具仍会报告这些异常。
 - 日志只写 stdout，不持久保存。事后回溯需要另配 logging driver。

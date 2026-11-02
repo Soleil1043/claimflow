@@ -477,3 +477,7 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：简历说法与代码核对（2026-11-03）
 
 - [x] T189: 核对图谱在线检索与受理阶段保单缺失回退，补齐 `docs/architecture.md` 中缺少的实现说明。✅ 2026-11-03 | 依赖: T188 | 涉及文件: docs/architecture.md、.agent/{tasks,progress}.md | 验收: 在线调用链与默认开关经代码确认，本地图谱 106 实体且示例查询返回 4 条事实；受理 `None` 回退经代码确认；RAG 定向测试 20 passed；相对链接、表格与 `git diff --check` 通过
+
+### 增量：架构文档二次审阅修正（2026-11-03）
+
+- [x] T190: 逐项核对模型视觉能力、定界调用点、skill 数和审计异常重叠，修正架构文档及简历中不准确的表述。✅ 2026-11-03 | 依赖: T189 | 涉及文件: docs/architecture.md、docs/resume/Claimflow_项目经历_3.0.md（个人目录被 git 忽略，仅本地修改）、.agent/{tasks,progress}.md | 验收: DeepSeek 官方视觉文档与源码确认模型能力；审计回放确认 CASE-2026-0095 双重违规；19+2 skill 文件实数核对；文档链接、表格与 `git diff --check` 通过

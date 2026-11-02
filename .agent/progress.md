@@ -3073,3 +3073,9 @@ rules.yml YAML 解析 + 四规则 expr 指标名与 metrics.py 全量比对零�
 **核对**：`nodes/intake.py` 在 `policy_lookup` 返回 `None` 时使用 `declared_case_type`，两者都无值才进入 unknown；查询抛异常不在此回退范围。图谱不只是离线建图：责任认定 Agent 的 `claim_rule_rag` 工具同时调用向量检索与 `search_graph`，命中事实以 `graph_facts` 返回。图检索默认启用，文件缺失、未命中或检索异常时不影响向量结果。`docs/architecture.md` §3、§5、§14 已补在线路径及评测边界；简历原句有代码依据，未改简历。
 
 **验证**：本地图谱加载 106 实体，示例查询返回 4 条事实；`uv run pytest -q tests/rag/test_knowledge_graph.py tests/rag/test_retriever.py` 为 20 passed；文档相对链接和表格检查、`git diff --check` 通过。
+
+## T190 · 架构文档二次审阅修正（2026-11-03）
+
+**核对与修改**：DeepSeek 官方 Vision 文档确认 `deepseek-flash` 支持图像输入；代码中 `LLM_MODEL` 与 `LLM_VISION_MODEL` 默认均为该模型，架构文档改为写明两项配置及视觉消息路径。§1 将阈值配置移出“代码保证”列表；§13.4 保留 Prometheus 启动参数结论，删除排障过程；§17 只读回放确认 `CASE-2026-0095` 同时有 seq 与路由事件异常。`skills/` 实数为 19 份险种专属 + 2 份共享，风控缺 medical 专属规程，修正前次误计的 20+2。源码确认路由、材料文本提取、材料一致性审核、责任认定有显式 DATA 定界；决定书叙述只有 system/user 消息分离，没有 DATA 标记，扫描件视觉路径也没有文本定界标记。架构文档修正两种机制的区别；本地个人简历将“四处模型调用”改为明确四处文本调用，并限定 3→0 是路由对抗集。
+
+**验证**：`scripts.replay_audit --all --format json` 输出 316 案、306 过、10 案 11 条违规，`CASE-2026-0095` 含 seq_integrity 与 routing_budget 两项；技能目录逐项计数；文档相对链接与表格检查、`git diff --check` 通过。`docs/resume/` 被 git 忽略，简历只在本地修改，未纳入提交。本次未改业务代码，未重跑 pytest。
