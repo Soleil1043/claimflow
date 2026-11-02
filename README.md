@@ -5,13 +5,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-34C759.svg)](LICENSE)
 [![Code Style: ruff](https://img.shields.io/badge/Code%20Style-ruff-261230.svg)](https://docs.astral.sh/ruff/)
 
-客户提交理赔申请与材料后，**LLM Orchestrator 动态调度专业 Worker**（材料审核 / 保单核验 /
-风控筛查 / 责任认定 / 金额理算 / 决定书生成）完成自动核赔：低风险小额案件自动签发
-《理赔决定书》，其余转人工复核。领域知识以 skill 作业规程包（`skills/<stage>/<line>.md`）
-承载——准确率迭代改文本不改代码。
+客户提交理赔申请和材料后，LLM Orchestrator 会调度六个专业 Worker（材料审核、保单核验、
+风控筛查、责任认定、金额理算、决定书生成）完成自动核赔：低风险小额案件直接签发
+《理赔决定书》，其余转人工复核。各险种的领域知识放在 skill 规程包
+（`skills/<stage>/<line>.md`）里，调准确率只改文本，不动代码。
 
-> **项目状态（2026-11-02）**：维护期；任务清单 T001-T185 全部交付，最近功能提交为
-> `92eb4f8`（死信告警与重驱）。全量 **628 passed**（2026-11-02 复测）。
+> **项目状态（2026-11-02）**：维护期。任务清单 T001-T185 已全部交付，最近一次功能提交
+> 是 `92eb4f8`（死信告警与重驱）。全量测试 628 passed（2026-11-02 复测）。
 
 > **TL;DR** — A multi-line insurance auto-adjudication platform: an LLM Orchestrator
 > dispatches six specialized workers over a case pipeline, with precondition guards in code,
@@ -40,57 +40,67 @@
 
 ## 1. 一次核赔长什么样
 
-> **客户**：提交案件——急性阑尾炎住院手术，花费 15,800 元，保单 POL-2025-0001，
-> 上传发票 / 诊断证明 / 费用清单。
+> **客户**：提交一个案件：急性阑尾炎住院手术，花费 15,800 元，保单 POL-2025-0001，
+> 上传发票、诊断证明、费用清单。
 >
 > **系统**：`intake`（保单产品类型分类 → 医疗险，已上线）→ `orchestrator`（LLM 调度，
 > 守卫强制先做材料审核）→ `material_review`（三段提取 + 完整性 + AI 一致性）→
 > `policy_verify ∥ fraud_check`（并行：保额 100 万 / 免赔 1 万、无黑名单记录）→
 > `liability_judge`（确定性前置通过 → ReAct 条款检索，covered）→ `amount_calc`
 > （确定性：(15800−10000)×0.8 = 4,640 元）→ `decision_generate` → `compliance_gate`
-> （金额三方断言 + 红线检查，PASS）→ **自动签发《理赔决定书》，案件关闭**。
+> （金额三方断言 + 红线检查，PASS）→ 自动签发《理赔决定书》，案件关闭。
 >
-> 全程审计事件落库（路由决策含守卫修正可回放）；若有材料缺失，案件挂起为补件工单，
-> 客户补传后自动恢复。
+> 全程审计事件落库，路由决策里守卫的修正也能回放。材料有缺失时，案件挂起为补件
+> 工单，客户补传后自动恢复。
 
 ---
 
 ## 2. 成果指标
 
-> 金样本评测门（`evals/adjudication_suite.py` 六门体系）+ 独立对抗回归门。
-> 负向指标同样前置——它们证明评测门真的在工作。
-> 下表为 CI 确定性档（零 LLM）的门禁结果；LLM 两档（调度档 / 全程调用模型档）见下方分项。
+> 数字来自金样本评测门（`evals/adjudication_suite.py` 六门体系）加独立对抗回归门。
+> 对抗类指标和负向指标放在前面是有意的：它们证明评测门本身在工作，不只是走形式。
+> 下表是 CI 确定性档（零 LLM）的结果；两个 LLM 档（调度档、全程调用模型档）见下方分项。
 
 | 门 | 数值 | 说明 |
 |------|------|------|
-| 金额正确率（硬门） | **100%** | 153 案期望金额按规格公式精确到分逐一断言 |
-| 红线漏放（硬门） | **0** | 与运行时合规门同一实现（check_text）复验 |
-| 守卫旁路（硬门） | **0** | 必做集未全 done 而出决定书的案件数 |
-| 路由一致率（软门） | **100%**（门禁 ≥95%） | 与金样本期望派发序列一致 |
-| 责任认定一致率（软门） | **100%**（门禁 ≥90%） | 确定性前置 + ReAct + 关键词兜底三层口径 |
+| 金额正确率（硬门） | 100% | 153 案期望金额按规格公式精确到分，逐一断言 |
+| 红线漏放（硬门） | 0 | 与运行时合规门同一实现（check_text）复验 |
+| 守卫旁路（硬门） | 0 | 必做集未全 done 而出决定书的案件数 |
+| 路由一致率（软门） | 100%（门禁 ≥95%） | 与金样本期望派发序列一致 |
+| 责任认定一致率（软门） | 100%（门禁 ≥90%） | 确定性前置 + ReAct + 关键词兜底三层口径 |
 | 调度预算 | 5 ≤ 15/案件 | orchestrator 防绕圈预算（D039） |
-| 对抗集 injection（硬门） | **8/8** | 注入/诱导/PII 8 条，确定性与 LLM 双模式全绿；LLM 档曾被诱导 3/8（T130 实测），T131 路由 prompt 数据定界改造（`<<<DATA…>>>DATA` + 铁律）后 **0 被诱导**（[T130→T131 报告](evals/reports/t131_adversarial_llm.json)）；T159 起从原 14 案拆出，关键词路径最易对 fixture 过拟合的部分移入 hold-out 盲测 |
-| 对抗集 hold-out（硬门） | **30/30** | robustness 6 seed + 24 条红队变体（8 seed × 12 变异器，framework_ref 溯源 Garak/PyRIT，含 material_embedding 材料内藏指令家族 T173），不进 push CI 走 nightly 盲测（T159） |
+| 对抗集 injection（硬门） | 8/8 | 注入、诱导、PII 共 8 条，确定性和 LLM 双模式全绿。LLM 档曾被诱导 3/8（T130 实测），T131 把路由 prompt 改成数据定界（`<<<DATA…>>>DATA` 加铁律）后 0 被诱导（[T130→T131 报告](evals/reports/t131_adversarial_llm.json)）。T159 起从原 14 案中拆出，最容易对 fixture 过拟合的关键词路径移入 hold-out 盲测 |
+| 对抗集 hold-out（硬门） | 30/30 | robustness 6 seed + 24 条红队变体（8 seed × 12 变异器，framework_ref 溯源 Garak/PyRIT，含材料内藏指令家族 T173），不进 push CI，走 nightly 盲测（T159） |
 
-- LLM 调度档全量：153/153 = **100%** 六门全绿（deepseek-flash 真实调度、worker 确定性执行，2026-09-21，[报告](evals/reports/t130_llm_full_v41_fixed.json)，T130）
-- 全程调用模型档（`--llm --llm-workers`，调度 + 材料 AI 审查 / 责任 ReAct / 决定书叙述全 LLM，与生产同构）：一致率 **88.9%**（136/153），金额 / 红线 / 守卫三硬门全绿，路由软门 88.9% 未达 95%（2026-10-07 快照，[T160 报告](evals/reports/t160_ablation_report.md)）——17 例失配方向全部为低置信度转人工（fail-safe，非放水）
-- 调度成本实测：**7,659 tokens/案**，4.4 次 LLM 调用/案 vs 确定性 0.25s
-- **成本单位经济**（T177，D083）：`LLM_PRICING` 单价表（¥/百万 token，配置驱动）→
-  `claimflow_llm_cost_cny_total{model,stage}` 币值指标 + Grafana"单案 Token 均值/
-  单案 LLM 成本估算（¥）"面板 + 评测报告 `cost_cny_per_case_avg` 字段。
-  **30 案 LLM 评测按单价表估算约 ¥0.006/案**（7,659 tokens/案；整体缓存命中率
-  82.4%、路由调用 86.8%，无缓存约 ¥0.016/案）——万元预算支撑百万级案件量级；
-  单价表是文档口径估算非发票口径，看趋势与量级不用于结算
-- 单元与集成测试：**628 passed**（2026-11-02 复测；图结构断言 / 守卫注入 / interrupt 跨重启恢复 / 死信重驱与审计回放）+ CI **覆盖率门 ≥85%**（T149：基线 88% 实测留 3pp 缓冲）
-- **负载测试**（T150，D069）：50 / 100 并发提交全稳定——提交 3.2-3.5 案/s、确定性交付
-  排空 ~140 案/min、E2E P95 35-70s；压测连爆两个真实缺陷并修复（案号生成读-判-写
-  竞态致并发撞号、连接池耗尽），并沉淀单实例 → SKIP LOCKED 升级判据（日案件量 >1 万
-  或排空 >10 分钟）
-- **单Agent 消融对照**（T160，同 153 案双侧全 LLM 真跑，[报告](evals/reports/t160_ablation_report.md)）：多 Agent 88.9%（136/153，硬门三件全绿）vs 单 Agent 60.8%（93/153，金额硬门失守 88.9%）；**错误自动签发 0 vs 27 案**（单 Agent 无前置守卫 / 材料置信度门 / 自动签发置信度门三道确定性防线）、token 反向 +70%、单案时长 11.87s vs 7.57s（单 Agent 调用次数少故略快，多 Agent worker 可并行）——量化证明 Orchestrator-Worker 拆分的必要性
-- **RAG 评测**（T161，责任认定阶段，24 题评测集，[报告](evals/reports/t161_rag_eval.md)）：基础向量检索路径 Recall@1=54% / @2=79% / @4=96% / @8=100%，MRR 0.724；RAGAS 四指标 CP=0.868 / CR=0.806 / FA=0.929 / AR=0.909（重排与图谱检索不在此口径内）
-- **叙述 judge×人工对账**（T178，D084）：5% 叙述抽评加观测性 LLM judge（rubric 三维
-  0-2，≥4 过），人工 verdict 为金标准算一致率、judge-only 出低于阈值清单——观测层
-  不进门禁，"如何避免 judge 偏差"的答案 = judge 的质量本身被人工度量
+- LLM 调度档全量 153/153，六门全绿（deepseek-flash 真实调度、worker 确定性执行；
+  2026-09-21，[报告](evals/reports/t130_llm_full_v41_fixed.json)，T130）
+- 全程调用模型档（`--llm --llm-workers`，调度、材料 AI 审查、责任 ReAct、决定书叙述
+  全走 LLM，与生产同构）一致率 88.9%（136/153）：三个硬门全绿，路由软门 88.9% 没到
+  95%（2026-10-07 快照，[T160 报告](evals/reports/t160_ablation_report.md)）。17 例
+  失配全是低置信度转人工，方向是保守不是放水
+- 调度成本实测 7,659 tokens/案、4.4 次 LLM 调用；确定性档 0.25s
+- 成本按 ¥ 算（T177，D083）：`LLM_PRICING` 单价表（¥/百万 token，配置驱动）落到
+  `claimflow_llm_cost_cny_total{model,stage}` 指标、Grafana 单案成本面板和评测报告的
+  `cost_cny_per_case_avg` 字段。30 案 LLM 评测按单价表估算约 ¥0.006/案（整体缓存
+  命中率 82.4%、路由调用 86.8%；无缓存约 ¥0.016/案）。单价表是文档口径估算，看
+  趋势和量级用，不用于结算
+- 单元与集成测试 628 passed（2026-11-02 复测，覆盖图结构断言、守卫注入、interrupt
+  跨重启恢复、死信重驱与审计回放）；CI 覆盖率门 ≥85%（T149，基线 88% 留 3pp 缓冲）
+- 负载测试（T150）：50 / 100 并发提交全稳定，提交 3.2-3.5 案/s，确定性档排空约
+  140 案/min，E2E P95 35-70s。压测压出两个真实缺陷并已修复：案号生成的读-判-写
+  竞态（并发撞号）和连接池耗尽。另外留了升 SKIP LOCKED 的判据：日案件量过万或
+  排空超 10 分钟
+- 单 Agent 消融（T160，153 案双侧全 LLM 真跑，[报告](evals/reports/t160_ablation_report.md)）：
+  多 Agent 88.9%（136/153，硬门全绿）对单 Agent 60.8%（93/153，金额硬门失守 88.9%）。
+  差距主要在错误自动签发 0 对 27 案：单 Agent 没有前置守卫、材料置信度门、自动签发
+  置信度门这三道确定性防线。token 反而多 70%；单案时长 11.87s 对 7.57s（单 Agent
+  调用次数少所以略快，多 Agent 的 worker 能并行）
+- RAG 评测（T161，责任认定阶段，24 题评测集，[报告](evals/reports/t161_rag_eval.md)）：
+  向量检索路径 Recall@1=54% / @2=79% / @4=96% / @8=100%，MRR 0.724；RAGAS 四指标
+  CP=0.868 / CR=0.806 / FA=0.929 / AR=0.909。重排与图谱检索不在此口径内
+- 叙述 judge×人工对账（T178）：在 5% 叙述抽评之上加观测性 LLM judge（rubric 三维
+  0-2 分，≥4 过），人工 verdict 作金标准算一致率，judge-only 输出低于阈值清单。
+  观测层不进门禁。judge 会不会偏？答案是用人工度量 judge 本身
 
 ---
 
@@ -100,8 +110,8 @@
 |------|-----------|
 | LLM Orchestrator-Worker | RoutingDecision 结构化输出 + Send 并行派发，前置条件由代码守卫强制 |
 | 静态合规门 | decision_generate → compliance_gate 是图上焊死的边，任何路由决策无法绕过 |
-| 分级自动签发 | 低风险 + 责任明确 + 金额阈值内自动出《理赔决定书》；否则转人工（阈值全配置化） |
-| HITL 三类工单 | 补件 / 核赔复核 / 升级——interrupt 挂起，客户补传自动恢复，坐席结论必过合规复审 |
+| 分级自动签发 | 低风险 + 责任明确 + 金额阈值内自动出《理赔决定书》，否则转人工（阈值全配置化） |
+| HITL 三类工单 | 补件 / 核赔复核 / 升级。interrupt 挂起，客户补传自动恢复，坐席结论必过合规复审 |
 | 险种 pack | `schemas/lines.py` 一份 pack = 一个险种的全部知识；医疗/车险/财产险/意外险四线已上线（T120），产品类型不在任何 pack（unknown）受理转人工 |
 | 知识图谱混合召回（T031/T032） | 12 篇条款文档抽取实体关系三元组（险种/疾病 ICD-10/规则条款），内存邻接表多跳遍历补充结构化事实（`services/rag/knowledge_graph.py`，图谱落盘 `data/graph/` 幂等重建） |
 | StageSpec 单源 | 六阶段的名字 / 前置 / 快照 / 回边 / prompt 清单由一份注册表派生（加阶段只改一处） |
@@ -109,20 +119,20 @@
 | 在线客服（T132-T137） | 门户悬浮 AI 助手（RAG 问答 / 案件进度查询 / 报案链接预填）+ 转人工坐席闭环（escalated 状态机 + workbench 客服工单） |
 | 申请人记忆治理（T138） | 终态确定性渲染写入，置信度门控（< 0.6 不写）+ 应用层 TTL + 坐席删除链路 |
 | 决定书叙述抽评（T139） | 5% 确定性采样人工质检（种子 = case_id 可复算），workbench 抽评队列 + 通过率统计 |
-| 对抗回归门（T124/T142/T159） | injection 8 案守 push CI + robustness 6 seed / 24 变体入 hold-out 盲测集（关键词路径最易过拟合，恰需盲测）；变体分类法对齐 Garak promptinject / PyRIT converters-attacks，带 framework_ref 溯源 |
-| **Prompt 缓存观测（T162/T164/T165）** | DeepSeek 硬盘缓存默认开启但此前是黑盒——三来源提取非标字段（`response_metadata.token_usage` / langchain 标准字段回退）+ **stage 维度分列**（区分「布局缺陷」与「天然 miss」）+ 布局改造后路由调用命中率三轮实测 **86.7%–86.8%**（整体 82.4%，详见[缓存事件报告](evals/reports/prompt_cache_miss_incident_report.md)） |
-| 全链路可观测 | Prometheus/Grafana **22 面板**（结案率 / 阶段 P95 / 调度健康 / 守卫纠错 / **Prompt 缓存命中率按调用点** / **单案 token 与 ¥ 成本**）+ OTel/Jaeger（span 含单调用 `cache_read/miss_tokens` 原值，采样率 0.2） |
-| 审计回放与死信处置（T181/T182） | 只读 CLI 联合事件、交付回执与决定书版本断言五项不变量；死信 Gauge + Grafana 告警 + 坐席鉴权重驱端点形成发现与处置闭环 |
+| 对抗回归门（T124/T142/T159） | injection 8 案守 push CI，robustness 6 seed / 24 变体入 hold-out 盲测集（关键词路径最易过拟合，恰需盲测）。变体分类法对齐 Garak promptinject / PyRIT converters-attacks，带 framework_ref 溯源 |
+| Prompt 缓存观测（T162/T164/T165） | DeepSeek 硬盘缓存默认开启但此前是黑盒。做了三来源非标字段提取（`response_metadata.token_usage`，langchain 标准字段回退）和 stage 维度分列（区分布局缺陷与天然 miss）；布局改造后路由调用命中率三轮实测 86.7%–86.8%（整体 82.4%，详见[缓存事件报告](evals/reports/prompt_cache_miss_incident_report.md)） |
+| 全链路可观测 | Prometheus/Grafana 22 面板（结案率 / 阶段 P95 / 调度健康 / 守卫纠错 / 缓存命中率按调用点 / 单案 token 与 ¥ 成本）+ OTel/Jaeger（span 含单调用 `cache_read/miss_tokens` 原值，采样率 0.2） |
+| 审计回放与死信处置（T181/T182） | 只读 CLI 联合事件、交付回执与决定书版本断言五项不变量；死信 Gauge + Grafana 告警 + 坐席鉴权重驱端点，发现与处置闭环 |
 
 ---
 
 ## 4. 架构
 
-分层自上而下单向依赖，节点只做编排与状态流转，业务规则下沉服务层与工具层（分层全图见
-[docs/architecture.md](docs/architecture.md) §2）：前端（chatui 门户 / workbench 工作台）→
-API 层（`app/`，只做 HTTP 边界与鉴权/限流）→ 图编排层（`nodes/` + LangGraph 状态机）→
-服务层（`services/` 领域服务 / RAG / 记忆 / 可观测）→ 工具层（`tools/` ClaimflowTool）→
-数据层（PostgreSQL / Qdrant / Redis / Checkpoint）。案件沿下图流转：
+系统自上而下分六层，依赖单向：前端（chatui 门户、workbench 工作台）、API 层（`app/`，
+只做 HTTP 边界和鉴权限流）、图编排层（`nodes/` 加 LangGraph 状态机）、服务层
+（`services/` 领域服务、RAG、记忆、可观测）、工具层（`tools/` ClaimflowTool）、数据层
+（PostgreSQL / Qdrant / Redis / Checkpoint）。节点只做编排和状态流转，业务规则都在服务层
+和工具层。分层全图见 [docs/architecture.md](docs/architecture.md) §2。案件沿下图流转：
 
 ```mermaid
 graph TD
@@ -149,15 +159,15 @@ graph TD
 
 四个要点：
 
-1. **阶段知识单源（StageSpec）**：六阶段的结论 channel / 产出模型 / 前置条件 /
-   路由快照字段 / prompt 清单由 `schemas/stages.py` 注册表派生——守卫查表、图回边、
-   评测断言与 LLM 看到的目标清单全部同源
-2. **安全对冲四件套（D039）**：静态合规门不可绕过 / 前置守卫违规改投 / LLM 失败走
-   险种确定性默认计划 / 路由决策全量审计落 case_events
-3. **险种 pack（InsuranceLinePack）**：受理分类、必需材料、条款要素、责任认定兜底
-   规则一份声明式数据；上新车险 = 新增 pack + skill 文本，节点零改动
+1. **阶段知识单源（StageSpec）**：六阶段的结论 channel、产出模型、前置条件、路由快照
+   字段、prompt 清单由 `schemas/stages.py` 注册表派生。守卫查表、图回边、评测断言和
+   LLM 看到的目标清单全部同源
+2. **安全对冲四件套（D039）**：静态合规门不可绕过、前置守卫违规改投、LLM 失败走险种
+   确定性默认计划、路由决策全量审计落 case_events
+3. **险种 pack（InsuranceLinePack）**：受理分类、必需材料、条款要素、责任认定兜底规则
+   一份声明式数据。上新车险就是新增 pack 加 skill 文本，节点零改动
 4. **状态持久化**：LangGraph Checkpoint（prod=AsyncPostgresSaver，thread_id=case_id）
-   支撑 interrupt 挂起与跨服务重启恢复；案件事实态以 cases 表为准
+   支撑 interrupt 挂起和跨服务重启恢复；案件事实态以 cases 表为准
 
 ---
 
@@ -187,9 +197,14 @@ docker compose up -d --build
 curl http://localhost:8000/health   # → {"status":"ok"}
 ```
 
-多副本横向扩展（T155，D071）：`docker compose -f docker-compose.yml -f docker-compose.replicas.yml
-up -d --scale app=2`——宿主端口区间映射自动分配 8000/8001，uploads 共享卷 + 交付队列租约
-互斥 + 共享 checkpoint，CI 双副本冒烟即此口径。
+要多副本就加 override 文件（T155，D071）：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.replicas.yml up -d --scale app=2
+```
+
+宿主端口区间映射自动分配 8000/8001，uploads 走共享卷，交付队列靠租约互斥，checkpoint
+走共享库。CI 的双副本冒烟就是这个口径。
 
 ### 5.3 验证与测试
 
@@ -214,17 +229,17 @@ uv run python -m scripts.judge_narrative --limit 20 # 叙述 judge×人工对账
 uv run python -m scripts.replay_audit --all --format table # 审计回放；历史 dev 库可能报真实异常
 ```
 
-冒烟脚本走真实链路：现场生成 Word 材料 → 提取 → 自动签发/补件闭环/未上线险种
-escape/工单列表。两种档位：
+冒烟脚本走真实链路：现场生成 Word 材料，上传，走提取，看自动签发、补件闭环、未上线
+险种 escape、工单列表。分两种档位：
 
 | 档位 | 前置 | 覆盖 |
 |------|------|------|
 | `--offline`（默认兜底） | 零 API Key | 受理、上传落档、补件闭环、状态机、审计、escape、工单（材料提取降级 Mock → 置信度不足按设计转人工） |
 | 完整档 | 真 Key | 上述 + 自动签发 4640.00 + 决定书（签发与金额正确性另有零 LLM 的评测门 coverage） |
 
-CI 默认跑离线档（不需要任何 secret）；仓库配了 `LLM_API_KEY` secret 时自动升级
-为完整档。材料只声明不上传会按设计转人工（T140 置信度校准），故必须上传真实
-文件才会走到自动签发。
+CI 默认跑离线档，不需要任何 secret；仓库配了 `LLM_API_KEY` secret 时自动升级为完整档。
+材料只声明不上传会按设计转人工（T140 置信度校准），所以必须上传真实文件才会走到
+自动签发。
 
 ---
 
@@ -232,39 +247,39 @@ CI 默认跑离线档（不需要任何 secret）；仓库配了 `LLM_API_KEY` s
 
 | 组件                           | 启动 | 入口 |
 |--------------------------------|------|------|
-| 监控栈（Prometheus + Grafana） | `docker compose --profile monitoring up -d` | Prometheus `:9090`（TSDB 保留 30d）、Grafana `:3000`。两个仪表盘共 22 面板——核赔 10（自动结案率 / 转人工率 / 调度调用 / 守卫纠错 / 阶段耗时 P95 / 端到端耗时 / 案件量 / 核定金额 / **单案 Token 均值 / 单案成本 ¥**）+ 监控总览 12（工具成功率 / 案件转人工率 / P95 时延 / 工具与 LLM 调用量 / 熔断 / **Prompt 缓存四面板 / 工具缓存命中率**；v1 陈旧面板已于 T179 清理）；**4 条告警规则** provisioning 自动加载（自动结案率骤降 / 队列积压 / LLM 失败率过高 / 死信未处置，T154+T182） |
+| 监控栈（Prometheus + Grafana） | `docker compose --profile monitoring up -d` | Prometheus `:9090`（TSDB 保留 30d）、Grafana `:3000`。两个仪表盘共 22 面板：核赔 10（自动结案率 / 转人工率 / 调度调用 / 守卫纠错 / 阶段耗时 P95 / 端到端耗时 / 案件量 / 核定金额 / 单案 Token 均值 / 单案成本 ¥）+ 监控总览 12（工具成功率 / 案件转人工率 / P95 时延 / 工具与 LLM 调用量 / 熔断 / Prompt 缓存四面板 / 工具缓存命中率；v1 陈旧面板已于 T179 清理）。另有 4 条告警规则 provisioning 自动加载：自动结案率骤降 / 队列积压 / LLM 失败率过高 / 死信未处置（T154+T182） |
 | 追踪栈（OTel + Jaeger）        | `docker compose --profile tracing up -d`<br>`.env` 设 `OTEL_ENABLED=true` | Jaeger UI `:16686`，span 含单调用 `gen_ai.usage.cache_read/miss_tokens` 原值（采样率 0.2） |
 | 坐席工作台（HITL + 客服）      | `cd workbench && npm install && npm run dev` | `:5173` 核赔工单列表 + 详情（审计时间线 / 决定书版本卡 / 签批改判表单）+ 客服工单（transcript / 回复 / 关闭）+ 叙述抽评审队列 |
 | 案件提交门户                   | `cd chatui && npm install && npm run dev` | `:3000` 提交 + 进度时间线 + 决定书查看 + 补件上传 + 悬浮 AI 客服（问答 / 查进度 / 转人工） |
 
-- 后端裸指标：`http://localhost:8000/metrics` (无需监控栈)
-- 端口提示：Grafana（monitoring 栈）与 chatui dev 端口同为 3000，需要同时使用时改其一
-  （如把 compose 里 Grafana 映射改为 `3001:3000`）
+- 后端裸指标：`http://localhost:8000/metrics`（不需要监控栈）
+- 端口提示：Grafana（monitoring 栈）和 chatui dev 都用 3000，要同时开的话改一个
+  （比如把 compose 里 Grafana 映射改成 `3001:3000`）
 
 ---
 
 ## 7. 评测体系
 
-**金样本评测集 153 案件**（`evals/datasets/adjudication.json`，生成器确定性枚举 +
-24 手工底座）：正常签发 / 拒赔 / 部分责任 / 风控 / 边界 / 缺件 / 受理分类七类覆盖，
-医疗/车险/财产险/意外险四线，期望金额按规格公式精确到分。
+金样本评测集 153 案件（`evals/datasets/adjudication.json`，生成器确定性枚举 + 24 手工
+底座），覆盖正常签发 / 拒赔 / 部分责任 / 风控 / 边界 / 缺件 / 受理分类七类，医疗、车险、
+财产险、意外险四线，期望金额按规格公式精确到分。
 
-**对抗回归集拆分 + badcase 回流**（T159/T174）：
+对抗回归集拆分 + badcase 回流（T159/T174）：
 
 | 数据集 | 规模 | 内容 | 门禁位置 |
 |---|---|---|---|
-| `adjudication_adversarial.json` | **8 案** | 注入 / 角色伪装 / 虚构免责 / 红线诱导 / PII 诱导 / 施压翻转 / 事实伪造 / 字段注入 | **push CI 硬门** |
-| `adjudication_adversarial_holdout.json` | **30 案** | robustness 6 seed + 24 条红队变体（8 seed × 12 变异器，含材料内藏指令） | nightly 盲测（周期跑，不进 push） |
-| `adjudication_regression.json` | 按 triage 积累 | **badcase 回流回归集**（T174，D080）：坐席改判案经人工 triage 采纳后并入（REG-xxx，期望=坐席终局决议） | 手动 / 可挂 nightly（缺文件或空集自动跳过） |
+| `adjudication_adversarial.json` | 8 案 | 注入 / 角色伪装 / 虚构免责 / 红线诱导 / PII 诱导 / 施压翻转 / 事实伪造 / 字段注入 | push CI 硬门 |
+| `adjudication_adversarial_holdout.json` | 30 案 | robustness 6 seed + 24 条红队变体（8 seed × 12 变异器，含材料内藏指令） | nightly 盲测（周期跑，不进 push） |
+| `adjudication_regression.json` | 按 triage 积累 | badcase 回流回归集（T174，D080）：坐席改判案经人工 triage 采纳后并入（REG-xxx，期望=坐席终局决议） | 手动 / 可挂 nightly（缺文件或空集自动跳过） |
 
-拆分理由：同义词鲁棒性走关键词路径，**最易对 fixture 过拟合**——留在 push CI 里
-会给"过了"一个假信号。盲测集才反映真实泛化。变体分类法对齐 Garak promptinject /
+为什么拆：同义词鲁棒性走关键词路径，最容易对 fixture 过拟合。留在 push CI 里，
+"过了"就是个假信号；盲测集才反映真实泛化。变体分类法对齐 Garak promptinject /
 PyRIT converters-attacks，`evals/redteam.py` 带 `framework_ref` 溯源字段。
 
-**数据飞轮**（T174，D080）：坐席改判（决定书版本链 auto→agent 且结论/金额变化）
-经 `scripts/export_badcase_cases` 扫描为候选 → 人工 triage（`regression_candidates.json`
-里改 status=adopt/drop，防坐席误操作回流成脏标签）→ `--commit` 并入回归集 →
-`--dataset regression` 回归。回流案独立成集不混入 153 金样本基线（口径不漂移）。
+数据飞轮（T174，D080）：坐席改判（决定书版本链 auto→agent 且结论或金额变化）经
+`scripts/export_badcase_cases` 扫描为候选，人工 triage（`regression_candidates.json`
+里改 status=adopt/drop，防止坐席误操作回流成脏标签）后 `--commit` 并入回归集，再用
+`--dataset regression` 回归。回流案独立成集，不混进 153 金样本基线，口径不漂移。
 
 ```bash
 uv run python -m evals.adjudication_suite                 # 主门 153 案（确定性，零 LLM）
@@ -277,7 +292,7 @@ uv run python -m evals.adjudication_suite --limit 20            # 子集冒烟�
 uv run python -m evals.support_suite                            # 客服问答门 15 案（真实 LLM，T146）
 ```
 
-**消融与 RAG 评测**（面试证据三件套）：
+消融与 RAG 评测（面试证据三件套）：
 
 | 实验 | 命令 | 结论 |
 |---|---|---|
@@ -285,14 +300,14 @@ uv run python -m evals.support_suite                            # 客服问答�
 | RAG 质量（T161） | `uv run python -m scripts.eval_rag` | Recall@4=96%、MRR 0.724；RAGAS 四指标 0.806~0.929 |
 | 红队变体（T159） | `uv run python -m scripts.redteam_adversarial --probe` | 8 条注入变体全部被结构化字段纪律 + 守卫 + 合规门守住 |
 
-**六门体系**：硬门（金额正确率 100% / 红线漏放 0 / 守卫旁路 0 / 对抗集全过）+
-软门（路由一致率 ≥95% / 责任一致率 ≥90%）+ 预算（调度调用 ≤15）。门禁阈值与运行时
-配置同源（`schemas/contract.py`）——评测门 = 运行时门，不会漂移。
+六门体系：硬门（金额正确率 100% / 红线漏放 0 / 守卫旁路 0 / 对抗集全过）+ 软门
+（路由一致率 ≥95% / 责任一致率 ≥90%）+ 预算（调度调用 ≤15）。门禁阈值和运行时配置
+同源（`schemas/contract.py`），评测门就是运行时门，不会漂移。
 
-**客服问答门**（`evals/datasets/support_qa.json`，15 案五类：知识 / 进度 / 红线 /
-库外 / 转人工）：关键词组 + 禁止词 + 转人工终态三层确定性判分，硬门 100%；检索
-命中率为分层观测。客服 Agent 无确定性路径，本门需真 Key，定位本地手动门
-（CI 跑其数据集校验与判分单测）。
+客服问答门（`evals/datasets/support_qa.json`，15 案五类：知识 / 进度 / 红线 / 库外 /
+转人工）：关键词组 + 禁止词 + 转人工终态三层确定性判分，硬门 100%，检索命中率作分层
+观测。客服 Agent 没有确定性路径，这个门需要真 Key，定位是本地手动门（CI 只跑数据集
+校验和判分单测）。
 
 ---
 
@@ -308,26 +323,24 @@ uv run python -m evals.support_suite                            # 客服问答�
 | `/api/v1/cases/material-catalog` | GET | 险种材料目录（pack 单源派生，新险种上线前端零改动） |
 
 > 🔒 **坐席端点鉴权**（T147，D067 路径 A）：标注 🔒 的端点需请求头 `X-Staff-Key`。
-> 多 Key 配置（`STAFF_KEYS="alice:key1,bob:key2"`）+ **Key 即身份**——坐席名由 Key
-> 派生，审计 operator 不再依赖请求体自报；dev 未配置时放行（向后兼容），prod 启动
-> 强制非空。
+> 多 Key 配置（`STAFF_KEYS="alice:key1,bob:key2"`），Key 即身份：坐席名由 Key 派生，
+> 审计 operator 不依赖请求体自报。dev 未配置时放行（向后兼容），prod 启动强制非空。
 >
 > 🔑 **案件门户访问令牌**（T171，D077）：`GET /cases/{id}` 与材料上传需请求头
-> `X-Case-Token`（提交案件时创建回执一次性下发，库内只存 sha256 哈希；幂等重放
-> 不再下发）**或**有效 `X-Staff-Key`（坐席双通道）；chatui 前端以 path 级 cookie
-> 自动携带。dev 未配置 STAFF_KEYS 时沿坐席开放态放行（T147 兼容口径）。客服会话
-> 以客户端持有的 uuid4 会话 id 为能力凭证，无需额外令牌。
+> `X-Case-Token`（提交案件时创建回执一次性下发，库内只存 sha256 哈希；幂等重放不再
+> 下发），或有效 `X-Staff-Key`（坐席双通道）；chatui 前端用 path 级 cookie 自动携带。
+> dev 未配置 STAFF_KEYS 时沿坐席开放态放行（T147 兼容口径）。客服会话以客户端持有的
+> uuid4 会话 id 为能力凭证，不需要额外令牌。
 >
-> 🚦 **门户限流**（T172，D078）：`POST /cases` 与客服消息端点按客户端 IP 令牌桶
-> 限流（默认 30 / 60 每分钟，超限 429 + `Retry-After`）；prod Redis 共享桶、dev
-> 进程内存；配额 0 = 不限流（负载测试在服务器侧置 `RATE_LIMIT_CASES_PER_MIN=0`
-> 后压测），拒绝计数进 Prometheus（`claimflow_rate_limit_rejected_total`）。
+> 🚦 **门户限流**（T172，D078）：`POST /cases` 与客服消息端点按客户端 IP 令牌桶限流
+> （默认 30 / 60 每分钟，超限 429 + `Retry-After`）；prod Redis 共享桶、dev 进程内存；
+> 配额 0 = 不限流（负载测试在服务器侧置 `RATE_LIMIT_CASES_PER_MIN=0` 后压测），拒绝
+> 计数进 Prometheus（`claimflow_rate_limit_rejected_total`）。
 >
 > 🔒 **PII 分层治理**（T175/T176，D081/D082）：日志层零 PII（structlog 事件字段递归
-> 脱敏，`LOG_MASK_PII` 默认开）+ 存储层加密（证件号列确定性 AES 落库，等值查询
-> 可用，ORM 全链路透明，`PII_ENCRYPTION_KEY` prod 强制）+ 出站渲染层脱敏
-> （决定书/坐席改写，既有）；明确**不做**"送 LLM 前脱敏"——保单核验即证件号
-> 匹配，一刀切会破坏功能。
+> 脱敏，`LOG_MASK_PII` 默认开）+ 存储层加密（证件号列确定性 AES 落库，等值查询可用，
+> ORM 全链路透明，`PII_ENCRYPTION_KEY` prod 强制）+ 出站渲染层脱敏（决定书/坐席改写，
+> 既有）。明确不做"送 LLM 前脱敏"：保单核验本身就是证件号匹配，一刀切会破坏功能。
 
 ### HITL 工单
 
@@ -367,7 +380,7 @@ uv run python -m evals.support_suite                            # 客服问答�
 | `/health` | GET | 健康检查（postgres/qdrant/redis/llm 依赖状态） |
 | `/metrics` | GET | Prometheus 指标 |
 
-**提交响应结构**（新建 201 的后台交付受理快照；终态经 `GET /cases/{id}` 查询）：
+提交响应结构（新建 201 的后台交付受理快照；终态经 `GET /cases/{id}` 查询）：
 
 ```json
 {
@@ -385,27 +398,27 @@ uv run python -m evals.support_suite                            # 客服问答�
 }
 ```
 
-`job` 还包含任务标识、类型和尝试次数等字段；上例只展示关键字段。幂等命中返回
-200，`access_token` 为 `null`。
+`job` 还包含任务标识、类型和尝试次数等字段，上例只列了关键字段。幂等命中返回 200，
+`access_token` 为 `null`。
 
 ---
 
 ## 9. 设计决策
 
-全文最值得读的六条（完整决策链见 [`.agent/decisions.md`](.agent/decisions.md)）：
+全文最值得读的六条，完整决策链见 [`.agent/decisions.md`](.agent/decisions.md)：
 
-1. **静态合规门是图结构保证而非约定**——decision_generate → compliance_gate 为静态边
+1. **静态合规门是图结构保证而非约定**：decision_generate → compliance_gate 为静态边
    （有图结构测试断言），LLM 路由决策永远无法绕过
-2. **LLM 调度的对冲四件套**——前置守卫违规改投 / 必做集强制收敛 / 失败走确定性默认
-   计划 / 决策审计可回放（`scripts/replay_audit.py` 五不变量断言：seq 完整性 / 合规
-   前置 / 路由预算 / 回执单源 / 死信一致），orchestrator 失控不等于核赔失控
-3. **金额不依赖 LLM**——理算纯确定性工具 + 决定书正文三方金额断言 + 叙述段零金额注入
-   （骨架代码渲染），LLM 幻觉进不了金额字段
-4. **skill 是调优面**——各阶段 SOP 装载进 system prompt，准确率迭代改 `skills/` 文本
-   不改代码；漂移由金样本路由一致率软门兜住
-5. **阶段/险种知识单源**——StageSpec 注册表与 InsuranceLinePack 让"加一个阶段 /
-   上一个险种"从改 8-10 个文件变成加一份声明式数据
-6. **坐席结论也过合规门**——HITL 恢复的人工结论经同一审查函数复审，违规不签发
+2. **LLM 调度的对冲四件套**：前置守卫违规改投 / 必做集强制收敛 / 失败走确定性默认
+   计划 / 决策审计可回放（`scripts/replay_audit.py` 五不变量断言：seq 完整性、合规
+   前置、路由预算、回执单源、死信一致）。orchestrator 失控不等于核赔失控
+3. **金额不依赖 LLM**：理算是纯确定性工具，决定书正文做三方金额断言，叙述段零金额
+   注入（骨架代码渲染），LLM 幻觉进不了金额字段
+4. **skill 是调优面**：各阶段 SOP 装进 system prompt，准确率迭代改 `skills/` 文本不改
+   代码；漂移由金样本路由一致率软门兜住
+5. **阶段/险种知识单源**：StageSpec 注册表和 InsuranceLinePack 把"加一个阶段、上一个
+   险种"从改 8-10 个文件变成加一份声明式数据
+6. **坐席结论也过合规门**：HITL 恢复的人工结论经同一审查函数复审，违规不签发
 
 ---
 
@@ -420,33 +433,33 @@ uv run python -m evals.support_suite                            # 客服问答�
 | 历史 dev 审计数据异常 | T181 对旧库 316 案回放发现 10 案共 11 条真实异常；现行写入防线已补齐，历史记录按追加原则保留 | 用 `scripts.replay_audit` 持续检查并逐案分诊 |
 
 > 历史限制已清零：金额硬门 97.73%→100%（T122 等待期边界 + 日期 + frequency 信号三修）、
-> 单险种→四险种上线（T120）、对抗集 57.1%→100%（T142 同义词清账）、CI 冒烟依赖 secret→
-> 离线兜底档（T145）。演进记录见 [`.agent/progress.md`](.agent/progress.md)。
+> 单险种→四险种上线（T120）、对抗集 57.1%→100%（T142 同义词清账）、CI 冒烟依赖
+> secret→离线兜底档（T145）。演进记录见 [`.agent/progress.md`](.agent/progress.md)。
 
 ---
 
 ## 11. 安全与数据声明
 
-- **全部业务数据为虚构 Mock**：保单 / 病历 / 证件号均为种子脚本生成的仿真数据，
-  不含任何真实 PII；Mock 数据结构参考真实理赔场景
-- **输出脱敏设计**：身份证 / 银行卡 / 手机号在渲染层正则脱敏（`3301**********1234`），
-  决定书正文签发前再过一道红线检查（check_text）
-- **密钥管理**：全部密钥经环境变量注入，仓库不含真实凭据
+- 全部业务数据是虚构 Mock：保单、病历、证件号都由种子脚本生成，不含真实 PII，
+  数据结构参考了真实理赔场景
+- 输出侧脱敏：身份证、银行卡、手机号在渲染层正则脱敏（`3301**********1234`），
+  决定书正文签发前再过一遍红线检查（check_text）
+- 密钥全走环境变量，仓库里没有真实凭据
 
 ---
 
 ## 12. 深入阅读（文档地图）
 
-> README 只保留结论与入口；每一层的完整论证在下列文档中，按主题索引。
+README 只放结论和入口，完整的论证过程都在下面这些文档里。
 
 | 文档 | 内容 |
 |------|------|
-| [docs/architecture.md](docs/architecture.md) | **现状总览 17 节**：分层架构 / 核赔主图 / Orchestrator / Worker 与 skill / 险种 pack / 合规与金额安全 / HITL / 客服域 / 记忆 / 交付队列 / 数据模型 / 可观测性 / 评测体系 / 部署 / 决策索引 / 已知限制 |
+| [docs/architecture.md](docs/architecture.md) | 现状总览 17 节：分层架构 / 核赔主图 / Orchestrator / Worker 与 skill / 险种 pack / 合规与金额安全 / HITL / 客服域 / 记忆 / 交付队列 / 数据模型 / 可观测性 / 评测体系 / 部署 / 决策索引 / 已知限制 |
 | [docs/claimflow-新架构设计.md](docs/claimflow-新架构设计.md)（[人话版导读](docs/claimflow-新架构设计-人话版.md)） | 核赔重写（T077-T093）的工程版设计依据与通俗导读 |
 | [docs/diagrams/](docs/diagrams/) | 可交互工作流图（主图 / 案件流转，HTML + 明暗主题导出） |
 | [docs/exercises/](docs/exercises/) | 8 份动手练习（图编排 / 调度 / worker / 安全合规 / HITL / 评测门 / 工程化 / 新险种上线），可作教学与自学材料 |
 | [docs/interview/面试问答题库.md](docs/interview/面试问答题库.md) | 项目面试问答题库（按模块拆问） |
-| [evals/reports/](evals/reports/) | 评测报告族：消融（T160）/ RAG（T161）/ 红队证据（T159）/ 缓存事件报告 / 对抗门 / judge 对账（T178）——正文引用的报告均在此 |
+| [evals/reports/](evals/reports/) | 评测报告族：消融（T160）/ RAG（T161）/ 红队证据（T159）/ 缓存事件报告 / 对抗门 / judge 对账（T178）。正文引用的报告都在这里 |
 | [.agent/](.agent/) | 全程构建档案：[progress.md](.agent/progress.md) 构建日志、[decisions.md](.agent/decisions.md) 决策链 D001-D087、[tasks.md](.agent/tasks.md) 任务清单 T001-T185、[spec.md](.agent/spec.md) 需求规格、[plan.md](.agent/plan.md) 设计说明书 |
 
 ---
@@ -455,5 +468,5 @@ uv run python -m evals.support_suite                            # 客服问答�
 
 [MIT](LICENSE) © 2026 Soleil1043（[GitHub](https://github.com/Soleil1043)）
 
-> 本项目为个人作品集项目：LLM Orchestrator-Worker 编排 / 合规工程 / 评测体系的完整
-> 工程实践，构建日志与技术决策记录公开于 [`.agent/`](.agent/)。
+个人作品集项目，重点是 LLM 编排、合规工程和评测体系从零到一的完整实践；构建日志和
+技术决策全部公开在 [.agent/](.agent/) 里。
