@@ -10,6 +10,10 @@
 《理赔决定书》，其余转人工复核。领域知识以 skill 作业规程包（`skills/<stage>/<line>.md`）
 承载——准确率迭代改文本不改代码。
 
+> **项目状态（2026-11-02）**：维护期；任务清单已交付至 T182，最近提交为
+> 最近功能提交为 `92eb4f8`（死信告警与重驱）。本次复测 **628 passed**
+>（2026-11-02）；本地工作区另有尚未提交的个人文件。
+
 > **TL;DR** — A multi-line insurance auto-adjudication platform: an LLM Orchestrator
 > dispatches six specialized workers over a case pipeline, with precondition guards in code,
 > a graph-enforced compliance gate that routing can never bypass, and deterministic fallback
@@ -75,7 +79,7 @@
   单价（miss ¥2 / hit ¥0.2 / completion ¥3）与 82.4% 缓存命中率折算基线约
   **¥0.006/案**（无缓存约 ¥0.016/案，缓存省 ~64%）——万元预算支撑百万级案件
   量级；单价表是文档口径估算非发票口径，看趋势与量级不用于结算
-- 单元与集成测试：**528 passed**（图结构断言 / 守卫注入 100% 拦截 / interrupt 跨重启恢复 / checkpoint 版本降级重跑）
+- 单元与集成测试：**628 passed**（2026-11-02 复测；图结构断言 / 守卫注入 / interrupt 跨重启恢复 / 死信重驱与审计回放）
 - **单Agent 消融对照**（T160）：多 Agent 88.9%（136/153，硬门三件全绿）vs 单 Agent 60.8%（93/153，金额硬门失守 88.9%），token 反向 +70%——量化证明 Orchestrator-Worker 拆分的必要性
 - **RAG 评测**（T161，责任认定阶段）：Recall@1=54% / @2=79% / @4=96% / @8=100%，MRR 0.724；RAGAS 四指标 CP=0.868 / CR=0.806 / FA=0.929 / AR=0.909
 - **叙述 judge×人工对账**（T178，D084）：5% 叙述抽评加观测性 LLM judge（rubric 三维
@@ -101,6 +105,7 @@
 | 对抗回归门（T124/T142/T159） | injection 8 案守 push CI + robustness 6 seed / 24 变体入 hold-out 盲测集（关键词路径最易过拟合，恰需盲测）；变体分类法对齐 Garak promptinject / PyRIT converters-attacks，带 framework_ref 溯源 |
 | **Prompt 缓存观测（T162/T164/T165）** | DeepSeek 硬盘缓存默认开启但此前是黑盒——三来源提取非标字段（`response_metadata.token_usage` / langchain 标准字段回退）+ **stage 维度分列**（区分「布局缺陷」与「天然 miss」）+ 布局改造使路由命中率 **0% → 86.8%** |
 | 全链路可观测 | Prometheus/Grafana **22 面板**（结案率 / 阶段 P95 / 调度健康 / 守卫纠错 / **Prompt 缓存命中率按调用点** / **单案 token 与 ¥ 成本**）+ OTel/Jaeger（span 含单调用 `cache_read/miss_tokens` 原值，采样率 0.2） |
+| 审计回放与死信处置（T181/T182） | 只读 CLI 联合事件、交付回执与决定书版本断言五项不变量；死信 Gauge + Grafana 告警 + 坐席鉴权重驱端点形成发现与处置闭环 |
 
 ---
 
@@ -165,13 +170,14 @@ cd chatui && npm install && npm run dev       # 案件提交门户 http://localh
 ### 5.2 Docker 一键（prod profile：PostgreSQL + Qdrant + Redis）
 
 ```bash
-docker compose up -d && curl http://localhost:8000/health   # → {"status":"ok"}
+docker compose up -d --build
+curl http://localhost:8000/health   # → {"status":"ok"}
 ```
 
 ### 5.3 验证与测试
 
 ```bash
-uv run pytest -q                                   # 528 用例
+uv run pytest -q                                   # 628 passed（2026-11-02 复测）
 uv run ruff check .
 uv run python -m evals.adjudication_suite          # 金样本评测门（确定性，零 LLM）
 uv run python -m evals.adjudication_suite --dataset adversarial          # 注入硬门（8 案）
@@ -186,6 +192,7 @@ uv run python -m scripts.verify_adjudication             # 完整档（需真 Ke
 uv run python scripts/smoke_support_e2e.py         # 客服全链路冒烟（需真 Key + dev 栈）
 uv run python scripts/measure_cache_hit_rate.py     # Prompt 缓存真实命中率实测（需真 Key）
 uv run python scripts/probe_deepseek_cache_usage.py # 缓存字段存活探针（全 mock，免 Key）
+uv run python -m scripts.replay_audit --all --format table # 审计回放；历史 dev 库可能报真实异常
 ```
 
 冒烟脚本走真实链路：现场生成 Word 材料 → 提取 → 自动签发/补件闭环/未上线险种
@@ -239,7 +246,7 @@ PyRIT converters-attacks，`evals/redteam.py` 带 `framework_ref` 溯源字段�
 `--dataset regression` 回归。回流案独立成集不混入 153 金样本基线（口径不漂移）。
 
 ```bash
-uv run python -m evals.adjudication_suite# 主门 153 案（确定性，零 LLM）
+uv run python -m evals.adjudication_suite                 # 主门 153 案（确定性，零 LLM）
 uv run python -m evals.adjudication_suite --llm                 # LLM Orchestrator 全链（真实 LLM）
 uv run python -m evals.adjudication_suite --dataset adversarial # 注入硬门 8 案
 uv run python -m evals.adjudication_suite --dataset regression  # badcase 回归集（T174，缺文件跳过）
@@ -339,20 +346,26 @@ uv run python -m evals.support_suite                            # 客服问答�
 | `/health` | GET | 健康检查（postgres/qdrant/redis/llm 依赖状态） |
 | `/metrics` | GET | Prometheus 指标 |
 
-**提交响应结构**：
+**提交响应结构**（新建 201 的后台交付受理快照；终态经 `GET /cases/{id}` 查询）：
 
 ```json
 {
   "case_id": "CASE-2026-0001",
   "case_type": "medical",
-  "status": "auto_issued",
-  "final_decision": "approved",
-  "approved_amount": "4640.00",
-  "decision_document": {"version": 1, "title": "理赔决定书", "conclusion": "approved"},
+  "status": "received",
+  "final_decision": null,
+  "approved_amount": null,
+  "decision_document": null,
   "human": null,
-  "idempotent": false
+  "idempotent": false,
+  "job": {"status": "queued"},
+  "decision_issued": false,
+  "access_token": "<仅新建时一次性下发>"
 }
 ```
+
+`job` 还包含任务标识、类型和尝试次数等字段；上例只展示关键字段。幂等命中返回
+200，`access_token` 为 `null`。
 
 ---
 
@@ -383,6 +396,7 @@ uv run python -m evals.support_suite                            # 客服问答�
 | 客服 escalated 交互为轮询 | AI 应答已 SSE 流式（T180：token 逐段下发，done 后整体刷新校准）；坐席回复与案件进度保留轮询 | D085 有意取舍（不定时/分钟级事件维持长连接成本高于收益），实时性有诉求再评估 |
 | 小语料 RAG 天花板 | 12 篇条款文档，检索增益有天花板 | 语料扩充后重开精排对比 |
 | 客服日期推断 | 用户只说"9月20日"时模型自行补年份（应为当前年） | prompt 补"日期以当前年份推算" |
+| 历史 dev 审计数据异常 | T181 对旧库 316 案回放发现 10 案共 11 条真实异常；现行写入防线已补齐，历史记录按追加原则保留 | 用 `scripts.replay_audit` 持续检查并逐案分诊 |
 
 > 历史限制已清零：金额硬门 97.73%→100%（T122 等待期边界 + 日期 + frequency 信号三修）、
 > 单险种→四险种上线（T120）、对抗集 57.1%→100%（T142 同义词清账）、CI 冒烟依赖 secret→
@@ -405,4 +419,4 @@ uv run python -m evals.support_suite                            # 客服问答�
 [MIT](LICENSE) © 2026 Soleil1043（[GitHub](https://github.com/Soleil1043)）
 
 > 本项目为个人作品集项目：LLM Orchestrator-Worker 编排 / 合规工程 / 评测体系的完整
-> 工程实践，构建日志与全部 40 条技术决策记录公开于 [`.agent/`](.agent/)。
+> 工程实践，构建日志与技术决策记录公开于 [`.agent/`](.agent/)。

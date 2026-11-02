@@ -3003,3 +3003,9 @@ rules.yml YAML 解析 + 四规则 expr 指标名与 metrics.py 全量比对零�
 
 **文档**：grafana/README（三条→四条）、architecture §11 死信闭环 bullet +
 §16 D087 行 + §17 候选摘除重编号、README API 表两行。
+
+## T183 · 主 README 状态同步（2026-11-02）
+
+**范围**：维护期文档任务。核对 `.agent/` 状态、最近提交、API 响应模型与 CLI，更新主 README：标注当前交付至 T182；628 passed 复测结果；补充审计回放与死信处置能力；修正 Docker 构建命令、评测命令空格与异步提交响应示例；移除过期的技术决策数量并说明历史 dev 审计数据异常。未修改业务代码。
+
+**验证**：`uv run pytest -q` → 628 passed、2 warnings、退出码 0；`uv run python -m scripts.replay_audit --help` 与 `uv run python -m evals.adjudication_suite --help` → 退出码 0；`git diff --check` → 退出码 0。测试退出后本机未启动的 OTel Collector（localhost:4317）引发 exporter 日志报错，不影响 pytest 结果。
