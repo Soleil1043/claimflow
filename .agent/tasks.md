@@ -505,3 +505,7 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：Kami 简历 v30 版式（2026-11-03）
 
 - [x] T196: 基于 v30 DOCX 制作纯白背景的 Kami 中文简历，只调整视觉排版，交付两页 PDF 与 HTML 源文件。✅ 2026-11-03 | 依赖: T195 | 涉及文件: docs/resume/（个人目录被 git 忽略）、.agent/{tasks,progress}.md | 验收: v30 的 36 段正文逐字一致，照片字节一致；Kami 交付 READY（0 errors、3 warnings），两页 A4 逐页目视检查无裁切或跨节拆分，纯白背景像素验证通过；PDF/HTML 保留顶层，构建中间件归档 trashbin
+
+### 增量：Kami 简历正文可读性（2026-11-03）
+
+- [x] T197: 适度放大 v30_kami 正文字号，保持原文、照片、纯白背景和两页版式。✅ 2026-11-03 | 依赖: T196 | 涉及文件: docs/resume/（个人目录被 git 忽略）、.agent/{tasks,progress}.md | 验收: 正文 9pt 左右上调至 9.5pt；36 段逐字一致、照片字节一致；Kami READY（0 errors、2 warnings）；两页逐页目视检查无溢出或重叠
