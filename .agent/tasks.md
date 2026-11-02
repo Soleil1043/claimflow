@@ -473,3 +473,7 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：架构文档文风修订（2026-11-03）
 
 - [x] T188: 参考 README 的平实写法修订 `docs/architecture.md` 文风，减少句中加粗、解释性破折号和口号式用语，保留技术事实与数字。✅ 2026-11-03 | 依赖: T187 | 涉及文件: docs/architecture.md、.agent/{tasks,progress}.md | 验收: 17 节结构、T/D 编号和链接保留；关键数字未丢；Markdown 表格、相对链接与 `git diff --check` 通过
+
+### 增量：简历说法与代码核对（2026-11-03）
+
+- [x] T189: 核对图谱在线检索与受理阶段保单缺失回退，补齐 `docs/architecture.md` 中缺少的实现说明。✅ 2026-11-03 | 依赖: T188 | 涉及文件: docs/architecture.md、.agent/{tasks,progress}.md | 验收: 在线调用链与默认开关经代码确认，本地图谱 106 实体且示例查询返回 4 条事实；受理 `None` 回退经代码确认；RAG 定向测试 20 passed；相对链接、表格与 `git diff --check` 通过

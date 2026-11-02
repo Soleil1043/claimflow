@@ -79,6 +79,11 @@
 
 `workflows/case_graph.py` 定义，`ClaimCaseState`（`state.py`）为共享状态。
 
+受理节点 `nodes/intake.py` 优先按查到的保单 `product_type` 分类。保单查询返回
+`None` 时，使用客户填写的 `declared_case_type`；两者都没有才标为 `unknown`。
+未上线或无法识别的险种在受理阶段转人工。这里的回退只针对“查无保单”，
+不代表保单查询抛异常时也会回退。
+
 ```
 START → intake → orchestrator ⇄ { material_review, policy_verify,
                                    fraud_check, liability_judge,
@@ -145,6 +150,14 @@ Worker 执行体（`services/worker_agent.py`）：`langchain.agents.create_agen
    `LiabilityOutput` 结构化输出（条款引用 + 置信度）；
 3. 关键词兜底：LLM 失败时险种 pack 的 exclusion_keywords 确定性判定
    （置信度 0.9，T142 六组同义词清账）。
+
+`claim_rule_rag` 的在线调用链是 `nodes/liability_judge.py` →
+`tools/claim/claim_rule_rag.py` → `services/rag/retriever.py`（Qdrant 向量片段）
+和 `services/rag/graph_retriever.py`（图谱事实）。图谱由
+`services/rag/knowledge_graph.py` 从 `data/graph/claim_rules_kg.json` 加载。
+工具把向量片段放在 `results`，有图谱命中时另加 `graph_facts`，供责任认定 Agent
+使用。`GRAPH_RAG_ENABLED` 默认开启；图文件缺失、实体未命中或图检索失败时，
+这部分为空，向量结果仍可返回。图谱补的是结构化事实，不参与向量片段排序。
 
 材料审核三段流水线（`nodes/material_review.py`）：
 
@@ -408,7 +421,8 @@ DeepSeek 缓存按前缀命中：遇到第一个不同 token 即停止，其后�
   单 Agent 双向失守：partial 理算 17/17 全灭 + 27 例错误 auto（无前置守卫/置信度门）
   + 12 例漏转补件；
 - RAG 评测（T161，`evals/rag_metrics.py` + `scripts/eval_rag.py`）：
-  责任认定阶段 QA 24 对（gold = source_file + 标记子串，单测逐字校验）：
+  责任认定阶段 QA 24 对（gold = source_file + 标记子串，单测逐字校验）。
+  以下召回指标只测基础向量检索，不含重排和图谱事实：
   Recall@1=54% / @2=79% / @4=96% / @8=100%，MRR 0.724；
   RAGAS 四指标自实现（CP 0.868 / CR 0.806 / FA 0.929 / AR 0.909，deepseek 判分 +
   BGE-M3 反向问题嵌入，算法口径对齐官方定义）。没有引入 `ragas` 包：

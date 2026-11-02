@@ -3067,3 +3067,9 @@ rules.yml YAML 解析 + 四规则 expr 指标名与 metrics.py 全量比对零�
 **范围**：参照 README 的短句和直接叙述，重写系统概览、注入防御、置信度、观测与已知限制等密集段落；清理句中加粗及解释性破折号。只改文风，保留 17 节结构、技术事实、数字、链接和 T/D 编号。
 
 **验证**：对比修订前文档，17 节、T/D 编号和链接无缺失；相对链接均存在，表头与分隔行列数一致；`git diff --check` 通过。文档改动未重跑 pytest。
+
+## T189 · 简历说法与代码核对（2026-11-03）
+
+**核对**：`nodes/intake.py` 在 `policy_lookup` 返回 `None` 时使用 `declared_case_type`，两者都无值才进入 unknown；查询抛异常不在此回退范围。图谱不只是离线建图：责任认定 Agent 的 `claim_rule_rag` 工具同时调用向量检索与 `search_graph`，命中事实以 `graph_facts` 返回。图检索默认启用，文件缺失、未命中或检索异常时不影响向量结果。`docs/architecture.md` §3、§5、§14 已补在线路径及评测边界；简历原句有代码依据，未改简历。
+
+**验证**：本地图谱加载 106 实体，示例查询返回 4 条事实；`uv run pytest -q tests/rag/test_knowledge_graph.py tests/rag/test_retriever.py` 为 20 passed；文档相对链接和表格检查、`git diff --check` 通过。
