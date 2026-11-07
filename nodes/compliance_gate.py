@@ -71,7 +71,17 @@ def make_compliance_gate_node(recorder: CaseRecorder):
             stage="compliance_gate",
             payload=payload,
         )
-        return {"compliance": payload}
+        update: dict[str, Any] = {"compliance": payload}
+        if payload["verdict"] == "REJECT":
+            # 工单原因（T205/S5）：REJECT 经静态边进 human_gate，此前 human_request
+            # 为 None——坐席工单 reason 为空，看不到被弹回的原因
+            details = [str(v.get("detail") or v.get("type")) for v in payload["violations"]]
+            update["human_request"] = {
+                "case_id": state["case_id"],
+                "kind": "review",
+                "reason": "决定书未通过合规审查：" + "；".join(details),
+            }
+        return update
 
     return compliance_gate_node
 

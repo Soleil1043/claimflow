@@ -180,6 +180,45 @@ async def test_review_rewrite_rejected_issues_rejection(env) -> None:
     assert "拒绝赔付" in doc["body"] and "核准赔付" not in doc["body"]
 
 
+async def test_review_confirm_red_line_draft_rejected_422(env) -> None:
+    """T205/I2：最新草稿含红线 → confirm 422、工单保持待处理；随后 rewrite 正常签发。"""
+    from sqlalchemy import select
+
+    from services.db.models import DecisionDocument
+
+    ac, _ = env
+    high = await _submit(ac, claimed_amount="62000.00",
+                         incident_description="骑车摔伤骨折，费用62000元。")
+    case_id = high["case_id"]
+    async with session_module.get_session_factory()() as s:
+        doc = (
+            await s.execute(
+                select(DecisionDocument)
+                .where(DecisionDocument.case_id == case_id)
+                .order_by(DecisionDocument.version.desc())
+            )
+        ).scalars().first()
+        assert doc is not None
+        doc.body = doc.body + "（本公司保证赔付。）"
+        await s.commit()
+
+    confirm = await ac.post(
+        f"/api/v1/interventions/cases/{case_id}/resolve",
+        json={"action": "confirm", "note": "复核通过", "resolved_by": "agent-01"},
+    )
+    assert confirm.status_code == 422
+    listing = (await ac.get("/api/v1/interventions/cases")).json()
+    assert any(i["case_id"] == case_id for i in listing["items"])  # 工单仍待处理
+
+    rewrite = await ac.post(
+        f"/api/v1/interventions/cases/{case_id}/resolve",
+        json={"action": "rewrite", "decision": "approved", "approved_amount": "49600.00",
+              "note": "重写正文签发", "resolved_by": "agent-01"},
+    )
+    assert rewrite.status_code == 200
+    assert rewrite.json()["status"] == "closed"
+
+
 async def test_escape_resolve_referred(env) -> None:
     """受理升级（未上线险种）→ resolve 后终态 referred。"""
     ac, _ = env

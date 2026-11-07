@@ -120,3 +120,13 @@ def test_render_explicit_conclusion_bypasses_verdict_mapping() -> None:
         liability={**_LIABILITY, "verdict": "not_covered"}, calc=_CALC,
     )
     assert auto["conclusion"] == "rejected"
+
+
+def test_confirm_existing_red_line_body_blocked() -> None:
+    """T205/I2：既有草稿含红线（合规门 REJECT 弹回）→ confirm 不签发，安全兜底 referred。"""
+    tainted = {**_existing_doc("covered")}
+    tainted["body"] = tainted["body"] + "\n本公司保证赔付。"
+    update = resolve_review(
+        _state(tainted), {"action": "confirm", "note": "复核通过", "resolved_by": "agent-07"},
+    )
+    assert update == {"final_decision": "referred"}

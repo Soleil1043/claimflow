@@ -267,3 +267,24 @@ async def test_new_decision_after_terminal_verdict_restarts_round() -> None:
     for prev in ({"verdict": "PASS", "round": 2}, {"verdict": "REJECT", "round": 2}):
         update = await node(_state(decision=doc, compliance=prev))
         assert update["compliance"]["round"] == 1
+
+
+async def test_gate_reject_carries_review_request_reason() -> None:
+    """T205/S5：REJECT 落 human_request（kind=review + 违规原因），坐席工单可见弹回原因。"""
+    doc = render_decision_document(
+        case_id="C1", case_type="medical", liability=_LIABILITY, calc=_CALC, narrative=None,
+    )
+    tampered = {**doc, "body": doc["body"] + "\n本公司保证赔付。"}
+    update = await make_compliance_gate_node(MiniRecorder())(_state(decision=tampered))
+    assert update["compliance"]["verdict"] == "REJECT"
+    request = update["human_request"]
+    assert request["kind"] == "review"
+    assert request["reason"].startswith("决定书未通过合规审查：")
+
+
+async def test_gate_pass_does_not_set_human_request() -> None:
+    doc = render_decision_document(
+        case_id="C1", case_type="medical", liability=_LIABILITY, calc=_CALC, narrative=None,
+    )
+    update = await make_compliance_gate_node(MiniRecorder())(_state(decision=doc))
+    assert "human_request" not in update

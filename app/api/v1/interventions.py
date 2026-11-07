@@ -54,6 +54,7 @@ from services.case_service import (
 )
 from services.case_store import get_default_recorder
 from services.db.models import Case, CaseEvent, DecisionDocument
+from tools.compliance.rule_check import check_text
 
 log = get_logger(__name__)
 
@@ -145,6 +146,17 @@ async def resolve_case_intervention(
             resolved_by=resolved_by,
         )
     else:
+        # confirm 前置复审既有草稿（T205/I2）：合规门 REJECT 弹回的正文含红线话术，
+        # 原样签发即违规文书外发——拒绝 confirm、工单保持待处理，引导坐席 rewrite。
+        # action 推断与 resolve_review 同口径（未显式 action 且无正文 = confirm）
+        is_confirm = (body.action or ("rewrite" if body.body else "confirm")) == "confirm"
+        if kind == "review" and is_confirm:
+            draft, _ = await decision_doc_view(session, case)
+            if draft is not None and check_text(draft.body or ""):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="既有决定书正文未通过红线复审，不能原样签发，请改用重写（rewrite）",
+                )
         resolution = build_agent_resolution(
             kind=kind,
             action=body.action,

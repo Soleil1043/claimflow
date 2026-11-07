@@ -3276,3 +3276,21 @@ Access-Control-Allow-Origin，复现 C3 根因。实测在本地 dev 库留下 1
 **验证**：新增 3 用例——按图的边驱动 gate→route→revise 闭环、review 恒 MODIFY，
 断言恰在第 max_rounds 轮 REJECT 收敛（2 与 3 两档）；终态后新决定书轮次复位。
 旧代码 3 条全挂（闭环不收敛），修复后全过。664 passed；六门主门 + 对抗门全绿。
+
+## T205 · 红线草稿禁止 confirm 原样签发 I2 + 工单原因 S5（2026-11-08）
+
+**I2**：合规门 REJECT → human_gate 静态边后，坐席 confirm 分支直接签发既有正文，
+红线复审只查坐席自己写的 note/body——违规正文一字未改即可对外签发。修复两层：
+1. API 前置（interventions resolve）：review 工单 confirm 时复审最新草稿
+   （decision_doc_view，D046 单源），命中 check_text → 422 引导 rewrite，**工单
+   保持待处理**（不能放在节点里拒：节点内拒绝只能走终态 referred，坐席失去改写机会）
+2. 节点纵深：resolve_review confirm 分支复审既有正文，命中即安全兜底 referred
+   （防经其他入口直接 Command(resume) 绕过 API）
+
+**S5**：REJECT 时 human_request 为 None，工单 reason 为空，坐席看不到弹回原因
+（与 I2 叠加成盲签）。合规门 REJECT 时写 human_request{kind=review, reason=
+"决定书未通过合规审查：<违规明细>"}，经 interrupt 载荷进交付回执与工单。
+
+**验证**：新增 4 用例（节点 confirm 红线兜底 / REJECT 带工单原因 / PASS 不写
+human_request / API 篡改草稿后 confirm 422、工单仍在列表、随后 rewrite 关闭）；
+旧代码 3 条挂。668 passed；六门全绿。

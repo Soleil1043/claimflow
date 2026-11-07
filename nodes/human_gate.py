@@ -62,6 +62,12 @@ def resolve_review(state: ClaimCaseState, resolution: dict[str, Any]) -> dict[st
     if action == "confirm":
         decision = state.get("decision")
         if decision:
+            # 既有正文复审（T205/I2）：合规门 REJECT 弹回的草稿含红线话术，confirm
+            # 原样签发即违规文书外发。API 层已前置拦截（422 引导 rewrite，工单保持
+            # 待处理）；此处为纵深兜底——经其他入口恢复时安全兜底 referred
+            if check_text(str(decision.get("body") or "")):
+                log.warning("agent_confirm_red_line_body", case_id=state["case_id"])
+                return {"final_decision": "referred"}
             doc = {**decision, "issued_by": f"agent:{resolved_by}"}
         else:
             # 无既有决定书（高风险短路等未走完管线的案件）：按坐席决议渲染人工核定版。
