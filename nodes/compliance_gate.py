@@ -42,7 +42,13 @@ def make_compliance_gate_node(recorder: CaseRecorder):
         decision = state.get("decision") or {}
         calc = state.get("calc") or {}
         previous = state.get("compliance") or {}
-        current_round = int(previous.get("round") or 1)
+        # 修订轮次（T204/I1）：上一轮为 MODIFY 即本次是 revise 之后的复审 → 递增；
+        # 否则是一份新决定书的首轮。revise 节点只写 decision 不动 compliance，
+        # 旧实现只读不增，round 恒为 1，超限转人工的防死循环防线永远不可达
+        if previous.get("verdict") == "MODIFY":
+            current_round = int(previous.get("round") or 1) + 1
+        else:
+            current_round = 1
 
         review = review_decision_document(decision, calc)
         review["round"] = current_round

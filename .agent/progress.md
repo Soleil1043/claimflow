@@ -3261,3 +3261,18 @@ next.config rewrites 同源代理）只被材料目录/上传两个函数使用�
 Access-Control-Allow-Origin，复现 C3 根因。实测在本地 dev 库留下 1 条空客服
 会话（测试数据）。npm 父进程停止后 next 子进程残留占用 5173，已核对命令行后
 结束。
+
+## T204 · 合规门修订轮次递增 I1（2026-11-08）
+
+**根因**：compliance_gate 每轮 `round = previous.round or 1` 只读不增，revise 节点
+只写 decision 不动 compliance——图上 round 恒为 1，`1 >= compliance_max_rounds(2)`
+恒假，"超限 REJECT 转人工"是死代码。修订若无法修复金额不一致，modify→revise→gate
+会一直循环到 recursion_limit 整案崩溃。旧测试是手工注入 round=2 才触发上限分支。
+
+**修复**：上一轮 verdict=MODIFY（本次是 revise 后复审）才 round+1，否则是新决定书
+首轮从 1 计——补件恢复后重新出书不会继承旧计数（compliance channel 只由合规门写，
+不会被清场）。max_rounds=2 的语义：最多两轮审查、即一次修订。
+
+**验证**：新增 3 用例——按图的边驱动 gate→route→revise 闭环、review 恒 MODIFY，
+断言恰在第 max_rounds 轮 REJECT 收敛（2 与 3 两档）；终态后新决定书轮次复位。
+旧代码 3 条全挂（闭环不收敛），修复后全过。664 passed；六门主门 + 对抗门全绿。

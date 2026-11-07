@@ -200,3 +200,70 @@ def test_review_json_serializable() -> None:
 
     review = asyncio.run(run())["compliance"]
     json.dumps(review, ensure_ascii=False)
+
+
+# ---------- 修订闭环轮次（T204/I1） ----------
+
+
+async def _drive_loop(monkeypatch, max_rounds: int) -> tuple[dict, int]:
+    """按图的边驱动 gate → route → revise 闭环（state 合并口径同 LangGraph）。
+
+    review 恒返回 MODIFY（模拟修订无法修复的金额不一致）：闭环必须在
+    max_rounds 轮后以 REJECT 收敛转人工，而不是无限循环撞 recursion_limit。
+    """
+    monkeypatch.setattr(cg_module.settings, "compliance_max_rounds", max_rounds)
+    monkeypatch.setattr(
+        cg_module,
+        "review_decision_document",
+        lambda decision, calc: {
+            "verdict": "MODIFY",
+            "violations": [{"type": "amount_mismatch", "detail": "金额不一致"}],
+            "amount_consistent": False,
+            "risk_score": 0.0,
+            "suggestion": "金额不一致",
+            "round": 1,
+        },
+    )
+    rec = MiniRecorder()
+    gate = make_compliance_gate_node(rec)
+    revise = make_revise_decision_node(rec)
+    doc = render_decision_document(
+        case_id="C1", case_type="medical", liability=_LIABILITY, calc=_CALC, narrative=None,
+    )
+    state = _state(decision=doc)
+    reviews = 0
+    for _ in range(20):  # 远大于上限：防线失效时测试以超界失败而非挂死
+        state.update(await gate(state))
+        reviews += 1
+        if compliance_route(state) != "modify":
+            return state, reviews
+        state.update(await revise(state))
+    raise AssertionError("修订闭环未收敛（防死循环防线失效）")
+
+
+async def test_revise_loop_converges_to_reject_at_max_rounds(monkeypatch) -> None:
+    """闭环：round 每轮递增，第 max_rounds 轮超限 → REJECT 转人工。"""
+    state, reviews = await _drive_loop(monkeypatch, max_rounds=2)
+    assert reviews == 2
+    assert state["compliance"]["verdict"] == "REJECT"
+    assert state["compliance"]["round"] == 2
+    assert any(v["type"] == "max_rounds" for v in state["compliance"]["violations"])
+    assert compliance_route(state) == "reject"
+
+
+async def test_revise_loop_respects_configured_rounds(monkeypatch) -> None:
+    """上限可配：max_rounds=3 → 恰好三轮审查（两次修订）后转人工。"""
+    state, reviews = await _drive_loop(monkeypatch, max_rounds=3)
+    assert reviews == 3
+    assert state["compliance"]["verdict"] == "REJECT"
+
+
+async def test_new_decision_after_terminal_verdict_restarts_round() -> None:
+    """上一轮为终态（PASS/REJECT）时视为新决定书，轮次从 1 重新计。"""
+    doc = render_decision_document(
+        case_id="C1", case_type="medical", liability=_LIABILITY, calc=_CALC, narrative=None,
+    )
+    node = make_compliance_gate_node(MiniRecorder())
+    for prev in ({"verdict": "PASS", "round": 2}, {"verdict": "REJECT", "round": 2}):
+        update = await node(_state(decision=doc, compliance=prev))
+        assert update["compliance"]["round"] == 1

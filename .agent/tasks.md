@@ -527,3 +527,24 @@ T001 → T002 → T003 → T004 → T005
 - [x] T201: 决定书结论语义反转修复（C1） ✅ 2026-11-07（新增 8 用例在旧代码上 5 条挂、修复后全过；645 passed；六门主门 + 对抗门全绿）| 依赖: T200 | 涉及文件: nodes/human_gate.py、services/decision_doc.py、tests/nodes/test_human_gate.py（新）、tests/api/test_case_interventions.py | 验收: render_decision_document 增显式 `conclusion` 入参（决定书结论值域直传，None 时才经 conclusion_for 换算责任认定值域）；resolve_review confirm/rewrite 两分支全程持有结论值域并显式传 conclusion；坐席改判 rejected → 拒赔书 + 核定 0 元 + 终态 rejected；rewrite 不传 decision 回退既有拒赔结论不翻转；resolve_review 纯函数首次有单测（7 条）
 - [x] T202: 客服案件查询工具属主校验（C2） ✅ 2026-11-07（用户选定会话持久绑定，D088；658 passed；新增 13 用例在旧工具上 5 条安全断言挂；迁移在父修订上 upgrade→downgrade→upgrade 往返通过；chatui `npm run build` 通过）| 依赖: T201 | 涉及文件: services/db/models.py（SupportCaseGrant）、alembic/versions/c9e1f5a3d7b2_add_support_case_grants.py、services/support/{store,context,agent}.py、services/case_service.py、app/api/dependencies.py、app/api/v1/support.py、schemas/api.py、tools/claim/case_status.py、evals/support_suite.py、chatui/{lib/support-api.ts,components/SupportBubble.tsx}、tests/、docs/architecture.md、AGENTS.md | 验收: support_case_grants 表 + 授权端点 `POST /support/conversations/{id}/case-grants`（令牌校验与 REST 同源单谓词 portal_case_access_allowed；不存在与令牌错同回 401）；case_status_query 只查本会话已授权案件（会话 id 经 contextvar 作用域传入，不交给 LLM；作用域外 fail-closed；不存在与未授权同一口径无枚举 oracle；dev 开放态与 REST 同口径）；建会话与授权端点补 rate_limit；门户在案件详情页自动授权、发送前等待授权；非流式与 SSE 两路径作用域传播均有端到端测试
 - [x] T203: workbench 浏览器请求同源代理修复（C3） ✅ 2026-11-07（661 passed；workbench `npm run build` 通过；起栈实测：经 :5173 同源代理 POST → 201，旧路径直连 :8000 预检 → 405 且无 ACAO，复现并确认根因）| 依赖: T202 | 涉及文件: workbench/lib/api.ts、app/main.py、app/core/config.py、.env.example、tests/core/test_cors.py（新） | 验收: request() 改走 apiUrl() 同源代理（顺带调用方 headers 改为合并，不再可能覆盖鉴权头）；后端补显式 CORS 白名单作可选纵深（CORS_ALLOW_ORIGINS，默认空不挂中间件、拒收 *、方法/头与 API 实际用量对齐）
+
+### 增量：全仓库代码审查修复·本迭代（2026-11-08，依据 docs/code-review-2026-11-07.md I1-I15）
+
+> 每项独立 commit；涉及调度/理算/决定书的过六门 + pytest。I3 口径用户选定方案 A
+> （风险非低一律转人工 + 低置信拒赔转人工，F11 原文口径）；I12 用户选定 HttpOnly Cookie。
+
+- [x] T204: 合规门 round 不递增致防死循环防线死代码（I1） ✅ 2026-11-08（664 passed；新增闭环 3 用例旧代码全挂；六门全绿） | 依赖: T203 | 涉及文件: nodes/compliance_gate.py、tests/nodes/ | 验收: 每轮审查 round 递增；修订无法修复时达上限转人工而非撞 recursion_limit；全图闭环测试
+- [ ] T205: 红线 REJECT 决定书可经坐席 confirm 原样签发（I2，含 S5 工单原因） | 依赖: T204 | 涉及文件: nodes/human_gate.py、nodes/compliance_gate.py、tests/ | 验收: confirm 签发前复审既有正文红线，命中拒绝签发；REJECT 转人工工单带原因
+- [ ] T206: not_covered 风险/置信度豁免 + LLM 路由缺高风险守卫（I3，方案 A） | 依赖: T205 | 涉及文件: nodes/auto_adjudicate.py、nodes/guards.py、evals/datasets/、tests/ | 验收: 风险非低或置信度不足的拒赔转人工；enforce_guards risk=high 强制 human_gate；补金样本；六门全绿
+- [ ] T207: ClaimsHistoryTool._arun 必然 TypeError（I4） | 依赖: T206 | 涉及文件: tools/fraud/history.py、tests/tools/ | 验收: 经 ainvoke 的工具级测试通过
+- [ ] T208: 交付队列 _finish/_retry 缺持有者栅栏（I5） | 依赖: T207 | 涉及文件: services/case_job_worker.py、tests/ | 验收: WHERE 补 locked_by/status 栅栏；rowcount=0 告警；接管后原实例 finish 不生效测试
+- [ ] T209: 补件多文件上传竞态致材料永不进入核赔（I6） | 依赖: T208 | 涉及文件: nodes/human_gate.py、tests/ | 验收: 补件恢复以 cases.materials 为单源重建 state.materials（去重）；后传材料可见
+- [ ] T210: 金额一致性断言只校验第一处核定金额（I7） | 依赖: T209 | 涉及文件: services/decision_doc.py、tests/ | 验收: 全部"核定金额"匹配逐一断言；叙述夹带矛盾金额 → MODIFY
+- [ ] T211: 坐席改判金额无约束 + falsy 吞 0 元（I8） | 依赖: T210 | 涉及文件: schemas/api.py、services/case_service.py、nodes/human_gate.py、tests/ | 验收: approved_amount ge=0/max_digits；改判 0 元落库为 0
+- [ ] T212: 案件详情 timeline 全量外泄内部审计事件（I9） | 依赖: T211 | 涉及文件: app/api/v1/cases.py、tests/ | 验收: 门户通道按 kind 白名单投影；job error 仅坐席可见
+- [ ] T213: 上传链路四连（I10） | 依赖: T212 | 涉及文件: app/api/v1/cases.py、tests/ | 验收: 分块读超限即断；上传限流；响应剔除 storage_path；doc_type 校验先于提取
+- [ ] T214: 工具缓存明文写 PII（I11） | 依赖: T213 | 涉及文件: app/core/config.py、.env.example、tests/ | 验收: 含 PII 工具移出默认缓存白名单
+- [ ] T215: 坐席 Key 打进浏览器 bundle（I12，HttpOnly Cookie） | 依赖: T214 | 涉及文件: workbench/ | 验收: bundle 不含 Key；middleware 注入 X-Staff-Key；npm build 通过
+- [ ] T216: compose 演示默认值绕过 prod 门卫（I13） | 依赖: T215 | 涉及文件: app/core/config.py、tests/core/ | 验收: prod 拒绝已知 demo 弱值启动
+- [ ] T217: 数据服务暴露 + Redis 无密码 + Grafana 匿名 Admin（I14） | 依赖: T216 | 涉及文件: docker-compose*.yml、.env.example | 验收: 数据服务仅绑 127.0.0.1；Grafana 匿名降 Viewer；`docker compose config` 通过
+- [ ] T218: .dockerignore 缺口（I15） | 依赖: T217 | 涉及文件: .dockerignore | 验收: 前端目录/简历/日志/面试记录不入构建上下文
