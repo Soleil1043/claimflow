@@ -11,6 +11,7 @@ import pytest
 from evals.adjudication_metrics import (
     aggregate,
     amount_match,
+    case_type_match,
     liability_match,
     load_adjudication_dataset,
     route_match,
@@ -23,10 +24,12 @@ DATASET_PATH = Path(__file__).resolve().parents[2] / "evals" / "datasets" / "adj
 
 
 def _case(route="auto", liability="covered", amount="4640.00",
-          category="normal", sequence=None, case_type="medical") -> AdjudicationCase:
+          category="normal", sequence=None, case_type="medical",
+          declared_case_type="medical") -> AdjudicationCase:
     return AdjudicationCase(
         case_id="C1", user_id="u", policy_no="P", claimed_amount="15800.00",
         incident_date="2026-08-10", incident_description="x",
+        declared_case_type=declared_case_type,
         expected=AdjudicationExpected(
             category=category, route=route, liability=liability,
             approved_amount=amount,
@@ -79,10 +82,48 @@ def test_amount_match_decimal_exact() -> None:
     assert amount_match(_case(amount=None).expected, _outcome(amount=None))
 
 
+def test_amount_match_auto_missing_observation_fails() -> None:
+    """I17：期望 auto 有金额时，观测缺失（如被错误转人工）判错，不再判对。"""
+    expected = _case(amount="4640.00").expected
+    assert not amount_match(expected, _outcome(amount=None))
+    assert not amount_match(expected, _outcome(amount=""))  # extract_outcome 空串口径
+
+
+def test_amount_match_auto_parse_failure_fails() -> None:
+    """I17：期望 auto 有金额时，观测金额格式坏（无法 Decimal）判错。"""
+    expected = _case(amount="4640.00").expected
+    assert not amount_match(expected, _outcome(amount="4,640 元"))
+
+
+def test_amount_match_non_auto_missing_observation_lenient() -> None:
+    """非 auto 期望路由：interrupt 路径不观测金额，观测缺失维持不计分。"""
+    expected = _case(route="human", amount="9000.00").expected
+    assert amount_match(expected, _outcome(amount=None, liability=None))
+
+
 def test_liability_match() -> None:
     expected = _case(liability="not_covered").expected
     assert liability_match(expected, _outcome(liability="not_covered"))
     assert not liability_match(expected, _outcome(liability="covered"))
+
+
+def test_liability_match_auto_missing_observation_fails() -> None:
+    """I17：期望 auto 有责任结论时，观测缺失（被错误转人工中断）判错。"""
+    expected = _case(liability="covered").expected
+    assert not liability_match(expected, _outcome(liability=None))
+    # 非 auto 期望路由维持不计分口径
+    assert liability_match(_case(route="human").expected, _outcome(liability=None))
+
+
+def test_case_type_match_auto_missing_observation_fails() -> None:
+    """I17：已声明险种且期望 auto 时，观测险种缺失判错；非 auto 维持不计分。"""
+    case_auto = _case()
+    assert not case_type_match(case_auto, _outcome(case_type=None))
+    assert not case_type_match(case_auto, _outcome(case_type=""))  # extract_outcome 空串口径
+    case_human = _case(route="human")
+    assert case_type_match(case_human, _outcome(case_type=None))
+    # 未声明险种 → 不计分
+    assert case_type_match(_case(declared_case_type=None), _outcome(case_type=None))
 
 
 def test_sequence_contained_subsequence() -> None:

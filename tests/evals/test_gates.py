@@ -65,17 +65,39 @@ def test_soft_gate_route_boundary() -> None:
     assert overall_passed(gates) is True  # 软门不阻断，硬门仍全绿
 
 
-def test_error_cases_excluded_from_amount_denominator() -> None:
-    """error 案件不进金额门分母（与 T089 口径一致：错误单列不误伤硬门）。"""
-    results = [_result(), _result(case_id="ERR", error="boom")]
+def test_error_cases_count_in_amount_denominator() -> None:
+    """错误案计入金额硬门分母（I16）：错误行 checks.amount=False → 拉低正确率。
+
+    旧行为（剔除错误案 + 空分母恒满分）会让"auto 案全部抛异常"的回归
+    在金额门全绿下合并——修复后一例错误即挂硬门。
+    """
+    results = [_result(), _result(case_id="ERR", amount=False, error="boom")]
     gates = evaluate_gates(results, red_line_leaks=0, guard_bypasses=0)
-    assert gates["amount_accuracy"]["value"] == 1.0
+    assert gates["amount_accuracy"]["value"] == 0.5
+    assert gates["amount_accuracy"]["passed"] is False
+    assert overall_passed(gates) is False
+
+
+def test_all_auto_errored_denominator_not_empty() -> None:
+    """全部 auto 案崩溃：分母非空、正确率 0（不再空分母恒满分）。"""
+    results = [_result(case_id=f"ERR{i}", amount=False, error="boom") for i in range(3)]
+    gates = evaluate_gates(results, red_line_leaks=0, guard_bypasses=0)
+    assert gates["amount_accuracy"]["value"] == 0.0
+    assert overall_passed(gates) is False
 
 
 def test_budget_gate_over_limit() -> None:
     gates = evaluate_gates([_result(routing_calls=16)], red_line_leaks=0, guard_bypasses=0)
     assert gates["max_routing_calls"]["passed"] is False
     assert gates["max_routing_calls"]["type"] == "budget"
+
+
+def test_budget_gate_counts_errored_case_routing_calls() -> None:
+    """错误行携带的 routing_calls 计入预算门（I16：崩溃案不再默认 0 逃逸）。"""
+    results = [_result(), _result(case_id="ERR", routing_calls=16, error="boom")]
+    gates = evaluate_gates(results, red_line_leaks=0, guard_bypasses=0)
+    assert gates["max_routing_calls"]["value"] == 16
+    assert gates["max_routing_calls"]["passed"] is False
 
 
 def test_non_auto_cases_not_in_amount_denominator() -> None:

@@ -27,8 +27,13 @@ def evaluate_gates(
 
     results：score_case 产物列表（含 checks/expected_route/routing_calls/error 键）。
     返回 {门名: {value, threshold, passed, type}}；type ∈ hard|soft|budget。
+
+    错误案（执行异常的 error_result 行）计入金额硬门分母（I16）：其
+    checks.amount=False，即"运行出错 = 金额不正确"。此前错误案被剔除出
+    分母、空分母恒满分——一次让 auto 案全部抛异常的回归（如理算改挂）可
+    在本门全绿下合并。分母为空的唯一合法情形：数据集本身无 auto 期望案。
     """
-    auto_cases = [r for r in results if r["expected_route"] == "auto" and not r["error"]]
+    auto_cases = [r for r in results if r["expected_route"] == "auto"]
     amount_correct = sum(1 for r in auto_cases if r["checks"]["amount"])
     amount_accuracy = amount_correct / len(auto_cases) if auto_cases else 1.0
 

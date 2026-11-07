@@ -199,18 +199,25 @@ def extract_outcome(graph: Any, config: dict, result: dict, state: dict) -> Adju
     from schemas.stages import STAGE_CHANNELS, WORKER_TARGETS
 
     worker_sequence = [str(w) for w in WORKER_TARGETS if state.get(STAGE_CHANNELS[w]) is not None]
+    # approved_amount 用 is None 判空保真：拒赔案核定 Decimal("0.00") 是 falsy，
+    # `or ""` 会吞成空串（T200：旧宽松判分把 0 元观测判"对"掩盖了这一失真）
+    approved = state.get("approved_amount")
     return AdjudicationOutcome(
         route=route,
         final_decision=state.get("final_decision"),
-        approved_amount=str(state.get("approved_amount") or ""),
+        approved_amount="" if approved is None else str(approved),
         liability_verdict=str((state.get("liability") or {}).get("verdict") or ""),
         case_type=str(state.get("case_type") or ""),
         worker_sequence=worker_sequence,
     )
 
 
-def error_result(case: Any, error: str) -> dict[str, Any]:
-    """执行异常的结果行（各判 false，错误入列）。"""
+def error_result(case: Any, error: str, routing_calls: int = 0) -> dict[str, Any]:
+    """执行异常的结果行（各判 false，错误入列）。
+
+    routing_calls：异常前实际发生的调度次数（调用方尽力从 checkpoint 回读，
+    I16——错误行缺该键会让预算门 .get(..., 0) 默认 0 逃过检查）。
+    """
     return {
         "case_id": case.case_id,
         "category": case.expected.category,
@@ -224,6 +231,7 @@ def error_result(case: Any, error: str) -> dict[str, Any]:
             "sequence": False,
         },
         "matched": False,
+        "routing_calls": routing_calls,
         "error": error,
     }
 

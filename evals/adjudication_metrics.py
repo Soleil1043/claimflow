@@ -52,25 +52,40 @@ def route_match(expected: AdjudicationExpected, outcome: AdjudicationOutcome) ->
 
 
 def amount_match(expected: AdjudicationExpected, outcome: AdjudicationOutcome) -> bool:
-    """金额精确一致（Decimal，到分）；期望未标注或观测失败 → True（不算金额错）。"""
-    if not expected.approved_amount or not outcome.approved_amount:
+    """金额精确一致（Decimal，到分）。
+
+    - 期望未标注 → True（不计分）
+    - 期望已标注且期望路由为 auto → 观测必须存在且精确匹配；观测缺失
+      （如被错误转人工）/解析失败一律判 False（I17：缺失≠正确）
+    - 期望路由非 auto（human/supplement）→ interrupt 路径不观测金额，
+      观测缺失维持不计分口径
+    """
+    if not expected.approved_amount:
         return True
+    if not outcome.approved_amount:
+        return expected.route != "auto"
     try:
         return Decimal(outcome.approved_amount) == Decimal(expected.approved_amount)
     except Exception:
-        return True
+        return expected.route != "auto"
 
 
 def liability_match(expected: AdjudicationExpected, outcome: AdjudicationOutcome) -> bool:
-    if expected.liability is None or outcome.liability_verdict is None:
+    """责任结论一致；期望已标注且期望路由为 auto 时观测缺失判 False（I17）。"""
+    if expected.liability is None:
         return True
+    if outcome.liability_verdict is None:
+        return expected.route != "auto"
     return expected.liability == outcome.liability_verdict
 
 
 def case_type_match(case: AdjudicationCase, outcome: AdjudicationOutcome) -> bool:
-    if not outcome.case_type:
+    """险种分类一致；已声明险种且期望路由为 auto 时观测缺失判 False（I17）。"""
+    if not case.declared_case_type:
         return True
-    return outcome.case_type == case.declared_case_type if case.declared_case_type else True
+    if not outcome.case_type:
+        return case.expected.route != "auto"
+    return outcome.case_type == case.declared_case_type
 
 
 def sequence_contained(expected: list[str], actual: list[str]) -> bool:

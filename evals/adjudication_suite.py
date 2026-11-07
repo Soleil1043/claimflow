@@ -151,8 +151,17 @@ async def _run_suite(
                     result = await graph.ainvoke(body, config)
                 state = graph.get_state(config).values
             except Exception as exc:  # noqa: BLE001
+                # 异常前已发生的调度次数：尽力从 checkpoint 回读（崩溃案不再让
+                # 预算门以默认 0 逃逸，I16）；回读失败退 0，错误行仍可见
+                crashed_routing_calls = 0
+                try:
+                    crashed_routing_calls = int(
+                        graph.get_state(config).values.get("routing_calls") or 0
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
                 return (
-                    error_result(case, str(exc)[:300])
+                    error_result(case, str(exc)[:300], routing_calls=crashed_routing_calls)
                     | {
                         "duration_s": round(time.perf_counter() - started, 2),
                         "tokens": acc.tokens if acc else 0,

@@ -3135,3 +3135,36 @@ rules.yml YAML 解析 + 四规则 expr 指标名与 metrics.py 全量比对零�
 **范围**：仅将 v30_kami 各大栏目之间的统一留白由 2.2mm 增至 6mm，正文 10pt、栏目内行距、文字和照片保持不变。重新生成同名 HTML 与 PDF。
 
 **验证**：Kami `--deliver` 为 READY（0 errors、2 warnings：纯白超默认色板是用户要求，第二页留白继承原稿篇幅）；两页逐页目视检查教育背景、项目经历、实习经历、技能特长和个人综述的分隔更清楚，未出现裁切、重叠或孤行。HTML 的 36 段与 v30 DOCX 逐字一致，照片字节一致，背景像素为纯白。未改业务代码，未重跑 pytest。
+
+## T200 · 评测门安全网修复 I16+I17（2026-11-07）
+
+**背景**：docs/code-review-2026-11-07.md 立即层首项——评测门是其余所有修复的
+回归安全网，先修门再修业务。
+
+**I16（错误案逃逸硬门分母）**：
+1. gates.py：`auto_cases` 过滤条件删掉 `not r["error"]`——错误行
+   checks.amount=False 计入金额硬门分母，"auto 案全部抛异常仍六门全绿"
+   的空分母漏洞关闭（分母为空的唯一合法情形=数据集无 auto 期望案）
+2. error_result 增 routing_calls 键；suite 异常分支从 checkpoint 尽力回读
+   崩溃前调度次数——预算门 `.get(routing_calls, 0)` 默认 0 逃逸关闭
+3. 旧行为有测试固化（test_error_cases_excluded_from_amount_denominator
+   "错误单列不误伤硬门"），改为三条新测试：错误案拉低正确率、全错分母
+   非空值 0.0、错误行预算超限挂预算门
+
+**I17（观测缺失/解析失败判"对"）**：amount_match/liability_match/
+case_type_match 三判分收紧——期望已标注且期望路由为 auto 时，观测缺失
+（如被错误转人工中断）或金额无法 Decimal 解析一律判 False；非 auto 期望
+路由维持"interrupt 路径不观测 → 不计分"口径（human/supplement 案观测
+None 是观测方式限制而非系统失败，不受此收紧影响）。
+
+**连带发现并修复（extract_outcome falsy-zero）**：I17 收紧后主门暴露 35
+条 route 对但金额判错的隐性失配（rejected 类为主）——根因是
+`str(state.get("approved_amount") or "")` 把拒赔案核定 Decimal("0.00")
+（falsy）吞成空串，旧宽松判分把"0 元观测缺失"判"对"掩盖多年。观测层改
+`is None` 判空保真后 35 条全部归零，主门回到六门全绿 + 100% 一致率。
+这与 I8（坐席改判 0 元被 or 链吞掉）同款 falsy-zero 病理。
+
+**验证**：`uv run python -m evals.adjudication_suite`（153 案确定性）六门
+全绿总一致率 100%；`--dataset adversarial`（8 案）六门全绿；`uv run
+pytest -q` 637 passed（628 基线 + 新增 9：gates 3 + 判分 5 + error_result
+2，净 +9）；ruff 干净。
