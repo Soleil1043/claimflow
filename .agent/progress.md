@@ -3194,3 +3194,43 @@ falsy-zero（改判 0 元回退旧金额）属 I8，留本迭代批次；confirm
 首次有单测）+ API 拒赔改判端到端 1 条；stash 修复后对照旧代码 5 条挂
 （正是三条翻转路径 + 显式入参 + API），恢复修复后 15/15 过。`uv run pytest
 -q` 645 passed；主门 153 案 + 对抗门 8 案六门全绿；ruff 干净。
+
+## T202 · 客服查案属主授权 C2（2026-11-07）
+
+**背景**：case_status_query 仅凭 case_id 读库，返回金额/结论/补件缺口等敏感
+快照；建会话零鉴权、案件号顺序可枚举——匿名访客经客服对话即可批量爬全库，
+绕过 T171 为 REST 通道建立的令牌体系。
+
+**方案**：用户在"请求级授权"与"会话持久绑定"中选定后者（D088）。
+1. 新表 support_case_grants（唯一约束 conversation_id+case_id，幂等）+ 迁移
+   c9e1f5a3d7b2
+2. 授权端点 `POST /support/conversations/{id}/case-grants`：令牌校验抽成单源
+   谓词 `portal_case_access_allowed`（REST verify_case_access 同步改用，两通道
+   不可漂移）；不存在与令牌错同回 401
+3. 工具属主断言：会话 id 经 `services/support/context.py` contextvar 作用域
+   （reply / reply_stream 执行期设置）传入，不交给 LLM；作用域外 fail-closed；
+   不存在与未授权同一失败话术（无枚举 oracle），话术引导客户去详情页咨询；
+   dev 开放态与 REST 同口径放行（`portal_access_open` 单源）
+4. 建会话与授权端点补 rate_limit（复用 rate_limit_support_per_min）
+5. chatui 气泡：在 /cases/{id} 页打开客服即凭 path 级令牌 cookie 授权，发送前
+   等待授权落地（AI 首问即可查到）；失败静默、可重试
+6. 客服评测 support_suite 为每会话授权两枚已知种子案——安全模式下评测口径
+   不变（dev 开放态无副作用）
+
+**验证**：tests/support/test_case_grants.py 8 条（作用域外 fail-closed / 未授权
+与不存在同口径 / 授权与他会话隔离 / dev 开放态 / 幂等 / 作用域复位 / Agent
+内 ToolNode 传播授权与否两态）+ API 5 条（授权成功与幂等 / 错令牌与不存在
+同 401 / 未知会话 404 / SSE 路径授权后真实读库 / 未授权会话读不到——C2 原始
+攻击路径）；stash 新工具对照旧代码 5 条安全断言挂。3 条既有测试按预期更新
+（两处全表清单加新表、旧错误话术）。`uv run pytest -q` 658 passed；ruff
+干净；chatui `npm run build` 通过。
+
+**迁移验证**：从零 SQLite `alembic upgrade head` 在 d7f4b8c2a9e1 之后的既有
+迁移就会因"SQLite 不支持 ALTER constraint"失败（**存量问题**，非本任务引入；
+dev 走 create_all，alembic 面向 prod PostgreSQL）。故改为隔离验证：create_all
+建出父修订 b4d6f8a2c7e9 的表集 → stamp → upgrade → downgrade → upgrade 往返
+通过，生成表结构/唯一约束/索引名与 ORM 一致。PostgreSQL 上的实跑留给 CI
+docker 冒烟 job。
+
+**文档**：architecture.md §12 表数 12→13 + 新表行；AGENTS.md 结构图 models
+表数 11→13（顺带纠正 S18 所述旧口径漂移）。

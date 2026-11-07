@@ -53,6 +53,7 @@ async def test_all_tables_created(db_session) -> None:
         "case_id_counters",
         "support_conversations",
         "support_messages",
+        "support_case_grants",
     }
     for table in Base.metadata.tables.values():
         # 每张表均可查询（空表 select 即验证表结构已创建）

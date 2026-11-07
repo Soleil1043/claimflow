@@ -7,6 +7,8 @@
                                                             escalated 态只落消息，坐席应答）
 - POST /api/v1/support/conversations/{id}/messages/stream  客户发消息（SSE 流式 AI
                                                             应答，T180/D085）
+- POST /api/v1/support/conversations/{id}/case-grants      授权本会话查询某案件
+                                                            （凭案件令牌，T202/D088）
 
 ai 态走流式或请求-响应任选（escalated 留言仅后者——无可流）；坐席侧工单端点见 T135。
 """
@@ -17,11 +19,14 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import rate_limit, require_staff
+from app.api.dependencies import get_db_session, rate_limit, require_staff
 from app.core.exceptions import SupportStateError
 from app.core.logging import get_logger
 from schemas.api import (
+    SupportCaseGrantRequest,
+    SupportCaseGrantResponse,
     SupportConversationCreateResponse,
     SupportConversationStatusResponse,
     SupportMessageListResponse,
@@ -36,6 +41,8 @@ from schemas.api import (
     SupportTicketReplyRequest,
     SupportTicketReplyResponse,
 )
+from services.case_service import portal_case_access_allowed
+from services.db.models import Case
 from services.support import store
 from services.support.agent import reply as agent_reply
 from services.support.agent import reply_stream as agent_reply_stream
@@ -56,6 +63,10 @@ async def _get_conversation_or_404(conversation_id: str):
     "/conversations",
     response_model=SupportConversationCreateResponse,
     status_code=status.HTTP_201_CREATED,
+    # 建会话限流（T202，C2）：匿名端点，防批量建会话刷 LLM 成本
+    dependencies=[
+        Depends(rate_limit("support_conversations", "rate_limit_support_per_min"))
+    ],
 )
 async def create_conversation() -> SupportConversationCreateResponse:
     """建客服会话（状态 ai）。"""
@@ -63,6 +74,30 @@ async def create_conversation() -> SupportConversationCreateResponse:
     return SupportConversationCreateResponse(
         conversation_id=conv.id, status=conv.status, created_at=conv.created_at
     )
+
+
+@router.post(
+    "/conversations/{conversation_id}/case-grants",
+    response_model=SupportCaseGrantResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit("support_grants", "rate_limit_support_per_min"))],
+)
+async def grant_conversation_case(
+    conversation_id: str,
+    body: SupportCaseGrantRequest,
+    session: AsyncSession = Depends(get_db_session),  # noqa: B008
+) -> SupportCaseGrantResponse:
+    """授权本会话查询某案件（T202，D088）：门户在案件详情页凭创建回执令牌调用。
+
+    校验口径与 REST 详情同源（portal_case_access_allowed）。案件不存在与令牌
+    错误同回 401——不给枚举 oracle。幂等：重复授权同一案件结果不变。
+    """
+    await _get_conversation_or_404(conversation_id)
+    case = await session.get(Case, body.case_id)
+    if case is None or not portal_case_access_allowed(case, body.case_token or None):
+        raise HTTPException(status_code=401, detail="无权授权该案件（需有效的案件访问令牌）")
+    await store.grant_case(conversation_id, case.id)
+    return SupportCaseGrantResponse(conversation_id=conversation_id, case_id=case.id)
 
 
 @router.get(

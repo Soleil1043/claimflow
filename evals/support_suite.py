@@ -148,6 +148,11 @@ async def _run_suite(limit: int | None, out_path: str | None) -> int:
         results: list[dict[str, Any]] = []
         for case in cases:
             conv = await store.create_conversation()
+            # 查案授权（T202，D088）：模拟客户已在门户详情页授权本人已知案件——
+            # staff_keys 配置的安全模式下 case_status_query 只查已授权案件；
+            # dev 开放态下授权行无副作用，两种模式评测口径一致
+            for seed in SEED_CASES:
+                await store.grant_case(conv.id, seed["id"])
             started = time.perf_counter()
             rag_sources: list[str] = []
             try:

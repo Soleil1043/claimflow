@@ -1,7 +1,8 @@
 """数据库 ORM 模型（SQLAlchemy 2.0 声明式）。
 
-业务表共 11 张：核赔域 4 张（cases/case_events/decision_documents/case_jobs）+
-客服域 2 张（support_conversations/support_messages，T132）+ mock/支撑 5 张
+业务表共 13 张：核赔域 5 张（cases/case_events/decision_documents/case_jobs/
+case_id_counters）+ 客服域 3 张（support_conversations/support_messages，T132；
+support_case_grants，T202）+ mock/支撑 5 张
 （policies/medical_records/claim_records/kb_documents/eval_runs）。
 LangGraph checkpoint 表由 PostgreSQLSaver 自管，不在此建模（D006）。
 
@@ -378,3 +379,27 @@ class SupportMessage(Base):
 
     def __repr__(self) -> str:
         return f"<SupportMessage {self.id} conv={self.conversation_id[:8]}… {self.role}>"
+
+
+class SupportCaseGrant(Base):
+    """客服会话 → 案件查询授权（T202，D088）：客服查案属主校验的唯一依据。
+
+    门户在案件详情页凭创建回执令牌（X-Case-Token 同款）调授权端点，校验
+    cases.access_token_hash 通过后落一行；case_status_query 只查本会话已授权
+    的案件。令牌本身不落库（库内仍只有 cases 上的哈希）。
+    """
+
+    __tablename__ = "support_case_grants"
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "case_id", name="uq_support_grant_conv_case"),
+    )
+
+    id: Mapped[int] = mapped_column(_autoincrement_id(), primary_key=True, autoincrement=True)
+    conversation_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("support_conversations.id"), index=True
+    )
+    case_id: Mapped[str] = mapped_column(String(64), ForeignKey("cases.id"))
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, server_default=func.now())
+
+    def __repr__(self) -> str:
+        return f"<SupportCaseGrant conv={self.conversation_id[:8]}… case={self.case_id}>"

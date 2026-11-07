@@ -25,6 +25,7 @@ from services.db.models import SupportMessage
 from services.llm.client import get_chat_model
 from services.llm.prompts import SUPPORT_AGENT_PROMPT
 from services.support import store
+from services.support.context import conversation_scope
 from tools.factory import get_default_tool_map
 
 log = get_logger(__name__)
@@ -172,10 +173,12 @@ async def reply(conversation_id: str, user_message: str) -> str:
     agent = get_support_agent()
     new_messages: list[BaseMessage] = []
     try:
-        result = await agent.ainvoke(
-            {"messages": replay},
-            config={"recursion_limit": _RECURSION_LIMIT},
-        )
+        # 会话作用域（T202/D088）：case_status_query 据此做本会话授权断言
+        with conversation_scope(conversation_id):
+            result = await agent.ainvoke(
+                {"messages": replay},
+                config={"recursion_limit": _RECURSION_LIMIT},
+            )
         new_messages = list(result["messages"])
     except GraphRecursionError:
         log.warning("support_agent_recursion_limit_hit", conversation_id=conversation_id)
@@ -205,20 +208,22 @@ async def reply_stream(conversation_id: str, user_message: str):
     ai_messages: list[BaseMessage] = []
     try:
         agent = get_support_agent()
-        async for ev in agent.astream_events(
-            {"messages": replay},
-            version="v2",
-            config={"recursion_limit": _RECURSION_LIMIT},
-        ):
-            if ev["event"] == "on_chat_model_stream":
-                chunk = (ev.get("data") or {}).get("chunk")
-                text = getattr(chunk, "content", "")
-                if isinstance(text, str) and text:
-                    yield ("token", text)
-            elif ev["event"] == "on_chat_model_end":
-                output = (ev.get("data") or {}).get("output")
-                if isinstance(output, AIMessage):
-                    ai_messages.append(output)
+        # 会话作用域（T202/D088）：覆盖整个事件流，流内工具调用可见当前会话 id
+        with conversation_scope(conversation_id):
+            async for ev in agent.astream_events(
+                {"messages": replay},
+                version="v2",
+                config={"recursion_limit": _RECURSION_LIMIT},
+            ):
+                if ev["event"] == "on_chat_model_stream":
+                    chunk = (ev.get("data") or {}).get("chunk")
+                    text = getattr(chunk, "content", "")
+                    if isinstance(text, str) and text:
+                        yield ("token", text)
+                elif ev["event"] == "on_chat_model_end":
+                    output = (ev.get("data") or {}).get("output")
+                    if isinstance(output, AIMessage):
+                        ai_messages.append(output)
     except GraphRecursionError:
         log.warning("support_agent_recursion_limit_hit", conversation_id=conversation_id)
         yield ("token", _RECURSION_FALLBACK)

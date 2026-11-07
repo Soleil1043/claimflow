@@ -405,3 +405,165 @@ class TestStreamMessages:
             json={"content": "你好"},
         )
         assert resp.status_code == 409
+
+
+# ---------- 客服查案属主授权（T202，D088/C2） ----------
+
+_GRANT_STAFF_KEYS = "alice:key-alice-123"
+
+
+async def _seed_portal_case(case_id: str = "CASE-2026-0101") -> str:
+    """种子：带门户令牌哈希的案件，返回明文令牌。"""
+    import datetime as dt
+    from decimal import Decimal
+
+    from services.case_service import generate_access_token
+    from services.db.models import Case
+
+    token, token_hash = generate_access_token()
+    async with session_module.get_session_factory()() as s:
+        s.add(
+            Case(
+                id=case_id,
+                user_id="u-grant",
+                policy_no="POL-2025-0001",
+                case_type="medical",
+                status="closed",
+                claimed_amount=Decimal("15800.00"),
+                incident_date=dt.date(2026, 8, 10),
+                incident_description="急性阑尾炎住院",
+                access_token_hash=token_hash,
+            )
+        )
+        await s.commit()
+    return token
+
+
+class TestCaseGrants:
+    """授权端点：令牌校验与 REST 同源；不存在与令牌错同回 401（无枚举 oracle）。"""
+
+    @pytest.fixture(autouse=True)
+    def _secure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "staff_keys", _GRANT_STAFF_KEYS)
+
+    async def test_valid_token_grants(self, client) -> None:
+        ac, _ = client
+        conv_id = await _create(ac)
+        token = await _seed_portal_case()
+        resp = await ac.post(
+            f"/api/v1/support/conversations/{conv_id}/case-grants",
+            json={"case_id": "CASE-2026-0101", "case_token": token},
+        )
+        assert resp.status_code == 201
+        assert resp.json() == {"conversation_id": conv_id, "case_id": "CASE-2026-0101"}
+        assert await store.case_granted(conv_id, "CASE-2026-0101") is True
+        # 幂等：重复授权仍 201
+        again = await ac.post(
+            f"/api/v1/support/conversations/{conv_id}/case-grants",
+            json={"case_id": "CASE-2026-0101", "case_token": token},
+        )
+        assert again.status_code == 201
+
+    async def test_wrong_token_and_missing_case_same_401(self, client) -> None:
+        ac, _ = client
+        conv_id = await _create(ac)
+        await _seed_portal_case()
+        wrong = await ac.post(
+            f"/api/v1/support/conversations/{conv_id}/case-grants",
+            json={"case_id": "CASE-2026-0101", "case_token": "forged"},
+        )
+        missing = await ac.post(
+            f"/api/v1/support/conversations/{conv_id}/case-grants",
+            json={"case_id": "CASE-9999-0000", "case_token": "forged"},
+        )
+        assert wrong.status_code == missing.status_code == 401
+        assert wrong.json() == missing.json()
+        assert await store.case_granted(conv_id, "CASE-2026-0101") is False
+
+    async def test_unknown_conversation_404(self, client) -> None:
+        ac, _ = client
+        token = await _seed_portal_case()
+        resp = await ac.post(
+            "/api/v1/support/conversations/nope/case-grants",
+            json={"case_id": "CASE-2026-0101", "case_token": token},
+        )
+        assert resp.status_code == 404
+
+    async def test_stream_path_granted_tool_reads_case(self, client, monkeypatch) -> None:
+        """SSE 路径：授权后 AI 调 case_status_query 真实读库（作用域贯穿事件流）。"""
+        import tools.claim.case_status as cs_module
+
+        ac, set_script = client
+        conv_id = await _create(ac)
+        token = await _seed_portal_case()
+        await ac.post(
+            f"/api/v1/support/conversations/{conv_id}/case-grants",
+            json={"case_id": "CASE-2026-0101", "case_token": token},
+        )
+        reads: list[str] = []
+        real_snapshot = cs_module.case_progress_snapshot
+
+        async def spy(cid: str):
+            reads.append(cid)
+            return await real_snapshot(cid)
+
+        monkeypatch.setattr(cs_module, "case_progress_snapshot", spy)
+        set_script(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "case_status_query",
+                            "args": {"case_id": "CASE-2026-0101"},
+                            "id": "q1",
+                            "type": "tool_call",
+                        }
+                    ],
+                ),
+                AIMessage(content="您的案件已结案。"),
+            ]
+        )
+        resp = await ac.post(
+            f"/api/v1/support/conversations/{conv_id}/messages/stream",
+            json={"content": "查一下 CASE-2026-0101"},
+        )
+        assert resp.status_code == 200
+        assert '"type": "done"' in resp.text
+        assert reads == ["CASE-2026-0101"]
+
+    async def test_ungranted_conversation_cannot_read_case(self, client, monkeypatch) -> None:
+        """匿名会话未授权：AI 调工具也读不到案件（C2 原始攻击路径）。"""
+        import tools.claim.case_status as cs_module
+
+        ac, set_script = client
+        conv_id = await _create(ac)
+        await _seed_portal_case()
+        reads: list[str] = []
+        monkeypatch.setattr(
+            cs_module, "case_progress_snapshot", lambda cid: reads.append(cid)  # type: ignore[arg-type]
+        )
+        set_script(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "case_status_query",
+                            "args": {"case_id": "CASE-2026-0101"},
+                            "id": "q1",
+                            "type": "tool_call",
+                        }
+                    ],
+                ),
+                AIMessage(content="请在案件详情页发起咨询。"),
+            ]
+        )
+        resp = await ac.post(
+            f"/api/v1/support/conversations/{conv_id}/messages",
+            json={"content": "查一下 CASE-2026-0101"},
+        )
+        assert resp.status_code == 200
+        assert reads == []

@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import { getCaseAccessToken } from "@/lib/case-api";
 import {
   createSupportConversation,
   getSupportConversation,
+  grantSupportCase,
   listSupportMessages,
   sendSupportMessage,
   streamSupportMessage,
@@ -14,6 +17,9 @@ import {
 
 /** 会话 id 在浏览器侧的持久化键（跨刷新恢复客服对话）。 */
 const STORAGE_KEY = "cf_support_conversation_id";
+
+/** 案件详情页路径 → 案件编号（门户令牌 cookie 仅在该路径可见，T171）。 */
+const CASE_PATH_RE = /^\/cases\/([^/]+)/;
 
 const ROLE_LABEL: Record<string, string> = {
   assistant: "AI 客服",
@@ -29,8 +35,11 @@ const ROLE_LABEL: Record<string, string> = {
  *   关闭事件（有意取舍：坐席响应时序不定，SSE 长连接管理成本高于收益）
  * - closed 态：终态只读，可一键开新会话
  * - AI 消息以 Markdown 渲染（claim_draft_link 预填链接可直接点击跳转表单）
+ * - 查案授权（T202，D088）：在案件详情页打开客服时，凭该案令牌 cookie 授权
+ *   本会话查询该案；授权完成前发送的首条消息会等待授权，保证 AI 首次查询可见
  */
 export default function SupportBubble() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [convId, setConvId] = useState<string | null>(null);
   const [status, setStatus] = useState<SupportStatus>("ai");
@@ -41,6 +50,31 @@ export default function SupportBubble() {
   const [error, setError] = useState("");
   const convRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  // 已发起的授权（`${会话}:${案件}` → 请求 Promise）：去重，并供发送前等待
+  const grantsRef = useRef<Map<string, Promise<void>>>(new Map());
+
+  /** 当前在案件详情页且持有该案令牌时，授权本会话查询该案（幂等、失败静默）。 */
+  const ensureCaseGrant = useCallback(
+    (id: string): Promise<void> => {
+      const match = pathname ? CASE_PATH_RE.exec(pathname) : null;
+      const token = match ? getCaseAccessToken() : null;
+      if (!match || !token) return Promise.resolve();
+      const caseId = decodeURIComponent(match[1]);
+      const key = `${id}:${caseId}`;
+      let pending = grantsRef.current.get(key);
+      if (!pending) {
+        pending = grantSupportCase(id, caseId, token).then(
+          () => undefined,
+          () => {
+            grantsRef.current.delete(key); // 失败允许下次重试；AI 侧会引导用户
+          }
+        );
+        grantsRef.current.set(key, pending);
+      }
+      return pending;
+    },
+    [pathname]
+  );
 
   const refresh = useCallback(async (id: string) => {
     const [conv, history] = await Promise.all([
@@ -97,6 +131,11 @@ export default function SupportBubble() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, sending]);
 
+  // 打开客服且位于案件详情页：授权本会话查询该案（导航到其他案件页会再授权该案）
+  useEffect(() => {
+    if (open && convId) void ensureCaseGrant(convId);
+  }, [open, convId, ensureCaseGrant]);
+
   async function onToggle() {
     const next = !open;
     setOpen(next);
@@ -130,6 +169,8 @@ export default function SupportBubble() {
     ]);
     setSending(true);
     setError("");
+    // 授权先于首问落地：AI 本轮若调 case_status_query，服务端已有授权行
+    await ensureCaseGrant(id);
 
     if (status === "ai") {
       // ai 态：SSE 流式回复（T180）——token 逐段渲染，done 后整体刷新校准

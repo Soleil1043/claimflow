@@ -15,11 +15,12 @@ import datetime as dt
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import SupportStateError
 from app.core.logging import get_logger
-from services.db.models import SupportConversation, SupportMessage
+from services.db.models import SupportCaseGrant, SupportConversation, SupportMessage
 from services.db.session import get_session_factory
 
 log = get_logger(__name__)
@@ -199,6 +200,47 @@ async def close_conversation(conversation_id: str) -> SupportConversation:
         await session.commit()
     log.info("support_conversation_closed", conversation_id=conversation_id)
     return conv
+
+
+# ===== 客服查案授权（T202，D088） =====
+
+
+async def grant_case(conversation_id: str, case_id: str) -> None:
+    """授权本会话查询该案件（幂等：已授权直接返回）。
+
+    调用方（授权端点）负责先校验门户令牌；本函数只落事实。并发重复授权由
+    (conversation_id, case_id) 唯一约束兜底。
+    """
+    factory = get_session_factory()
+    async with factory() as session:
+        exists = await session.scalar(
+            select(SupportCaseGrant.id).where(
+                SupportCaseGrant.conversation_id == conversation_id,
+                SupportCaseGrant.case_id == case_id,
+            )
+        )
+        if exists is not None:
+            return
+        session.add(SupportCaseGrant(conversation_id=conversation_id, case_id=case_id))
+        try:
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()  # 并发重复授权：另一请求已落行，结果等价
+            return
+    log.info("support_case_granted", conversation_id=conversation_id, case_id=case_id)
+
+
+async def case_granted(conversation_id: str, case_id: str) -> bool:
+    """本会话是否已获该案件的查询授权。"""
+    factory = get_session_factory()
+    async with factory() as session:
+        hit = await session.scalar(
+            select(SupportCaseGrant.id).where(
+                SupportCaseGrant.conversation_id == conversation_id,
+                SupportCaseGrant.case_id == case_id,
+            )
+        )
+    return hit is not None
 
 
 async def _transition(

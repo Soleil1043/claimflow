@@ -236,6 +236,24 @@ class SupportConversationCreateResponse(BaseModel):
     created_at: dt.datetime
 
 
+class SupportCaseGrantRequest(BaseModel):
+    """POST /api/v1/support/conversations/{id}/case-grants 请求体（T202，D088）。
+
+    门户在案件详情页凭创建回执令牌（与 X-Case-Token 同一枚）授权本会话查询该案。
+    令牌仅用于校验哈希，不落库、不进 LLM、不进会话 transcript。
+    """
+
+    case_id: str = Field(min_length=1, max_length=64)
+    case_token: str = Field(default="", max_length=256)
+
+
+class SupportCaseGrantResponse(BaseModel):
+    """授权回执（幂等：重复授权同一案件返回同一结果）。"""
+
+    conversation_id: str
+    case_id: str
+
+
 class SupportConversationStatusResponse(BaseModel):
     """会话状态（门户轮询 / 坐席视角共用）。"""
 

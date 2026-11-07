@@ -2393,3 +2393,39 @@ nightly 夜检零改动）。
 接收端，规则命中在 Grafana UI 呈现）；不做批量一键重驱（逐单人工确认，防
 "重驱风暴"把系统性故障刷成队列洪峰）；不做自动重驱（死信=3 次指数退避
 已耗尽，自动再驱只是掩盖根因）。
+
+## D088 · 客服查案属主授权：会话持久绑定案件授权（T202，2026-11-07）
+
+**背景**：审查报告 C2——客服 Agent 的 `case_status_query` 仅凭 case_id 读库，
+返回 claimed/approved_amount、final_decision、补件缺口等业务敏感快照；建会话
+零鉴权、案件号顺序可枚举，匿名访客可经客服对话批量爬取全库，绕过 T171
+（D077）为 REST 通道建立的案件令牌体系。工具描述里"禁止猜测编号"只是提示词。
+
+**选项**：
+1. **工具入参携带令牌**（LLM 传 token）——令牌进入 LLM 上下文、提供商日志与
+   会话 transcript，泄漏面最大。**否决**
+2. **请求级授权**：每条消息可选携带当前页 case_id+token，API 层置 contextvar、
+   工具属主断言。零建表零迁移；但只能在案件详情页查询该案（门户令牌是
+   path=/cases/{id} 级 cookie，其他页面拿不到）
+3. **会话持久绑定**（采纳，用户选定）：新增 `support_case_grants` 表 +
+   `POST /support/conversations/{id}/case-grants` 授权端点（校验令牌哈希后落
+   授权行）；会话一旦绑定，跨页面导航后仍可查询。代价：新表 + 迁移 + 端点 +
+   前端授权流程
+
+**实现口径**：
+- 令牌校验单源：`services.case_service.portal_case_access_allowed`（dev 开放
+  态放行 + 令牌哈希常数时间比对），REST `verify_case_access` 与授权端点共用，
+  两通道不可漂移
+- 工具经 contextvar 取当前会话 id（reply/reply_stream 作用域内设置；项目已有
+  track_case contextvar 跨 langgraph 任务传播先例）；不经 RunnableConfig——
+  GuardedTool 不透传 config，改共享守卫层影响面更大
+- **未找到与无权统一口径**：授权端点对"案件不存在"与"令牌错"同回 401，工具对
+  "不存在"与"未授权"同回一条业务失败——不给枚举 oracle
+- 无会话上下文（工具在客服 Agent 外被调用）fail-closed；dev 开放态（staff_keys
+  未配置）与 REST 同口径放行，客服评测与演示不受影响
+- 令牌只在授权端点出现一次，不落库（库内仍只有 cases.access_token_hash）、
+  不进 LLM、不进 transcript
+- 建会话与授权端点补 rate_limit（复用 rate_limit_support_per_min）
+
+**明确不做**：会话 GET 端点鉴权（conversation_id 为 uuid4 hex 能力 URL，
+不在 C2 范围）；授权撤销端点（会话关闭即失去意义，审计可见授权行）。

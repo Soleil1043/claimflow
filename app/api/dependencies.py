@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import math
 import secrets
 from collections.abc import AsyncIterator
@@ -12,6 +11,7 @@ from fastapi import Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, settings
+from services.case_service import portal_case_access_allowed
 from services.db.session import get_session
 
 if TYPE_CHECKING:
@@ -74,19 +74,15 @@ def verify_case_access(
     """案件门户访问校验（T171，D077）：申请人令牌与坐席 Key 双通道。
 
     放行顺序：
-    1. staff_keys 未配置（dev 开放态）——沿 T147 兼容口径放行（workbench 零改动）
-    2. 有效 X-Staff-Key——坐席通道
-    3. X-Case-token 与案件哈希常数时间比对——门户申请人通道（创建回执持有者）
+    1. 有效 X-Staff-Key——坐席通道
+    2. 门户申请人通道（portal_case_access_allowed 单源，T202）：staff_keys 未配置的
+       dev 开放态放行（T147 兼容口径），否则 X-Case-Token 与案件哈希常数时间比对
     其余（缺失 / 不匹配 / 旧库 NULL 哈希行无令牌可对）一律 401。
     """
-    if not settings.staff_key_map:
-        return
     if _staff_key_valid(x_staff_key):
         return
-    if x_case_token is not None and case.access_token_hash is not None:
-        digest = hashlib.sha256(x_case_token.encode("utf-8")).hexdigest()
-        if secrets.compare_digest(digest, case.access_token_hash):
-            return
+    if portal_case_access_allowed(case, x_case_token):
+        return
     raise HTTPException(
         status_code=401, detail="无权访问该案件（需 X-Case-Token 或 X-Staff-Key）"
     )

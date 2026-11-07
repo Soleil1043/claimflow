@@ -54,6 +54,22 @@ export function getSupportConversation(id: string): Promise<SupportConversation>
   return request(`/api/v1/support/conversations/${id}`);
 }
 
+/**
+ * 授权本会话查询某案件（T202，D088）：在案件详情页凭创建回执令牌调用，
+ * 客服 AI 此后才能经 case_status_query 查询该案（跨页面导航后仍有效）。
+ * 令牌只在本请求出现，不进对话内容。幂等。
+ */
+export function grantSupportCase(
+  id: string,
+  caseId: string,
+  caseToken: string
+): Promise<{ conversation_id: string; case_id: string }> {
+  return request(`/api/v1/support/conversations/${id}/case-grants`, {
+    method: "POST",
+    body: JSON.stringify({ case_id: caseId, case_token: caseToken }),
+  });
+}
+
 export function listSupportMessages(
   id: string
 ): Promise<{ total: number; items: SupportMessage[] }> {

@@ -276,7 +276,7 @@ async def test_case_status_query_missing(support_db) -> None:
     """案件不存在：业务失败（success=False），LLM 引导核对编号。"""
     result = await CaseStatusQueryTool().ainvoke({"case_id": "CASE-9999-0000"})
     assert result["success"] is False
-    assert "未找到案件" in result["error_message"]
+    assert "未找到可查询的案件" in result["error_message"]
 
 
 async def test_claim_draft_link_tool() -> None:

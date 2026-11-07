@@ -294,7 +294,7 @@ callbacks 传播到节点内 chat model（真实模型实测，假模型探针�
 
 ## 12. 数据模型
 
-`services/db/models.py`，12 张表：
+`services/db/models.py`，13 张表：
 
 | 域 | 表 | 说明 |
 |----|----|------|
@@ -304,6 +304,7 @@ callbacks 传播到节点内 chat model（真实模型实测，假模型探针�
 | 核赔 | case_jobs | 交付队列任务表 |
 | 核赔 | case_id_counters | 按年原子分配案件号 |
 | 客服 | support_conversations / support_messages | 客服会话与三方时间线 |
+| 客服 | support_case_grants | 会话查案授权：门户凭案件令牌授权后，客服 AI 才能查询该案（T202/D088） |
 | Mock | policies / medical_records / claim_records / kb_documents / eval_runs | 仿真种子数据与评测运行记录 |
 
 LangGraph checkpoint / Store 表由 AsyncPostgresSaver/Store 自管（D006，prod），

@@ -181,7 +181,7 @@ claimflow/
 │   ├── rag/                   # RAG（embedder / retriever / reranker / knowledge_graph / qdrant / ingest）
 │   ├── memory/                # 记忆（short_term / long_term / case_memory 申请人记忆治理）
 │   ├── observability/         # 可观测性（metrics / llm_metrics / token_tracker / tracing）
-│   └── db/                    # 数据库（models 11 表 / session 双后端引擎）
+│   └── db/                    # 数据库（models 13 表 / session 双后端引擎）
 │
 ├── workflows/case_graph.py    # 核赔主图定义与编译
 │

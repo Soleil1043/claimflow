@@ -20,6 +20,7 @@ from typing import Any
 from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from schemas.case import ISSUED_CASE_STATUSES, PENDING_CASE_STATUSES, CaseStatus
 from services.db.models import Case, CaseEvent, CaseIdCounter, CaseJob, DecisionDocument
 from services.db.session import get_session_factory
@@ -36,6 +37,28 @@ def generate_access_token() -> tuple[str, str]:
     """
     token = secrets.token_urlsafe(32)
     return token, hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def portal_access_open() -> bool:
+    """门户 dev 开放态（staff_keys 未配置，T147 兼容口径；prod 由启动校验强制配置）。"""
+    return not settings.staff_key_map
+
+
+def portal_case_access_allowed(case: Case, token: str | None) -> bool:
+    """门户申请人对案件的访问判定（T171 口径单源，T202/D088）。
+
+    - dev 开放态（portal_access_open）放行
+    - 否则令牌 sha256 与 cases.access_token_hash 常数时间比对；旧库 NULL
+      哈希行无令牌可对，恒 False（仅坐席通道可读）
+
+    REST 详情/上传（verify_case_access）与客服查案授权端点共用，两通道不可漂移。
+    """
+    if portal_access_open():
+        return True
+    if token is None or case.access_token_hash is None:
+        return False
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return secrets.compare_digest(digest, case.access_token_hash)
 
 
 async def find_idempotent_case(
