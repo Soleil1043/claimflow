@@ -778,3 +778,128 @@ async def test_list_dead_jobs_only_dead_desc(jobs_db) -> None:
     assert all(j.status == "dead" for j in dead_list)
     assert len(dead_list) == 1
     assert dead_list[0].last_error == "图执行三次耗尽"
+
+
+# ===== 持有者栅栏（T208/I5）：租约被接管后原实例迟到写不生效 =====
+
+
+class HijackGraph(FakeGraph):
+    """执行期间模拟他实例按过期租约接管本行（locked_by 换人、attempt+1）。"""
+
+    def __init__(self, factory, job_id: int, **kwargs: Any):
+        super().__init__(**kwargs)
+        self._factory = factory
+        self._job_id = job_id
+
+    async def ainvoke(self, invocation: Any, config: dict | None = None) -> dict:
+        async with self._factory() as s:
+            await s.execute(
+                update(CaseJob)
+                .where(CaseJob.id == self._job_id)
+                .values(
+                    locked_by="takeover:2:b",
+                    attempt=CaseJob.attempt + 1,
+                    lease_expires_at=dt.datetime.now() + dt.timedelta(seconds=120),
+                )
+            )
+            await s.commit()
+        return await super().ainvoke(invocation, config)
+
+
+async def _claimed_job(factory, *, max_attempts: int | None = None) -> CaseJob:
+    case = await _make_case(factory)
+    async with factory() as s:
+        await enqueue_case_job(
+            s, case_id=case.id, action=JobAction.RUN, payload={}, max_attempts=max_attempts
+        )
+        await s.commit()
+    job = await claim_next()
+    assert job is not None
+    return job
+
+
+async def test_finish_after_takeover_is_rejected(jobs_db) -> None:
+    """原实例跑完写 succeeded：栅栏拒写，接管者的在飞行保持原样（不清租约防级联三跑）。"""
+    job = await _claimed_job(jobs_db)
+    await execute_job(job, graph=HijackGraph(jobs_db, job.id), recorder=FakeRecorder())
+
+    row = await _job(jobs_db, job.id)
+    assert row.status == "running"
+    assert row.locked_by == "takeover:2:b"
+    assert row.lease_expires_at is not None
+
+
+async def test_retry_after_takeover_is_rejected(jobs_db) -> None:
+    """原实例失败写重试：栅栏拒写，不把接管者的在飞行翻回 queued。"""
+    job = await _claimed_job(jobs_db)
+    graph = HijackGraph(jobs_db, job.id, error=RuntimeError("迟到失败"))
+    await execute_job(job, graph=graph, recorder=FakeRecorder())
+
+    row = await _job(jobs_db, job.id)
+    assert row.status == "running" and row.locked_by == "takeover:2:b"
+    assert row.last_error is None
+
+
+async def test_dead_after_takeover_no_audit(jobs_db) -> None:
+    """原实例重试耗尽：栅栏拒写死信，也不落 job_failed 审计（任务归接管者）。"""
+    job = await _claimed_job(jobs_db, max_attempts=1)
+    recorder = FakeRecorder()
+    graph = HijackGraph(jobs_db, job.id, error=RuntimeError("彻底失败"))
+    await execute_job(job, graph=graph, recorder=recorder)
+
+    assert (await _job(jobs_db, job.id)).status == "running"
+    assert not [e for e in recorder.events if e[1] == "job_failed"]
+
+
+async def test_zombie_retry_cannot_revive_succeeded_job(jobs_db) -> None:
+    """接管者已 succeeded：原实例迟到的 _retry 不得把终态翻回 queued。"""
+    from services.case_job_worker import _retry
+
+    job = await _claimed_job(jobs_db)
+    async with jobs_db() as s:
+        await s.execute(
+            update(CaseJob).where(CaseJob.id == job.id).values(
+                status="succeeded", outcome="completed", locked_by=None, lease_expires_at=None,
+            )
+        )
+        await s.commit()
+    assert await _retry(job.id, error="迟到", delay_s=1.0) is False
+    assert (await _job(jobs_db, job.id)).status == "succeeded"
+
+
+async def test_inline_dispatcher_claims_before_execute(jobs_db) -> None:
+    """inline 档定向认领后执行（执行者即持有者）：attempt 计数生效，终态正常落盘。"""
+    case = await _make_case(jobs_db)
+    async with jobs_db() as s:
+        job = await enqueue_case_job(s, case_id=case.id, action=JobAction.RUN, payload={})
+        await s.commit()
+        job_id = job.id
+    graph = FakeGraph()
+    await InlineDispatcher(graph, FakeRecorder()).dispatch(job_id)
+
+    row = await _job(jobs_db, job_id)
+    assert row.status == "succeeded" and row.attempt == 1
+    assert row.locked_by is None
+    assert len(graph.calls) == 1
+
+
+async def test_inline_dispatcher_skips_row_claimed_elsewhere(jobs_db) -> None:
+    """行已被他实例持活租约：inline 不执行（防同库后台循环与 inline 双跑）。"""
+    case = await _make_case(jobs_db)
+    async with jobs_db() as s:
+        job = await enqueue_case_job(s, case_id=case.id, action=JobAction.RUN, payload={})
+        await s.commit()
+        job_id = job.id
+    async with jobs_db() as s:
+        await s.execute(
+            update(CaseJob).where(CaseJob.id == job_id).values(
+                status="running", locked_by="bg:3:c",
+                lease_expires_at=dt.datetime.now() + dt.timedelta(seconds=120),
+            )
+        )
+        await s.commit()
+    graph = FakeGraph()
+    await InlineDispatcher(graph, FakeRecorder()).dispatch(job_id)
+
+    assert graph.calls == []
+    assert (await _job(jobs_db, job_id)).locked_by == "bg:3:c"

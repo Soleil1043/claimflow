@@ -89,6 +89,18 @@ async def refresh_queue_depth() -> None:
         pass
 
 
+def _lease_values() -> dict[str, Any]:
+    """认领即持有租约的列值（claim_next / claim_job 同一口径）。"""
+    now = dt.datetime.now()
+    return {
+        "status": "running",
+        "attempt": CaseJob.attempt + 1,
+        "started_at": now,
+        "locked_by": INSTANCE_ID,
+        "lease_expires_at": now + dt.timedelta(seconds=settings.case_jobs_lease_ttl_s),
+    }
+
+
 async def claim_next() -> CaseJob | None:
     """认领下一个可接管任务（单语句 CAS：SELECT 最早可认领 → 条件 UPDATE 抢占）。
 
@@ -109,22 +121,35 @@ async def claim_next() -> CaseJob | None:
         ).scalar_one_or_none()
         if row is None:
             return None
-        ttl = dt.timedelta(seconds=settings.case_jobs_lease_ttl_s)
         result = await session.execute(
             update(CaseJob)
             .where(CaseJob.id == row, _claimable(dt.datetime.now()))
-            .values(
-                status="running",
-                attempt=CaseJob.attempt + 1,
-                started_at=dt.datetime.now(),
-                locked_by=INSTANCE_ID,
-                lease_expires_at=dt.datetime.now() + ttl,
-            )
+            .values(**_lease_values())
         )
         await session.commit()
         if result.rowcount == 0:
             return None  # 抢输（并发认领/续租窗口）
         return await session.get(CaseJob, row)
+
+
+async def claim_job(job_id: int) -> CaseJob | None:
+    """定向认领指定任务（inline 派发用，T208/I5）：与 claim_next 同一 CAS 谓词与租约。
+
+    此前 inline 档直接执行未认领的 queued 行——执行期行无持有者，与后台档的
+    "执行者即租约持有者"契约分叉，_finish/_retry 无法按持有者设栅栏。
+    返回 None = 行已被他方认领（或不可认领），调用方不得执行。
+    """
+    factory = get_session_factory()
+    async with factory() as session:
+        result = await session.execute(
+            update(CaseJob)
+            .where(CaseJob.id == job_id, _claimable(dt.datetime.now()))
+            .values(**_lease_values())
+        )
+        await session.commit()
+        if result.rowcount == 0:
+            return None
+        return await session.get(CaseJob, job_id)
 
 
 async def _extend_lease(job_id: int) -> None:
@@ -221,26 +246,57 @@ async def execute_job(job: CaseJob, *, graph: Any, recorder: CaseRecorder) -> No
             await _finish(job.id, status="succeeded", outcome="completed")
     except Exception as exc:  # noqa: BLE001 —— 交付级异常：重试或死信，不向上抛
         if job.attempt >= job.max_attempts:
-            await _finish(job.id, status="dead", outcome=None, error=str(exc)[:500])
-            try:
-                await recorder.event(
-                    job.case_id,
-                    JOB_FAILED_EVENT,
-                    payload={"attempts": job.attempt, "error": str(exc)[:300]},
-                )
-            except Exception:  # noqa: BLE001 —— 审计失败不掩盖死信状态
-                log.warning("job_failed_audit_missed", job_id=job.id)
-            log.warning("case_job_dead", job_id=job.id, case_id=job.case_id,
-                        attempts=job.attempt, error=str(exc)[:200])
+            # 僵尸写被栅栏拒绝时（行已被接管）不落死信审计——接管者持有该任务
+            if await _finish(job.id, status="dead", outcome=None, error=str(exc)[:500]):
+                try:
+                    await recorder.event(
+                        job.case_id,
+                        JOB_FAILED_EVENT,
+                        payload={"attempts": job.attempt, "error": str(exc)[:300]},
+                    )
+                except Exception:  # noqa: BLE001 —— 审计失败不掩盖死信状态
+                    log.warning("job_failed_audit_missed", job_id=job.id)
+                log.warning("case_job_dead", job_id=job.id, case_id=job.case_id,
+                            attempts=job.attempt, error=str(exc)[:200])
         else:
             delay = settings.case_jobs_backoff_base_s * (2 ** (job.attempt - 1))
-            await _retry(job.id, error=str(exc)[:500], delay_s=delay)
-            log.warning("case_job_retry_scheduled", job_id=job.id,
-                        attempt=job.attempt, delay_s=delay, error=str(exc)[:200])
+            if await _retry(job.id, error=str(exc)[:500], delay_s=delay):
+                log.warning("case_job_retry_scheduled", job_id=job.id,
+                            attempt=job.attempt, delay_s=delay, error=str(exc)[:200])
     finally:
         heartbeat.cancel()
         with suppress(asyncio.CancelledError):
             await heartbeat
+
+
+async def _owned_write(job_id: int, op: str, values: dict[str, Any]) -> bool:
+    """持有者栅栏写（T208/I5）：仅当行仍是己方持有的 running 才落终态/重试。
+
+    与 _extend_lease / _release_own 同一栅栏。租约被接管后（续租失败只记日志、
+    他实例按过期租约 CAS 接管重跑），原实例迟到的写会把接管者的在飞行改成
+    succeeded 并清租约——_claimable 又把无租约 running 视为孤儿，级联三跑，
+    RESUME 双跑即双份坐席决定书。rowcount=0 即僵尸写，拒写告警返回 False。
+    """
+    factory = get_session_factory()
+    async with factory() as session:
+        result = await session.execute(
+            update(CaseJob)
+            .where(
+                CaseJob.id == job_id,
+                CaseJob.locked_by == INSTANCE_ID,
+                CaseJob.status == "running",
+            )
+            .values(**values)
+        )
+        await session.commit()
+    if result.rowcount == 0:
+        log.warning(
+            "case_job_zombie_write_detected",
+            job_id=job_id, op=op, instance=INSTANCE_ID,
+            attempted_status=values.get("status"),
+        )
+        return False
+    return True
 
 
 async def _finish(
@@ -250,40 +306,34 @@ async def _finish(
     outcome: str | None,
     interrupt_payload: dict[str, Any] | None = None,
     error: str | None = None,
-) -> None:
-    factory = get_session_factory()
-    async with factory() as session:
-        await session.execute(
-            update(CaseJob)
-            .where(CaseJob.id == job_id)
-            .values(
-                status=status,
-                outcome=outcome,
-                interrupt_payload=interrupt_payload,
-                last_error=error,
-                finished_at=dt.datetime.now(),
-                locked_by=None,
-                lease_expires_at=None,
-            )
-        )
-        await session.commit()
+) -> bool:
+    return await _owned_write(
+        job_id,
+        "finish",
+        {
+            "status": status,
+            "outcome": outcome,
+            "interrupt_payload": interrupt_payload,
+            "last_error": error,
+            "finished_at": dt.datetime.now(),
+            "locked_by": None,
+            "lease_expires_at": None,
+        },
+    )
 
 
-async def _retry(job_id: int, *, error: str, delay_s: float) -> None:
-    factory = get_session_factory()
-    async with factory() as session:
-        await session.execute(
-            update(CaseJob)
-            .where(CaseJob.id == job_id)
-            .values(
-                status="queued",
-                last_error=error,
-                run_after=dt.datetime.now() + dt.timedelta(seconds=delay_s),
-                locked_by=None,
-                lease_expires_at=None,
-            )
-        )
-        await session.commit()
+async def _retry(job_id: int, *, error: str, delay_s: float) -> bool:
+    return await _owned_write(
+        job_id,
+        "retry",
+        {
+            "status": "queued",
+            "last_error": error,
+            "run_after": dt.datetime.now() + dt.timedelta(seconds=delay_s),
+            "locked_by": None,
+            "lease_expires_at": None,
+        },
+    )
 
 
 # ===== 派发器（seam：执行时机的两个真 adapter） =====
@@ -306,10 +356,16 @@ class InlineDispatcher:
     async def dispatch(self, job_id: int) -> None:
         factory = get_session_factory()
         async with factory() as session:
-            job = await session.get(CaseJob, job_id)
-        if job is None:
+            exists = await session.get(CaseJob, job_id)
+        if exists is None:
             msg = f"任务行 {job_id} 不存在（enqueue 未提交？）"
             raise RuntimeError(msg)
+        # 定向认领后执行（T208）：执行者即租约持有者，与后台档同一契约；
+        # 认领失败 = 他方（如同库后台循环）已接管，本次不执行
+        job = await claim_job(job_id)
+        if job is None:
+            log.info("inline_dispatch_skipped_already_claimed", job_id=job_id)
+            return
         await execute_job(job, graph=self._graph, recorder=self._recorder)
 
 

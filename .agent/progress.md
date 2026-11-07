@@ -3321,3 +3321,28 @@ TypeError；注入 sessionmaker 后传入的是 AsyncSession 实例，`query_cla
 
 **验证**：新增 2 条经 `ainvoke` 的工具级测试（缺省工厂 / 注入工厂），旧代码 2 条
 全挂；680 passed。不触调度/理算/决定书，未跑评测门。
+
+## T208 · 交付队列持有者栅栏 I5（2026-11-08）
+
+**根因**：`_finish`/`_retry` 的 UPDATE 只按 `id` 过滤，而同文件 `_extend_lease`/
+`_release_own` 都带 `locked_by==INSTANCE_ID AND status=='running'` 栅栏。实例 A
+执行超租约且续租失败（只记日志）→ B 按过期租约 CAS 接管重跑 → A 跑完无条件写
+succeeded 并清租约 → `_claimable` 把无租约 running 视为孤儿，C 又能抢（级联三跑）；
+RESUME 双跑让 human_gate 两次 save_decision（版本号不同，唯一约束拦不住）。死信
+分支同理：僵尸 `_retry` 可把已 succeeded 行翻回 queued。
+
+**修复**：
+1. `_owned_write` 统一栅栏写：`_finish`/`_retry` WHERE 补 locked_by/status；
+   rowcount=0 记 `case_job_zombie_write_detected` 告警并返回 False；死信分支仅在
+   写入成功时落 job_failed 审计
+2. **连带**：InlineDispatcher 此前直接执行未认领的 queued 行（执行期行无持有者，
+   与后台档契约分叉），加栅栏后 inline 将无法落终态。新增 `claim_job(job_id)` 定向
+   CAS 认领（与 claim_next 共用 `_claimable` 谓词与 `_lease_values`），inline 先认领
+   再执行；认领失败（他方持活租约）不执行——顺带堵住同库后台循环与 inline 双跑。
+   inline 档 attempt 计数从恒 0 变为真实递增（重试耗尽死信在 inline 档首次可达）
+
+**验证**：新增 6 用例（执行期模拟他实例接管后 finish/retry/dead 均被拒写且不落审计；
+僵尸 retry 不能复活 succeeded；inline 认领后执行 attempt=1；inline 遇他方活租约跳过），
+旧代码 6 条全挂。686 passed（既有 inline API 流程全绿）；`scripts.verify_multiinstance
+--boot --offline` 双实例冒烟 18/18（跨实例补件恢复、零 schema_reset；冒烟在 dev 库
+留下 1 条测试案件 CASE-2026-0342）。
