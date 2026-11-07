@@ -535,7 +535,7 @@ T001 → T002 → T003 → T004 → T005
 
 - [x] T204: 合规门 round 不递增致防死循环防线死代码（I1） ✅ 2026-11-08（664 passed；新增闭环 3 用例旧代码全挂；六门全绿） | 依赖: T203 | 涉及文件: nodes/compliance_gate.py、tests/nodes/ | 验收: 每轮审查 round 递增；修订无法修复时达上限转人工而非撞 recursion_limit；全图闭环测试
 - [x] T205: 红线 REJECT 决定书可经坐席 confirm 原样签发（I2，含 S5 工单原因） ✅ 2026-11-08（668 passed；新增 4 用例旧代码 3 条挂；六门全绿） | 依赖: T204 | 涉及文件: nodes/human_gate.py、nodes/compliance_gate.py、tests/ | 验收: confirm 签发前复审既有正文红线，命中拒绝签发；REJECT 转人工工单带原因
-- [ ] T206: not_covered 风险/置信度豁免 + LLM 路由缺高风险守卫（I3，方案 A） | 依赖: T205 | 涉及文件: nodes/auto_adjudicate.py、nodes/guards.py、evals/datasets/、tests/ | 验收: 风险非低或置信度不足的拒赔转人工；enforce_guards risk=high 强制 human_gate；补金样本；六门全绿
+- [x] T206: not_covered 风险/置信度豁免 + LLM 路由缺高风险守卫（I3，方案 A） ✅ 2026-11-08（方案A/D089；678 passed；新增 10 用例旧代码 2 条挂；六门全绿；33 条既有 auto 拒赔零回归） | 依赖: T205 | 涉及文件: nodes/auto_adjudicate.py、nodes/guards.py、evals/datasets/、tests/ | 验收: 风险非低或置信度不足的拒赔转人工；enforce_guards risk=high 强制 human_gate；补金样本；六门全绿
 - [ ] T207: ClaimsHistoryTool._arun 必然 TypeError（I4） | 依赖: T206 | 涉及文件: tools/fraud/history.py、tests/tools/ | 验收: 经 ainvoke 的工具级测试通过
 - [ ] T208: 交付队列 _finish/_retry 缺持有者栅栏（I5） | 依赖: T207 | 涉及文件: services/case_job_worker.py、tests/ | 验收: WHERE 补 locked_by/status 栅栏；rowcount=0 告警；接管后原实例 finish 不生效测试
 - [ ] T209: 补件多文件上传竞态致材料永不进入核赔（I6） | 依赖: T208 | 涉及文件: nodes/human_gate.py、tests/ | 验收: 补件恢复以 cases.materials 为单源重建 state.materials（去重）；后传材料可见

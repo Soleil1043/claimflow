@@ -233,3 +233,36 @@ def test_static_compliance_gate_not_bypassable() -> None:
             assert (spec.name, "orchestrator") in edges
         else:
             assert (spec.name, "orchestrator") not in edges
+
+
+# ---------- 拒赔分级（T206/I3 方案 A，D089） ----------
+
+
+@pytest.mark.parametrize(
+    ("user_id", "expect_auto", "reason_part"),
+    [
+        ("u-zhangwei", True, None),  # 低风险：拒赔照常自动签发（基线不退化）
+        ("u-sunqiang", False, "风险等级 medium"),  # 近 90 天高频：转人工确认
+        ("u-zhaomin", False, "高风险短路"),  # 黑名单：风控后即短路
+    ],
+)
+async def test_not_covered_requires_low_risk_for_auto_issue(
+    user_id: str, expect_auto: bool, reason_part: str | None
+) -> None:
+    """责任不成立（整形美容除外）× 风险分级：风险非低的拒赔不再自动出书。"""
+    base = _case_by_id("CASE-2026-0010")
+    case = {**base, "case_id": f"CASE-T206-{user_id}", "user_id": user_id}
+    graph, _ = _graph()
+    config = {"configurable": {"thread_id": case["case_id"]}}
+    result = await graph.ainvoke(_input(case), config)
+    state = graph.get_state(config).values
+
+    if expect_auto:
+        assert "__interrupt__" not in result
+        assert state["final_decision"] == "rejected"
+        return
+    assert result.get("__interrupt__"), f"{user_id} 风险非低的拒赔应转人工"
+    payload = result["__interrupt__"][0].value
+    assert payload["kind"] == "review"
+    assert reason_part in str(payload["reason"])
+    assert state.get("final_decision") is None

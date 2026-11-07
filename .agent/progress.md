@@ -3294,3 +3294,18 @@ Access-Control-Allow-Origin，复现 C3 根因。实测在本地 dev 库留下 1
 **验证**：新增 4 用例（节点 confirm 红线兜底 / REJECT 带工单原因 / PASS 不写
 human_request / API 篡改草稿后 confirm 422、工单仍在列表、随后 rewrite 关闭）；
 旧代码 3 条挂。668 passed；六门全绿。
+
+## T206 · 拒赔分级收紧 I3 方案 A + 高风险硬守卫（2026-11-08，D089）
+
+**改动**：①auto_adjudicate 风险与置信度检查去掉 not_covered 豁免（金额线保留
+豁免——拒赔核定恒 0）；docstring 与实现对齐 F089 口径。②guards 新增
+risk_short_circuit 单源（default_route 改调用同源），orchestrator LLM 分支在
+enforce_guards 后强制短路：风控 high 时无视 LLM 决策转 human_gate review，
+guard_correction 审计记 risk_short_circuit:high。
+
+**测试**：节点级 6 条（低风险/置信拒赔 auto；medium/high/低置信 referred；金额
+线对拒赔不适用；covered 超线仍 referred）；图级 3 条参数化（CASE-2026-0010
+整形除外 × zhangwei/sunqiang/zhaomin）；LLM 模式 1 条（风险盲路由器 + 黑名单
+→ 强制短路、责任认定未白耗）。旧代码挂 2 条（medium 拒赔被自动出书、LLM 模式
+无守卫）。678 passed；六门主门 + 对抗门全绿——33 条既有 auto 拒赔金样本零回归，
+证明收紧未误伤（其 risk=low 且置信度达标）。

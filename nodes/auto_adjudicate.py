@@ -1,8 +1,10 @@
 """分级自动签发节点（F11）：配置阈值驱动的确定性决策（无 LLM）。
 
-自动签发条件（全部满足）：责任 covered/partial 且 风险 low 且 核定金额 ≤ 自动签发线
-且 置信度达标 → auto_issued；任一不满足 → 转人工复核（human_gate，kind=review）。
-rejected（责任不成立）在风险低时同样自动出拒赔决定书。
+自动签发条件（全部满足，spec F11）：风险 low 且 置信度达标 且（责任 covered/partial
+时）核定金额 ≤ 自动签发线 → auto_issued；任一不满足 → 转人工复核（human_gate，
+kind=review）。责任不成立（not_covered）同样须风险 low 且置信度达标才自动出拒赔
+决定书（T206/I3 方案 A，D089）——拒赔书写明不赔依据，对可疑申请人自动出书等于
+提供规则反馈；只有金额线对拒赔不适用（核定恒 0）。
 """
 
 from __future__ import annotations
@@ -48,7 +50,9 @@ def make_auto_adjudicate_node(recorder: CaseRecorder):
         not_covered = liability.get("verdict") == "not_covered"
 
         refer_reasons: list[str] = []
-        if not not_covered and str(risk.get("risk_level", "low")) != "low":
+        # 风险与置信度对拒赔同样生效（T206/I3：旧实现 `not not_covered and` 前缀让
+        # 拒赔跳过两项检查——高频/黑名单申请人、低置信认定都直接自动出拒赔书）
+        if str(risk.get("risk_level", "low")) != "low":
             refer_reasons.append(f"风险等级 {risk.get('risk_level')}")
         if not not_covered and approved > settings.auto_approve_limit:
             refer_reasons.append(f"核定金额 {approved} 元超过自动签发线 {settings.auto_approve_limit} 元")
@@ -56,7 +60,7 @@ def make_auto_adjudicate_node(recorder: CaseRecorder):
             float(material.get("confidence", 1.0)),
             float(liability.get("confidence", 1.0)),
         )
-        if not not_covered and min_confidence < settings.auto_approve_confidence_floor:
+        if min_confidence < settings.auto_approve_confidence_floor:
             refer_reasons.append(f"链路置信度 {min_confidence:.2f} 低于门槛")
 
         if refer_reasons:

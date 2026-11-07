@@ -192,3 +192,55 @@ def test_skill_file_loaded_into_router_prompt(monkeypatch) -> None:
     # cases.json 金样本随任务落库（路由一致性评测的数据源）
     cases = json.loads((DATA_DIR / "cases.json").read_text(encoding="utf-8"))["cases"]
     assert len(cases) >= 20
+
+
+async def test_llm_mode_high_risk_short_circuit_guard() -> None:
+    """T206/I3：LLM 路由模式下风控 high 强制转人工——即使 LLM 从不要人。
+
+    风险盲路由器按标准管线逐段派发、永不返回 human；旧实现 enforce_guards 无风险
+    规则，黑名单申请人会一路走到自动签发。修复后风控结论出现即短路。
+    """
+    pipeline = ["material_review", "policy_verify", "fraud_check",
+                "liability_judge", "amount_calc", "decision_generate"]
+    channels = {"material_review": "material", "policy_verify": "policy",
+                "fraud_check": "risk", "liability_judge": "liability",
+                "amount_calc": "calc", "decision_generate": "decision"}
+
+    async def risk_blind_router(state):
+        for stage in pipeline:
+            if state.get(channels[stage]) is None:
+                return RoutingDecision(next=[stage], reason="risk-blind")
+        return RoutingDecision(next=[], reason="done")
+
+    recorder = ListRecorder()
+
+    async def active_policy(policy_no: str) -> dict[str, Any]:
+        return {
+            "policy_no": policy_no, "product_type": "医疗险", "status": "active",
+            "coverage_amount": "1000000.00", "deductible": "10000.00",
+            "payout_ratio": "0.8000", "effective_date": "2025-01-01",
+            "expiry_date": "2026-12-31",
+        }
+
+    async def blacklisted(*_args: Any) -> dict[str, Any]:
+        return {"blacklisted": True}
+
+    graph = build_case_graph(
+        recorder=recorder,
+        policy_lookup=active_policy,
+        fraud_lookup=blacklisted,
+        checkpointer=InMemorySaver(),
+        orchestrator_router=risk_blind_router,
+    )
+    config = {"configurable": {"thread_id": "CASE-T206-LLM"}}
+    result = await graph.ainvoke({**_input(), "case_id": "CASE-T206-LLM"}, config)
+    state = graph.get_state(config).values
+
+    assert result.get("__interrupt__"), "高风险必须转人工"
+    payload = result["__interrupt__"][0].value
+    assert payload["kind"] == "review" and "高风险短路" in payload["reason"]
+    assert state.get("liability") is None  # 短路在责任认定之前，不再白耗后续 LLM 调用
+    assert any(
+        "risk_short_circuit:high" in (e["payload"] or {}).get("notes", [])
+        for e in recorder.events if e["kind"] == "guard_correction"
+    )

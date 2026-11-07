@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from nodes.guards import GuardVerdict, default_route, enforce_guards
+from nodes.guards import GuardVerdict, default_route, enforce_guards, risk_short_circuit
 from schemas.stages import STAGE_SPECS, DispatchTarget
 from services.case_store import CaseRecorder
 from services.llm.client import get_chat_model
@@ -183,6 +183,18 @@ def make_orchestrator_node(recorder: CaseRecorder, llm_router=None):
                 verdict = GuardVerdict(targets=["human_gate"])
             else:
                 verdict = enforce_guards(targets, state)
+            # 高风险短路硬守卫（T206/I3，F06）：风控 high 时无论 LLM 如何决策都转人工
+            # 复核——与 default_route 同一规则源，两种路由模式行为一致
+            short = risk_short_circuit(state)
+            if short is not None and (human_request is None or human_request["kind"] == "review"):
+                if human_request is None:
+                    verdict = GuardVerdict(
+                        targets=["human_gate"], corrected=True,
+                        notes=[*verdict.notes, "risk_short_circuit:high"],
+                    )
+                else:
+                    verdict = GuardVerdict(targets=["human_gate"])
+                human_request = short
         else:
             targets, human_request = default_route(state)
             requested = list(targets)

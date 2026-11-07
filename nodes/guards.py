@@ -115,6 +115,19 @@ def enforce_guards(targets: list[str], state: ClaimCaseState) -> GuardVerdict:
     return GuardVerdict(targets=result, corrected=corrected, notes=notes)
 
 
+def risk_short_circuit(state: ClaimCaseState) -> dict[str, Any] | None:
+    """高风险短路（F06 硬守卫，T206/I3）：风控结论 high → 强制转人工复核载荷。
+
+    与 LLM 判断无关的确定性规则——default_route 与 LLM 路由同一来源（此前只在
+    default_route 内联，生产默认的 LLM 路由没有任何风险规则，黑名单申请人
+    可一路走到自动签发拒赔书）。未出风控结论或非 high → None。
+    """
+    risk = state.get("risk")
+    if risk is not None and risk.get("risk_level") == "high":
+        return {"kind": "review", "reason": "高风险短路，转人工核赔"}
+    return None
+
+
 def default_route(state: ClaimCaseState) -> tuple[list[str], dict[str, Any] | None]:
     """确定性兜底编排：险种标准管线（医疗险：材料→保单∥风控→责任→理算→决定书）。
 
@@ -144,8 +157,9 @@ def default_route(state: ClaimCaseState) -> tuple[list[str], dict[str, Any] | No
         return [DispatchTarget.POLICY_VERIFY], None
     if risk is None:
         return [DispatchTarget.FRAUD_CHECK], None
-    if risk.get("risk_level") == "high":
-        return ["human_gate"], {"kind": "review", "reason": "高风险短路，转人工核赔"}
+    short = risk_short_circuit(state)
+    if short is not None:
+        return ["human_gate"], short
 
     if state.get("liability") is None:
         return [DispatchTarget.LIABILITY_JUDGE], None
