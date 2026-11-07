@@ -66,13 +66,20 @@ def render_decision_document(
     narrative: str | None = None,
     version: int = 1,
     issued_by: str = "auto",
+    conclusion: str | None = None,
 ) -> dict[str, Any]:
     """渲染决定书（代码模板 + 叙述段落），正文脱敏后返回 DecisionDocOutput dump。
 
     narrative：LLM 撰写的核定依据叙述（不含金额）；None/空 → 规则版兜底叙述。
+    conclusion：显式决定书结论（approved/rejected/partial，**决定书结论值域**）。
+    人工环节（坐席决议）本身就持有该值域，直接传入跳过换算；传 None 时按
+    责任认定值域（covered/not_covered/partial）经 conclusion_for 换算
+    （自动管线口径）。两套值域不得混用——T201/C1 曾因把结论值域的
+    "rejected" 喂给 conclusion_for 落入 else 分支，坐席拒赔被渲染成核准赔付。
     """
     verdict = str(liability.get("verdict", "covered"))
-    conclusion = conclusion_for(verdict)
+    if conclusion is None:
+        conclusion = conclusion_for(verdict)
     approved = Decimal(str(calc.get("approved_amount") or "0"))
     if conclusion == "rejected":
         approved = Decimal("0.00")

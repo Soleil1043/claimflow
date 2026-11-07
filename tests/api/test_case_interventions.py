@@ -160,6 +160,26 @@ async def test_review_rewrite_override_issues_agent_doc(env) -> None:
     assert body["decision_document"]["issued_by"] == "agent:agent-02"
 
 
+async def test_review_rewrite_rejected_issues_rejection(env) -> None:
+    """坐席改判拒赔 → 拒赔决定书签发、终态 rejected、核定 0 元（T201/C1 回归）。"""
+    ac, _ = env
+    high = await _submit(ac, claimed_amount="62000.00",
+                         incident_description="骑车摔伤骨折，费用62000元。")
+    resolved = await ac.post(
+        f"/api/v1/interventions/cases/{high['case_id']}/resolve",
+        json={"action": "rewrite", "decision": "rejected",
+              "reason": "既往症不在保障范围", "note": "改判拒赔",
+              "resolved_by": "agent-02"},
+    )
+    body = resolved.json()
+    assert body["status"] == "closed"
+    assert body["final_decision"] == "rejected"
+    assert Decimal(str(body["approved_amount"])) == Decimal("0.00")
+    doc = body["decision_document"]
+    assert doc["conclusion"] == "rejected"
+    assert "拒绝赔付" in doc["body"] and "核准赔付" not in doc["body"]
+
+
 async def test_escape_resolve_referred(env) -> None:
     """受理升级（未上线险种）→ resolve 后终态 referred。"""
     ac, _ = env

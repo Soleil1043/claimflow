@@ -3168,3 +3168,29 @@ None 是观测方式限制而非系统失败，不受此收紧影响）。
 全绿总一致率 100%；`--dataset adversarial`（8 案）六门全绿；`uv run
 pytest -q` 637 passed（628 基线 + 新增 9：gates 3 + 判分 5 + error_result
 2，净 +9）；ruff 干净。
+
+## T201 · 决定书结论语义反转修复 C1（2026-11-07）
+
+**根因**：两套值域混用。坐席决议 `CaseResolveRequest.decision` 与既有决定书
+`conclusion` 都属**决定书结论值域**（approved/rejected/partial），而
+`conclusion_for` 期望**责任认定值域**（covered/not_covered/partial）。
+resolve_review 两处把前者喂给后者："rejected" 不等于 "not_covered" 落入
+else → "approved"。受影响三条路径：rewrite 改判拒赔、rewrite 不传 decision
+回退既有拒赔书结论、confirm 无既有决定书按坐席拒赔决议渲染——结果都是
+"核准赔付"决定书 + final_decision=approved + 案件 CLOSED 对外签发。
+
+**修复**：render_decision_document 增 `conclusion: str | None = None` 显式
+入参——人工环节直传结论值域，None 时才经 conclusion_for 换算（自动管线
+compliance_gate/decision_generate 两调用方传的是责任认定值域，口径不变）。
+resolve_review 两分支先算 conclusion（坐席 decision → 既有 conclusion →
+"approved"，全程同一值域），再显式传入。未引入跨值域映射：坐席值域本就是
+结论值域，零换算即单源。
+
+**未做（不超前）**：同函数 `resolution.get("approved_amount") or ...` 的
+falsy-zero（改判 0 元回退旧金额）属 I8，留本迭代批次；confirm 分支不复审
+既有正文红线属 I2。
+
+**验证**：tests/nodes/test_human_gate.py 新增 7 条（resolve_review 纯函数
+首次有单测）+ API 拒赔改判端到端 1 条；stash 修复后对照旧代码 5 条挂
+（正是三条翻转路径 + 显式入参 + API），恢复修复后 15/15 过。`uv run pytest
+-q` 645 passed；主门 153 案 + 对抗门 8 案六门全绿；ruff 干净。

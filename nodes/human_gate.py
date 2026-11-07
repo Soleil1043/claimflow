@@ -64,12 +64,15 @@ def resolve_review(state: ClaimCaseState, resolution: dict[str, Any]) -> dict[st
         if decision:
             doc = {**decision, "issued_by": f"agent:{resolved_by}"}
         else:
-            # 无既有决定书（高风险短路等未走完管线的案件）：按坐席决议渲染人工核定版
+            # 无既有决定书（高风险短路等未走完管线的案件）：按坐席决议渲染人工核定版。
+            # 坐席 decision 是决定书结论值域（approved/rejected/partial），显式传
+            # conclusion，不经 conclusion_for 的责任认定值域换算（T201/C1）
+            conclusion = str(resolution.get("decision") or "approved")
             doc = render_decision_document(
                 case_id=str(state["case_id"]),
                 case_type=str(state.get("case_type") or "unknown"),
                 liability={
-                    "verdict": str(resolution.get("decision") or "approved"),
+                    "verdict": conclusion,
                     "reason": note or "人工核定",
                     "clause_references": [],
                 },
@@ -81,20 +84,25 @@ def resolve_review(state: ClaimCaseState, resolution: dict[str, Any]) -> dict[st
                 narrative=None,
                 version=int((state.get("decision") or {}).get("version") or 0) + 1,
                 issued_by=f"agent:{resolved_by}",
+                conclusion=conclusion,
             )
         return {
             "final_decision": str(doc.get("conclusion") or "approved"),
             "decision_document": doc,
         }
 
-    # rewrite：坐席改判/重写正文
+    # rewrite：坐席改判/重写正文。坐席 decision 与既有决定书 conclusion 同属
+    # 决定书结论值域，回退链全程不跨值域（T201/C1：旧实现把二者喂给
+    # conclusion_for，"rejected" 翻转为 "approved"——改判拒赔与重写既有拒赔书
+    # 都会被签发成核准赔付）
     base_decision = state.get("decision") or {}
     new_version = int(base_decision.get("version") or 0) + 1
+    conclusion = str(resolution.get("decision") or base_decision.get("conclusion") or "approved")
     doc = render_decision_document(
         case_id=str(state["case_id"]),
         case_type=str(state.get("case_type") or "unknown"),
         liability={
-            "verdict": str(resolution.get("decision") or base_decision.get("conclusion") or "approved"),
+            "verdict": conclusion,
             "reason": note or base_decision.get("reason") or "人工改判",
             "clause_references": base_decision.get("clause_references", []) or [],
         },
@@ -107,6 +115,7 @@ def resolve_review(state: ClaimCaseState, resolution: dict[str, Any]) -> dict[st
         narrative=None,
         version=new_version,
         issued_by=f"agent:{resolved_by}",
+        conclusion=conclusion,
     )
     if rewrite_body:
         # 坐席自拟正文（已过红线复审），保留坐席原文
