@@ -76,6 +76,7 @@ def build_case_graph(
     material_reviewer: Any = None,
     liability_llm: Any = None,
     decision_writer: Any = None,
+    materials_lookup: Any = None,
 ) -> Any:
     """编译核赔案件主图（依赖注入版——测试注入内存实现）。
 
@@ -83,6 +84,7 @@ def build_case_graph(
     orchestrator_router=None 纯确定性兜底编排；material_reviewer=None 仅规则层；
     liability_llm=None 关键词兜底；decision_writer=None 纯代码叙述。
     运行时经 create_default_case_graph 按配置注入真实实现。
+    materials_lookup=None：补件恢复不回读库内材料（无 DB 的测试/评测口径，T209）。
     """
     builder = StateGraph(ClaimCaseState, input_schema=CaseInputState, output_schema=CaseOutput)
 
@@ -118,7 +120,7 @@ def build_case_graph(
         "revise_decision", make_revise_decision_node(recorder)
     )
     builder.add_node("auto_adjudicate", make_auto_adjudicate_node(recorder))
-    builder.add_node("human_gate", make_human_gate_node(recorder))
+    builder.add_node("human_gate", make_human_gate_node(recorder, materials_lookup))
 
     builder.add_edge(START, "intake")
     builder.add_conditional_edges(
@@ -206,6 +208,17 @@ async def db_fraud_lookup(state: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+async def db_materials_lookup(case_id: str) -> list[dict[str, Any]]:
+    """案件材料事实（cases.materials，T209/I6）：补件恢复的材料单源。"""
+    from services.db.models import Case
+    from services.db.session import get_session_factory
+
+    factory = get_session_factory()
+    async with factory() as session:
+        case = await session.get(Case, case_id)
+    return list(case.materials or []) if case is not None else []
+
+
 def create_default_case_graph(
     checkpointer: BaseCheckpointSaver | None = None,
 ) -> Any:
@@ -232,4 +245,5 @@ def create_default_case_graph(
         material_reviewer=make_material_ai_reviewer(),
         liability_llm=invoke_worker if settings.liability_llm_enabled else None,
         decision_writer=make_decision_writer(),
+        materials_lookup=db_materials_lookup,
     )

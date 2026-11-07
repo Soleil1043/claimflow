@@ -538,7 +538,7 @@ T001 → T002 → T003 → T004 → T005
 - [x] T206: not_covered 风险/置信度豁免 + LLM 路由缺高风险守卫（I3，方案 A） ✅ 2026-11-08（方案A/D089；678 passed；新增 10 用例旧代码 2 条挂；六门全绿；33 条既有 auto 拒赔零回归） | 依赖: T205 | 涉及文件: nodes/auto_adjudicate.py、nodes/guards.py、evals/datasets/、tests/ | 验收: 风险非低或置信度不足的拒赔转人工；enforce_guards risk=high 强制 human_gate；补金样本；六门全绿
 - [x] T207: ClaimsHistoryTool._arun 必然 TypeError（I4） ✅ 2026-11-08（680 passed；新增 2 条经 ainvoke 工具级测试旧代码全挂） | 依赖: T206 | 涉及文件: tools/fraud/history.py、tests/tools/ | 验收: 经 ainvoke 的工具级测试通过
 - [x] T208: 交付队列 _finish/_retry 缺持有者栅栏（I5） ✅ 2026-11-08（686 passed；新增 6 用例旧代码全挂；双实例冒烟 18/18） | 依赖: T207 | 涉及文件: services/case_job_worker.py、tests/ | 验收: WHERE 补 locked_by/status 栅栏；rowcount=0 告警；接管后原实例 finish 不生效测试
-- [ ] T209: 补件多文件上传竞态致材料永不进入核赔（I6） | 依赖: T208 | 涉及文件: nodes/human_gate.py、tests/ | 验收: 补件恢复以 cases.materials 为单源重建 state.materials（去重）；后传材料可见
+- [x] T209: 补件多文件上传竞态致材料永不进入核赔（I6） ✅ 2026-11-08（691 passed；新增 4 用例旧行为 3 条挂；双实例冒烟 18/18；六门全绿） | 依赖: T208 | 涉及文件: nodes/human_gate.py、tests/ | 验收: 补件恢复以 cases.materials 为单源重建 state.materials（去重）；后传材料可见
 - [ ] T210: 金额一致性断言只校验第一处核定金额（I7） | 依赖: T209 | 涉及文件: services/decision_doc.py、tests/ | 验收: 全部"核定金额"匹配逐一断言；叙述夹带矛盾金额 → MODIFY
 - [ ] T211: 坐席改判金额无约束 + falsy 吞 0 元（I8） | 依赖: T210 | 涉及文件: schemas/api.py、services/case_service.py、nodes/human_gate.py、tests/ | 验收: approved_amount ge=0/max_digits；改判 0 元落库为 0
 - [ ] T212: 案件详情 timeline 全量外泄内部审计事件（I9） | 依赖: T211 | 涉及文件: app/api/v1/cases.py、tests/ | 验收: 门户通道按 kind 白名单投影；job error 仅坐席可见

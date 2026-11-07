@@ -139,12 +139,60 @@ def mask_body(text: str) -> str:
     return mask_sensitive(text)
 
 
-def make_human_gate_node(recorder: CaseRecorder):
-    """human_gate 节点工厂。"""
+def _material_key(material: dict[str, Any]) -> Any:
+    """材料去重键：落盘材料按 storage_path（每次上传唯一），引用类按（文件名, 类型）。"""
+    return material.get("storage_path") or (material.get("file_name"), material.get("doc_type"))
+
+
+def merge_materials(*sources: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """按源顺序合并材料并去重（先出现者保留）。"""
+    seen: set[Any] = set()
+    merged: list[dict[str, Any]] = []
+    for source in sources:
+        for material in source or []:
+            key = _material_key(material)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(material)
+    return merged
+
+
+def make_human_gate_node(recorder: CaseRecorder, materials_lookup: Any = None):
+    """human_gate 节点工厂。
+
+    materials_lookup（T209/I6）：`async (case_id) -> list[dict]`，读 cases.materials
+    （案件材料事实的单源，D047 口径）。注入时补件恢复以库内材料重建
+    state.materials，并在再次补件挂起前回扫未纳入的已落库材料；None（测试/
+    评测无 DB）时维持 state + 载荷合并的旧口径。
+    """
 
     async def human_gate_node(state: ClaimCaseState) -> dict[str, Any]:
         request = state.get("human_request") or {}
         kind = str(request.get("kind", "review"))
+
+        if kind == "supplement" and materials_lookup is not None:
+            # 挂起前回扫（T209/I6）：恢复任务在飞期间（分钟级）的后续上传撞活跃任务
+            # 唯一约束被静默吸收，材料已落库却不会再触发恢复。若库内已有本流程
+            # 未纳入的材料，不挂起，直接带上重跑材料审核
+            persisted = list(await materials_lookup(state["case_id"]) or [])
+            known = {_material_key(m) for m in state.get("materials") or []}
+            unseen = [m for m in persisted if _material_key(m) not in known]
+            if unseen:
+                metrics.record_supplement_rounds(1)
+                log.info("supplement_rescan_resumed", case_id=state["case_id"],
+                         unseen=len(unseen))
+                return {
+                    "human_request": None,
+                    "human_resolution": {
+                        "kind": "supplement",
+                        "action": "rescan",
+                        "added_materials": unseen,
+                        "resolved_by": "material_rescan",
+                    },
+                    "materials": merge_materials(persisted, state.get("materials")),
+                }
+
         status = (
             CaseStatus.SUPPLEMENT_PENDING if kind == "supplement" else CaseStatus.REFERRED
         )
@@ -172,7 +220,15 @@ def make_human_gate_node(recorder: CaseRecorder):
             # 指标 sum = 补件恢复总次数
             metrics.record_supplement_rounds(1)
             added = list(resolution.get("added_materials") or [])
-            update["materials"] = list(state.get("materials") or []) + added
+            # 以库内材料为单源重建（T209/I6）：恢复载荷只带触发恢复的那一份，
+            # 同轮多文件的后续上传不在载荷里；库内 ∪ 既有 state ∪ 载荷（坐席登记的
+            # 材料引用不落 cases.materials）按序去重
+            persisted = (
+                list(await materials_lookup(state["case_id"]) or [])
+                if materials_lookup is not None
+                else []
+            )
+            update["materials"] = merge_materials(persisted, state.get("materials"), added)
             return update
 
         if kind == "escape":

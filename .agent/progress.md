@@ -3346,3 +3346,25 @@ RESUME 双跑让 human_gate 两次 save_decision（版本号不同，唯一约�
 旧代码 6 条全挂。686 passed（既有 inline API 流程全绿）；`scripts.verify_multiinstance
 --boot --offline` 双实例冒烟 18/18（跨实例补件恢复、零 schema_reset；冒烟在 dev 库
 留下 1 条测试案件 CASE-2026-0342）。
+
+## T209 · 补件材料单源重建 I6（2026-11-08）
+
+**根因**：补件恢复载荷只带本次上传的一份（`[materials[-1]]`）；第一份上传 enqueue
+RESUME 后，恢复任务在队/在飞期间（图重跑分钟级），后续上传撞 `(case_id, active)`
+唯一约束被静默吸收（API 200）。恢复时 human_gate 只做 `state.materials + 赢家那份`，
+material_review 只读 state——后传材料对完整性判定永久不可见。
+
+**修复（D047"事实在 cases 表"口径）**：
+1. build_case_graph 新增 materials_lookup 注入（None=无 DB 测试/评测旧口径）；
+   create_default_case_graph 接 db_materials_lookup（读 cases.materials）
+2. human_gate 补件恢复：库内 ∪ 既有 state ∪ 恢复载荷（坐席登记的材料引用不落库，
+   不能丢）按 storage_path/文件名+类型去重合并（merge_materials 纯函数）
+3. 挂起前回扫兜底：首轮与"再次补件挂起前"各查一次库，若库内存在本流程未纳入的
+   材料（恢复在飞窗口的新上传），不挂起直接带全量重跑材料审核
+   （human_resolution.action=rescan，resolved_by=material_rescan）
+
+**验证**：图级 3 条（双份补件全量进入审核并 complete；恢复在飞期第二份落库→
+不挂起直接重扫；坐席引用合并去重）+ API 端到端 2 条（连传三份最终 auto_issued
+4640 且材料清单 3 条；HoldDispatcher 模拟在飞窗口复现竞态本体——第二份 job=None
+被吸收，恢复执行后仍纳入）。模拟旧行为 3 条挂。691 passed；六门全绿；双实例
+冒烟 18/18（补件闭环全程在线）。冒烟在 dev 库留下 1 条测试案件。

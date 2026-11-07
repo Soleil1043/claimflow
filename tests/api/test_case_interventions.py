@@ -32,6 +32,8 @@ async def env(monkeypatch, tmp_path: Path):
 
     saver = InMemorySaver()
 
+    from workflows.case_graph import db_materials_lookup
+
     def build() -> Any:
         """构建图（跨重启测试反复调用——共享同一持久化 checkpointer）。"""
         return build_case_graph(
@@ -39,6 +41,7 @@ async def env(monkeypatch, tmp_path: Path):
             policy_lookup=db_policy_lookup,
             fraud_lookup=db_fraud_lookup,
             checkpointer=saver,
+            materials_lookup=db_materials_lookup,  # T209：生产同款材料单源
         )
 
     monkeypatch.setattr(app.state, "case_graph", build(), raising=False)
@@ -264,6 +267,82 @@ async def test_supplement_upload_auto_resumes(env) -> None:
 
     detail = (await ac.get(f"/api/v1/cases/{case_id}")).json()
     assert detail["status"] == "auto_issued"
+    assert Decimal(str(detail["approved_amount"])) == Decimal("4640.00")
+
+
+async def test_supplement_multi_file_uploads_all_enter_pipeline(env) -> None:
+    """T209/I6：补件挂起期间连传多份——只有第一份触发恢复，其余撞交付冲突被
+    吸收；修复后以 cases.materials 单源重建，全部材料进入核赔并自动签发。"""
+    ac, _ = env
+    missing = await _submit(
+        ac,
+        materials=[{"file_name": "cost_list.jpg", "doc_type": "cost_list"}],
+    )
+    case_id = missing["case_id"]
+    assert missing["status"] == "supplement_pending"
+
+    for fname, doc in (("invoice.pdf", "invoice"), ("diagnosis.pdf", "diagnosis")):
+        upload = await ac.post(
+            f"/api/v1/cases/{case_id}/materials",
+            files={"file": (fname, b"%PDF-1.4", "application/pdf")},
+            data={"doc_type": doc},
+        )
+        assert upload.status_code == 200
+
+    detail = (await ac.get(f"/api/v1/cases/{case_id}")).json()
+    assert detail["status"] == "auto_issued"
+    assert Decimal(str(detail["approved_amount"])) == Decimal("4640.00")
+    assert len(detail["materials"]) == 3
+
+
+async def test_supplement_upload_during_inflight_resume_not_lost(env, monkeypatch) -> None:
+    """T209/I6 竞态本体：首份上传的恢复任务仍在队/在飞时，第二份上传撞活跃任务唯一
+    约束被静默吸收（API 200）；恢复执行时须以库内材料重建，第二份不得永久不可见。"""
+    from sqlalchemy import select
+
+    from services.case_jobs import InlineDispatcher
+    from services.db.models import CaseJob
+
+    ac, _ = env
+    missing = await _submit(
+        ac, materials=[{"file_name": "cost_list.jpg", "doc_type": "cost_list"}],
+    )
+    case_id = missing["case_id"]
+
+    class HoldDispatcher:
+        """不立即执行：模拟后台档恢复任务排队/执行中（分钟级在飞窗口）。"""
+
+        async def dispatch(self, job_id: int) -> None:
+            return None
+
+    real_dispatcher = app.state.case_dispatcher
+    monkeypatch.setattr(app.state, "case_dispatcher", HoldDispatcher(), raising=False)
+    first = await ac.post(
+        f"/api/v1/cases/{case_id}/materials",
+        files={"file": ("invoice.pdf", b"%PDF-1.4", "application/pdf")},
+        data={"doc_type": "invoice"},
+    )
+    second = await ac.post(
+        f"/api/v1/cases/{case_id}/materials",
+        files={"file": ("diagnosis.pdf", b"%PDF-1.4", "application/pdf")},
+        data={"doc_type": "diagnosis"},
+    )
+    assert first.status_code == second.status_code == 200
+    assert first.json()["job"] is not None
+    assert second.json()["job"] is None  # 交付冲突被吸收：第二份未产生恢复任务
+
+    # 在飞任务开始执行（恢复载荷只含第一份）
+    async with session_module.get_session_factory()() as s:
+        job_id = (
+            await s.execute(
+                select(CaseJob.id).where(CaseJob.case_id == case_id, CaseJob.status == "queued")
+            )
+        ).scalar_one()
+    assert isinstance(real_dispatcher, InlineDispatcher)
+    await real_dispatcher.dispatch(job_id)
+
+    detail = (await ac.get(f"/api/v1/cases/{case_id}")).json()
+    assert detail["status"] == "auto_issued", "第二份补件应已纳入，不应再次补件挂起"
     assert Decimal(str(detail["approved_amount"])) == Decimal("4640.00")
 
 

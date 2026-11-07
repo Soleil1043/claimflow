@@ -266,3 +266,93 @@ async def test_not_covered_requires_low_risk_for_auto_issue(
     assert payload["kind"] == "review"
     assert reason_part in str(payload["reason"])
     assert state.get("final_decision") is None
+
+
+# ---------- 补件材料单源（T209/I6） ----------
+
+
+def _graph_with_store(store: list[dict[str, Any]], on_call=None) -> Any:
+    """materials_lookup 读内存"库"（模拟 cases.materials）；on_call(n) 可在第 n 次读前改库。"""
+    calls = {"n": 0}
+
+    async def lookup(case_id: str) -> list[dict[str, Any]]:
+        calls["n"] += 1
+        if on_call is not None:
+            on_call(calls["n"])
+        return list(store)
+
+    return build_case_graph(
+        recorder=ListRecorder(),
+        policy_lookup=_policy_lookup,
+        fraud_lookup=_fraud_lookup,
+        checkpointer=InMemorySaver(),
+        materials_lookup=lookup,
+    )
+
+
+_INVOICE = {"file_name": "invoice_up.jpg", "doc_type": "invoice", "storage_path": "/m/1_invoice.jpg"}
+_DIAG = {"file_name": "diag_up.jpg", "doc_type": "diagnosis", "storage_path": "/m/2_diag.jpg"}
+
+
+def _not_waiting_supplement(result: dict[str, Any]) -> bool:
+    interrupts = result.get("__interrupt__") or []
+    return all(getattr(i, "value", {}).get("kind") != "supplement" for i in interrupts)
+
+
+async def test_supplement_resume_rebuilds_materials_from_store() -> None:
+    """同轮两份补件：载荷只带赢得交付的一份，库内两份都应进入材料审核。"""
+    case = _case_by_id("CASE-2026-0024")
+    store = list(case["materials"])
+    graph = _graph_with_store(store)
+    config = {"configurable": {"thread_id": "T209-A"}}
+    first = await graph.ainvoke({**_input(case), "case_id": "T209-A"}, config)
+    assert first["__interrupt__"][0].value["kind"] == "supplement"
+
+    store.extend([_INVOICE, _DIAG])  # 两份上传都已落库；第二份的恢复被交付冲突吸收
+    await graph.ainvoke(
+        Command(resume={"kind": "supplement", "resolved_by": "customer_upload",
+                        "added_materials": [_INVOICE]}),
+        config,
+    )
+    snapshot = graph.get_state(config)
+    names = {m["file_name"] for m in snapshot.values["materials"]}
+    assert {"invoice_up.jpg", "diag_up.jpg"} <= names
+    assert snapshot.values["material"]["completeness"] == "complete"
+    assert all(t.interrupts == () or t.interrupts[0].value["kind"] != "supplement"
+               for t in snapshot.tasks)
+
+
+async def test_supplement_rescan_before_resuspend() -> None:
+    """恢复在飞期间又有上传（材料审核后、再次补件挂起前落库）：不挂起，直接重跑。"""
+    case = _case_by_id("CASE-2026-0024")
+    store = list(case["materials"])
+
+    def upload_mid_run(n: int) -> None:
+        # 第 1 次读：首轮挂起前回扫；第 2 次：恢复（发票已落库）；
+        # 第 3 次：再次补件挂起前——诊断证明恰在此前落库
+        if n == 3:
+            store.append(_DIAG)
+
+    graph = _graph_with_store(store, on_call=upload_mid_run)
+    config = {"configurable": {"thread_id": "T209-B"}}
+    await graph.ainvoke({**_input(case), "case_id": "T209-B"}, config)
+
+    store.append(_INVOICE)
+    result = await graph.ainvoke(
+        Command(resume={"kind": "supplement", "resolved_by": "customer_upload",
+                        "added_materials": [_INVOICE]}),
+        config,
+    )
+    state = graph.get_state(config).values
+    assert state["material"]["completeness"] == "complete"
+    assert _not_waiting_supplement(result)
+    assert state["human_resolution"]["action"] == "rescan"
+
+
+async def test_supplement_merge_keeps_staff_refs_and_dedupes() -> None:
+    """坐席登记的材料引用（不落库）与库内材料合并，同一份不重复。"""
+    from nodes.human_gate import merge_materials
+
+    staff_ref = {"file_name": "paper_invoice", "doc_type": "invoice"}
+    merged = merge_materials([_INVOICE, _DIAG], [_INVOICE], [staff_ref, _DIAG])
+    assert merged == [_INVOICE, _DIAG, staff_ref]
