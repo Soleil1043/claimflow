@@ -91,6 +91,25 @@ app.include_router(cases.router)
 app.include_router(support.router)
 app.include_router(memory.router)
 
+# T203（C3 纵深）：显式跨域白名单，默认不挂。chatui/workbench 浏览器端走 Next
+# rewrites 同源代理，不需要 CORS；仅前端以绝对地址直连后端时按精确 Origin 放行
+# （与 OTel 同理须模块级挂载，lifespan 内 add_middleware 无效）
+def install_cors(target: FastAPI, origins: list[str]) -> None:
+    """按精确 Origin 白名单挂 CORS（凭证不随跨域发送；方法/头与 API 实际用量对齐）。"""
+    from fastapi.middleware.cors import CORSMiddleware
+
+    target.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "DELETE"],
+        allow_headers=["Content-Type", "X-Staff-Key", "X-Case-Token"],
+    )
+
+
+if settings.cors_origin_list:
+    install_cors(app, settings.cors_origin_list)
+
 # T039：OTel 追踪——必须在模块级（应用启动前）instrument：Starlette 的 middleware
 # 栈在 lifespan 开始前已构建，lifespan 内 add_middleware 无效（server span 缺失的实测坑）。
 # OTEL_ENABLED=false 时为 no-op；exporter 惰性连接，无 collector 也不阻塞启动。

@@ -3234,3 +3234,30 @@ docker 冒烟 job。
 
 **文档**：architecture.md §12 表数 12→13 + 新表行；AGENTS.md 结构图 models
 表数 11→13（顺带纠正 S18 所述旧口径漂移）。
+
+## T203 · workbench 浏览器请求同源代理修复 C3（2026-11-07）
+
+**根因**：workbench/lib/api.ts 的 `request()` 拼 `${API_BASE}${path}` 绝对地址
+（默认 http://localhost:8000），而同文件 `apiUrl()`（浏览器端返回相对路径走
+next.config rewrites 同源代理）只被材料目录/上传两个函数使用。工作台跑在
+5173，`Content-Type: application/json` 触发跨域预检，后端无 CORSMiddleware
+→ 预检必败。列表页由 RSC 服务端取数不受影响，点进表单操作（签批/改判/客服
+回复/档案删除/叙述评审）才炸；CI 只测后端 HTTP 从未暴露。
+
+**修复**：
+1. `request()` 改 `fetch(apiUrl(path), ...)`；顺带把 `...init` 展开挪到默认头
+   之前并合并 headers——旧写法调用方传 headers 会整体覆盖 X-Staff-Key（当前
+   无调用方传，属潜伏缺陷）
+2. 后端可选纵深：`CORS_ALLOW_ORIGINS`（逗号分隔精确 Origin，默认空=不挂中间件，
+   拒收 `*`）；`install_cors()` 模块级挂载（同 OTel：lifespan 内 add_middleware
+   无效），方法 GET/POST/DELETE、头 Content-Type/X-Staff-Key/X-Case-Token 与 API
+   实际用量对齐（路由普查无 PUT/PATCH），不带凭证。`.env.example` 同步
+
+**验证**：tests/core/test_cors.py 3 条（解析与 * 拒收 / 默认 app 无 CORS 中间件 /
+配置后白名单 Origin 预检放行含 x-staff-key、非白名单不回 ACAO）；`uv run pytest
+-q` 661 passed；ruff 干净；workbench `npm run build` 通过。**起栈实测**（uvicorn
+:8000 + next start :5173）：经 5173 同源代理 POST /api/v1/support/conversations
+→ 201；坐席端点经代理 → 200；旧路径对 8000 直接发跨域预检 → 405 且无
+Access-Control-Allow-Origin，复现 C3 根因。实测在本地 dev 库留下 1 条空客服
+会话（测试数据）。npm 父进程停止后 next 子进程残留占用 5173，已核对命令行后
+结束。

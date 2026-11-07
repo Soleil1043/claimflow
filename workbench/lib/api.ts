@@ -13,12 +13,21 @@ function staffHeaders(): Record<string, string> {
   return STAFF_KEY ? { "X-Staff-Key": STAFF_KEY } : {};
 }
 
-/** JSON 请求封装：POST/PUT 等带 JSON 体请求统一走此处 */
+/** JSON 请求封装：POST/PUT 等带 JSON 体请求统一走此处。
+ *
+ * 浏览器端必须走 apiUrl() 的同源相对路径（rewrites 代理）——拼绝对地址会让
+ * Content-Type: application/json 触发跨域预检，坐席签批/改判/客服回复等全部
+ * 浏览器端操作必败（T203/C3）。调用方 headers 与默认头合并，不覆盖鉴权头。
+ */
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const resp = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...staffHeaders() },
+  const resp = await fetch(apiUrl(path), {
     cache: "no-store",
     ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...staffHeaders(),
+      ...(init?.headers as Record<string, string> | undefined),
+    },
   });
   if (!resp.ok) {
     throw new Error(`API ${resp.status}: ${await resp.text().catch(() => "")}`);

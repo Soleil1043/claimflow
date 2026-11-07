@@ -179,6 +179,12 @@ class Settings(BaseSettings):
     # 可伪造轮转键绕过限流）；仅确认前方有可信反向代理时开启
     rate_limit_trust_forwarded: bool = False
 
+    # ===== 跨域白名单（T203，C3 纵深） =====
+    # 逗号分隔的精确 Origin（如 "http://localhost:5173,http://localhost:3000"）；
+    # 空 = 不挂 CORSMiddleware（默认：chatui/workbench 浏览器端均走 Next rewrites
+    # 同源代理，不需要跨域）。仅当前端以绝对地址直连后端时配置；不支持通配符
+    cors_allow_origins: str = ""
+
     # ===== OTel 追踪（T039，D015 后置项） =====
     # 开关（默认关：不起 tracing 栈时零开销）；OTLP gRPC 上报地址；采样率 0.0-1.0
     otel_enabled: bool = False
@@ -228,6 +234,15 @@ class Settings(BaseSettings):
             if name.strip() and key.strip():
                 mapping[key.strip()] = name.strip()
         return mapping
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """跨域白名单 Origin 列表（空段跳过；"*" 拒收——白名单只认精确 Origin）。"""
+        return [
+            o.strip()
+            for o in self.cors_allow_origins.split(",")
+            if o.strip() and o.strip() != "*"
+        ]
 
     @property
     def llm_pricing_map(self) -> dict[str, tuple[float, float, float]]:
