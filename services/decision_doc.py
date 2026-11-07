@@ -29,8 +29,9 @@ _CONCLUSION_LABELS = {
     "partial": "部分赔付",
 }
 
-# 正文核定金额提取（金额一致性断言用）
-_BODY_AMOUNT_RE = re.compile(r"核定金额：([0-9][0-9,]*(?:\.[0-9]+)?)\s*元")
+# 正文核定金额提取（金额一致性断言用）。容忍冒号全/半角与"为/是"等连接写法——
+# 叙述段由 LLM 撰写，受申请人材料文本影响，可能以变体写法夹带第二处金额（T210/I7）
+_BODY_AMOUNT_RE = re.compile(r"核定金额\s*(?:[：:]|为|是)?\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*元")
 
 _APPEAL_CLAUSE = (
     "如对本决定有异议，可在收到决定书之日起 30 日内申请复核，"
@@ -137,8 +138,10 @@ def review_decision_document(
     calc_amount = Decimal(str(calc.get("approved_amount") or "0"))
     doc_amount = Decimal(str(decision.get("approved_amount") or "0"))
     amount_consistent = doc_amount == calc_amount
-    match = _BODY_AMOUNT_RE.search(body)
-    if match is not None:
+    # 正文每一处"核定金额"都必须与理算一致（T210/I7）：旧实现只取第一处匹配——恒为
+    # 模板行、恒一致——叙述段再写一处矛盾金额（如"核定金额：999999 元"）断言视而
+    # 不见，出站文书含两处矛盾金额而合规门 PASS
+    for match in _BODY_AMOUNT_RE.finditer(body):
         body_amount = Decimal(match.group(1).replace(",", ""))
         amount_consistent = amount_consistent and body_amount == calc_amount
     if not amount_consistent:

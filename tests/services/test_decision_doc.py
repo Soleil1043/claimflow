@@ -124,3 +124,40 @@ def test_review_doc_json_serializable() -> None:
     review = review_decision_document(doc, _CALC)
     json.dumps(doc, ensure_ascii=False), json.dumps(review, ensure_ascii=False)
     assert Decimal(doc["approved_amount"]) == Decimal("4640.00")
+
+
+# ---------- 金额一致性全匹配（T210/I7） ----------
+
+
+def test_narrative_second_amount_mismatch_triggers_modify() -> None:
+    """叙述段夹带第二处矛盾金额 → 金额断言失败（MODIFY），不再只查模板行。"""
+    doc = render_decision_document(
+        case_id="C1", case_type="medical", liability=_LIABILITY, calc=_CALC,
+        narrative="经审核，本次核定金额：999999 元，理由充分。",
+    )
+    review = review_decision_document(doc, _CALC)
+    assert review["amount_consistent"] is False
+    assert review["verdict"] == "MODIFY"
+
+
+def test_narrative_variant_amount_forms_all_checked() -> None:
+    """连接写法变体（全角冒号/为/是）同样被提取断言。"""
+    for narrative in (
+        "本次核定金额：4640.00 元，符合条款。",
+        "经复核，核定金额为 4640.00 元。",
+        "最终核定金额是 4,640.00 元。",
+    ):
+        doc = render_decision_document(
+            case_id="C1", case_type="medical", liability=_LIABILITY, calc=_CALC,
+            narrative=narrative,
+        )
+        assert review_decision_document(doc, _CALC)["amount_consistent"] is True, narrative
+    for bad in (
+        "本次核定金额：5000.00 元，符合条款。",
+        "经复核，核定金额为 999999 元。",
+    ):
+        doc = render_decision_document(
+            case_id="C1", case_type="medical", liability=_LIABILITY, calc=_CALC,
+            narrative=bad,
+        )
+        assert review_decision_document(doc, _CALC)["amount_consistent"] is False, bad
