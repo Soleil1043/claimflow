@@ -87,4 +87,7 @@ class ClaimsHistoryTool(ClaimflowTool):
         raise NotImplementedError(f"{self.name} 仅支持异步调用（ainvoke）")
 
     async def _arun(self, id_card: str, days: int = FREQUENCY_WINDOW_DAYS) -> dict[str, Any]:
-        return await query_claims_history(id_card, days=days, session_factory=self._session_factory())
+        # 传工厂本身而非其实例（T207/I4）：query_claims_history 内部 `async with
+        # factory()` 自行建会话——旧实现传 self._session_factory()，缺省 None
+        # 直接 TypeError，注入了实例也会被二次调用炸掉
+        return await query_claims_history(id_card, days=days, session_factory=self._session_factory)

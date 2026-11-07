@@ -173,3 +173,30 @@ async def test_history_unknown_person_zero(db_factory) -> None:
         "999999", days=90, session_factory=db_factory
     )
     assert result["recent_claims"] == 0
+
+
+async def test_history_tool_ainvoke_default_factory(db_factory, monkeypatch) -> None:
+    """T207/I4：工具经 ainvoke 真实可用——缺省工厂路径不再 TypeError。
+
+    工具注册进默认工具图（tools/factory.py），LLM 一旦经工具图调用即触发；
+    旧实现 `self._session_factory()` 对缺省 None 调用必然 TypeError。
+    """
+    import tools.fraud.history as history_module
+    from tools.fraud.history import ClaimsHistoryTool
+
+    # 缺省路径：工具不注入工厂，函数内回退全局工厂（此处替换为测试库）
+    monkeypatch.setattr(history_module, "get_session_factory", lambda: db_factory)
+    result = await ClaimsHistoryTool().ainvoke(
+        {"id_card": "330103198805126778", "days": 90}
+    )
+    assert result["recent_claims"] == 2
+
+
+async def test_history_tool_ainvoke_injected_factory(db_factory) -> None:
+    """注入工厂经 ainvoke 同样可用（工厂本身传入，由函数内部建会话）。"""
+    from tools.fraud.history import ClaimsHistoryTool
+
+    result = await ClaimsHistoryTool(session_factory=db_factory).ainvoke(
+        {"id_card": "330103198805126778"}
+    )
+    assert result["recent_claims"] == 2

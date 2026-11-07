@@ -3309,3 +3309,15 @@ guard_correction 审计记 risk_short_circuit:high。
 → 强制短路、责任认定未白耗）。旧代码挂 2 条（medium 拒赔被自动出书、LLM 模式
 无守卫）。678 passed；六门主门 + 对抗门全绿——33 条既有 auto 拒赔金样本零回归，
 证明收紧未误伤（其 risk=low 且置信度达标）。
+
+## T207 · ClaimsHistoryTool 必然 TypeError I4（2026-11-08）
+
+**根因**：`_arun` 传 `session_factory=self._session_factory()`——缺省 None 调用即
+TypeError；注入 sessionmaker 后传入的是 AsyncSession 实例，`query_claims_history`
+内 `async with factory()` 二次调用同样炸。工具注册在默认工具图（factory.py），生产
+未暴露只因 case_graph 直接用模块级函数绕过了工具，LLM 一旦经工具图调用即失败并
+计熔断。修复：传工厂本身（None 时函数内部回退全局工厂），与 policy_query 的
+`_factory()()` 语义一致。
+
+**验证**：新增 2 条经 `ainvoke` 的工具级测试（缺省工厂 / 注入工厂），旧代码 2 条
+全挂；680 passed。不触调度/理算/决定书，未跑评测门。
