@@ -69,6 +69,12 @@ docs/diagrams/claimflow-case-workflow.*
 
 # 根目录个人文档（简历导出等）
 /*.docx
+# 根目录进程日志（运行时产物）
+/*.log
+# 面试过程记录（个人文档）
+/agent-interview-session.md
+# 代码审查报告（作者个人使用，修复痕迹见 .agent/progress.md T200-T222）
+/docs/code-review-*.md
 
 # 未入库评测报告（T162/T165/T174；其余报告按惯例已入库）
 evals/reports/t162_cache_llm30.json

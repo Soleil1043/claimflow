@@ -3581,3 +3581,25 @@ get_vision_model 两处构造模型，均挂 UsageRecordingHandler，删除后�
 **改动**：AGENTS.md 第 5 条、.env.example（QDRANT_LOCAL_PATH 上方注释）、
 docs/architecture.md 两处（§多实例 与 D071 说明）同步补"每实例独立 QDRANT_LOCAL_PATH"。
 纯文档，`git diff --check` 通过，未跑 pytest。
+
+## T224 · 个人文档忽略核对（2026-11-09）
+
+**核对结论**：docs/ 下个人文档（resume/interview/exercises）与根目录 docx 在 .gitignore
+中已正确忽略，且**从未进过 git 历史**（`git log --all -- docs/resume` 为空）；Docker 侧
+`docs`、`*.docx`、`**/*.log`、`agent-interview-session.md`、`.workbuddy` 也都在
+.dockerignore 里。真正的问题是三类「规则写了但文件仍被跟踪」（已跟踪文件覆盖忽略规则），
+以及一份既没忽略也没入库的遗留文件。
+
+**处理**：
+1. `.gitignore` 补 `/docs/code-review-*.md`（用户定为个人文档）、`/agent-interview-session.md`、
+   `/*.log`（只匹配根目录，不波及已入库的 `evals/reports/archive/*.log` 历史报告）
+2. `git rm --cached -r .workbuddy`（10 个文件：工具记忆与临时脚本，本地保留）
+3. `git rm --cached agent-interview-session.md pt.log`（本地保留）
+4. `git rm` 删除 `docs/diagrams/` 三个已退役 Gradio 界面的调试残留（`_chatdom.html`、
+   `_chatdom420.html`、`_meas_chat420.png`，约 380KB，无 md 引用、无敏感信息）
+5. `.zcodeignore` 自定义区加注：`docs/resume/`、`docs/interview/` 有意不同步到 AI 忽略
+   规则（改简历/核对题库口径需要 AI 读到原文），避免下次同步被顺手覆盖
+
+**验证**：`git check-ignore -v` 逐条确认——pt.log / 面试记录 / .workbuddy / 审查报告 /
+resume / interview / exercises 均命中忽略规则，architecture.md 与 archive 日志仍被跟踪；
+`git ls-files` 个人文件集为空；本地文件与 .workbuddy 目录均保留。纯仓库卫生，未改代码。

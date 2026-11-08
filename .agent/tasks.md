@@ -560,3 +560,7 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：全项目文档核对（2026-11-09）
 
 - [x] T223: 核对项目全部文档与 T200-T222 修复后的代码现状，修正过时事实 ✅ 2026-11-09（21 文件修正；grep 零残留；链接/diff 检查通过） | 依赖: T222 | 涉及文件: README.md、AGENTS.md、CONTEXT.md、docs/、.agent/{spec,plan,tasks,prompts}.md、各模块 README、.env.example、skills/ | 验收: 测试基线/决策与任务编号范围/表数/端口/环境变量/API 端点/核赔规则等事实与代码一致；历史档案（progress/decisions 正文、evals/reports、.workbuddy、kb_docs）不改写；`git diff --check` 通过
+
+### 增量：个人文档忽略核对（2026-11-09）
+
+- [x] T224: 核对 docs/ 与根目录个人文档是否被正确忽略，清理已跟踪的个人/过程文件 ✅ 2026-11-09 | 依赖: T223 | 涉及文件: .gitignore、.zcodeignore、docs/diagrams/、.workbuddy/、pt.log、agent-interview-session.md、docs/code-review-2026-11-07.md | 验收: 简历/面试题库/练习/审查报告/个人记录均被 git 忽略且不在跟踪集；docs/diagrams 三个调试残留删除；历史报告（evals/reports/archive/*.log）不受影响；`git check-ignore` 逐条验证
