@@ -2,6 +2,8 @@
 # 注意（BUG-004）：data/mock、data/kb_docs、data/graph 与 evals/ 必须进镜像——
 # init 容器自举（seed/ingest）与评测 API 子进程（evals.test_suite）都依赖它们；
 # 仅排除 dev 运行产物（qdrant 本地存储 / SQLite 文件）
+# 注意（T218/I15）：docker 不读 .gitignore——被 git 忽略的本地文件照样进构建上下文，
+# 进镜像层后随镜像分发即泄漏。个人/过程文件必须在此显式排除。
 .git
 .venv
 .agent
@@ -22,4 +24,35 @@ prometheus
 .env.example
 Dockerfile
 docker-compose.yml
+docker-compose.replicas.yml
 .github
+
+# 前端（独立 Next.js 应用，各自构建；node_modules/.next 数百 MB 死重）
+chatui
+workbench
+**/node_modules
+**/.next
+
+# 个人 / 过程文件（根目录简历、面试记录、运行日志等）
+*.docx
+*.doc
+*.pdf
+**/*.log
+agent-interview-session.md
+artifacts
+evals/reports/archive
+
+# 本地工具与编辑器目录
+.agents
+.claude
+.cache
+.idea
+.mimosa
+.trae-html-share-packages
+.uploads
+.zcodeignore
+.dockerignore
+
+# Python 缓存
+**/__pycache__
+**/*.pyc

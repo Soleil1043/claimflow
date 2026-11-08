@@ -3490,3 +3490,27 @@ redis 含 --requirepass，REDIS_URL 带口令。另实测确认 compose 会对�
 服务做必填插值校验（决定 Grafana 不用 `:?`）。
 **未能本地验证**：Docker Desktop 守护进程未运行，带口令的 redis 健康检查命令未在
 真实容器执行，由 CI docker job 起栈验证。无 Python 改动。
+
+## T218 · .dockerignore 缺口 I15（2026-11-08）
+
+**根因**：docker 不读 .gitignore——被 git 忽略的本地文件照样进构建上下文，经
+`COPY . .` 进镜像层，镜像一旦分发即泄漏。CI checkout 干净所以从未暴露。
+
+**改动**：.dockerignore 追加——前端（chatui、workbench、**/node_modules、**/.next）、
+个人/过程文件（根目录 *.docx/*.doc/*.pdf、**/*.log、agent-interview-session.md、
+artifacts、evals/reports/archive）、本地工具目录（.agents/.claude/.cache/.idea/
+.mimosa/.trae-html-share-packages/.uploads/.zcodeignore）、Python 缓存
+（**/__pycache__、**/*.pyc）、docker-compose.replicas.yml 与 .dockerignore 自身。
+保留黑名单形态而非白名单 COPY：Docker 守护进程未运行无法本地验证真实构建，
+黑名单不会误删运行时依赖（README.md 是 hatch 构建必需的 readme）。
+
+**验证**（脚本按 .dockerignore 语义模拟构建上下文，前后对照同一工作区）：
+- 修改前：38,452 个文件 / 1,338.1 MB，含个人简历 docx、面试记录、pt.log、
+  chatui/workbench（node_modules）、artifacts、.agents；37,782 个缓存/日志残留
+- 修改后：260 个文件 / 1.7 MB；上述敏感文件零泄漏；README/pyproject/uv.lock/
+  alembic/skills/data(mock,kb_docs,graph)/evals/datasets/scripts 等运行时依赖齐全；
+  缓存/日志残留 0
+- 真实 `docker build` 由 CI docker job 验证（模拟为近似语义）
+
+**未做（S23，留 S 批次）**：pt.log、agent-interview-session.md 已在 git 历史中，
+需 `git rm --cached` + .gitignore，属仓库卫生项。
