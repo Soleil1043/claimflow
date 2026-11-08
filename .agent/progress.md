@@ -3535,3 +3535,21 @@ functools.cache 不防重复加载约 2GB）。
 超时在 0.4s 编码完成前抛出 / 8 线程并发冷启动只加载 1 次 / 记忆 Store 守护）；旧
 retriever 下前 2 条挂。既有 retriever 测试的 patch 目标随之改为 embedder.embed_query。
 717 passed；六门全绿。
+
+## T220 · CASE_TOKENS 案件维度 token 双计 I19（2026-11-08）
+
+**根因**：UsageRecordingHandler 挂在 ChatOpenAI 构造器上（模型级，每次调用必触发
+on_llm_end → record_usage_to_tracker）；observed_ainvoke 非结构化分支对同一次调用又
+归集一次。T130c 迁移到模型级回调时结构化分支删了旧 T029 归集，非结构化分支漏删——
+决定书叙述、材料提取等裸模型调用的案件 token 与调用次数按 2 倍虚高，两套口径不一致。
+
+**修复**：删除 observed_ainvoke 非结构化分支的 tracker 归集（Prometheus LLM 指标与
+span 属性仍在本处记录，只去掉案件维度重复项）。核对：全仓库仅 get_chat_model /
+get_vision_model 两处构造模型，均挂 UsageRecordingHandler，删除后每次调用恰记一次。
+
+**验证**：与生产同构的假模型（构造期挂 UsageRecordingHandler、带 model_name 走非结构化
+分支）经 phase_ainvoke 调用一次：修复后累加器 [tokens=140, calls=1]；旧代码 [280, 2]，
+复现审查所述双计。718 passed；六门全绿。
+
+**影响**：历史评测报告中的 tokens_per_case / llm_calls_avg（LLM 档）含该虚高，修复后
+同口径重跑数值会下降，比较时需注意口径断点（确定性档零 LLM 不受影响）。

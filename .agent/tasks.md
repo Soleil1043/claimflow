@@ -552,6 +552,6 @@ T001 → T002 → T003 → T004 → T005
 ### 增量：全仓库代码审查修复·随后层（2026-11-08，依据 docs/code-review-2026-11-07.md I18-I21）
 
 - [x] T219: BGE-M3 同步编码阻塞事件循环（I18） ✅ 2026-11-08（717 passed；新增 4 用例，阻塞类 2 条旧代码挂；审查对长期记忆/精排路径的判断经核不成立，未改） | 依赖: T218 | 涉及文件: services/rag/embedder.py、services/rag/retriever.py、services/rag/reranker.py、services/memory/long_term.py、tests/ | 验收: 在线路径编码/精排移出事件循环（asyncio.to_thread）；守卫超时可在编码期间生效；编码期间事件循环不停摆的测试
-- [ ] T220: CASE_TOKENS 案件维度 token 双计（I19） | 依赖: T219 | 涉及文件: services/observability/llm_metrics.py、tests/ | 验收: 非结构化 observed_ainvoke 不再重复归集；"observed_ainvoke + 模型级回调"单次调用只记一次的集成测试
+- [x] T220: CASE_TOKENS 案件维度 token 双计（I19） ✅ 2026-11-08（718 passed；集成测试旧代码复现 [280,2]≠[140,1]） | 依赖: T219 | 涉及文件: services/observability/llm_metrics.py、tests/ | 验收: 非结构化 observed_ainvoke 不再重复归集；"observed_ainvoke + 模型级回调"单次调用只记一次的集成测试
 - [ ] T221: 恢复被误删的 graph_retriever / reranker 测试（I20） | 依赖: T220 | 涉及文件: tests/rag/ | 验收: 自 54b2b4f^ 恢复并适配现行代码；在线路径活代码重新有覆盖；清理孤儿 pyc
 - [ ] T222: 多实例指引补 QDRANT_LOCAL_PATH（I21） | 依赖: T221 | 涉及文件: AGENTS.md、.env.example | 验收: 文档写明双实例须各自独立 Qdrant local 目录

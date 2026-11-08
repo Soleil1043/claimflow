@@ -46,3 +46,38 @@ def test_track_case_resets_context() -> None:
     before = _case_tokens("m2")
     tt.record_usage_to_tracker("m2", 7, 3)
     assert _case_tokens("m2") == before
+
+
+# ---------- 单次调用只归集一次（T220/I19） ----------
+
+
+def _usage_model() -> object:
+    """与生产同构的假模型：构造期挂 UsageRecordingHandler（同 services.llm.client），
+    带 model_name 属性（走 observed_ainvoke 非结构化分支），响应带 usage_metadata。"""
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+    from langchain_core.messages import AIMessage
+
+    class UsageFakeModel(GenericFakeChatModel):
+        model_name: str = "fake-usage-model"
+
+    reply = AIMessage(
+        content="叙述正文",
+        usage_metadata={"input_tokens": 100, "output_tokens": 40, "total_tokens": 140},
+    )
+    return UsageFakeModel(messages=iter([reply]), callbacks=[tt.UsageRecordingHandler()])
+
+
+async def test_observed_ainvoke_counts_case_tokens_once() -> None:
+    """模型级回调已归集本次用量；observed_ainvoke 非结构化分支不得再记一次。
+
+    旧实现两条路径都归集，决定书叙述、材料提取等裸模型调用的案件 token 虚高 2 倍。
+    """
+    from langchain_core.messages import HumanMessage
+
+    acc_tokens: list[int] = []
+    with tt.track_case("CASE-T220") as acc:
+        await tt.phase_ainvoke(_usage_model(), [HumanMessage(content="写叙述")],
+                                 phase="decision_writer")
+        acc_tokens.append(acc.tokens)
+        acc_tokens.append(acc.calls)
+    assert acc_tokens == [140, 1]

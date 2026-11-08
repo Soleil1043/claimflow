@@ -168,11 +168,10 @@ async def observed_ainvoke(
             span.set_attribute("gen_ai.usage.cache_read_tokens", cache_hit_tokens)
         if cache_miss_tokens is not None:
             span.set_attribute("gen_ai.usage.cache_miss_tokens", cache_miss_tokens)
-        # T029：归集到当前轮次的 token tracker（contextvars，无请求上下文时无操作）
-        if prompt_tokens is not None and completion_tokens is not None:
-            from services.observability.token_tracker import record_usage_to_tracker
-
-            record_usage_to_tracker(name, prompt_tokens, completion_tokens)
+        # 案件维度 token（CASE_TOKENS）不在此归集（T220/I19）：模型实例构造时挂了
+        # UsageRecordingHandler（services/llm/client.py，T130c 全调用点统一），本次
+        # 调用的 on_llm_end 已归集一次；此处再记即双计（旧 T029 路径迁移遗留——
+        # 结构化分支早已去掉，非结构化分支漏删，决定书叙述/材料提取等裸调用虚高 2 倍）
         return response
 
 
