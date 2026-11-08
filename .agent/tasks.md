@@ -542,7 +542,7 @@ T001 → T002 → T003 → T004 → T005
 - [x] T210: 金额一致性断言只校验第一处核定金额（I7） ✅ 2026-11-08（693 passed；新增 2 用例旧代码全挂；六门全绿） | 依赖: T209 | 涉及文件: services/decision_doc.py、tests/ | 验收: 全部"核定金额"匹配逐一断言；叙述夹带矛盾金额 → MODIFY
 - [x] T211: 坐席改判金额无约束 + falsy 吞 0 元（I8） ✅ 2026-11-08（全量通过；新增 6 用例旧代码 5 条挂；六门全绿） | 依赖: T210 | 涉及文件: schemas/api.py、services/case_service.py、nodes/human_gate.py、tests/ | 验收: approved_amount ge=0/max_digits；改判 0 元落库为 0
 - [x] T212: 案件详情 timeline 全量外泄内部审计事件（I9） ✅ 2026-11-08（D090；703 passed；新增 4 用例旧代码挂；chatui build 通过） | 依赖: T211 | 涉及文件: app/api/v1/cases.py、tests/ | 验收: 门户通道按 kind 白名单投影；job error 仅坐席可见
-- [ ] T213: 上传链路四连（I10） | 依赖: T212 | 涉及文件: app/api/v1/cases.py、tests/ | 验收: 分块读超限即断；上传限流；响应剔除 storage_path；doc_type 校验先于提取
+- [x] T213: 上传链路四连（I10） ✅ 2026-11-08（708 passed；新增 5 用例旧代码全挂） | 依赖: T212 | 涉及文件: app/api/v1/cases.py、tests/ | 验收: 分块读超限即断；上传限流；响应剔除 storage_path；doc_type 校验先于提取
 - [ ] T214: 工具缓存明文写 PII（I11） | 依赖: T213 | 涉及文件: app/core/config.py、.env.example、tests/ | 验收: 含 PII 工具移出默认缓存白名单
 - [ ] T215: 坐席 Key 打进浏览器 bundle（I12，HttpOnly Cookie） | 依赖: T214 | 涉及文件: workbench/ | 验收: bundle 不含 Key；middleware 注入 X-Staff-Key；npm build 通过
 - [ ] T216: compose 演示默认值绕过 prod 门卫（I13） | 依赖: T215 | 涉及文件: app/core/config.py、tests/core/ | 验收: prod 拒绝已知 demo 弱值启动

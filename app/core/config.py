@@ -175,6 +175,8 @@ class Settings(BaseSettings):
     # （负载测试在服务器侧置 0 后压测）。prod Redis 共享桶 / dev 进程内存
     rate_limit_cases_per_min: int = 30
     rate_limit_support_per_min: int = 60
+    # 材料上传（T213/I10）：每次上传触发昂贵的 vision/PDF 提取
+    rate_limit_materials_per_min: int = 30
     # 是否信任 X-Forwarded-For 首跳为真实客户端 IP：默认 False（直连场景该头
     # 可伪造轮转键绕过限流）；仅确认前方有可信反向代理时开启
     rate_limit_trust_forwarded: bool = False

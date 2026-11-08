@@ -414,3 +414,96 @@ async def test_concurrent_same_natural_key_idempotent(client: AsyncClient) -> No
     case_ids = {r.json()["case_id"] for r in responses}
     assert len(case_ids) == 1, f"同自然键应收敛为单一案件，实得 {case_ids}"
 
+
+
+# ---------- 上传链路（T213/I10） ----------
+
+
+async def _supplement_case(client: AsyncClient) -> str:
+    submitted = await client.post(
+        "/api/v1/cases",
+        json=_body(materials=[{"file_name": "invoice.jpg", "doc_type": "invoice"}]),
+    )
+    return submitted.json()["case_id"]
+
+
+async def test_upload_detail_hides_storage_path(client: AsyncClient) -> None:
+    """详情材料清单不回显服务端落盘绝对路径（库内仍保留供材料审核读取）。"""
+    case_id = await _supplement_case(client)
+    await client.post(
+        f"/api/v1/cases/{case_id}/materials",
+        files={"file": ("诊断证明.pdf", b"%PDF-1.4 fake", "application/pdf")},
+        data={"doc_type": "diagnosis"},
+    )
+    detail = (await client.get(f"/api/v1/cases/{case_id}")).json()
+    assert all("storage_path" not in m for m in detail["materials"])
+    async with session_module.get_session_factory()() as s:
+        from services.db.models import Case
+
+        stored = (await s.get(Case, case_id)).materials
+    assert any(m.get("storage_path") for m in stored)
+
+
+async def test_upload_invalid_doc_type_rejected_before_extract(client, monkeypatch) -> None:
+    """非法 doc_type 先于昂贵提取被拒（提取函数不得被调用）。"""
+    calls: list[str] = []
+
+    async def counting_extract(filename: str, mime: str, content: bytes):
+        calls.append(filename)
+        raise AssertionError("不应调用提取")
+
+    monkeypatch.setattr(cases_module, "extract_material", counting_extract)
+    case_id = await _supplement_case(client)
+    resp = await client.post(
+        f"/api/v1/cases/{case_id}/materials",
+        files={"file": ("x.pdf", b"%PDF-1.4", "application/pdf")},
+        data={"doc_type": "not_a_type"},
+    )
+    assert resp.status_code == 422
+    assert calls == []
+
+
+async def test_upload_oversize_aborts_bounded(client, monkeypatch) -> None:
+    """超限文件 422，且分块读在越线后即中止（不整读进内存）。"""
+    monkeypatch.setattr(session_module.settings, "material_max_size_mb", 1)
+    monkeypatch.setattr(cases_module, "_UPLOAD_READ_CHUNK", 64 * 1024)
+    case_id = await _supplement_case(client)
+    resp = await client.post(
+        f"/api/v1/cases/{case_id}/materials",
+        files={"file": ("big.pdf", b"%PDF" + b"0" * (3 * 1024 * 1024), "application/pdf")},
+        data={"doc_type": "diagnosis"},
+    )
+    assert resp.status_code == 422
+    assert "大小上限" in resp.json()["detail"]
+
+
+async def test_read_bounded_stops_early() -> None:
+    """_read_bounded：读到越线那一块即返回 None，不继续读完剩余数据。"""
+    from app.api.v1.cases import _read_bounded
+
+    class FakeUpload:
+        def __init__(self) -> None:
+            self.reads = 0
+
+        async def read(self, n: int) -> bytes:
+            self.reads += 1
+            return b"x" * n  # 无限流
+
+    upload = FakeUpload()
+    assert await _read_bounded(upload, 3 * 1024 * 1024) is None  # type: ignore[arg-type]
+    assert upload.reads == 4  # 1MB 块：第 4 块越过 3MB 上限即停
+
+
+async def test_upload_rate_limited(client, monkeypatch) -> None:
+    """上传端点限流：超配额 429。"""
+    monkeypatch.setattr(session_module.settings, "rate_limit_materials_per_min", 2)
+    case_id = await _supplement_case(client)
+    codes = []
+    for i in range(3):
+        resp = await client.post(
+            f"/api/v1/cases/{case_id}/materials",
+            files={"file": (f"d{i}.pdf", b"%PDF-1.4", "application/pdf")},
+            data={"doc_type": "diagnosis"},
+        )
+        codes.append(resp.status_code)
+    assert codes[-1] == 429

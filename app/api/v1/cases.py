@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from pathlib import Path
+from typing import Any
 from weakref import WeakKeyDictionary
 
 from fastapi import (
@@ -234,6 +235,30 @@ async def submit_case(
 
 
 
+# 上传分块大小：内存占用上限 ≈ 文件上限 + 1 块
+_UPLOAD_READ_CHUNK = 1024 * 1024
+
+
+async def _read_bounded(file: UploadFile, limit: int) -> bytes | None:
+    """分块读取上传文件，超过 limit 立即中止返回 None（T213/I10）。
+
+    旧实现 `await file.read()` 先把整份文件读进内存再比大小——请求体已被
+    Starlette 落盘缓存，整读即内存放大（恶意 2GB 上传 = 2GB 驻留）。请求体本身的
+    字节上限属反向代理职责（client_max_body_size 等）。
+    """
+    buf = bytearray()
+    while chunk := await file.read(_UPLOAD_READ_CHUNK):
+        buf.extend(chunk)
+        if len(buf) > limit:
+            return None
+    return bytes(buf)
+
+
+def _public_material(material: dict[str, Any]) -> dict[str, Any]:
+    """材料对外投影：剔除服务端落盘绝对路径（T213/I10，泄漏目录结构）。"""
+    return {k: v for k, v in material.items() if k != "storage_path"}
+
+
 def _timeline(events: list[CaseEvent], *, full: bool) -> list[CaseTimelineEvent]:
     """审计事件 → 详情 timeline：full=坐席原始流；否则门户白名单投影（T212/I9）。"""
     out: list[CaseTimelineEvent] = []
@@ -302,7 +327,7 @@ async def get_case(
         claimed_amount=case.claimed_amount,
         approved_amount=case.approved_amount,
         final_decision=case.final_decision,
-        materials=list(case.materials or []),
+        materials=[_public_material(m) for m in case.materials or []],
         decision_document=decision_doc_payload(doc),
         decision_issued=doc_issued,
         timeline=_timeline(events, full=full_view),
@@ -314,7 +339,12 @@ async def get_case(
     )
 
 
-@router.post("/{case_id}/materials", response_model=CaseMaterialUploadResponse)
+@router.post(
+    "/{case_id}/materials",
+    response_model=CaseMaterialUploadResponse,
+    # 上传限流（T213/I10）：每次上传触发 vision/PDF 提取（昂贵），持令牌者不得无限刷
+    dependencies=[Depends(rate_limit("materials", "rate_limit_materials_per_min"))],
+)
 async def upload_case_material(
     case_id: str,
     file: UploadFile = File(...),  # noqa: B008
@@ -349,23 +379,23 @@ async def upload_case_material(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="仅支持图片（png/jpeg/webp/bmp）、PDF、Word(.docx) 文件",
         )
-    content = await file.read()
-    if not content:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="上传文件为空"
-        )
-    if len(content) > settings.material_max_size_mb * 1024 * 1024:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"文件超过大小上限（{settings.material_max_size_mb}MB）",
-        )
-
-    result = await extract_material(filename, file.content_type or "", content)
-
+    # 廉价校验先于昂贵提取（T213/I10）：非法 doc_type 不再先烧一次 vision/PDF 提取
     if doc_type is not None and doc_type not in all_doc_types():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="doc_type 取值非法"
         )
+    content = await _read_bounded(file, settings.material_max_size_mb * 1024 * 1024)
+    if content is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"文件超过大小上限（{settings.material_max_size_mb}MB）",
+        )
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="上传文件为空"
+        )
+
+    result = await extract_material(filename, file.content_type or "", content)
 
     # 文件落盘（T082）：storage_path 供材料审核真实提取（补件重跑/复核时读取）
     materials_dir = Path(settings.case_materials_dir) / case_id

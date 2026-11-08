@@ -3411,3 +3411,20 @@ narrative_review（坐席名）/ guard_correction 后均不可见，routing 仅 
 stage_result 无 payload、status_change 仅 status/final_decision，且进度事件非空；
 坐席 Key 看原始流；未知 kind 默认隐藏；envelope 门户去 error。旧代码申请人用例挂。
 703 passed；chatui `npm run build` 通过（进度展示依赖的 routing.targets 保留）。
+
+## T213 · 上传链路四连修复 I10（2026-11-08）
+
+**改动**（app/api/v1/cases.py 上传端点 + 详情）：
+1. **整读改分块有界读**：`_read_bounded` 按块读入、越线即中止（旧实现
+   `await file.read()` 先把整个请求体读进内存再比大小，恶意流式 2GB 即内存放大；
+   请求体字节上限属反向代理职责，此处只保应用侧不放大）
+2. **上传限流**：`rate_limit("materials")`（新配置 rate_limit_materials_per_min=30，
+   .env.example 同步）——每次上传触发昂贵的 vision/PDF 提取，此前全文件唯一一处
+   限流在提交端点
+3. **storage_path 不回显**：详情 materials 走 `_public_material` 剔除服务端落盘
+   绝对路径（库内保留，材料审核真实提取仍读取）
+4. **doc_type 白名单校验前移**：非法值 422 在昂贵提取之前
+
+**验证**：新增 5 用例（路径不回显且库内保留 / 非法 doc_type 零提取调用 / 超限
+422 分块中止 / _read_bounded 恰在越线块停止 / 超配额 429），旧代码 5 条全挂。
+708 passed。
