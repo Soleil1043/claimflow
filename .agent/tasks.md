@@ -548,3 +548,10 @@ T001 → T002 → T003 → T004 → T005
 - [x] T216: compose 演示默认值绕过 prod 门卫（I13） ✅ 2026-11-08（D093；713 passed；compose 无变量拒绝/有变量两套配置通过（Docker Compose v5.5.1 实测）） | 依赖: T215 | 涉及文件: app/core/config.py、tests/core/ | 验收: prod 拒绝已知 demo 弱值启动
 - [x] T217: 数据服务暴露 + Redis 无密码 + Grafana 匿名 Admin（I14） ✅ 2026-11-08（D094；Compose v5.5.1 实测 base/replicas/prodtest/全 profile 解析通过、仅 app 对外发布；redis 健康检查待 CI 真机） | 依赖: T216 | 涉及文件: docker-compose*.yml、.env.example | 验收: 数据服务仅绑 127.0.0.1；Grafana 匿名降 Viewer；`docker compose config` 通过
 - [x] T218: .dockerignore 缺口（I15） ✅ 2026-11-08（上下文模拟 1338.1MB/38452 文件 → 1.7MB/260 文件，个人文件零泄漏、运行时依赖齐全；真实构建待 CI） | 依赖: T217 | 涉及文件: .dockerignore | 验收: 前端目录/简历/日志/面试记录不入构建上下文
+
+### 增量：全仓库代码审查修复·随后层（2026-11-08，依据 docs/code-review-2026-11-07.md I18-I21）
+
+- [x] T219: BGE-M3 同步编码阻塞事件循环（I18） ✅ 2026-11-08（717 passed；新增 4 用例，阻塞类 2 条旧代码挂；审查对长期记忆/精排路径的判断经核不成立，未改） | 依赖: T218 | 涉及文件: services/rag/embedder.py、services/rag/retriever.py、services/rag/reranker.py、services/memory/long_term.py、tests/ | 验收: 在线路径编码/精排移出事件循环（asyncio.to_thread）；守卫超时可在编码期间生效；编码期间事件循环不停摆的测试
+- [ ] T220: CASE_TOKENS 案件维度 token 双计（I19） | 依赖: T219 | 涉及文件: services/observability/llm_metrics.py、tests/ | 验收: 非结构化 observed_ainvoke 不再重复归集；"observed_ainvoke + 模型级回调"单次调用只记一次的集成测试
+- [ ] T221: 恢复被误删的 graph_retriever / reranker 测试（I20） | 依赖: T220 | 涉及文件: tests/rag/ | 验收: 自 54b2b4f^ 恢复并适配现行代码；在线路径活代码重新有覆盖；清理孤儿 pyc
+- [ ] T222: 多实例指引补 QDRANT_LOCAL_PATH（I21） | 依赖: T221 | 涉及文件: AGENTS.md、.env.example | 验收: 文档写明双实例须各自独立 Qdrant local 目录

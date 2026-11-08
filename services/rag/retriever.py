@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from services.rag.embedder import embed_query
+from services.rag.embedder import aembed_query
 from services.rag.qdrant_client import get_qdrant_client
 
 log = get_logger(__name__)
@@ -36,7 +36,8 @@ async def search_kb(query: str, top_k: int = 4) -> list[RetrievedChunk]:
         log.warning("kb_collection_missing", collection=collection)
         return []
 
-    vector = embed_query(query)
+    # 编码移出事件循环（T219/I18）：同步推理 100-500ms 会让同进程全部请求停摆
+    vector = await aembed_query(query)
     response = await client.query_points(
         collection_name=collection,
         query=vector,

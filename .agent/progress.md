@@ -3514,3 +3514,24 @@ artifacts、evals/reports/archive）、本地工具目录（.agents/.claude/.cac
 
 **未做（S23，留 S 批次）**：pt.log、agent-interview-session.md 已在 git 历史中，
 需 `git rm --cached` + .gitignore，属仓库卫生项。
+
+## T219 · BGE-M3 编码移出事件循环 I18（2026-11-08）
+
+**修复**：embedder 新增 aembed_query / aembed_texts（asyncio.to_thread）；search_kb
+改 `await aembed_query`——claim_rule_rag 在线检索的编码不再停摆事件循环，守卫超时
+可在编码期间生效。模型单例改带锁的双检加载（编码进线程池后冷启动可能并发首调，
+functools.cache 不防重复加载约 2GB）。
+
+**审查结论逐项核对（两处不成立，未改）**：
+- 长期记忆 `long_term._embed_for_store`：审查称 langgraph 1.2.11 的同步 embed 在
+  aembed_documents 里原地执行。实查 InMemoryStore.abatch / _aembed_search_queries 与
+  AsyncPostgresStore 都走 `embeddings.aembed_*`；EmbeddingsLambda 包同步函数时 afunc
+  为空，回落 langchain-core 1.6.1 基类 `run_in_executor`——**已在线程池执行**。加守护
+  测试（慢同步嵌入下 aput/asearch 期间节拍器持续推进），依赖升级改变行为时先红
+- 精排 `reranker.rerank_chunks`：全仓库在线路径无调用方（仅 scripts/verify_rerank 同步
+  脚本使用，v1 的 nodes/rag.py 已在 T093 删除），不存在阻塞事件循环的场景
+
+**验证**：tests/rag/test_embedder.py 4 条（search_kb 慢编码期间节拍器≥8 次 / 0.1s 守卫
+超时在 0.4s 编码完成前抛出 / 8 线程并发冷启动只加载 1 次 / 记忆 Store 守护）；旧
+retriever 下前 2 条挂。既有 retriever 测试的 patch 目标随之改为 embedder.embed_query。
+717 passed；六门全绿。
