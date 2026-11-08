@@ -134,7 +134,7 @@ claimflow/
 ├── .agent/                    ← 项目状态（Agent 读写，不删除）
 │   ├── spec.md                ← Phase 1: 需求规格说明书（9 节，含Fxx/Exx）
 │   ├── plan.md                ← Phase 2: 设计说明书
-│   ├── tasks.md               ← Phase 3: 任务清单（T001-T222）
+│   ├── tasks.md               ← Phase 3: 任务清单（T001-T223）
 │   ├── progress.md            ← Phase 4: 构建日志（全程追加）
 │   ├── decisions.md           ← 全程: 决策记录（D001-D094）
 │   └── prompts.md             ← Prompt 模板参考（需求变更/ 设计变更/ 回退/ 上下文恢复）

@@ -10,9 +10,9 @@
 《理赔决定书》，其余转人工复核。各险种的领域知识放在 skill 规程包
 （`skills/<stage>/<line>.md`）里，调准确率只改文本，不动代码。
 
-> **项目状态（2026-11-09）**：维护期。任务清单 T001-T222 已全部交付，其中 T200-T222 是
+> **项目状态（2026-11-09）**：维护期。任务清单 T001-T223 已全部交付，其中 T200-T222 是
 > 一轮全仓库代码审查的修复批次（决定书结论、客服查案授权、评测门口径、部署安全等），
-> 最近一次代码提交是 `2454e11`。全量测试 735 passed（2026-11-08 复测）。
+> T223 是随后的全项目文档核对。全量测试 735 passed（2026-11-08 复测）。
 
 > **TL;DR** — A multi-line insurance auto-adjudication platform: an LLM Orchestrator
 > dispatches six specialized workers over a case pipeline, with precondition guards in code,
@@ -465,7 +465,7 @@ README 只放结论和入口，完整的论证过程都在下面这些文档里�
 | [docs/diagrams/](docs/diagrams/) | 可交互工作流图（主图 / 案件流转，HTML + 明暗主题导出） |
 | `docs/exercises/`、`docs/interview/` | 作者本地的动手练习与面试题库，未随仓库发布 |
 | [evals/reports/](evals/reports/) | 评测报告族：消融（T160）/ RAG（T161）/ 红队证据（T159）/ 缓存事件报告 / 对抗门 / judge 对账（T178）。正文引用的报告都在这里 |
-| [.agent/](.agent/) | 全程构建档案：[progress.md](.agent/progress.md) 构建日志、[decisions.md](.agent/decisions.md) 决策链 D001-D094、[tasks.md](.agent/tasks.md) 任务清单 T001-T222、[spec.md](.agent/spec.md) 需求规格、[plan.md](.agent/plan.md) 设计说明书 |
+| [.agent/](.agent/) | 全程构建档案：[progress.md](.agent/progress.md) 构建日志、[decisions.md](.agent/decisions.md) 决策链 D001-D094、[tasks.md](.agent/tasks.md) 任务清单 T001-T223、[spec.md](.agent/spec.md) 需求规格、[plan.md](.agent/plan.md) 设计说明书 |
 
 ---
 
