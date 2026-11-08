@@ -2490,3 +2490,29 @@ record_query（缓存白名单成员）返回 holder_name/holder_id_card 明文�
 
 **验证口径**：默认白名单断言 policy_query/record_query 不在；缓存机制类用例改为
 显式置白名单（测机制不测默认值）。
+
+## D092 · 坐席 Key 出浏览器：HttpOnly Cookie 会话 + middleware 注入（T215，2026-11-08）
+
+**背景**：审查 I12——workbench 经 `NEXT_PUBLIC_STAFF_KEY` 读坐席 Key，Next 把
+`NEXT_PUBLIC_` 变量内联进每个客户端 chunk，任何打开工作台的人在 devtools 即可取
+Key 直调 interventions/memory 端点（含删除申请人档案）。
+
+**选型（用户选定 A）**：HttpOnly Cookie 会话（备选 RSC 全量代理改动面过大、暂缓
+不修复不可接受）。
+
+**实现**：
+- `/login` 页提交 Key → `POST /staff-session`（route handler，**不在 /api 下**——
+  next.config rewrites 会把 /api/* 整体转发后端）；先用后端坐席端点
+  `GET /interventions/jobs/dead` 校验（401 即无效、不落 cookie），通过后下发
+  `cf_staff_key`：HttpOnly + SameSite=Strict + https 时 Secure，8h 一个班次
+- `middleware.ts`（matcher `/api/v1/*`）：剥除客户端自带 X-Staff-Key（只信 cookie，
+  防页面脚本伪造头），有 cookie 则注入后经 rewrites 代理
+- RSC 直连后端不经 middleware：`lib/api.ts` 服务端路径经 `next/headers` cookies()
+  读取注入（动态 import，客户端组件共享该模块不受影响）
+- 导航栏登录/退出入口（layout 只传"是否登录"布尔，Key 不进客户端组件 props）；
+  后端 401 时页面错误条给出可操作的登录提示
+- dev 开放态（后端未配 staff_keys）不登录照常可用；后端零改动
+
+**残余风险（已知并接受）**：同源 XSS 仍可借浏览器发带 cookie 的请求（cookie 只防
+"读走 Key"，不防"代发请求"）——SameSite=Strict 挡跨站伪造；前端无
+dangerouslySetInnerHTML（审查附录已核）。

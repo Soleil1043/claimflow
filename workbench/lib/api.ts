@@ -6,11 +6,20 @@
  */
 const API_BASE = process.env.WORKBENCH_API_TARGET ?? "http://localhost:8000";
 
-/** 坐席鉴权头（T147）：NEXT_PUBLIC_STAFF_KEY 配置时注入 X-Staff-Key；未配置（dev 开放态）不发 */
-const STAFF_KEY = process.env.NEXT_PUBLIC_STAFF_KEY ?? "";
+/** 坐席鉴权（T215/I12，D092）：Key 存登录时下发的 HttpOnly cookie（浏览器 JS 不可读）。
+ * - 浏览器端：请求走同源 /api/*，middleware.ts 从 cookie 取 Key 注入 X-Staff-Key
+ * - 服务端组件（RSC）：直连后端不经 middleware，从请求 cookie 读取后注入
+ * Key 不再经 NEXT_PUBLIC_ 打进浏览器 bundle。dev 开放态（后端未配 staff_keys）
+ * 不登录也能用；登录入口 /login。
+ */
+export const STAFF_COOKIE = "cf_staff_key";
 
-function staffHeaders(): Record<string, string> {
-  return STAFF_KEY ? { "X-Staff-Key": STAFF_KEY } : {};
+/** 服务端渲染路径的坐席头（浏览器端返回空——由 middleware 注入）。 */
+async function serverStaffHeaders(): Promise<Record<string, string>> {
+  if (typeof window !== "undefined") return {};
+  const { cookies } = await import("next/headers");
+  const key = (await cookies()).get(STAFF_COOKIE)?.value;
+  return key ? { "X-Staff-Key": key } : {};
 }
 
 /** JSON 请求封装：POST/PUT 等带 JSON 体请求统一走此处。
@@ -25,11 +34,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...staffHeaders(),
       ...(init?.headers as Record<string, string> | undefined),
+      ...(await serverStaffHeaders()),
     },
   });
   if (!resp.ok) {
+    if (resp.status === 401) {
+      // 后端已启用坐席鉴权但当前无有效会话：给出可操作提示（页面错误条展示）
+      throw new Error("未登录或坐席会话已过期，请先到「坐席登录」(/login) 登录");
+    }
     throw new Error(`API ${resp.status}: ${await resp.text().catch(() => "")}`);
   }
   return (await resp.json()) as T;
@@ -187,7 +200,9 @@ export interface MaterialCatalogLine {
 /** 材料类型目录（险种分组，后端 pack 单源派生；拉取失败回退空表）。 */
 export async function fetchMaterialCatalog(): Promise<MaterialCatalogLine[]> {
   try {
-    const resp = await fetch(apiUrl("/api/v1/cases/material-catalog"));
+    const resp = await fetch(apiUrl("/api/v1/cases/material-catalog"), {
+    headers: await serverStaffHeaders(),
+  });
     if (!resp.ok) return [];
     const data = (await resp.json()) as { lines: MaterialCatalogLine[] };
     return data.lines ?? [];
@@ -208,6 +223,7 @@ export async function uploadCaseMaterial(
     method: "POST",
     body: form,
     cache: "no-store",
+    headers: await serverStaffHeaders(),
   });
   if (!resp.ok) {
     const detail = await resp.text().catch(() => "");

@@ -544,7 +544,7 @@ T001 → T002 → T003 → T004 → T005
 - [x] T212: 案件详情 timeline 全量外泄内部审计事件（I9） ✅ 2026-11-08（D090；703 passed；新增 4 用例旧代码挂；chatui build 通过） | 依赖: T211 | 涉及文件: app/api/v1/cases.py、tests/ | 验收: 门户通道按 kind 白名单投影；job error 仅坐席可见
 - [x] T213: 上传链路四连（I10） ✅ 2026-11-08（708 passed；新增 5 用例旧代码全挂） | 依赖: T212 | 涉及文件: app/api/v1/cases.py、tests/ | 验收: 分块读超限即断；上传限流；响应剔除 storage_path；doc_type 校验先于提取
 - [x] T214: 工具缓存明文写 PII（I11） ✅ 2026-11-08（D091；709 passed） | 依赖: T213 | 涉及文件: app/core/config.py、.env.example、tests/ | 验收: 含 PII 工具移出默认缓存白名单
-- [ ] T215: 坐席 Key 打进浏览器 bundle（I12，HttpOnly Cookie） | 依赖: T214 | 涉及文件: workbench/ | 验收: bundle 不含 Key；middleware 注入 X-Staff-Key；npm build 通过
+- [x] T215: 坐席 Key 打进浏览器 bundle（I12，HttpOnly Cookie） ✅ 2026-11-08（D092；npm build 通过；构建期注入 NEXT_PUBLIC_STAFF_KEY 静态产物零命中；起栈 9 项实测通过） | 依赖: T214 | 涉及文件: workbench/ | 验收: bundle 不含 Key；middleware 注入 X-Staff-Key；npm build 通过
 - [ ] T216: compose 演示默认值绕过 prod 门卫（I13） | 依赖: T215 | 涉及文件: app/core/config.py、tests/core/ | 验收: prod 拒绝已知 demo 弱值启动
 - [ ] T217: 数据服务暴露 + Redis 无密码 + Grafana 匿名 Admin（I14） | 依赖: T216 | 涉及文件: docker-compose*.yml、.env.example | 验收: 数据服务仅绑 127.0.0.1；Grafana 匿名降 Viewer；`docker compose config` 通过
 - [ ] T218: .dockerignore 缺口（I15） | 依赖: T217 | 涉及文件: .dockerignore | 验收: 前端目录/简历/日志/面试记录不入构建上下文

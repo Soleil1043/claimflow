@@ -1,5 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import StaffSessionLink from "@/components/StaffSessionLink";
+import { STAFF_COOKIE } from "@/lib/api";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,7 +14,9 @@ export const metadata: Metadata = {
  * 全站骨架（T057 / D030）：sticky 毛玻璃浮层导航 + 内容区。
  * 导航为半透明材质（backdrop-filter），内容从其下滚过（Apple 浮层 chrome 模式）。
  */
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // 登录态（T215/D092）：只看 HttpOnly cookie 是否存在，Key 本身不下发到客户端组件
+  const loggedIn = Boolean((await cookies()).get(STAFF_COOKIE)?.value);
   return (
     <html lang="zh-CN">
       <body className="min-h-screen">
@@ -50,9 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 叙述抽评
               </Link>
             </nav>
-            <div className="hidden text-[11px] text-cf-text-2 md:block">
-              后端代理 → localhost:8000
-            </div>
+            <StaffSessionLink loggedIn={loggedIn} />
           </div>
         </header>
         {children}

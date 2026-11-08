@@ -3437,3 +3437,20 @@ stage_result 无 payload、status_change 仅 status/final_decision，且进度�
 
 **验证**：新增默认白名单断言用例；两条缓存机制用例（hit/metrics）改为显式
 monkeypatch 白名单。709 passed。改动不触调度/理算/决定书。
+
+## T215 · 坐席 Key 出浏览器 bundle I12（2026-11-08，D092）
+
+**改动**：workbench 新增 `middleware.ts`、`app/staff-session/route.ts`（登录/退出）、
+`app/login/page.tsx`、`components/StaffSessionLink.tsx`；`lib/api.ts` 删除
+NEXT_PUBLIC_STAFF_KEY 读取，RSC 路径从 cookie 注入、401 改可操作提示；layout 加
+登录态入口（替换静态"后端代理"提示）。后端零改动。
+
+**验证**：
+- `npm run build` 通过（Middleware 33.9 kB）
+- **bundle 无 Key**：以 `NEXT_PUBLIC_STAFF_KEY=leaky-key-T215-probe` 构建，`.next/static`
+  全量扫描零命中（代码已不读该变量）
+- **起栈实测**（后端 STAFF_KEYS 安全模式 + next start）9 项：无 cookie 坐席 API 401；
+  伪造 X-Staff-Key 头被剥除仍 401；错 Key 登录 401 不落 cookie；对 Key 登录 200 且
+  cookie 为 HttpOnly；带 cookie 经代理 200；带 cookie RSC 页正常渲染；无 cookie RSC
+  页显示登录提示；返回 HTML 不含 Key；退出后 401
+- npm 父进程停止后 next 子进程残留占 5173，按命令行核对后结束
