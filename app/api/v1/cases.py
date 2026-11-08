@@ -36,6 +36,7 @@ from app.api.dependencies import (
     get_case_dispatcher,
     get_db_session,
     rate_limit,
+    staff_view,
     verify_case_access,
 )
 from app.core.config import settings
@@ -67,6 +68,7 @@ from services.case_service import (
     generate_case_id,
     human_info_from_job,
     new_case,
+    project_portal_event,
 )
 from services.case_store import get_default_recorder
 from services.db.models import Case, CaseEvent
@@ -226,9 +228,29 @@ async def submit_case(
             if case.status in PENDING_CASE_STATUSES
             else None
         ),
-        job=job_envelope(job),
+        job=job_envelope(job, include_error=False),  # 门户不回原始异常串（T212）
         access_token=access_token,
     )
+
+
+
+def _timeline(events: list[CaseEvent], *, full: bool) -> list[CaseTimelineEvent]:
+    """审计事件 → 详情 timeline：full=坐席原始流；否则门户白名单投影（T212/I9）。"""
+    out: list[CaseTimelineEvent] = []
+    for e in events:
+        if full:
+            stage, payload = e.stage, e.payload
+        else:
+            projected = project_portal_event(e.kind, e.stage, e.payload)
+            if projected is None:
+                continue
+            stage, payload = projected
+        out.append(
+            CaseTimelineEvent(
+                seq=e.seq, kind=e.kind, stage=stage, payload=payload, created_at=e.created_at,
+            )
+        )
+    return out
 
 
 @router.get("/{case_id}", response_model=CaseDetailResponse)
@@ -244,6 +266,9 @@ async def get_case(
     """
     case = await _get_case_or_404(case_id, session)
     verify_case_access(case, x_case_token, x_staff_key)
+    # 门户投影（T212/I9，D090）：坐席通道（含 dev 开放态）看原始审计流，申请人
+    # 令牌通道只看白名单事件 + 投影字段，任务错误串不外露
+    full_view = staff_view(x_staff_key)
 
     # 申请人历史核赔档案（T100）：终态记忆语义检索，排除本案件；fail-open 空列表兜底
     memories = await search_case_memories(str(case.user_id), exclude_case_id=case.id)
@@ -280,18 +305,9 @@ async def get_case(
         materials=list(case.materials or []),
         decision_document=decision_doc_payload(doc),
         decision_issued=doc_issued,
-        timeline=[
-            CaseTimelineEvent(
-                seq=e.seq,
-                kind=e.kind,
-                stage=e.stage,
-                payload=e.payload,
-                created_at=e.created_at,
-            )
-            for e in events
-        ],
+        timeline=_timeline(events, full=full_view),
         applicant_memories=[m.model_dump() for m in memories],
-        job=job_envelope(job) if job is not None else None,
+        job=job_envelope(job, include_error=full_view) if job is not None else None,
         human=human,
         created_at=case.created_at,
         updated_at=case.updated_at,
@@ -417,5 +433,9 @@ async def upload_case_material(
         # 成功路径：deliver 内已 refresh 同一 identity map 实例，读它拿最新状态；
         # 冲突路径（resume_job None）：不触碰过期实例，状态留空由前端轮询
         case_status=case.status if resume_job is not None else None,
-        job=job_envelope(resume_job) if resume_job is not None else None,
+        job=(
+            job_envelope(resume_job, include_error=staff_view(x_staff_key))
+            if resume_job is not None
+            else None
+        ),
     )

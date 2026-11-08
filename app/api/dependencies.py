@@ -66,6 +66,12 @@ def _staff_key_valid(x_staff_key: str | None) -> bool:
     )
 
 
+def staff_view(x_staff_key: str | None) -> bool:
+    """是否按坐席视图返回案件明细（T212/I9）：有效坐席 Key，或 dev 开放态
+    （staff_keys 未配置，T147 兼容口径——workbench 不带 Key 也要看全量审计）。"""
+    return not settings.staff_key_map or _staff_key_valid(x_staff_key)
+
+
 def verify_case_access(
     case: Case,
     x_case_token: str | None,

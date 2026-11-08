@@ -228,6 +228,34 @@ def decision_doc_payload(doc: DecisionDocument | dict[str, Any] | None) -> dict[
     }
 
 
+# ===== 门户审计时间线投影（T212/I9，D090） =====
+
+# 申请人可见的事件 kind → payload 白名单字段（空元组 = 只给 kind/stage，payload 置空）。
+# 其余 kind（guard_correction 调度修正 / job_failed 原始异常串 / narrative_sample·
+# narrative_review 坐席身份 / job_redrive / schema_reset / human 档案删除）门户不可见
+_PORTAL_EVENT_FIELDS: dict[str, tuple[str, ...]] = {
+    "material_upload": ("file_name", "file_type", "doc_type"),
+    "routing": ("targets",),  # 派发阶段名（门户进度展示），不含 LLM 理由/修正明细
+    "stage_result": (),  # 阶段完成；结论明细（风控评分/责任理由）不外露
+    "status_change": ("status", "final_decision"),  # 不含转人工内部原因（风险等级等）
+}
+
+
+def project_portal_event(
+    kind: str, stage: str | None, payload: dict[str, Any] | None
+) -> tuple[str | None, dict[str, Any] | None] | None:
+    """审计事件 → 申请人门户投影：返回 (stage, 投影 payload)；None = 门户不可见。
+
+    白名单口径（新增事件 kind 默认不外露——宁缺勿泄）。坐席通道看原始事件流。
+    """
+    fields = _PORTAL_EVENT_FIELDS.get(kind)
+    if fields is None:
+        return None
+    if not fields or not isinstance(payload, dict):
+        return stage, None
+    return stage, {k: payload[k] for k in fields if k in payload}
+
+
 # ===== 挂起信息读模型（T106，D047：job 回执单源） =====
 
 

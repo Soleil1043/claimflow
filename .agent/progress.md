@@ -3398,3 +3398,16 @@ human_gate 签发落库处 `issued.get(...) or "0"` 回退为 0 本身正确，�
 
 **验证**：节点 2 条（Decimal 0 / "0.00" 按 0 签发；未给金额回退既有 4640）+ API 4 条
 （改判 0 元决定书与案件落库均 0；负数/超位/超小数 422）。旧代码 5 条挂。六门全绿。
+
+## T212 · 门户 timeline 外泄内部审计事件 I9（2026-11-08，D090）
+
+**改动**：case_service 新增 project_portal_event 白名单投影；dependencies 新增
+staff_view（有效坐席 Key 或 dev 开放态）；cases 详情按视图二分生成 timeline，
+job.error 仅坐席视图可见；创建回执与上传回执的 job.error 同样不回门户。审计落库
+不变（只在出口投影，D086 回放断言依赖原始 payload）。
+
+**验证**：安全模式下申请人令牌通道——注入 job_failed（含路径异常串）/
+narrative_review（坐席名）/ guard_correction 后均不可见，routing 仅 targets、
+stage_result 无 payload、status_change 仅 status/final_decision，且进度事件非空；
+坐席 Key 看原始流；未知 kind 默认隐藏；envelope 门户去 error。旧代码申请人用例挂。
+703 passed；chatui `npm run build` 通过（进度展示依赖的 routing.targets 保留）。

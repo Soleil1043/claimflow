@@ -218,3 +218,74 @@ class TestLegacyNullHashRow:
                 await s.execute(select(Case).where(Case.id == "CASE-2024-0001"))
             ).scalar_one()
             assert row.access_token_hash is None
+
+
+class TestPortalTimelineProjection:
+    """T212/I9（D090）：申请人令牌通道只见白名单事件与投影字段；坐席看原始流。"""
+
+    async def _seed_internal_events(self, case_id: str) -> None:
+        from services.case_store import get_default_recorder
+
+        rec = get_default_recorder()
+        await rec.event(case_id, "job_failed",
+                        payload={"attempts": 3, "error": "OperationalError: /srv/db.sqlite"})
+        await rec.event(case_id, "narrative_review",
+                        payload={"verdict": "pass", "operator": "alice"})
+        await rec.event(case_id, "guard_correction",
+                        payload={"requested": ["amount_calc"], "notes": ["redirect"]})
+
+    async def test_applicant_sees_projected_whitelist_only(self, client, monkeypatch):
+        monkeypatch.setattr(deps.settings, "staff_keys", STAFF_KEYS)
+        ac, _ = client
+        case_id, token = await _submit(ac, user_id="u-t1")
+        await self._seed_internal_events(case_id)
+
+        body = (await ac.get(f"/api/v1/cases/{case_id}",
+                             headers={"X-Case-Token": token})).json()
+        kinds = {e["kind"] for e in body["timeline"]}
+        assert {"routing", "stage_result"} <= kinds  # 进度可见（非空投影）
+        assert kinds <= {"material_upload", "routing", "stage_result", "status_change"}
+        assert not kinds & {"job_failed", "narrative_review", "guard_correction"}
+        for e in body["timeline"]:
+            payload = e["payload"] or {}
+            if e["kind"] == "routing":
+                assert set(payload) <= {"targets"}
+            if e["kind"] == "stage_result":
+                assert e["payload"] is None  # 风控评分/责任理由不外露
+            if e["kind"] == "status_change":
+                assert set(payload) <= {"status", "final_decision"}
+        assert "alice" not in str(body["timeline"])
+        assert "OperationalError" not in str(body)
+
+    async def test_staff_sees_raw_audit_stream(self, client, monkeypatch):
+        monkeypatch.setattr(deps.settings, "staff_keys", STAFF_KEYS)
+        ac, _ = client
+        case_id, _ = await _submit(ac, user_id="u-t2")
+        await self._seed_internal_events(case_id)
+
+        body = (await ac.get(f"/api/v1/cases/{case_id}",
+                             headers={"X-Staff-Key": "key-alice-123"})).json()
+        kinds = {e["kind"] for e in body["timeline"]}
+        assert {"job_failed", "narrative_review", "guard_correction"} <= kinds
+
+
+def test_project_portal_event_unknown_kind_hidden() -> None:
+    """新增事件 kind 默认不外露（白名单口径，宁缺勿泄）。"""
+    from services.case_service import project_portal_event
+
+    assert project_portal_event("some_future_kind", None, {"secret": 1}) is None
+    assert project_portal_event("status_change", None,
+                                {"status": "referred", "reasons": ["风险等级 medium"]}) == (
+        None, {"status": "referred"}
+    )
+
+
+def test_job_envelope_portal_drops_error() -> None:
+    from types import SimpleNamespace
+
+    from services.case_jobs import job_envelope
+
+    job = SimpleNamespace(id=1, action="run", status="dead", outcome=None, attempt=3,
+                          max_attempts=3, last_error="Traceback: /srv/secret")
+    assert job_envelope(job)["error"] == "Traceback: /srv/secret"
+    assert job_envelope(job, include_error=False)["error"] is None

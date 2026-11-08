@@ -2455,3 +2455,23 @@ nightly 夜检零改动）。
 **验证口径**：既有 33 条 auto 拒赔金样本全部保持 auto（确定性档 risk=low、置信
 度达标——I17 修复后六门以收紧口径全绿，无回归）；补测覆盖 not_covered ×
 medium/high/low 与 LLM 风险盲路由（永不主动转人工）下的强制短路。
+
+## D090 · 门户审计时间线白名单投影（T212，2026-11-08）
+
+**背景**：审查 I9——B02 `GET /cases/{id}` 的 timeline 无过滤返回全部审计事件，payload
+原样透出：job_failed 原始异常串（可含 SQL/路径）、routing/guard_correction 的 LLM
+调度内部决策、narrative_review 坐席姓名、stage_result 风控评分明细、status_change
+转人工内部原因（如"风险等级 medium"）。持门户令牌的申请人即可读取；job.error
+同样回给门户。
+
+**口径**：
+- 视图二分：坐席通道（有效 X-Staff-Key，或 dev 开放态——与 T147 兼容口径一致）
+  看原始审计流；申请人令牌通道看投影
+- 投影为**白名单**（`services.case_service.project_portal_event`，新增 kind 默认不
+  外露）：material_upload{file_name,file_type,doc_type}、routing{targets}（门户
+  进度展示依赖）、stage_result（仅阶段名，payload 置空）、status_change{status,
+  final_decision}；其余 kind 整条隐藏
+- job_envelope 增 include_error：门户通道（创建回执 / 详情 / 上传回执）不回 last_error
+
+**不做**：不改审计落库内容（审计完整性与回放断言依赖原始 payload，D086）；投影
+只在出口。

@@ -108,8 +108,11 @@ async def enqueue_case_job(
     return job
 
 
-def job_envelope(job: CaseJob) -> dict[str, Any]:
-    """任务行 → API 响应投影（schemas.api.CaseJobOut 口径）。"""
+def job_envelope(job: CaseJob, *, include_error: bool = True) -> dict[str, Any]:
+    """任务行 → API 响应投影（schemas.api.CaseJobOut 口径）。
+
+    include_error=False：门户通道不回 last_error（原始异常串可含 SQL/路径，T212/I9）。
+    """
     return {
         "job_id": job.id,
         "action": job.action,
@@ -117,7 +120,7 @@ def job_envelope(job: CaseJob) -> dict[str, Any]:
         "outcome": job.outcome,
         "attempt": job.attempt,
         "max_attempts": job.max_attempts,
-        "error": job.last_error,
+        "error": job.last_error if include_error else None,
     }
 
 
