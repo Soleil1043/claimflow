@@ -192,7 +192,7 @@ cd chatui && npm install && npm run dev       # 案件提交门户 http://localh
 
 ### 5.2 Docker 一键（prod profile：PostgreSQL + Qdrant + Redis）
 
-先在 `.env` 里填好 `STAFF_KEYS` 和 `PII_ENCRYPTION_KEY`（compose 必填，生成方式见 `.env.example`；prod 会拒绝仓库里出现过的演示值）。
+先在 `.env` 里填好 `STAFF_KEYS`、`PII_ENCRYPTION_KEY`、`POSTGRES_PASSWORD`、`REDIS_PASSWORD`（compose 必填，生成方式见 `.env.example`；prod 会拒绝仓库里出现过的演示值）。只有 app 的 8000 端口对外发布，数据库、Redis、Qdrant 和观测界面都只绑本机 127.0.0.1。
 
 ```bash
 docker compose up -d --build
@@ -249,14 +249,13 @@ CI 默认跑离线档，不需要任何 secret；仓库配了 `LLM_API_KEY` secr
 
 | 组件                           | 启动 | 入口 |
 |--------------------------------|------|------|
-| 监控栈（Prometheus + Grafana） | `docker compose --profile monitoring up -d` | Prometheus `:9090`（TSDB 保留 30d）、Grafana `:3000`。两个仪表盘共 22 面板：核赔 10（自动结案率 / 转人工率 / 调度调用 / 守卫纠错 / 阶段耗时 P95 / 端到端耗时 / 案件量 / 核定金额 / 单案 Token 均值 / 单案成本 ¥）+ 监控总览 12（工具成功率 / 案件转人工率 / P95 时延 / 工具与 LLM 调用量 / 熔断 / Prompt 缓存四面板 / 工具缓存命中率；v1 陈旧面板已于 T179 清理）。另有 4 条告警规则 provisioning 自动加载：自动结案率骤降 / 队列积压 / LLM 失败率过高 / 死信未处置（T154+T182） |
+| 监控栈（Prometheus + Grafana） | `docker compose --profile monitoring up -d` | Prometheus `:9090`（TSDB 保留 30d）、Grafana `:3001`（仅本机，匿名只读）。两个仪表盘共 22 面板：核赔 10（自动结案率 / 转人工率 / 调度调用 / 守卫纠错 / 阶段耗时 P95 / 端到端耗时 / 案件量 / 核定金额 / 单案 Token 均值 / 单案成本 ¥）+ 监控总览 12（工具成功率 / 案件转人工率 / P95 时延 / 工具与 LLM 调用量 / 熔断 / Prompt 缓存四面板 / 工具缓存命中率；v1 陈旧面板已于 T179 清理）。另有 4 条告警规则 provisioning 自动加载：自动结案率骤降 / 队列积压 / LLM 失败率过高 / 死信未处置（T154+T182） |
 | 追踪栈（OTel + Jaeger）        | `docker compose --profile tracing up -d`<br>`.env` 设 `OTEL_ENABLED=true` | Jaeger UI `:16686`，span 含单调用 `gen_ai.usage.cache_read/miss_tokens` 原值（采样率 0.2） |
 | 坐席工作台（HITL + 客服）      | `cd workbench && npm install && npm run dev` | `:5173` 核赔工单列表 + 详情（审计时间线 / 决定书版本卡 / 签批改判表单）+ 客服工单（transcript / 回复 / 关闭）+ 叙述抽评审队列 |
 | 案件提交门户                   | `cd chatui && npm install && npm run dev` | `:3000` 提交 + 进度时间线 + 决定书查看 + 补件上传 + 悬浮 AI 客服（问答 / 查进度 / 转人工） |
 
 - 后端裸指标：`http://localhost:8000/metrics`（不需要监控栈）
-- 端口提示：Grafana（monitoring 栈）和 chatui dev 都用 3000，要同时开的话改一个
-  （比如把 compose 里 Grafana 映射改成 `3001:3000`）
+- 端口提示：Grafana 映射在宿主 3001（T217 起），与 chatui dev 的 3000 不再冲突；匿名只读，需要改面板/告警请改 provisioning 文件或自行配正式认证
 
 ---
 

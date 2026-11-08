@@ -3471,3 +3471,22 @@ Docker Compose v5.5.1 实测：无变量时 `docker compose config -q` 退出 1 
 
 **用户待办**：本地 `.env` 当前无 STAFF_KEYS/PII_ENCRYPTION_KEY——跑 docker 栈前需补；
 本地卷数据用旧演示 PII 密钥加密，需 `docker compose down -v` 重灌。
+
+## T217 · compose 暴露面收口 I14（2026-11-08，D094）
+
+**改动**：docker-compose.yml——数据服务与观测 UI 端口全部 127.0.0.1 绑定（只留
+app:8000 对外）；POSTGRES_PASSWORD 去硬编码改 `:?` 必填（init/app 引用同一变量）；
+redis 加 requirepass（`:?` 必填）+ 带口令健康检查，app REDIS_URL 带口令；Grafana
+匿名 Viewer、关登录表单与 Basic Auth、宿主端口 3001。CI docker job 注入 PG/Redis
+随机口令；.env.example（POSTGRES_PASSWORD 置空待填、新增 REDIS_PASSWORD 与宿主直连
+REDIS_URL 说明）、README §5.2 与端口提示、prod-test skill（预检 4 变量、override
+本机绑定、Grafana 端口）同步。
+
+**验证**（Docker Compose v5.5.1，PowerShell 仓库目录，`--env-file NUL` 隔离本地 .env）：
+缺变量 → 10 条插值错误拒绝；注入后 base / replicas / prodtest override 三套组合均
+通过；`--profile monitoring --profile tracing config` 渲染核对——仅 app 8000 无
+host_ip，其余 7 个发布端口均 127.0.0.1，Grafana Viewer + 登录表单/BasicAuth 关闭，
+redis 含 --requirepass，REDIS_URL 带口令。另实测确认 compose 会对未启用 profile 的
+服务做必填插值校验（决定 Grafana 不用 `:?`）。
+**未能本地验证**：Docker Desktop 守护进程未运行，带口令的 redis 健康检查命令未在
+真实容器执行，由 CI docker job 起栈验证。无 Python 改动。

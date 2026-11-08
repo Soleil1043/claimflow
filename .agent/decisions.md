@@ -2537,3 +2537,27 @@ dangerouslySetInnerHTML（审查附录已核）。
 若本地 postgres 卷里的数据用旧演示 PII 密钥加密，换密钥后需 `docker compose down -v`
 重灌（演示数据为 mock 种子，可重建）。README §5.2、.env.example、prod-test skill
 预检同步。
+
+## D094 · compose 暴露面收口：本机绑定 + 口令必填 + Grafana 匿名只读（T217，2026-11-08）
+
+**背景**：审查 I14——PG/Redis/Qdrant 端口绑 0.0.0.0（compose 内网互访不需要发布）；
+Redis 无 requirepass（同网段可 FLUSHALL）；PG 密码 claimpass 硬编码；Grafana 匿名
+Admin + admin/admin（可改数据源/告警、借数据源探测内网）；Grafana 3000 与 chatui 撞车。
+
+**口径**：
+- 只有 app:8000 对外发布；postgres/qdrant/redis/prometheus/grafana/jaeger/otel 全部
+  `127.0.0.1:` 绑定（宿主本机调试与评测照常可用，同网段不可达）；prod-test skill 的
+  端口冲突 override 同步本机绑定
+- POSTGRES_PASSWORD、REDIS_PASSWORD 改 `:?` 必填（与 D093 同一 secure-by-default 口径）；
+  redis `--requirepass` + 带口令健康检查（无口令 NOAUTH 时 redis-cli 退出码仍 0，判 PONG）；
+  app REDIS_URL 带口令；CI docker job 注入 run 级随机值
+- Grafana：匿名降 Viewer，关登录表单与 Basic Auth（面板/数据源/告警全是文件
+  provisioning，演示无需管理员）；宿主端口改 3001 避开 chatui。**不用 `:?` 给 Grafana
+  口令**——实测 compose 对未启用 profile 的服务同样做插值校验，必填会让默认栈也起不来
+
+**残余（明确不做）**：Qdrant 不加 API Key（已本机绑定；加 Key 需改 client 构造与配置，
+收益仅剩容器内横向）；config 层 postgres_password 弱值黑名单属 S20（会牵动多处 prod
+Settings 测试），留 S 批次。
+
+**用户待办**：本地 .env 需补 REDIS_PASSWORD（及 T216 的两枚密钥）；POSTGRES_PASSWORD
+若沿用 claimpass 则已有 pgdata 卷无需重灌，若更换需 down -v。

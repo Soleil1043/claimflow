@@ -17,8 +17,8 @@ description: 在本机对 claimflow 做生产环境（Docker prod profile）全�
 ```bash
 # 1. key 已配置（值隐藏，只看存在性）
 grep -c "^LLM_API_KEY=sk-" .env
-# 1b. compose 必填的两枚密钥（T216：无演示兜底，缺则 compose 直接报错；prod 拒演示值）
-grep -cE "^(STAFF_KEYS|PII_ENCRYPTION_KEY)=." .env   # 必须为 2；缺则按 .env.example 生成
+# 1b. compose 必填的四个变量（T216/T217：无演示兜底，缺则 compose 直接报错；prod 拒演示值）
+grep -cE "^(STAFF_KEYS|PII_ENCRYPTION_KEY|POSTGRES_PASSWORD|REDIS_PASSWORD)=." .env   # 必须为 4；缺则按 .env.example 生成
 # 换过 PII_ENCRYPTION_KEY 的话，旧 postgres 卷里的密文解不开——需 docker compose down -v 重灌
 # 2. 端口占用——必须用 netstat，HTTP 探测对 5432/6379 等数据库端口无效（永远 000）
 netstat -ano | grep -E ":8000|:5432|:6333|:6379" | grep LISTENING
@@ -97,7 +97,7 @@ Windows 下事件循环已由 `app/core/eventloop.py` 处理，直接跑即可�
 ## 阶段 5：监控与追踪
 
 ```bash
-docker compose --profile monitoring up -d   # Prometheus :9090 抓取 up + Grafana :3000 免登录
+docker compose --profile monitoring up -d   # Prometheus :9090 抓取 up + Grafana :3001 匿名只读（仅本机）
 curl -s http://localhost:8000/metrics | grep -c "^claimflow"   # 裸指标 >50 行
 docker compose --profile tracing up -d      # Jaeger :16686
 # 容器上报追踪：.env 设 OTEL_ENABLED=true 后 docker compose up -d app 重建

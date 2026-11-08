@@ -135,6 +135,9 @@ jobs:
       # 冒烟脚本从同一环境变量读坐席 Key
       STAFF_KEYS: ci-smoke:${{ github.run_id }}-${{ github.run_attempt }}
       PII_ENCRYPTION_KEY: ci-pii-${{ github.run_id }}-${{ github.run_attempt }}
+      # T217/I14：数据服务口令同样必填注入（compose 不再硬编码 claimpass / redis 无口令）
+      POSTGRES_PASSWORD: ci-pg-${{ github.run_id }}-${{ github.run_attempt }}
+      REDIS_PASSWORD: ci-redis-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: 拉取项目代码到ubuntu
         uses: actions/checkout@v4
