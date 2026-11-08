@@ -76,10 +76,22 @@ async def test_cache_disabled_backend(monkeypatch) -> None:
 
 
 def test_cached_tools_whitelist() -> None:
-    """白名单解析：policy_query 在，claim_calculator（有副作用语义）不在。"""
+    """白名单解析：claim_rule_rag 在；claim_calculator（副作用语义）不在。"""
     wl = cached_tools()
-    assert "policy_query" in wl
+    assert "claim_rule_rag" in wl
     assert "claim_calculator" not in wl
+
+
+def test_pii_tools_not_in_default_cache_whitelist() -> None:
+    """T214/I11（D091）：含 PII 的查询工具不得进默认缓存白名单。
+
+    policy_query/record_query 返回持有人姓名/证件号明文——共享 Redis 跨实例可见、
+    RDB 落盘同样明文，缓存层会把 D082 库内加密防线旁路掉。需要缓存时可经
+    TOOL_CACHE_TOOLS 显式加入（运维自担风险）。
+    """
+    wl = cached_tools()
+    assert "policy_query" not in wl
+    assert "record_query" not in wl
 
 
 # ===== 守卫层集成（缓存经 GuardedTool 生效，T044 下沉工具层） =====
@@ -134,8 +146,14 @@ def _guarded_with(raw: ClaimflowTool) -> tuple[ClaimflowTool, ClaimflowTool]:
     return assemble_tool(raw, backoff_initial=0.001), raw
 
 
-async def test_guard_cache_hit_second_call() -> None:
-    """白名单工具相同入参：第二次走缓存（真实执行只发生一次）。"""
+async def test_guard_cache_hit_second_call(monkeypatch) -> None:
+    """白名单工具相同入参：第二次走缓存（真实执行只发生一次）。
+
+    显式置白名单：本用例测缓存机制，默认白名单口径见 T214 用例。
+    """
+    import services.cache as cache_module
+
+    monkeypatch.setattr(cache_module.settings, "tool_cache_tools", "policy_query")
     reset_tool_cache()
     guarded, slow = _guarded_with(_SlowQueryTool())
 
@@ -161,8 +179,11 @@ async def test_guard_cache_not_for_uncached_tools() -> None:
     assert _counter("claimflow_tool_cache_hits_total", tool="claim_calculator", result="hit") == 0.0
 
 
-async def test_guard_cache_metrics_miss_then_hit() -> None:
-    """指标三态：miss（首次）→ hit（二次）。"""
+async def test_guard_cache_metrics_miss_then_hit(monkeypatch) -> None:
+    """指标三态：miss（首次）→ hit（二次）（显式置白名单）。"""
+    import services.cache as cache_module
+
+    monkeypatch.setattr(cache_module.settings, "tool_cache_tools", "policy_query")
     reset_tool_cache()
     guarded, _slow = _guarded_with(_SlowQueryTool())
 

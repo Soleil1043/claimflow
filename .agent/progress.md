@@ -3428,3 +3428,12 @@ stage_result 无 payload、status_change 仅 status/final_decision，且进度�
 **验证**：新增 5 用例（路径不回显且库内保留 / 非法 doc_type 零提取调用 / 超限
 422 分块中止 / _read_bounded 恰在越线块停止 / 超配额 429），旧代码 5 条全挂。
 708 passed。
+
+## T214 · 工具缓存明文 PII I11（2026-11-08，D091）
+
+**改动**：默认白名单 `policy_query,record_query,diagnosis_matcher,claim_rule_rag`
+→ `diagnosis_matcher,claim_rule_rag`（config + .env.example 带风险注释）。
+机制不变：GuardedTool 缓存逻辑、cached_tools() 解析、显式配置加回路径都保留。
+
+**验证**：新增默认白名单断言用例；两条缓存机制用例（hit/metrics）改为显式
+monkeypatch 白名单。709 passed。改动不触调度/理算/决定书。

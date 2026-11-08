@@ -110,10 +110,13 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # ===== 工具结果缓存（T028） =====
-    # 幂等工具白名单：纯读查询类，相同入参结果确定（名称须为工厂注册名）
+    # 幂等工具白名单：纯读查询类，相同入参结果确定（名称须为工厂注册名）。
+    # 含 PII 的工具不在默认白名单（T214/I11，D091）：policy_query/record_query
+    # 返回 holder_name/holder_id_card 等明文（库内 D082 加密前已是明文投影），
+    # 进共享 Redis（跨实例、RDB 落盘）等于把拖库防线绕开再铺一层明文
     tool_cache_enabled: bool = True
     tool_cache_ttl_seconds: int = 300
-    tool_cache_tools: str = "policy_query,record_query,diagnosis_matcher,claim_rule_rag"
+    tool_cache_tools: str = "diagnosis_matcher,claim_rule_rag"
 
     # ===== 轮次 Token 预算（T029） =====
     # 单轮对话（意图→规划→执行→生成→合规）总 token 上限；超限只告警日志，不阻断。0=不设预算
