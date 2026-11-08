@@ -13,13 +13,15 @@ app/
 │   └── v1/              # RESTful 路由（复数名词）
 │       ├── cases.py          # 案件提交 / 详情 / 材料上传 / 材料目录 / 叙述抽评
 │       ├── interventions.py  # HITL 工单列表 / 处理 / 抽评审队列
-│       ├── support.py        # 在线客服：会话 / 消息 / 坐席工单（T134/T135）
+│       ├── support.py        # 在线客服：会话 / 消息 / 案件授权 / 坐席工单（T134/T135/T202）
 │       ├── memory.py         # 申请人记忆删除（T138）
 │       └── health.py         # /health 依赖状态 + /metrics
 └── core/
     ├── config.py        # pydantic-settings，全部从 .env 读取（APP_PROFILE 切 dev/prod）
     ├── logging.py       # structlog 结构化日志（prod 走 JSONRenderer→stdout）
     ├── eventloop.py     # 事件循环守卫（防同步阻塞）
+    ├── crypto.py        # PII 库内加密（证件号确定性 AES，T176/D082）
+    ├── pii.py           # PII 正则与脱敏单源（日志与合规工具共用，T175/D081）
     └── exceptions.py    # 异常层级与 HTTP 映射
 ```
 
@@ -27,7 +29,10 @@ app/
 
 - 案件提交为**受理即返回**：建档 + 入交付队列（`services/case_jobs.py`），
   前端轮询终态；小数据量 inline 直驱双档；
-- 材料上传：两段式提取（图片/PDF/Word），补件挂起时自动恢复流程；
+- 材料上传：两段式提取（图片/PDF/Word），分块有界读、限流、doc_type 先于提取校验（T213），
+  补件挂起时自动恢复流程；
+- 案件详情双视图：坐席看原始审计流，申请人看白名单投影（T212/D090）；
+- 跨域：默认不挂 CORS（前端都走同源代理），`CORS_ALLOW_ORIGINS` 可选启用精确白名单（T203）；
 - `/metrics` 由 prometheus-fastapi-instrumentator + `make_asgi_app` 双路径暴露，
   读全局 `REGISTRY`（`services/observability/metrics.py`）；
 - 日志走 `StreamHandler` → **stdout，不落文件**——容器重建即丢，需要事后回溯

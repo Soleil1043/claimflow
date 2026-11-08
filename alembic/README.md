@@ -19,5 +19,5 @@ uv run alembic revision --autogenerate -m "xxx"   # 生成新迁移
   走"空库 stamp 上一版 → upgrade → downgrade"口径（T132 先例）；
 - LangGraph checkpoint / Store 表由 PostgreSQLSaver/Store 自管，不在此建模（D006）。
 
-当前表结构：核赔 4 张 + 客服 2 张 + mock/支撑 5 张，共 11 张（见
-`services/db/models.py` 文件头）。
+当前表结构：核赔 5 张 + 客服 3 张 + mock/支撑 5 张，共 13 张（见
+`services/db/models.py` 文件头）；当前 head `c9e1f5a3d7b2`（support_case_grants，T202）。

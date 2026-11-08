@@ -15,12 +15,22 @@ Next.js 15 + React 19 + Tailwind 单页应用，坐席（内勤）侧入口（`:
 ## 结构
 
 ```
-app/cases/      # 核赔工单列表 + [caseId] 详情
-app/support/    # 客服工单
-app/samples/    # 叙述抽评审
-components/     # Timeline / DecisionVersionCard / ApplicantMemoryCard / 气泡组件…
-lib/api.ts      # 后端 API 封装（dev 代理 :8000）
+app/cases/          # 核赔工单列表 + [caseId] 详情
+app/support/        # 客服工单
+app/samples/        # 叙述抽评审
+app/login/          # 坐席登录页（T215）
+app/staff-session/  # 登录 / 退出路由：校验 Key 后写 HttpOnly Cookie
+middleware.ts       # 浏览器 /api/v1/* 请求从 Cookie 注入 X-Staff-Key（剥除客户端自带头）
+components/         # CaseTimeline / CaseResolveForm / ApplicantMemoryCard / SupportReplyForm / StaffSessionLink…
+lib/api.ts          # 后端 API 封装（浏览器走同源代理 /api/*，RSC 直连 :8000）
 ```
+
+## 坐席登录（T215，D092）
+
+后端配置了 `STAFF_KEYS` 时，先在 `/login` 输入分配的坐席 Key。Key 存在 HttpOnly
+Cookie 里，浏览器脚本读不到；浏览器请求由 `middleware.ts` 注入 `X-Staff-Key`，服务端
+组件从 Cookie 读取后注入。导航栏可退出。后端未配置 `STAFF_KEYS`（dev 开放态）时
+无需登录。旧的 `NEXT_PUBLIC_STAFF_KEY` 已不再使用。
 
 ## 开发
 
@@ -30,4 +40,4 @@ npm run build                 # CI 校验构建
 ```
 
 设计系统：Apple Design 移植（毛玻璃 sticky 导航 / 分段控件 / 按压反馈 /
-reduced-motion 媒体查询），设计令牌与 `ui/`（Gradio 评测台）同源（D030）。
+reduced-motion 媒体查询，D030）。

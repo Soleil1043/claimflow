@@ -2,7 +2,7 @@
 
 > 本文记录系统当前的架构和实现。设计取舍见
 > [`claimflow-新架构设计.md`](claimflow-新架构设计.md)，术语见 [`../CONTEXT.md`](../CONTEXT.md)，
-> 全部技术决策链见 [`../.agent/decisions.md`](../.agent/decisions.md)（D001-D087）。
+> 全部技术决策链见 [`../.agent/decisions.md`](../.agent/decisions.md)（D001-D094）。
 
 ---
 
@@ -33,7 +33,7 @@
 客户提交理赔申请和材料后，LLM Orchestrator 调度六个 Worker：材料审核、
 保单核验、风控筛查、责任认定、金额理算和决定书生成。
 
-- 低风险小额案件自动签发《理赔决定书》；
+- 低风险、链路置信度达标的案件自动签发《理赔决定书》（给付案另需金额在签发线内，拒赔不看金额线，D089）；
 - 其余转人工复核（补件 / 复核 / 升级三类工单，interrupt 挂起、补传自动恢复）；
 - 各险种的知识放在 `skills/<stage>/<line>.md`。调整规程文本即可更新这部分知识。
 
@@ -124,6 +124,8 @@ human_gate ── Command(resume)：补件/签批/改判/升级 ──→ END
    - 重复派发去重；决定书生成必须单派；
    - 材料不齐时，`_COMPLETION_GATED` 阻止后续阶段执行；
    - 必做集未收敛 → 强制补投；
+   - 风控结论为 high → `risk_short_circuit` 强制转人工复核，不论 LLM 如何决策
+     （与 `default_route` 共用同一规则，两种路由模式一致，T206/D089）；
 4. 调度调用超过 15 次或 LLM 失败时，按险种默认计划执行标准管线；
 5. 守卫清空目标且未超预算 → 回落 `default_route`（D056-2 liveness 修复，
    防规划退化致案件中途终止）；
@@ -216,10 +218,13 @@ callbacks 传播到节点内 chat model（真实模型实测，假模型探针�
   赔付比例, 保额)`，全链路 Decimal 精确到分；
 - 决定书三层审查（`services/decision_doc.py` + `nodes/compliance_gate.py`）：
   1. 骨架代码渲染：金额、结论和编号由代码填写，LLM 只写核定依据叙述段；
-  2. 金额三方断言：正文提取金额 == decision 字段 == 理算结果，不一致 → MODIFY；
+  2. 金额三方断言：正文提取金额 == decision 字段 == 理算结果，不一致 → MODIFY。
+     正文里每一处“核定金额”都要核对（容忍冒号 / 为 / 是等写法），叙述段夹带的矛盾
+     金额同样拦截（T210）；
   3. `check_text` 红线检查（与评测门同一实现）：违规承诺话术 → REJECT 转人工；
-- 修订闭环：MODIFY → 规则叙述重渲染（version+1）→ 再过合规门，轮数上限
-  （compliance_max_rounds）防死循环；
+- 修订闭环：MODIFY → 规则叙述重渲染（version+1）→ 再过合规门，每轮复审 round+1，
+  达到 compliance_max_rounds 仍不过即 REJECT 转人工（T204）；REJECT 工单带原因
+  “决定书未通过合规审查：…”，坐席能看到被弹回的理由（T205）；
 - 脱敏：身份证 / 银行卡 / 手机号渲染层正则脱敏；坐席改判文本同样过 check_text。
 - PII 分层治理（T175-T176，D081-D082）：日志不记录原始 PII，身份证号在库内经
   确定性 AES 加密并由 ORM 透明解密，出站决定书继续脱敏。密钥从环境变量读取；
@@ -231,13 +236,19 @@ callbacks 传播到节点内 chat model（真实模型实测，假模型探针�
 - 挂起：human_gate 用 `interrupt` 挂起。`case_service.human_info_from_job` 从交付
   回执生成工单列表，不查询 checkpoint（D047）；
 - 补件自动恢复：客户补传材料 → 上传接口自动 `Command(resume)` → 材料审核重跑
-  回调度（commit 先行防 SQLite 写锁）；
+  回调度（commit 先行防 SQLite 写锁）。恢复时以 `cases.materials` 为单源重建材料
+  清单，再次挂起前回扫一次库内新材料，恢复在飞期间的后续上传不会丢（T209）；
 - 坐席结论必过合规：签批（confirm）落坐席署名版本决定书；改判（rewrite）
-  重渲染更高版本；坐席文本必过 check_text 红线复审，违规不签发；
+  重渲染更高版本，坐席结论（含改判拒赔、改判 0 元）原值生效（T201/T211）；坐席文本
+  必过 check_text 红线复审，违规不签发；草稿含红线话术时不能直接签批，API 返回 422
+  要求改写（T205）；
 - 叙述抽评（T139/D059）：自动签发案件 5% 确定性采样（种子 = case_id 可复算）
   进抽评审队列，workbench 行内评审（pass / revise + 评语），通过率统计。
 - 门户与坐席访问（T171-T172，D077-D078）：客户案件接口使用案件访问令牌，
-  坐席操作走 staff 鉴权；门户提交及查询有按配置启用的限流。
+  坐席操作走 staff 鉴权；门户提交、查询与材料上传有按配置启用的限流（T213）。
+  申请人看到的审计时间线是白名单投影：内部异常串、调度细节、坐席身份不外露，任务
+  错误串与材料落盘路径只给坐席（D090）。workbench 坐席在 `/login` 登录，Key 存
+  HttpOnly Cookie、由 Next middleware 注入请求头，不进浏览器 bundle（D092）。
 
 ## 9. 在线客服域
 
@@ -246,7 +257,8 @@ callbacks 传播到节点内 chat model（真实模型实测，假模型探针�
 - 会话状态机：ai → escalated → closed（closed 不可逆）；escalated 后 AI 停答
   （assistant 角色拒写），坐席接管；
 - 客服 Agent（`services/support/agent.py`）：create_agent + 会话记忆窗口 replay
-  （store.recent_messages）；提供四个工具：case_status_query（案件进度快照）、
+  （store.recent_messages）；提供四个工具：case_status_query（案件进度快照；只答本会话经 case-grants 授权的
+  案件，未授权与不存在同一句话，门户在案件详情页自动授权，D088）、
   claim_draft_link（险种校验 + 报案链接四参数预填）、claim_rule_rag（条款问答）、
   escalate_to_human（转人工标记式：不改状态，AI 终局后确定性流转）；
 - 门户侧：chatui 全站悬浮客服气泡（SupportBubble），ai 态 SSE 流式渲染
@@ -277,7 +289,9 @@ callbacks 传播到节点内 chat model（真实模型实测，假模型探针�
 
 - 受理即返回：POST /cases 建档 + 入队即返回，前端轮询终态（inline / background
   双档，小数据量直接 inline 驱动）；
-- 常驻消费者循环：JobLoop 认领 CaseJob 表任务执行图（T155 起每实例一循环、租约互斥）；`deliver_case_job` 三入口
+- 常驻消费者循环：JobLoop 认领 CaseJob 表任务执行图（T155 起每实例一循环、租约互斥；
+  完结与重试写入带持有者栅栏，租约被接管后原实例的迟到写入被拒，inline 派发也先认领
+  再执行，T208）；`deliver_case_job` 三入口
   （提交/补件/工单处理）收口单一生命周期函数（D049）；
 - 幂等：自然键（user_id, policy_no, claimed_amount, incident_date）唯一约束，
   重复提交返回既有结论；
@@ -382,7 +396,8 @@ DeepSeek 缓存按前缀命中：遇到第一个不同 token 即停止，其后�
   ROUTING_CALLS、GUARD_CORRECTIONS、ORCH_FALLBACK、CASE_TOKENS、DECISION_AMOUNT、
   CASE_JOBS_QUEUE_DEPTH（T154） 等；
 - Grafana（T163/T164/T177/T179）：两个仪表盘共 22 个面板。核赔板 10 个，
-  包括单案 Token 和成本；服务总览板 12 个，包括 Prompt 缓存和工具缓存。
+  包括单案 Token 和成本；服务总览板 12 个，包括 Prompt 缓存和工具缓存（工具缓存
+  白名单默认只含 diagnosis_matcher、claim_rule_rag，返回证件号的查询工具已移出，D091）。
   T179 清理了四个引用旧指标的面板，转人工率改用 CASES_TOTAL 的终态计算；
 - OTel 采样率 0.2（T166，此前为 1.0）：全采样时，每个请求会产生数十个 span，
   增加磁盘和 CPU 开销；
@@ -410,7 +425,9 @@ DeepSeek 缓存按前缀命中：遇到第一个不同 token 即停止，其后�
   PyRIT converters-attacks，带 `framework_ref` 溯源（自研不引框架本体：探测对象
   语义错位 + 依赖重）；
 - 六门：金额 100% / 红线 0 / 守卫旁路 0 / 对抗全过（硬）+ 路由 ≥95% /
-  责任 ≥90%（软）+ 调度 ≤15（预算）；阈值与运行时同源 `schemas/contract.py`；
+  责任 ≥90%（软）+ 调度 ≤15（预算）；阈值与运行时同源 `schemas/contract.py`。
+  运行出错的案件计入金额硬门分母；期望自动结案的案件若观测缺失或金额无法解析一律
+  判错，不再默认判对（T200）；
 - 客服问答门（T146/D066，`support_suite.py` + `datasets/support_qa.json`
   15 案五类）：关键词组（组间 AND 组内 OR）/ 禁止词（含内部阈值泄漏）/ 转人工
   终态三层确定性判分，硬门 100%；检索命中率为分层观测（Agent 会改写检索词，
@@ -439,7 +456,7 @@ DeepSeek 缓存按前缀命中：遇到第一个不同 token 即停止，其后�
   （真实调度、worker 确定性）153/153、六门全绿。T160 全程调用模型档
   （`--llm --llm-workers`）一致率 88.9%（136/153），硬门全绿，路由软门未到
   95%；注入门 8/8 双模式全绿，hold-out 30/30，客服门 15/15；
-  `uv run pytest -q` 628 passed（2026-11-02 复测）；
+  `uv run pytest -q` 735 passed（2026-11-08 复测）；
 - CI 门禁：eval-gate 跑确定性全量（零 secret）；docker job compose 全栈 +
   冒烟双档（无 secret → `--offline` 离线兜底档 22 项；有 secret → 完整档 23 项）
   + 多实例阶段（`--scale app=2`，T156）；nightly-llm 加 hold-out 盲测档。
@@ -450,14 +467,17 @@ DeepSeek 缓存按前缀命中：遇到第一个不同 token 即停止，其后�
   （LLM_API_KEY / LLM_MODEL / 核赔阈值组 / 记忆组 / 客服窗口…），不硬编码；
 - dev profile：SQLite + Qdrant local mode + InMemorySaver/Store，零容器依赖；
 - prod profile：PostgreSQL + Qdrant + Redis + AsyncPostgresSaver/Store，
-  `docker compose up -d` 一键；
+  `docker compose up -d` 一键。compose 必填 STAFF_KEYS / PII_ENCRYPTION_KEY /
+  POSTGRES_PASSWORD / REDIS_PASSWORD，prod 拒绝仓库里出现过的演示值（D093）；只有
+  app:8000 对外发布，数据服务与观测界面绑 127.0.0.1，Redis 带口令，Grafana 在宿主
+  3001 端口、匿名只读（D094）；跨域白名单 CORS_ALLOW_ORIGINS 可选，默认关闭；
 - 可选栈：`--profile monitoring`（Prometheus + Grafana）、
   `--profile tracing`（OTel Collector + Jaeger）；
 - LLM：主链路默认 `LLM_MODEL=deepseek-flash`；图片和扫描件提取走独立配置的
   `LLM_VISION_MODEL`，默认也是 `deepseek-flash`（T130/D056）。DeepSeek 的
   [视觉接口文档](https://api-docs.deepseek.com/guides/vision/)确认该模型接收图像输入；
 - CI：lint-test、frontend、docker、eval-gate、nightly-llm 五个 job；
-  pytest 基线 628 passed，覆盖率门 ≥85%；docker job 含双档冒烟和双副本阶段。
+  pytest 基线 735 passed，覆盖率门 ≥85%；docker job 含双档冒烟和双副本阶段。
 
 ## 16. 关键决策索引
 
@@ -491,6 +511,13 @@ DeepSeek 缓存按前缀命中：遇到第一个不同 token 即停止，其后�
 | D085 | 客服 SSE 流式：AI 应答流式，escalated 坐席回复与案件进度保留轮询（有意取舍）；POST + ReadableStream 而非 EventSource-GET |
 | D086 | 轨迹回放断言：事件流 × 回执表 × 决定书版本联合断言五不变量（非金轨迹比对），schema_reset 段边界与补件轮次配对 |
 | D087 | 死信重驱三件套：dead 列告警 + staff 重驱端点（attempt 清零/last_error 保留）+ INV5 以 job_redrive 放行；不做批量/自动重驱 |
+| D088 | 客服查案授权：会话持久绑定（support_case_grants + case-grants 端点），工具只查已授权案件，未授权与不存在同口径 |
+| D089 | 拒赔分级：风险与置信度对拒赔同样生效；高风险短路提升为 LLM / 兜底路由共用的硬守卫 |
+| D090 | 门户审计时间线白名单投影；任务错误串仅坐席可见 |
+| D091 | 返回证件号的查询工具移出默认缓存白名单 |
+| D092 | workbench 坐席 Key 改 HttpOnly Cookie 会话 + middleware 注入，移出浏览器 bundle |
+| D093 | compose 演示密钥出仓：必填注入 + prod 拒已知演示值 |
+| D094 | compose 暴露面收口：数据与观测端口绑本机、PG/Redis 口令必填、Grafana 匿名只读 |
 
 ---
 

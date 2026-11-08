@@ -8,7 +8,7 @@
 
 **项目**：保险理赔智能核赔平台（多险种）——客户提交理赔申请与材料后，LLM Orchestrator 动态调度专业 Worker（材料审核 / 保单核验 / 风控筛查 / 责任认定 / 金额理算 / 决定书生成）完成自动核赔：低风险小额案件自动签发《理赔决定书》，其余转人工复核。领域知识以 skill 作业规程包（`skills/<stage>/<line>.md`）承载。
 
-架构文档：`docs/architecture.md`（现状总览，16 节）+ `docs/claimflow-新架构设计.md`（工程版设计依据）+ 同目录人话版导读。统一语言：`CONTEXT.md`。决策链：`.agent/decisions.md`（D001-D076）。**现状为维护期**，新需求先写入 `.agent/tasks.md` 再实施。
+架构文档：`docs/architecture.md`（现状总览，17 节）+ `docs/claimflow-新架构设计.md`（工程版设计依据）+ 同目录人话版导读。统一语言：`CONTEXT.md`。决策链：`.agent/decisions.md`（D001-D094）。**现状为维护期**，新需求先写入 `.agent/tasks.md` 再实施。
 
 ---
 
@@ -69,7 +69,7 @@
 - 单元测试放在 `tests/`，目录结构和源码对应；测试文件命名 `test_<模块名>.py`
 - 核心业务逻辑（工具执行、状态流转、容错机制）必须有单元测试
 - 外部 API 调用用 mock，不测第三方服务
-- 当前全量 **628 passed**
+- 当前全量 **735 passed**（2026-11-08）
 
 ### 3.4 工具层（T044 起对齐 LangChain 官方基类）
 
@@ -134,9 +134,9 @@ claimflow/
 ├── .agent/                    ← 项目状态（Agent 读写，不删除）
 │   ├── spec.md                ← Phase 1: 需求规格说明书（9 节，含Fxx/Exx）
 │   ├── plan.md                ← Phase 2: 设计说明书
-│   ├── tasks.md               ← Phase 3: 任务清单（T001-T168）
+│   ├── tasks.md               ← Phase 3: 任务清单（T001-T222）
 │   ├── progress.md            ← Phase 4: 构建日志（全程追加）
-│   ├── decisions.md           ← 全程: 决策记录（D001-D076）
+│   ├── decisions.md           ← 全程: 决策记录（D001-D094）
 │   └── prompts.md             ← Prompt 模板参考（需求变更/ 设计变更/ 回退/ 上下文恢复）
 ├── CONTEXT.md                 ← 领域术语表（统一语言）
 ├── state.py                   # ClaimCaseState 主图共享状态
@@ -175,8 +175,10 @@ claimflow/
 │   ├── skills.py              # skill 作业规程装载 + build_system_prompt（T165 布局约束）
 │   ├── materials.py           # 材料提取（图片/PDF/Word 两段式）
 │   ├── worker_agent.py        # Worker 子图装配与执行（create_agent + 官方中间件栈）
-│   ├── support/               # 在线客服域（store 状态机 / agent 装配）
+│   ├── support/               # 在线客服域（store 状态机 / agent 装配 / context 查案授权作用域）
 │   ├── cache.py               # 工具结果缓存
+│   ├── ratelimit.py           # 门户限流令牌桶（T172，D078）
+│   ├── audit_replay.py        # 审计回放五不变量（T181，D086）
 │   ├── llm/                   # LLM 封装（client / prompts）
 │   ├── rag/                   # RAG（embedder / retriever / reranker / knowledge_graph / qdrant / ingest）
 │   ├── memory/                # 记忆（short_term / long_term / case_memory 申请人记忆治理）
@@ -188,7 +190,7 @@ claimflow/
 ├── schemas/                   # Pydantic schema（api / case / stages / contract / lines / tools）
 ├── evals/                     # 金样本评测门（suite / gates / metrics / redteam / rag_metrics / single_agent_baseline）
 ├── skills/                    # 作业规程包（<stage>/<line>.md，四险种 21 份；改文本不改代码）
-├── tests/                     # 单元测试（目录结构与源码对应，528 用例）
+├── tests/                     # 单元测试（目录结构与源码对应，735 用例）
 │
 ├── chatui/                    # 案件提交门户（Next.js 15 + Tailwind 4，端口 3000；含悬浮 AI 客服）
 ├── workbench/                 # 坐席工作台（Next.js：核赔工单 / 客服工单 / 叙述抽评审）

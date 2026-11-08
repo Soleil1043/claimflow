@@ -24,13 +24,15 @@
 |------|------|
 | `skills.py` | skill 作业规程装载（`<line>.md` → `_shared.md` → base 三级回退）+ `build_system_prompt`（**T165：system 只留全静态内容，动态数据一律走 user message**——DeepSeek 前缀缓存要求同一险种内 system 逐字一致） |
 | `materials.py` | 材料两段式提取（图片/PDF/Word；文本 → 扫描件 vision；Mock 兜底） |
-| `support/` | 在线客服域：store 状态机（ai→escalated→closed）+ Agent 装配（T132-T135） |
+| `support/` | 在线客服域：store 状态机（ai→escalated→closed）+ Agent 装配（T132-T135）+ context 会话作用域（AI 查案只答本会话已授权案件，T202/D088） |
 | `memory/` | long_term（Store 存储层）/ short_term / case_memory（申请人记忆治理） |
 | `rag/` | embedder（BGE-M3）/ retriever / reranker / knowledge_graph / graph_retriever / qdrant_client / ingest |
 | `llm/` | client（OpenAI 兼容 + token 埋点）/ prompts（**全量 prompt 单源**，T165 起静态指令段与动态数据段分离） |
-| `cache.py` | 工具结果缓存（Redis，dev 内存降级） |
+| `cache.py` | 工具结果缓存（Redis，dev 内存降级；默认白名单不含返回证件号的查询工具，D091） |
+| `ratelimit.py` | 门户限流令牌桶（prod Redis Lua 原子，dev 进程内存；T172/D078） |
+| `audit_replay.py` | 审计回放：事件流 × 交付回执 × 决定书版本五不变量断言（T181/D086） |
 | `observability/` | metrics（含 Prompt 缓存指标三来源提取 + stage 维度，T162/T164）/ llm_metrics（`observed_ainvoke` +结构化输出回调分支 + `LlmUsageCallbackHandler`）/ token_tracker（`track_phase` / `phase_ainvoke` / `track_case`）/ tracing（OTel，采样率 0.2） |
-| `db/` | models（11 张表）/ session（双后端引擎 + swap 公开接口） |
+| `db/` | models（13 张表）/ session（双后端引擎 + swap 公开接口） |
 
 ## 约定
 

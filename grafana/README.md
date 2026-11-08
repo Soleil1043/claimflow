@@ -37,7 +37,7 @@ material_review / decision_writer）与「天然 miss」（ocr 材料提取—�
 ## 启动
 
 ```bash
-docker compose --profile monitoring up -d   # → Grafana :3000（免登录直读）
+docker compose --profile monitoring up -d   # → Grafana :3001（仅本机，匿名只读，T217）
 ```
 
 指标口径见 [`../services/observability/metrics.py`](../services/observability/metrics.py)，

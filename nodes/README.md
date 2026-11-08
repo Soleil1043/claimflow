@@ -9,16 +9,16 @@ LangGraph 主图（`workflows/case_graph.py`）的节点实现：**只做编排�
 |------|------|
 | `intake.py` | 受理论证：保单产品类型 → 险种分类；unknown 转人工（escape）；写 schema_version |
 | `orchestrator.py` | LLM 调度装配：RoutingDecision 结构化输出 + Send 并行派发 + 审计。**T165：system 全静态 + 快照走 user message** |
-| `guards.py` | 确定性守卫纯函数层：enforce_guards / default_route / 前置查表（T118 拆出） |
+| `guards.py` | 确定性守卫纯函数层：enforce_guards / default_route / risk_short_circuit（高风险短路，LLM 与兜底路由共用，T206）/ 前置查表（T118 拆出） |
 | `material_review.py` | 三段流水线：@task 并行提取 → 完整性/金额交叉规则 → AI 一致性审查（**T165：提取结果走 user message**） |
 | `policy_verify.py` | 保单核验：等待期 / 除外 / 限额（条款要素由 pack 提供） |
 | `fraud_check.py` | 风控筛查：黑名单 / 历史出险双信号，高风险短路 |
 | `liability_judge.py` | 责任认定三段：确定性前置 → ReAct Agent → 关键词兜底。system 为纯静态（本就无动态占位符，命中率天然高） |
 | `amount_calc.py` | 金额理算：纯确定性（`services/amounts.py` 规格公式） |
 | `decision_generate.py` | 决定书生成：骨架代码渲染 + LLM 只写叙述段（**T165：事实走 user message**） |
-| `compliance_gate.py` | 静态合规门：金额三方断言 + 红线检查，三态（PASS/MODIFY/REJECT） |
-| `auto_adjudicate.py` | 分级自动：低风险小额签发；其余转 human；叙述 5% 采样（T139） |
-| `human_gate.py` | 人工介入门：interrupt 挂起；三类工单决议纯函数（resolve_review） |
+| `compliance_gate.py` | 静态合规门：金额三方断言（正文每处核定金额）+ 红线检查，三态（PASS/MODIFY/REJECT）；修订超轮数上限转 REJECT，REJECT 工单带原因 |
+| `auto_adjudicate.py` | 分级自动：低风险 + 置信度达标才签发（给付另需金额在线内，拒赔不看金额线，D089）；其余转 human；叙述 5% 采样（T139） |
+| `human_gate.py` | 人工介入门：interrupt 挂起；三类工单决议纯函数（resolve_review，坐席结论值域直传）；补件恢复以 cases.materials 重建材料（T209） |
 
 ## 关键约定
 

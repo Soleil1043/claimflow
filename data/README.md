@@ -11,8 +11,10 @@
 | `kb_docs/` | 核赔知识库 12 篇条款文档（RAG 语料，ingest 向量化入 Qdrant） |
 | `graph/` | 知识图谱三元组落盘（`claim_rules_kg.json`，`scripts/build_kg.py` 幂等重建） |
 | `qdrant/` | Qdrant local mode 本地向量库（开发零容器） |
+| `qdrant-mi-*/` | 多实例冒烟时每实例独立的 Qdrant local 目录（local mode 无跨进程锁，T222） |
 | `uploads/{case_id}/` | 案件上传材料落盘（B03 闭环，storage_path 回链） |
-| `claimflow.db` | dev profile SQLite 库 |
+| `claim_agent.db` | dev profile SQLite 业务库 |
+| `checkpoints.sqlite` | dev 多实例共享 checkpoint（`CHECKPOINT_BACKEND=sqlite`，WAL） |
 
 ## 约定
 

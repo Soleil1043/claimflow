@@ -9,14 +9,15 @@ Next.js 15 + React 19 + Tailwind 4 单页应用，客户侧入口（`:3000`）�
 - **进度时间线**：轮询案件详情，阶段推进自动刷新；
 - **决定书查看**：版本化决定书渲染；
 - **补件上传**：挂起案件在详情页直接补传，自动恢复流程；
-- **悬浮 AI 客服**（T136）：全站气泡——条款问答 / 案件进度查询 / 报案链接预填；
+- **悬浮 AI 客服**（T136）：全站气泡——条款问答 / 案件进度查询 / 报案链接预填。
+  案件进度查询需会话级授权：在案件详情页打开客服时自动用该案令牌授权（T202）；
   转人工后 3s 轮询坐席回复；closed 终态只读 + 一键新会话。
 
 ## 结构
 
 ```
 app/            # 路由：首页（提交）/ cases/[caseId]（详情）
-components/     # CaseForm / MaterialUpload / Timeline / DecisionCard / SupportBubble…
+components/     # CaseForm / MaterialUpload / SupportBubble / AutoRefresh（时间线与决定书内联在详情页）
 lib/            # case-api.ts / support-api.ts（后端 8000 代理）
 ```
 

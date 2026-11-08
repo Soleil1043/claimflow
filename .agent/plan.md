@@ -2,7 +2,7 @@
 
 > Phase 2 产出（2026-09-04，D037-D039）。**主体架构以 docs/claimflow-新架构设计.md 为准**
 > （本文件不重复架构细节，只记录落地映射、选型增量与风险）。
-> 后续重大设计变动见 `decisions.md` D071-D076；对应 Prompt 见 `prompts.md` 的「设计变更 Prompt」。
+> 后续重大设计变动见 `decisions.md`（D071 起，至 D094）；对应 Prompt 见 `prompts.md` 的「设计变更 Prompt」。
 > 状态标记：✅ 已确认 | 🔄 待确认 | ❌ 需修改
 
 **状态**：✅ 已确认（D037-D039 方向决策已落地；T168 按 sdd-scaffold 模板补齐结构说明）
@@ -21,7 +21,7 @@
 | 数据模型 | `docs/architecture.md` §12 + `schemas/`（`api.py`/`case.py`/`db/models.py`） |
 | API 设计 | `README.md` §8 接口表 + `app/api/v1/` + `schemas/api.py` |
 | 第三方依赖 | 本文 §1（关键依赖与口径） |
-| 关键技术决策 | 本文 §6 + `decisions.md` D001-D076 |
+| 关键技术决策 | 本文 §6 + `decisions.md` D001-D094 |
 
 ---
 
@@ -35,8 +35,8 @@ BGE-M3 / uv / pytest / Docker / Prometheus+Grafana），增量与关键口径：
 | 编排形态 | orchestrator 循环：`RoutingDecision` 结构化输出 + `Command(goto=[Send...])` 并行 + 静态合规门 | D039 |
 | 调度/worker LLM | deepseek-v4-flash（主链路），vision-exp 专职 OCR | D002/D007/D008 |
 | skill 机制 | `skills/<stage>/<line>.md` + `services/skills.py` 装载器（纯文本零依赖） | D039 |
-| Checkpoint | AsyncPostgresSaver（prod）/ InMemorySaver（dev），thread_id=case_id | D009 |
-| 业务表 | cases / case_events（含 kind=routing 审计）/ decision_documents / human_tickets | D006 职责分离原则延续 |
+| Checkpoint | AsyncPostgresSaver（prod）/ InMemorySaver（dev 默认）/ 共享 SQLite（dev 多实例，CHECKPOINT_BACKEND=sqlite，D071），thread_id=case_id | D009、D071 |
+| 业务表 | 现 13 张（models.py 文件头单源）：核赔 5 + 客服 3（含 support_case_grants，D088）+ mock/支撑 5；早期 human_tickets 表随 v1 清理下线（迁移 d9a5c1e8f3b7），现走工单投影模型 | D006 职责分离原则延续 |
 | 金额 | 全链路 Decimal，序列化 str/分 | F08 硬门前提 |
 | 结构化输出 | with_structured_output(method="function_calling") | D022/T068 实测口径 |
 

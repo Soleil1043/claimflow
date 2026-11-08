@@ -1,7 +1,7 @@
 # tests/ —— 单元与集成测试
 
 目录结构与源码一一对应（`tests/nodes/` 对 `nodes/`，`tests/services/` 对 `services/`…）。
-全量 **528 passed**，CI 每次 push 全跑。
+全量 **735 passed**（2026-11-08），CI 每次 push 全跑。
 
 ## 约定
 
@@ -30,6 +30,10 @@
     非 BaseChatModel 但直返 AIMessage，用 isinstance 会误判）
 - **Prompt 数据边界**（T165 跨消息）：system 全静态（无快照内容）+ user 带
   `<<<DATA…>>>DATA` 定界，注入文本被关在数据区内；
-- **评测门**：`tests/evals/` 数据集校验 + 门限边界 + 红队变体期望继承（T159）。
+- **评测门**：`tests/evals/` 数据集校验 + 门限边界 + 红队变体期望继承（T159）；
+  错误案计入硬门分母、期望自动结案时观测缺失判错（T200）；
+- **代码审查回归**（T200-T222）：坐席改判拒赔与红线草稿签批（`tests/nodes/test_human_gate.py`）、
+  拒赔分级（`test_auto_adjudicate.py`）、修订轮次闭环、客服查案授权（`tests/support/test_case_grants.py`）、
+  队列持有者栅栏、补件多文件竞态、门户时间线投影、检索编码不阻塞事件循环（`tests/rag/test_embedder.py`）。
 
 运行：`uv run pytest -q`。

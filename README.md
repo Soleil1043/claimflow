@@ -10,8 +10,9 @@
 《理赔决定书》，其余转人工复核。各险种的领域知识放在 skill 规程包
 （`skills/<stage>/<line>.md`）里，调准确率只改文本，不动代码。
 
-> **项目状态（2026-11-02）**：维护期。任务清单 T001-T185 已全部交付，最近一次功能提交
-> 是 `92eb4f8`（死信告警与重驱）。全量测试 628 passed（2026-11-02 复测）。
+> **项目状态（2026-11-09）**：维护期。任务清单 T001-T222 已全部交付，其中 T200-T222 是
+> 一轮全仓库代码审查的修复批次（决定书结论、客服查案授权、评测门口径、部署安全等），
+> 最近一次代码提交是 `2454e11`。全量测试 735 passed（2026-11-08 复测）。
 
 > **TL;DR** — A multi-line insurance auto-adjudication platform: an LLM Orchestrator
 > dispatches six specialized workers over a case pipeline, with precondition guards in code,
@@ -84,8 +85,8 @@
   `cost_cny_per_case_avg` 字段。30 案 LLM 评测按单价表估算约 ¥0.006/案（整体缓存
   命中率 82.4%、路由调用 86.8%；无缓存约 ¥0.016/案）。单价表是文档口径估算，看
   趋势和量级用，不用于结算
-- 单元与集成测试 628 passed（2026-11-02 复测，覆盖图结构断言、守卫注入、interrupt
-  跨重启恢复、死信重驱与审计回放）；CI 覆盖率门 ≥85%（T149，基线 88% 留 3pp 缓冲）
+- 单元与集成测试 735 passed（2026-11-08 复测，覆盖图结构断言、守卫注入、interrupt
+  跨重启恢复、死信重驱与审计回放、图检索与精排）；CI 覆盖率门 ≥85%（T149，基线 88% 留 3pp 缓冲）
 - 负载测试（T150）：50 / 100 并发提交全稳定，提交 3.2-3.5 案/s，确定性档排空约
   140 案/min，E2E P95 35-70s。压测压出两个真实缺陷并已修复：案号生成的读-判-写
   竞态（并发撞号）和连接池耗尽。另外留了升 SKIP LOCKED 的判据：日案件量过万或
@@ -110,7 +111,7 @@
 |------|-----------|
 | LLM Orchestrator-Worker | RoutingDecision 结构化输出 + Send 并行派发，前置条件由代码守卫强制 |
 | 静态合规门 | decision_generate → compliance_gate 是图上焊死的边，任何路由决策无法绕过 |
-| 分级自动签发 | 低风险 + 责任明确 + 金额阈值内自动出《理赔决定书》，否则转人工（阈值全配置化） |
+| 分级自动签发 | 低风险 + 责任明确 + 链路置信度达标才自动出《理赔决定书》，给付案另需金额在签发线内；拒赔同样要过风险与置信度两关（不看金额线），否则转人工（阈值全配置化） |
 | HITL 三类工单 | 补件 / 核赔复核 / 升级。interrupt 挂起，客户补传自动恢复，坐席结论必过合规复审 |
 | 险种 pack | `schemas/lines.py` 一份 pack = 一个险种的全部知识；医疗/车险/财产险/意外险四线已上线（T120），产品类型不在任何 pack（unknown）受理转人工 |
 | 知识图谱混合召回（T031/T032） | 12 篇条款文档抽取实体关系三元组（险种/疾病 ICD-10/规则条款），内存邻接表多跳遍历补充结构化事实（`services/rag/knowledge_graph.py`，图谱落盘 `data/graph/` 幂等重建） |
@@ -151,7 +152,7 @@ graph TD
     dg --> cg[合规门<br/>静态边·不可绕过<br/>金额断言 + 红线]
     cg -->|PASS| aa[分级自动<br/>签发 / 转人工]
     cg -->|MODIFY| revise[代码重渲染修订] --> cg
-    cg -->|REJECT| human_gate[人工介入<br/>interrupt 挂起]
+    cg -->|REJECT<br/>含修订超轮数上限| human_gate[人工介入<br/>interrupt 挂起]
     aa -->|签发| END([__end__])
     aa -->|超阈值| human_gate
     human_gate -->|补件 / 签批 / 升级<br/>Command（resume）| END
@@ -211,7 +212,7 @@ docker compose -f docker-compose.yml -f docker-compose.replicas.yml up -d --scal
 ### 5.3 验证与测试
 
 ```bash
-uv run pytest -q                                   # 628 passed（2026-11-02 复测）
+uv run pytest -q                                   # 735 passed（2026-11-08 复测）
 uv run ruff check .
 uv run python -m evals.adjudication_suite          # 金样本评测门（确定性，零 LLM）
 uv run python -m evals.adjudication_suite --dataset adversarial          # 注入硬门（8 案）
@@ -251,7 +252,7 @@ CI 默认跑离线档，不需要任何 secret；仓库配了 `LLM_API_KEY` secr
 |--------------------------------|------|------|
 | 监控栈（Prometheus + Grafana） | `docker compose --profile monitoring up -d` | Prometheus `:9090`（TSDB 保留 30d）、Grafana `:3001`（仅本机，匿名只读）。两个仪表盘共 22 面板：核赔 10（自动结案率 / 转人工率 / 调度调用 / 守卫纠错 / 阶段耗时 P95 / 端到端耗时 / 案件量 / 核定金额 / 单案 Token 均值 / 单案成本 ¥）+ 监控总览 12（工具成功率 / 案件转人工率 / P95 时延 / 工具与 LLM 调用量 / 熔断 / Prompt 缓存四面板 / 工具缓存命中率；v1 陈旧面板已于 T179 清理）。另有 4 条告警规则 provisioning 自动加载：自动结案率骤降 / 队列积压 / LLM 失败率过高 / 死信未处置（T154+T182） |
 | 追踪栈（OTel + Jaeger）        | `docker compose --profile tracing up -d`<br>`.env` 设 `OTEL_ENABLED=true` | Jaeger UI `:16686`，span 含单调用 `gen_ai.usage.cache_read/miss_tokens` 原值（采样率 0.2） |
-| 坐席工作台（HITL + 客服）      | `cd workbench && npm install && npm run dev` | `:5173` 核赔工单列表 + 详情（审计时间线 / 决定书版本卡 / 签批改判表单）+ 客服工单（transcript / 回复 / 关闭）+ 叙述抽评审队列 |
+| 坐席工作台（HITL + 客服）      | `cd workbench && npm install && npm run dev` | `:5173` 核赔工单列表 + 详情（审计时间线 / 决定书版本卡 / 签批改判表单）+ 客服工单（transcript / 回复 / 关闭）+ 叙述抽评审队列。后端配了 `STAFF_KEYS` 时先在 `/login` 输入坐席 Key（存 HttpOnly Cookie，由 middleware 注入 `X-Staff-Key`，T215）；dev 未配置时免登录 |
 | 案件提交门户                   | `cd chatui && npm install && npm run dev` | `:3000` 提交 + 进度时间线 + 决定书查看 + 补件上传 + 悬浮 AI 客服（问答 / 查进度 / 转人工） |
 
 - 后端裸指标：`http://localhost:8000/metrics`（不需要监控栈）
@@ -319,7 +320,7 @@ uv run python -m evals.support_suite                            # 客服问答�
 | 接口 | 方法 | 说明 |
 |------|------|------|
 | `/api/v1/cases` | POST | 提交案件（自然键幂等；后台队列驱动核赔管线，受理即返回） |
-| `/api/v1/cases/{id}` | GET | 案件详情：进度 / 结论 / 决定书版本 / 审计时间线（seq 回放） |
+| `/api/v1/cases/{id}` | GET | 案件详情：进度 / 结论 / 决定书版本 / 审计时间线（坐席看完整 seq 回放；申请人只看白名单投影，内部错误、调度细节、落盘路径不外露，T212） |
 | `/api/v1/cases/{id}/materials` | POST | 上传材料（图片/PDF/Word 两段式提取；补件挂起时自动恢复流程） |
 | `/api/v1/cases/material-catalog` | GET | 险种材料目录（pack 单源派生，新险种上线前端零改动） |
 
@@ -331,10 +332,13 @@ uv run python -m evals.support_suite                            # 客服问答�
 > `X-Case-Token`（提交案件时创建回执一次性下发，库内只存 sha256 哈希；幂等重放不再
 > 下发），或有效 `X-Staff-Key`（坐席双通道）；chatui 前端用 path 级 cookie 自动携带。
 > dev 未配置 STAFF_KEYS 时沿坐席开放态放行（T147 兼容口径）。客服会话以客户端持有的
-> uuid4 会话 id 为能力凭证，不需要额外令牌。
+> uuid4 会话 id 为凭证；AI 客服查询案件进度还需会话级授权：用案件回执令牌调
+> `case-grants` 端点，chatui 在案件详情页打开客服时自动完成（T202，D088）。未授权和
+> 不存在的案件返回同一句话，防止枚举案件号。
 >
-> 🚦 **门户限流**（T172，D078）：`POST /cases` 与客服消息端点按客户端 IP 令牌桶限流
-> （默认 30 / 60 每分钟，超限 429 + `Retry-After`）；prod Redis 共享桶、dev 进程内存；
+> 🚦 **门户限流**（T172，D078）：`POST /cases`、材料上传（T213）与客服端点（建会话 /
+> 案件授权 / 发消息）按客户端 IP 令牌桶限流（默认 30 / 30 / 60 每分钟，超限 429 +
+> `Retry-After`）；prod Redis 共享桶、dev 进程内存；
 > 配额 0 = 不限流（负载测试在服务器侧置 `RATE_LIMIT_CASES_PER_MIN=0` 后压测），拒绝
 > 计数进 Prometheus（`claimflow_rate_limit_rejected_total`）。
 >
@@ -348,7 +352,7 @@ uv run python -m evals.support_suite                            # 客服问答�
 | 接口 | 方法 | 说明 |
 |------|------|------|
 | `/api/v1/interventions/cases` | GET | 核赔工单列表（补件 / 复核 / 升级挂起案件）🔒 |
-| `/api/v1/interventions/cases/{id}/resolve` | POST | 工单处理：签批 / 改判 / 补传 / 升级（坐席文本必过红线复审）🔒 |
+| `/api/v1/interventions/cases/{id}/resolve` | POST | 工单处理：签批 / 改判（含改判拒赔）/ 补传 / 升级。坐席文本必过红线复审；草稿含红线话术时不能直接签批（422，须改写）；改判金额须 ≥0、最多两位小数 🔒 |
 | `/api/v1/interventions/narrative-samples` | GET | 叙述抽评审队列（pending 样本 + 决定书全文 + 通过率统计）🔒 |
 | `/api/v1/interventions/cases/{id}/narrative-review` | POST | 叙述抽评：pass / revise + 评语（落审计事件）🔒 |
 | `/api/v1/interventions/jobs/dead` | GET | 死信队列清单（重试耗尽任务 + 死因，T182）🔒 |
@@ -363,6 +367,7 @@ uv run python -m evals.support_suite                            # 客服问答�
 | `/api/v1/support/conversations/{id}/messages` | GET | 三方消息时间线（user / assistant / agent） |
 | `/api/v1/support/conversations/{id}/messages` | POST | 发消息：ai 态 AI 应答；escalated 态坐席接管停答 |
 | `/api/v1/support/conversations/{id}/messages/stream` | POST | 发消息（SSE 流式 AI 应答，T180）：token / done / error 三态事件 |
+| `/api/v1/support/conversations/{id}/case-grants` | POST | 授权本会话查询某案件进度（`case_id` + 案件回执 `case_token`，T202） |
 | `/api/v1/support/tickets` | GET | 坐席客服工单队列（escalated 会话倒序 + 最新消息预览）🔒 |
 | `/api/v1/support/tickets/{id}` | GET | transcript 三方消息全文（closed 会话可查作审计）🔒 |
 | `/api/v1/support/tickets/{id}/reply` | POST | 坐席回复（role=agent 入时间线）🔒 |
@@ -458,10 +463,9 @@ README 只放结论和入口，完整的论证过程都在下面这些文档里�
 | [docs/architecture.md](docs/architecture.md) | 现状总览 17 节：分层架构 / 核赔主图 / Orchestrator / Worker 与 skill / 险种 pack / 合规与金额安全 / HITL / 客服域 / 记忆 / 交付队列 / 数据模型 / 可观测性 / 评测体系 / 部署 / 决策索引 / 已知限制 |
 | [docs/claimflow-新架构设计.md](docs/claimflow-新架构设计.md)（[人话版导读](docs/claimflow-新架构设计-人话版.md)） | 核赔重写（T077-T093）的工程版设计依据与通俗导读 |
 | [docs/diagrams/](docs/diagrams/) | 可交互工作流图（主图 / 案件流转，HTML + 明暗主题导出） |
-| [docs/exercises/](docs/exercises/) | 8 份动手练习（图编排 / 调度 / worker / 安全合规 / HITL / 评测门 / 工程化 / 新险种上线），可作教学与自学材料 |
-| [docs/interview/面试问答题库.md](docs/interview/面试问答题库.md) | 项目面试问答题库（按模块拆问） |
+| `docs/exercises/`、`docs/interview/` | 作者本地的动手练习与面试题库，未随仓库发布 |
 | [evals/reports/](evals/reports/) | 评测报告族：消融（T160）/ RAG（T161）/ 红队证据（T159）/ 缓存事件报告 / 对抗门 / judge 对账（T178）。正文引用的报告都在这里 |
-| [.agent/](.agent/) | 全程构建档案：[progress.md](.agent/progress.md) 构建日志、[decisions.md](.agent/decisions.md) 决策链 D001-D087、[tasks.md](.agent/tasks.md) 任务清单 T001-T185、[spec.md](.agent/spec.md) 需求规格、[plan.md](.agent/plan.md) 设计说明书 |
+| [.agent/](.agent/) | 全程构建档案：[progress.md](.agent/progress.md) 构建日志、[decisions.md](.agent/decisions.md) 决策链 D001-D094、[tasks.md](.agent/tasks.md) 任务清单 T001-T222、[spec.md](.agent/spec.md) 需求规格、[plan.md](.agent/plan.md) 设计说明书 |
 
 ---
 
