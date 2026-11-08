@@ -14,6 +14,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from schemas import contract
 
+# 仓库内曾公开出现的演示凭据（T216/I13）：prod 拒启——值已随 git 历史公开，
+# 用它们部署等于无鉴权 / 无加密。新增演示值须同步登记于此
+_KNOWN_DEMO_STAFF_KEYS: frozenset[str] = frozenset({"demo-key-2026"})
+_KNOWN_DEMO_PII_KEYS: frozenset[str] = frozenset({"demo-pii-key-2026-change-me"})
+
 
 class Profile(StrEnum):
     """运行 profile：dev=本地降级开发模式，prod=全量真实依赖。"""
@@ -273,19 +278,34 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _staff_keys_required_in_prod(self) -> "Settings":
-        """prod 必须配置坐席鉴权（secure by default：忘了配 = 启动失败，非静默裸奔）。"""
+        """prod 必须配置坐席鉴权（secure by default：忘了配 = 启动失败，非静默裸奔）。
+
+        T216/I13：只校验非空不够——compose 曾以仓库公开的演示账号兜底，漏配 .env 的
+        生产部署会带着公开口令静默通过。已知演示 Key 在 prod 一律拒启。
+        """
         if self.is_prod and not self.staff_key_map:
             raise ValueError(
                 "prod profile 必须配置 STAFF_KEYS（坐席端点鉴权，格式 'alice:xxx,bob:yyy'）"
+            )
+        if self.is_prod and set(self.staff_key_map) & _KNOWN_DEMO_STAFF_KEYS:
+            raise ValueError(
+                "prod profile 的 STAFF_KEYS 含仓库公开的演示 Key，请换成强随机 Key"
             )
         return self
 
     @model_validator(mode="after")
     def _pii_key_required_in_prod(self) -> "Settings":
-        """prod 必须配置 PII 加密密钥（T176，D082：空 key = dev 弱默认，prod 不接受）。"""
+        """prod 必须配置 PII 加密密钥（T176，D082：空 key = dev 弱默认，prod 不接受）。
+
+        T216/I13：公开已知的演示密钥等于没有加密（确定性 AES，密钥公开即可解密全库）。
+        """
         if self.is_prod and not self.pii_encryption_key:
             raise ValueError(
                 "prod profile 必须配置 PII_ENCRYPTION_KEY（证件号库内加密密钥）"
+            )
+        if self.is_prod and self.pii_encryption_key in _KNOWN_DEMO_PII_KEYS:
+            raise ValueError(
+                "prod profile 的 PII_ENCRYPTION_KEY 是仓库公开的演示密钥，请换成强随机密钥"
             )
         return self
 

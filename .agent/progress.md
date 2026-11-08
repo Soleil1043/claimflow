@@ -3454,3 +3454,20 @@ NEXT_PUBLIC_STAFF_KEY 读取，RSC 路径从 cookie 注入、401 改可操作提
   cookie 为 HttpOnly；带 cookie 经代理 200；带 cookie RSC 页正常渲染；无 cookie RSC
   页显示登录提示；返回 HTML 不含 Key；退出后 401
 - npm 父进程停止后 next 子进程残留占 5173，按命令行核对后结束
+
+## T216 · compose 演示默认值绕过 prod 门卫 I13（2026-11-08，D093）
+
+**改动**：config.py 新增已知演示凭据常量 + 两个 prod 校验器拒启；docker-compose.yml
+init/app 的 STAFF_KEYS/PII_ENCRYPTION_KEY 改 `:?` 必填（ASCII 提示）；ci.yml docker
+job 注入 run 级随机值；scripts/smoke_support_e2e.py、verify_adjudication.py 去掉演示
+fallback；.env.example 加生成命令与换密钥提示；README §5.2 补前置说明；
+claimflow-prod-test skill 预检加两枚密钥存在性检查。
+
+**验证**：config 4 条新用例（prod 拒演示 Key / 拒演示 PII 密钥 / 强值通过 / dev 不受影响）；
+Docker Compose v5.5.1 实测：无变量时 `docker compose config -q` 退出 1 且 init/app 四处
+插值全部报错，注入后 base 与 replicas 组合配置均通过（Git Bash 下 docker 在 /tmp 无
+输出，改用 PowerShell 在仓库目录验证）；ci.yml YAML 解析确认 env 只进 docker job。
+713 passed。
+
+**用户待办**：本地 `.env` 当前无 STAFF_KEYS/PII_ENCRYPTION_KEY——跑 docker 栈前需补；
+本地卷数据用旧演示 PII 密钥加密，需 `docker compose down -v` 重灌。

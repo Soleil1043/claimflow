@@ -1,5 +1,8 @@
 """app.core.config 单元测试。"""
 
+import pytest
+from pydantic import ValidationError
+
 from app.core.config import Profile, Settings
 
 
@@ -58,3 +61,28 @@ def test_invalid_profile_rejected() -> None:
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None, app_profile="staging")
+
+
+class TestDemoSecretsRejectedInProd:
+    """T216/I13：仓库公开过的演示凭据在 prod 拒启（漏配 .env 不再静默裸奔）。"""
+
+    def test_demo_staff_key_rejected_in_prod(self):
+        with pytest.raises(ValidationError, match="演示 Key"):
+            Settings(_env_file=None, app_profile="prod", staff_keys="demo-staff:demo-key-2026",
+                     pii_encryption_key="real-secret")
+
+    def test_demo_pii_key_rejected_in_prod(self):
+        with pytest.raises(ValidationError, match="演示密钥"):
+            Settings(_env_file=None, app_profile="prod", staff_keys="alice:real-key",
+                     pii_encryption_key="demo-pii-key-2026-change-me")
+
+    def test_strong_values_pass_in_prod(self):
+        s = Settings(_env_file=None, app_profile="prod", staff_keys="alice:k-1x",
+                     pii_encryption_key="strong-secret")
+        assert s.staff_key_map == {"k-1x": "alice"}
+
+    def test_demo_values_allowed_in_dev(self):
+        """dev/演示栈不受影响（黑名单只在 prod 生效）。"""
+        s = Settings(_env_file=None, app_profile="dev", staff_keys="demo-staff:demo-key-2026",
+                     pii_encryption_key="demo-pii-key-2026-change-me")
+        assert "demo-key-2026" in s.staff_key_map

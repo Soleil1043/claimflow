@@ -2516,3 +2516,24 @@ Key 直调 interventions/memory 端点（含删除申请人档案）。
 **残余风险（已知并接受）**：同源 XSS 仍可借浏览器发带 cookie 的请求（cookie 只防
 "读走 Key"，不防"代发请求"）——SameSite=Strict 挡跨站伪造；前端无
 dangerouslySetInnerHTML（审查附录已核）。
+
+## D093 · 演示凭据出仓：compose 必填注入 + prod 拒已知演示值（T216，2026-11-08）
+
+**背景**：审查 I13——compose 以 `${STAFF_KEYS:-demo-staff:demo-key-2026}`、
+`${PII_ENCRYPTION_KEY:-demo-pii-key-2026-change-me}` 兜底，而 prod 校验只看非空；
+漏配 .env 的生产部署会带着仓库公开可读的坐席口令与公开已知的确定性 AES 密钥
+静默通过启动校验，secure-by-default 被掏空。
+
+**取舍**：评审给的两条路（compose `:?` 必填 / validator 弱值黑名单）都做——
+单做黑名单则 compose 仍内嵌公开常量；单做 `:?` 则有人照抄演示值进 .env 仍放行。
+- compose：init/app 两处、两个变量改 `:?` 必填（ASCII 提示，Windows 控制台不乱码）
+- config：prod 下 staff_key_map 命中 `_KNOWN_DEMO_STAFF_KEYS`、pii key 命中
+  `_KNOWN_DEMO_PII_KEYS` 即拒启；dev 不受影响
+- CI docker job：job 级注入 run_id 派生的随机值（与仓库常量无关），冒烟脚本从同一
+  环境变量读 Key
+- 冒烟脚本去掉演示 fallback（未导出则不发头——dev 开放态本就不校验）
+
+**代价（需用户动作）**：本地 docker 栈不再"零配置"可起——`.env` 须补这两个变量；
+若本地 postgres 卷里的数据用旧演示 PII 密钥加密，换密钥后需 `docker compose down -v`
+重灌（演示数据为 mock 种子，可重建）。README §5.2、.env.example、prod-test skill
+预检同步。

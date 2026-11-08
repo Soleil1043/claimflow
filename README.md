@@ -192,6 +192,8 @@ cd chatui && npm install && npm run dev       # 案件提交门户 http://localh
 
 ### 5.2 Docker 一键（prod profile：PostgreSQL + Qdrant + Redis）
 
+先在 `.env` 里填好 `STAFF_KEYS` 和 `PII_ENCRYPTION_KEY`（compose 必填，生成方式见 `.env.example`；prod 会拒绝仓库里出现过的演示值）。
+
 ```bash
 docker compose up -d --build
 curl http://localhost:8000/health   # → {"status":"ok"}

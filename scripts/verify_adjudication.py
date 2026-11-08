@@ -148,10 +148,9 @@ async def upload_material(
 
 
 def _staff_headers() -> dict[str, str]:
-    """坐席端点鉴权头（T147）：读 STAFF_KEYS 取首个 Key；未配置回退 compose 演示
-    栈默认值（与 docker-compose.yml 对齐）。本地 dev 直跑无 Key 时服务端不校验，
-    多余 header 无害。"""
-    raw = os.environ.get("STAFF_KEYS") or "demo-staff:demo-key-2026"
+    """坐席端点鉴权头（T147/T216）：读 STAFF_KEYS 取首个 Key；未导出则不发头
+    （dev 开放态不校验；prod compose 必填注入后环境恒有值）。"""
+    raw = os.environ.get("STAFF_KEYS") or ""
     key = raw.split(",")[0].strip().partition(":")[2].strip()
     return {"X-Staff-Key": key} if key else {}
 

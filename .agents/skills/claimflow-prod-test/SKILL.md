@@ -17,6 +17,9 @@ description: 在本机对 claimflow 做生产环境（Docker prod profile）全�
 ```bash
 # 1. key 已配置（值隐藏，只看存在性）
 grep -c "^LLM_API_KEY=sk-" .env
+# 1b. compose 必填的两枚密钥（T216：无演示兜底，缺则 compose 直接报错；prod 拒演示值）
+grep -cE "^(STAFF_KEYS|PII_ENCRYPTION_KEY)=." .env   # 必须为 2；缺则按 .env.example 生成
+# 换过 PII_ENCRYPTION_KEY 的话，旧 postgres 卷里的密文解不开——需 docker compose down -v 重灌
 # 2. 端口占用——必须用 netstat，HTTP 探测对 5432/6379 等数据库端口无效（永远 000）
 netstat -ano | grep -E ":8000|:5432|:6333|:6379" | grep LISTENING
 # 3. Docker 存活 + 磁盘

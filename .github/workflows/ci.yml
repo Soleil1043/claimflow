@@ -130,6 +130,11 @@ jobs:
       # 冷自举 BGE 下载走镜像（T156 实锤：官方匿名限速 ~1MB/s，2.3G 超 30 分钟）；
       # compose 经 ${HF_ENDPOINT:-} 透传给 init/app，本地/生产不设不受影响
       HF_ENDPOINT: https://hf-mirror.com
+      # T216/I13：compose 两密钥必填注入（不再有仓库公开的演示兜底）；run 级随机值，
+      # 与仓库任何常量无关。PII 密钥 init/app 同值即可（迁移写、应用读）；
+      # 冒烟脚本从同一环境变量读坐席 Key
+      STAFF_KEYS: ci-smoke:${{ github.run_id }}-${{ github.run_attempt }}
+      PII_ENCRYPTION_KEY: ci-pii-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: 拉取项目代码到ubuntu
         uses: actions/checkout@v4

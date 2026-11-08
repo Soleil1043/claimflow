@@ -71,14 +71,14 @@ services:
       POSTGRES_PASSWORD: claimpass
       POSTGRES_DB: claim_agent
       QDRANT_URL: http://qdrant:6333
-      # 坐席鉴权（T147）：init 也是 prod profile——prod 启动强制校验 STAFF_KEYS
-      # 非空（D067），漏配会让初始化容器直接失败（T154 实测逮到）
-      STAFF_KEYS: ${STAFF_KEYS:-demo-staff:demo-key-2026}
+      # 坐席鉴权（T147）：init 也是 prod profile。必填注入（T216/I13）——此前仓库
+      # 公开的演示账号兜底，漏配 .env 的生产部署会带公开口令静默通过 prod 校验
+      STAFF_KEYS: ${STAFF_KEYS:?set STAFF_KEYS in .env, format name:random-key (see .env.example)}
       # HF 下载镜像（可选，T156）：冷自举匿名下载 BGE 2.3G 会被官方限速
       # （实测 ~1MB/s，30 分钟+）；CI 设 HF_ENDPOINT=https://hf-mirror.com 提速
       HF_ENDPOINT: ${HF_ENDPOINT:-}
-      # PII 库内加密密钥（T176，D082）：prod 强制非空；demo 默认值仅供本机演示
-      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-demo-pii-key-2026-change-me}
+      # PII 库内加密密钥（T176，D082）：必填注入，init 与 app 必须同密钥（迁移写、应用读）
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:?set a random PII_ENCRYPTION_KEY in .env (see .env.example)}
     volumes:
       - hf_cache:/root/.cache/huggingface
     depends_on:
@@ -100,9 +100,8 @@ services:
       QDRANT_URL: http://qdrant:6333
       REDIS_URL: redis://redis:6379/0
       LLM_API_KEY: ${LLM_API_KEY:-}
-      # 坐席端点鉴权（T147）：演示栈默认注入公开演示账号（与冒烟脚本 fallback 对齐）；
-      # 生产部署必须显式覆盖 STAFF_KEYS（强随机 Key），否则 prod 校验会拒绝启动
-      STAFF_KEYS: ${STAFF_KEYS:-demo-staff:demo-key-2026}
+      # 坐席端点鉴权（T147/T216）：必填注入；冒烟脚本从环境读同一变量（无演示 fallback）
+      STAFF_KEYS: ${STAFF_KEYS:?set STAFF_KEYS in .env, format name:random-key (see .env.example)}
       # 编排模式：默认 LLM 编排；CI 端到端冒烟设 false 走确定性编排（消除模型抖动，
       # 材料提取仍按 Key 有无决定走真实 LLM 或 Mock 兜底）
       ORCHESTRATOR_LLM_ENABLED: ${ORCHESTRATOR_LLM_ENABLED:-true}
@@ -115,8 +114,8 @@ services:
       OTEL_SAMPLING_RATIO: ${OTEL_SAMPLING_RATIO:-0.2}
       # 同 init：HF 镜像透传（仅在卷内无快照需要在线补拉时生效）
       HF_ENDPOINT: ${HF_ENDPOINT:-}
-      # PII 库内加密密钥（T176，D082）：init 与 app 必须同密钥（迁移写、应用读）
-      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-demo-pii-key-2026-change-me}
+      # PII 库内加密密钥（T176，D082/T216）：必填注入，init 与 app 必须同密钥
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:?set a random PII_ENCRYPTION_KEY in .env (see .env.example)}
       # LLM 单价表（T177，D083）：容器内成本估算与 .env 同源（T166 教训：不透传落默认值）
       LLM_PRICING: ${LLM_PRICING:-}
     ports:
