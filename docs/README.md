@@ -7,7 +7,7 @@
 | 同上人话版导读 | [`claimflow-新架构设计-人话版.md`](claimflow-新架构设计-人话版.md) |
 | 主图/流程图（Mermaid 导出 HTML + 校验截图） | `diagrams/` |
 | 界面截图（工作台 / Jaeger / 三界面重构） | `screenshots/` `diagrams/t0*.png` |
-| 练习手册（图编排→毕业项目八课） | [`exercises/`](exercises/README.md) |
+| 练习手册（图编排→毕业项目八课） | `exercises/`（作者本地，未随仓库发布） |
 
 ## 约定
 
