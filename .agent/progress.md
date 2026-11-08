@@ -3553,3 +3553,20 @@ get_vision_model 两处构造模型，均挂 UsageRecordingHandler，删除后�
 
 **影响**：历史评测报告中的 tokens_per_case / llm_calls_avg（LLM 档）含该虚高，修复后
 同口径重跑数值会下降，比较时需注意口径断点（确定性档零 LLM 不受影响）。
+
+## T221 · 恢复误删的 RAG 测试 I20（2026-11-08）
+
+**背景**：T093 v1 咨询代码清理（commit 54b2b4f）连带删除 tests/rag/test_graph_retriever.py
+（175 行）与 test_reranker.py（160 行），但 graph_retriever 是在线路径活代码
+（claim_rule_rag 每次检索调用 search_graph，图检索默认开）——实体链接、多跳扩展、
+开关降级、文件缺失回退此后零覆盖，与 progress 记载的"14 用例"矛盾。
+
+**恢复**：
+- test_graph_retriever.py：自 54b2b4f^ 原样恢复，14 条对现行代码全部通过（文件头补恢复说明）
+- test_reranker.py：恢复 3 条 rerank_chunks 纯逻辑用例（排序截取 / 打分故障回退向量序 /
+  空候选）；原 rag_node 开关语义用例依赖已删除的 v1 nodes/rag.py，在线链路当前不接精排，
+  不恢复（文件头说明）
+- 清理 tests/ 下 28 个孤儿 .pyc（v1 已删测试的缓存残留，均被 git 忽略、未入库），
+  空 __pycache__ 一并删除
+
+**验证**：735 passed（718 + 17）。
