@@ -115,7 +115,7 @@
 
 **依赖**：
 
-- **DeepSeek API**（deepseek-flash，原生多模态兼 vision）——可配置切换供应商（GLM 已接，A/B 变体见 `evals/variants.py`）
+- **DeepSeek API**（deepseek-flash，原生多模态兼 vision）——OpenAI 兼容接口，可配置切换供应商（早期 GLM A/B 变体与 `evals/variants.py` 已随 v1 清理移除）
 - **BGE-M3权重**（本地缓存，`hf_cache` 卷；CI 走 `download_bge_ci.py` 预热避免 huggingface.co 不可达）
 - PostgreSQL / Qdrant / Redis（compose 单容器，非外部托管服务）
 
