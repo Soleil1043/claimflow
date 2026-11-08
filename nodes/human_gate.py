@@ -113,8 +113,13 @@ def resolve_review(state: ClaimCaseState, resolution: dict[str, Any]) -> dict[st
             "clause_references": base_decision.get("clause_references", []) or [],
         },
         calc={
-            "approved_amount": str(resolution.get("approved_amount")
-                                   or base_decision.get("approved_amount") or "0"),
+            # 坐席给了金额（含 0）就用坐席的，未给才回退既有核定（T211/I8：
+            # 判空用 is None——Command(resume) 直传的 Decimal("0") 是 falsy）
+            "approved_amount": str(
+                resolution["approved_amount"]
+                if resolution.get("approved_amount") is not None
+                else base_decision.get("approved_amount") or "0"
+            ),
             "calculation_basis": "人工改判核定",
             "deductions": [],
         },

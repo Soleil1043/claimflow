@@ -3383,3 +3383,18 @@ material_review 只读 state——后传材料对完整性判定永久不可见�
 **验证**：新增 2 用例（叙述夹带矛盾金额 → MODIFY；三变体正确金额 PASS + 两变体
 矛盾金额 FAIL），旧代码 2 条全挂。693 passed；六门全绿（叙述由确定性模板渲染，
 不含额外金额行，收紧未误伤）。
+
+## T211 · 坐席改判金额约束 + 0 元被吞 I8（2026-11-08）
+
+**根因**：①`CaseResolveRequest.approved_amount` 无约束（对照 claimed_amount 的
+`gt=0, max_digits=12`），负数/天文数字可直达决定书与落库；②build_agent_resolution
+`str(x) if x else None` 把 `Decimal("0")` 当假值吞成 None → human_gate `or` 回退链
+取旧核定金额——"改判 0 元"落库成原金额，决定书与坐席决议不符（与 T200 发现的
+extract_outcome falsy-zero 同一病理）。
+
+**修复**：schema `ge=0, max_digits=12, decimal_places=2`（允许 0）；case_service 与
+human_gate rewrite 分支改 `is not None` 判空（节点侧防 Command(resume) 直传 Decimal 0）。
+human_gate 签发落库处 `issued.get(...) or "0"` 回退为 0 本身正确，未动。
+
+**验证**：节点 2 条（Decimal 0 / "0.00" 按 0 签发；未给金额回退既有 4640）+ API 4 条
+（改判 0 元决定书与案件落库均 0；负数/超位/超小数 422）。旧代码 5 条挂。六门全绿。

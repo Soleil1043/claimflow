@@ -130,3 +130,23 @@ def test_confirm_existing_red_line_body_blocked() -> None:
         _state(tainted), {"action": "confirm", "note": "复核通过", "resolved_by": "agent-07"},
     )
     assert update == {"final_decision": "referred"}
+
+
+def test_rewrite_zero_amount_not_swallowed() -> None:
+    """T211/I8：改判 0 元（Decimal 0 / "0.00"）按 0 签发，不回退既有核定金额。"""
+    for zero in (Decimal("0"), "0.00"):
+        update = resolve_review(
+            _state(_existing_doc("covered")),
+            {"action": "rewrite", "decision": "partial", "approved_amount": zero,
+             "note": "核减至 0", "resolved_by": "agent-08"},
+        )
+        assert Decimal(str(update["decision_document"]["approved_amount"])) == Decimal("0")
+
+
+def test_rewrite_without_amount_falls_back_to_existing() -> None:
+    """坐席未给金额 → 回退既有决定书核定金额（4640.00）。"""
+    update = resolve_review(
+        _state(_existing_doc("covered")),
+        {"action": "rewrite", "decision": "partial", "note": "仅改理由", "resolved_by": "a"},
+    )
+    assert Decimal(str(update["decision_document"]["approved_amount"])) == Decimal("4640.00")

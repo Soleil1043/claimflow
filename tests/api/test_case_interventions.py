@@ -222,6 +222,36 @@ async def test_review_confirm_red_line_draft_rejected_422(env) -> None:
     assert rewrite.json()["status"] == "closed"
 
 
+async def test_review_rewrite_zero_amount_persisted(env) -> None:
+    """T211/I8：坐席改判 0 元 → 决定书与案件落库均为 0（不再静默回退理算金额）。"""
+    ac, _ = env
+    high = await _submit(ac, claimed_amount="62000.00",
+                         incident_description="骑车摔伤骨折，费用62000元。")
+    resolved = await ac.post(
+        f"/api/v1/interventions/cases/{high['case_id']}/resolve",
+        json={"action": "rewrite", "decision": "partial", "approved_amount": "0",
+              "note": "全额核减", "resolved_by": "agent-02"},
+    )
+    body = resolved.json()
+    assert body["status"] == "closed"
+    assert Decimal(str(body["approved_amount"])) == Decimal("0")
+    assert Decimal(str(body["decision_document"]["approved_amount"])) == Decimal("0")
+
+
+@pytest.mark.parametrize("bad", ["-100.00", "12345678901234.00", "1.234"])
+async def test_review_rewrite_amount_bounds_422(env, bad: str) -> None:
+    """改判金额 schema 约束：负数 / 超 12 位 / 超两位小数 → 422，不进流程。"""
+    ac, _ = env
+    high = await _submit(ac, claimed_amount="62000.00",
+                         incident_description="骑车摔伤骨折，费用62000元。")
+    resolved = await ac.post(
+        f"/api/v1/interventions/cases/{high['case_id']}/resolve",
+        json={"action": "rewrite", "decision": "approved", "approved_amount": bad,
+              "note": "x", "resolved_by": "agent-02"},
+    )
+    assert resolved.status_code == 422
+
+
 async def test_escape_resolve_referred(env) -> None:
     """受理升级（未上线险种）→ resolve 后终态 referred。"""
     ac, _ = env

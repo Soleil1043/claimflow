@@ -205,7 +205,11 @@ class CaseResolveRequest(BaseModel):
 
     action: Literal["confirm", "rewrite"] | None = None
     decision: Literal["approved", "rejected", "partial"] | None = None
-    approved_amount: Decimal | None = None
+    # 与 claimed_amount 同口径约束（T211/I8）：负数/天文数字不得直达决定书与落库；
+    # 允许 0（改判 0 元是合法决议）
+    approved_amount: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2
+    )
     reason: str | None = Field(default=None, max_length=500)
     body: str | None = Field(default=None, max_length=4000)
     note: str = Field(default="", max_length=1000)

@@ -170,7 +170,9 @@ def build_agent_resolution(
         "kind": kind,
         "action": action,
         "decision": decision,
-        "approved_amount": str(approved_amount) if approved_amount else None,
+        # is None 判空（T211/I8）：Decimal("0") 是 falsy，旧写法把"改判 0 元"吞成
+        # None，human_gate 回退链静默取用旧核定金额落库
+        "approved_amount": str(approved_amount) if approved_amount is not None else None,
         "reason": reason,
         "body": body,
         "note": note,
