@@ -22,7 +22,8 @@ tools/
 ## 约定
 
 - 工具经 `factory.py` 统一装配（重试 / 熔断 / 缓存白名单），不散装 new；
-- 幂等工具（policy_query / record_query / claim_rule_rag…）结果走缓存（TTL 可配）；
+- 幂等工具结果走缓存（TTL 可配）：默认白名单 `diagnosis_matcher`、`claim_rule_rag`；
+  `policy_query` / `record_query` 返回证件号等 PII，默认不缓存（T214/D091，`TOOL_CACHE_TOOLS` 可显式加回）；
 - Mock 数据从 `data/mock/` 与 DB 种子读取，结构参考真实理赔场景；
 - 工具描述面向 LLM 阅读写清楚"何时该用我"。
 
