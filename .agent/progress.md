@@ -3570,3 +3570,14 @@ get_vision_model 两处构造模型，均挂 UsageRecordingHandler，删除后�
   空 __pycache__ 一并删除
 
 **验证**：735 passed（718 + 17）。
+
+## T222 · 多实例指引补 QDRANT_LOCAL_PATH I21（2026-11-08）
+
+**根因**：项目自己的 scripts/verify_multiinstance.py 注释写明"qdrant local 不支持双进程
+同目录"并给每实例独立路径，但 AGENTS.md 注意事项第 5 条只要求 CHECKPOINT_BACKEND=sqlite——
+照文档起的双实例默认共享 ./data/qdrant（嵌入式引擎无跨进程锁），第二个实例首次 RAG
+调用即异常或存储损坏。
+
+**改动**：AGENTS.md 第 5 条、.env.example（QDRANT_LOCAL_PATH 上方注释）、
+docs/architecture.md 两处（§多实例 与 D071 说明）同步补"每实例独立 QDRANT_LOCAL_PATH"。
+纯文档，`git diff --check` 通过，未跑 pytest。

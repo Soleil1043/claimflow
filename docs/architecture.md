@@ -281,7 +281,7 @@ callbacks 传播到节点内 chat model（真实模型实测，假模型探针�
   （提交/补件/工单处理）收口单一生命周期函数（D049）；
 - 幂等：自然键（user_id, policy_no, claimed_amount, incident_date）唯一约束，
   重复提交返回既有结论；
-- 多实例（T155，D071）：认领带租约（locked_by/lease_expires_at + 心跳续租），崩溃实例任务由租约到期接管；dev 多实例须 `CHECKPOINT_BACKEND=sqlite` 共享 checkpoint；
+- 多实例（T155，D071）：认领带租约（locked_by/lease_expires_at + 心跳续租），崩溃实例任务由租约到期接管；dev 多实例须 `CHECKPOINT_BACKEND=sqlite` 共享 checkpoint，且各实例设独立 `QDRANT_LOCAL_PATH`（local mode 无跨进程锁，T222）；
 - 状态机：received → 补件挂起 / 转人工挂起 / auto_issued / referred / closed…
   （`schemas/case.py` CaseStatus；终态集合单源）；
 - 死信闭环（T182，D087）：重试耗尽 status=dead + job_failed 审计 → 发现
@@ -510,7 +510,7 @@ DeepSeek 缓存按前缀命中：遇到第一个不同 token 即停止，其后�
   历史事件保留原样，回放工具仍会报告这些异常。
 - 日志只写 stdout，不持久保存。事后回溯需要另配 logging driver。
 - dev 多实例下记忆 store 与工具缓存仍进程内（T155 已知边界，prod 共享
-  无此问题）；dev 多实例另须显式 `CHECKPOINT_BACKEND=sqlite`（T145 验证）
+  无此问题）；dev 多实例另须显式 `CHECKPOINT_BACKEND=sqlite`（T145 验证）并给每个实例独立的 `QDRANT_LOCAL_PATH`（T222）
 - 交付队列每实例一消费者、租约互斥（T155/D071）：SKIP LOCKED 升级判据已落档未实施
   （日案件量 >1 万或积压排空 >10 分钟才升级，当前量级远未触发）
 

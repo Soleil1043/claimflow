@@ -224,7 +224,9 @@ claimflow/
 5. **dev 多实例须共享 checkpoint**：交付队列已多实例安全（T155 租约认领，D071），
    但 dev 默认 checkpointer 是进程内存——多实例（多端口/多进程共享同一 data 目录）
    必须显式设 `CHECKPOINT_BACKEND=sqlite`，否则他实例认领 RESUME 后找不到
-   checkpoint 会触发版本门卫全新重跑（T145 实锤）。本地复现双实例：
+   checkpoint 会触发版本门卫全新重跑（T145 实锤）；同时**每个实例必须设各自独立的
+   `QDRANT_LOCAL_PATH`**——Qdrant local mode 是嵌入式引擎、无跨进程锁，双进程共用
+   默认 `./data/qdrant` 时第二个实例首次 RAG 调用即异常或存储损坏（T222）。本地复现双实例：
    `uv run python -m scripts.verify_multiinstance --boot --offline`（自起 8010/8011）；
    prod 多副本冒烟在 CI docker job 以 `docker-compose.replicas.yml --scale app=2` 执行
 6. **改动守评测门**：任何涉及调度 / 理算 / 决定书的改动，合并前必跑
